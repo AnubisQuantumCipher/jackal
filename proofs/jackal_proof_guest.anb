@@ -1,0 +1,62 @@
+// JACKAL proof guest — the calculator's integer core, run inside the RISC0
+// zkVM. The receipt's ImageID binds THIS program; the journal commits how many
+// invariants held. A third party verifies with:
+//   anubis verify-receipt --receipt receipt.bin --image-id image_id.txt
+// and needs to trust neither the host that ran it nor the author.
+
+fn gcd(a: i64, b: i64) -> i64 {
+    let x = a;
+    let y = b;
+    if x < 0 { x = -x; }
+    if y < 0 { y = -y; }
+    while y != 0 {
+        let remainder = x % y;
+        x = y;
+        y = remainder;
+    }
+    return x;
+}
+
+fn choose(n: i64, r: i64) -> i64 {
+    // Same gcd-reduced multiplicative algorithm as the JACKAL mainline:
+    // exact for every i64-representable binomial, no intermediate overflow.
+    let k = r;
+    if n - r < k { k = n - r; }
+    let result = 1;
+    let i = 1;
+    while i <= k {
+        let factor = n - k + i;
+        let g = gcd(factor, i);
+        let reduced_factor = factor / g;
+        let reduced_step = i / g;
+        let partial = result / reduced_step;
+        result = partial * reduced_factor;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn is_prime(value: i64) -> i64 {
+    if value < 2 { return 0; }
+    if value == 2 { return 1; }
+    if value % 2 == 0 { return 0; }
+    let divisor = 3;
+    while divisor <= value / divisor {
+        if value % divisor == 0 { return 0; }
+        divisor = divisor + 2;
+    }
+    return 1;
+}
+
+fn main() {
+    let passed = 0;
+    if gcd(462, 1071) == 21 { passed = passed + 1; }
+    if gcd(0, 7) == 7 { passed = passed + 1; }
+    if choose(10, 3) == 120 { passed = passed + 1; }
+    if choose(29, 14) == 77558760 { passed = passed + 1; }
+    if choose(34, 17) == 2333606220 { passed = passed + 1; }
+    if is_prime(104729) == 1 { passed = passed + 1; }
+    if is_prime(104730) == 0 { passed = passed + 1; }
+    if 462 / gcd(462, 1071) * 1071 == 23562 { passed = passed + 1; }
+    return passed;
+}

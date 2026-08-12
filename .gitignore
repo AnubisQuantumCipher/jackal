@@ -1,0 +1,11 @@
+# Reproducible build artifact — regenerated from jackal_calc.anb via the pinned
+# Anubis compiler (see the launcher and README). Its expected SHA-256 is
+# documented in README.md rather than tracked here, so history stays lean.
+jackal-native
+
+# Ephemeral run/verify logs
+*.log
+
+# Anubis scratch build dirs
+/tmp/
+*.tmp

@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+NATIVE="$ROOT/jackal-native"
+ANUBIS_BIN=${ANUBIS_BIN:-/Users/sicarii/anubis-lang/vm/pins/anubis-51f4a964347a}
+
+# Prefer the verified native Anubis artifact. Set JACKAL_FORCE_SOURCE=1 to
+# re-check/recompile through the pinned Anubis runner during development.
+if [ "${JACKAL_FORCE_SOURCE:-0}" != "1" ] && [ -x "$NATIVE" ]; then
+    exec "$NATIVE" "$@"
+fi
+exec "$ANUBIS_BIN" run "$ROOT/jackal_calc.anb" --out /tmp/jackal-calc-run -- "$@"

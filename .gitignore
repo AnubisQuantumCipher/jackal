@@ -16,3 +16,6 @@ jackal-native
 
 # Python bytecode from the test harness
 tests/__pycache__/
+
+# Lean build artifacts (Mathlib cache is multi-GB)
+proofs/lean/.lake/

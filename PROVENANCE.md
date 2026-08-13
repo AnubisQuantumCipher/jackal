@@ -50,9 +50,22 @@ divergence was traced through the pipeline stage by stage:
    rustc session inputs (upstream anubis-lang fix, filed 2026-08-13), that
    content hash becomes the rebuild-and-verify reproducibility check.
 
-Until that upstream fix lands, the chain binds the exact shipped binary
-above — the artifact every gate receipt was produced against — plus the
-deterministic transpile hash in (1).
+Until that upstream fix lands in a promoted pin, the chain binds the exact
+shipped binary above — the artifact every gate receipt was produced
+against — plus the deterministic transpile hash in (1).
+
+**Upstream fix: implemented and verified (2026-08-13).** The cause was
+confirmed as the randomized per-build Cargo package name in the compiler's
+native pipeline (`compile_native_rust_to_exe`), which feeds cargo's crate
+metadata hash and hence symbol mangling and codegen-unit layout. Patched in
+the anubis-lang working tree to a content-derived package name
+(`anubis_run_<sha256(generated .rs)[..12]>`); with the patched compiler,
+repeated clean builds of this repo's `jackal_calc.anb` are **fully
+byte-identical** (three builds, including one from an out-dir path containing
+spaces, all SHA-256
+`609de1035be62a5183ad6555b97402567c9e4539b41806a5b52974f6be9030ae`), and the
+83/83 self-test passes. JACKAL's own pinned compiler predates the fix; the
+rebuild-and-verify upgrade lands here when a fixed pin is promoted.
 
 ## Gate receipts (2026-08-13, all green)
 
@@ -64,6 +77,8 @@ deterministic transpile hash in (1).
 | Seeded containment campaign (`tests/bound_campaign.py 250 20260813`, run against `jackal-native` `c37a256c…`) | BOUND_OK=246 REFUSED=4 ORACLE_SKIP=0 **CONTAINMENT_VIOLATION=0 WIDTH_VIOLATION=0** |
 | Campaign JSONL (`/tmp/jackal-bound-campaign.jsonl`) SHA-256 | `4473208f8e15715f67734fc14a322afca9c52687448f93f2357768e1d36186fa` |
 | Adversarial multi-lens review (4 lenses, 20 agents, adversarial verify per finding) | 11 confirmed findings (2 critical soundness, 2 major honesty, 7 minor) — all fixed in commit `8a71540` with regression coverage; 2 findings refuted |
+| Cross-implementation differential gate (`tests/iv_differential.py 300 20260813`, vs mpmath.iv + 40-digit point sampling) | OK=300 REFUSED=0 **POINT_VIOLATION=0 DISJOINT_IMPLEMENTATIONS=0**; median width ratio vs mpmath.iv = 1.000; JSONL sha256 `60fe6093bd015849609586fc374be448139ab2293a5a07109dc84a802ed89f6a` |
+| Lean 4 mechanization of the interval model (`proofs/lean`, mathlib v4.32.0) | `lake build` green; 60+ theorems, zero `sorry`; `#print axioms` on all flagship theorems (incl. `taylor2/4_midpoint_enclosure`) = `[propext, Classical.choice, Quot.sound]` only; residuals enumerated in `JackalIv/Ledger.lean` |
 
 ## zk-receipt binding (reconciled)
 

@@ -198,8 +198,21 @@ How it works, and exactly what it claims:
   ops; math-library calls within 2 ulp (including argument reduction); and the
   implementation itself is *tested, not mechanized* — a seeded containment campaign
   (`tests/bound_campaign.py`) checks every printed enclosure against an independent
-  symbolic-antiderivative oracle, where the only fatal verdict is a bound that excludes the
-  truth.
+  symbolic-antiderivative oracle, and a differential gate (`tests/iv_differential.py`)
+  checks every range enclosure against 40-digit point sampling and mpmath's independent
+  interval arithmetic. The only fatal verdict in either is a bound that excludes the truth.
+- **The model is machine-checked.** [`proofs/lean/`](proofs/lean/) is a Lean 4 + Mathlib
+  development (60+ theorems, zero `sorry`, axiom footprint audited to Lean's standard
+  three) proving, over the stated rounding model: the pad-beats-rounding core; containment
+  of the add/sub/neg/mul/div interval ops (both division sign cases); the generic
+  monotone-endpoint rule with exp/sqrt/log/arctan/arcsin/arccos instances; sin/cos range
+  soundness across all widening branches; the float-midpoint containment chain that fixed
+  the 2026-08-13 adversarial-review bug; and the Taylor-2/Taylor-4 midpoint integral
+  enclosures — the engine's `h³/24` and `h⁵/1920` are now theorems, not constants. What is
+  *not* proven — libm actually meeting its 2-ulp model, the float critical-point test's
+  conservativity, and the Anubis-implementation-to-binary gap — is enumerated in
+  [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean); the engine's
+  printed `implementation-tested-not-mechanized` residual therefore stays, accurately.
 
 `integrate-bound` is deliberately the slowest lane — certification costs evaluations. For a
 fast heuristic with refusal semantics use `integrate-adaptive`; for raw speed use `integrate`

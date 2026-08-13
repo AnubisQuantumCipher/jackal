@@ -1,13 +1,62 @@
 #!/bin/sh
+# JACKAL launcher.
+#
+# Fast path: exec the prebuilt native artifact (./jackal-native) when present.
+# It is gitignored, so a fresh clone won't have it — in that case JACKAL runs
+# from source through an Anubis compiler resolved in this order:
+#   1. $ANUBIS_BIN            explicit override (path to an anubis binary)
+#   2. the pinned compiler    if present at $HOME (the exact one the engine was
+#                             built against — preferred over an arbitrary PATH
+#                             `anubis`, which may be an incompatible build)
+#   3. `anubis` on $PATH      last resort for a machine without the pin
+#
+# If none is found, it prints how to fix it and exits non-zero — never a
+# silent or misleading failure. See README "Build from source".
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 NATIVE="$ROOT/jackal-native"
-ANUBIS_BIN=${ANUBIS_BIN:-/Users/sicarii/anubis-lang/vm/pins/anubis-51f4a964347a}
+OUT="${JACKAL_OUT:-${TMPDIR:-/tmp}/jackal-calc-run}"
 
-# Prefer the verified native Anubis artifact. Set JACKAL_FORCE_SOURCE=1 to
-# re-check/recompile through the pinned Anubis runner during development.
 if [ "${JACKAL_FORCE_SOURCE:-0}" != "1" ] && [ -x "$NATIVE" ]; then
     exec "$NATIVE" "$@"
 fi
-exec "$ANUBIS_BIN" run "$ROOT/jackal_calc.anb" --out /tmp/jackal-calc-run -- "$@"
+
+resolve_anubis() {
+    if [ -n "${ANUBIS_BIN:-}" ] && [ -x "$ANUBIS_BIN" ]; then
+        printf '%s' "$ANUBIS_BIN"
+        return 0
+    fi
+    _pin="$HOME/anubis-lang/vm/pins/anubis-51f4a964347a"
+    if [ -x "$_pin" ]; then
+        printf '%s' "$_pin"
+        return 0
+    fi
+    if command -v anubis >/dev/null 2>&1; then
+        command -v anubis
+        return 0
+    fi
+    return 1
+}
+
+if ANUBIS=$(resolve_anubis); then
+    exec "$ANUBIS" run "$ROOT/jackal_calc.anb" --out "$OUT" -- "$@"
+fi
+
+printf '%s\n' \
+  'jackal: cannot run — no native binary and no Anubis compiler found.' \
+  '' \
+  'JACKAL is written in the Anubis language, so it needs the Anubis compiler to' \
+  'build or run from source. Do ONE of:' \
+  '' \
+  '  1. Point at an Anubis compiler:' \
+  '       ANUBIS_BIN=/path/to/anubis ./jackal help' \
+  '     (or put an `anubis` executable on your PATH)' \
+  '' \
+  '  2. Build the native binary once, then run it directly:' \
+  '       ANUBIS_BIN=/path/to/anubis ./jackal help   # first run compiles + runs' \
+  '     or see README "Build from source" to produce ./jackal-native.' \
+  '' \
+  'The pinned compiler that built the committed engine is anubis-51f4a964347a' \
+  '(its digest is recorded in README.md).' >&2
+exit 127

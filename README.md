@@ -50,13 +50,56 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
 ## Run
 
 ```bash
-cd /Users/sicarii/Desktop/jackal-calc
+git clone https://github.com/AnubisQuantumCipher/jackal-calc.git
+cd jackal-calc
 ./jackal help
 ./jackal self-test
 ```
 
-`./jackal` prefers the checked native ARM64 artifact `jackal-native`; set
-`JACKAL_FORCE_SOURCE=1` to execute through the pinned Anubis runner during development.
+The `./jackal` launcher prefers a prebuilt native artifact (`jackal-native`) and otherwise
+runs the Anubis source through a compiler it resolves in this order:
+
+1. `$ANUBIS_BIN` — an explicit path you set;
+2. the pinned compiler at `$HOME/anubis-lang/vm/pins/anubis-51f4a964347a`, if present;
+3. an `anubis` executable on your `PATH`.
+
+If none is found it prints exactly how to fix it and exits non-zero — it never fails silently or
+misleadingly. `jackal-native` is **not** committed (it is a reproducible, Apple-Silicon-specific
+build artifact); a fresh clone therefore runs from source and needs an Anubis compiler — see
+**Build from source** below.
+
+## Build from source
+
+JACKAL is written in the [Anubis](https://github.com/AnubisQuantumCipher) language, so building or
+running it from a clean checkout requires the Anubis compiler. There is no way around this: the
+engine *is* Anubis source.
+
+**1. Get an Anubis compiler.** Use the pinned build the committed engine was verified against
+(`anubis-51f4a964347a`), or any Anubis toolchain that accepts `anubis run <file> --out <dir> -- <args>`.
+
+**2. Point JACKAL at it** — either put `anubis` on your `PATH`, place the pin at
+`$HOME/anubis-lang/vm/pins/anubis-51f4a964347a`, or set `ANUBIS_BIN` explicitly:
+
+```bash
+export ANUBIS_BIN=/path/to/anubis
+./jackal self-test          # first run compiles the engine, then runs it
+./jackal eval "sqrt(2)*exp(sin(pi/7))"
+```
+
+**3. (Optional) produce a standalone native binary.** The first source run compiles a native
+executable under the Anubis out-dir; copy it to `jackal-native` so later invocations skip the
+compiler entirely:
+
+```bash
+ANUBIS_BIN=/path/to/anubis JACKAL_FORCE_SOURCE=1 JACKAL_OUT=./.build ./jackal self-test
+cp ./.build/anubis_run ./jackal-native && chmod +x ./jackal-native
+./jackal self-test          # now uses the native artifact, no Anubis needed
+```
+
+**Reproducibility.** Building the committed source with the pinned compiler yields a native binary
+whose SHA-256 is recorded in the verification receipt below. `JACKAL_FORCE_SOURCE=1` always bypasses
+any prebuilt binary and runs through the compiler; `JACKAL_OUT` overrides the scratch out-dir
+(default: `$TMPDIR/jackal-calc-run`).
 
 ## The unusual part: calculation claim cards
 

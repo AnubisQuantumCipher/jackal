@@ -9,3 +9,5 @@ jackal-native
 # Anubis scratch build dirs
 /tmp/
 *.tmp
+.build/
+

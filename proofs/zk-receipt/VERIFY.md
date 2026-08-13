@@ -12,7 +12,8 @@ proof nor its author.
 ## Verify
 
 ```bash
-/Users/sicarii/anubis-lang/vm/pins/anubis-51f4a964347a verify-receipt \
+# any Anubis toolchain works; the current pin is anubis-a733565f237d
+$HOME/anubis-lang/vm/pins/anubis-a733565f237d verify-receipt \
   --receipt proofs/zk-receipt/receipt.bin \
   --image-id proofs/zk-receipt/image_id.txt
 ```

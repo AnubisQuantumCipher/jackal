@@ -1,9 +1,19 @@
 # JACKAL CALC — CLAIM-AWARE STEM ENGINE
 
-JACKAL is a deterministic, offline STEM engine written in **Anubis Safe mode**. It does not try
-to win by adding another wall of buttons. It treats a serious calculation as a bounded scientific
-claim: value, units, uncertainty, method, assumptions, sensitivity, residual, non-claims, and a
-reproducible fingerprint where applicable.
+JACKAL is a deterministic, offline STEM calculator with one unusual property: **every answer
+tells you what kind of answer it is** — `exact`, `bounded` (a certified interval enclosure),
+`checked`, `estimated`, or `model-based` — and what it would take to trust it. When JACKAL
+cannot stand behind a number, it refuses with a named reason instead of printing something
+plausible.
+
+**New here? Start with [GETTING-STARTED.md](GETTING-STARTED.md)** — install (released binary
+for Apple Silicon macOS, or build from source with an Anubis compiler), first commands, and
+how to read the trust labels. License: [MIT](LICENSE).
+
+JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
+buttons. It treats a serious calculation as a bounded scientific claim: value, units,
+uncertainty, method, assumptions, sensitivity, residual, non-claims, and a reproducible
+fingerprint where applicable.
 
 Every product model, formula, validation rule, unit policy, algorithm, formatter, command route,
 claim-card generator and executable invariant is in `jackal_calc.anb`. Python is only an external
@@ -70,13 +80,14 @@ The `./jackal` launcher prefers a prebuilt native artifact (`jackal-native`) and
 runs the Anubis source through a compiler it resolves in this order:
 
 1. `$ANUBIS_BIN` — an explicit path you set;
-2. the pinned compiler at `$HOME/anubis-lang/vm/pins/anubis-51f4a964347a`, if present;
+2. the pinned compiler at `$HOME/anubis-lang/vm/pins/anubis-a733565f237d`, if present;
 3. an `anubis` executable on your `PATH`.
 
 If none is found it prints exactly how to fix it and exits non-zero — it never fails silently or
-misleadingly. `jackal-native` is **not** committed (it is a reproducible, Apple-Silicon-specific
-build artifact); a fresh clone therefore runs from source and needs an Anubis compiler — see
-**Build from source** below.
+misleadingly. `jackal-native` is **not** committed (it is a build artifact; its SHA-256 is
+sealed in [`PROVENANCE.md`](PROVENANCE.md)); download it from the
+[GitHub release](../../releases/latest) (Apple Silicon macOS), or build from source — see below
+and [GETTING-STARTED.md](GETTING-STARTED.md).
 
 ## Build from source
 
@@ -85,10 +96,14 @@ running it from a clean checkout requires the Anubis compiler. There is no way a
 engine *is* Anubis source.
 
 **1. Get an Anubis compiler.** Use the pinned build the committed engine was verified against
-(`anubis-51f4a964347a`), or any Anubis toolchain that accepts `anubis run <file> --out <dir> -- <args>`.
+(`anubis-a733565f237d`; SHA-256 in `PROVENANCE.md`), or any Anubis toolchain that accepts
+`anubis run <file> --out <dir> -- <args>`. The Anubis compiler is not yet publicly
+distributed — without one, use the released `jackal-native` binary instead; the engine source
+it was built from is this repo's `jackal_calc.anb`, and the build chain is sealed in
+`PROVENANCE.md`.
 
 **2. Point JACKAL at it** — either put `anubis` on your `PATH`, place the pin at
-`$HOME/anubis-lang/vm/pins/anubis-51f4a964347a`, or set `ANUBIS_BIN` explicitly:
+`$HOME/anubis-lang/vm/pins/anubis-a733565f237d`, or set `ANUBIS_BIN` explicitly:
 
 ```bash
 export ANUBIS_BIN=/path/to/anubis
@@ -106,17 +121,17 @@ cp ./.build/anubis_run ./jackal-native && chmod +x ./jackal-native
 ./jackal self-test          # now uses the native artifact, no Anubis needed
 ```
 
-**Reproducibility — stated precisely.** The Anubis→Rust transpile is **byte-deterministic**:
-every build of the committed source emits an identical `anubis_run.rs` (hash recorded in
-[`PROVENANCE.md`](PROVENANCE.md) — rebuild and compare). The final `rustc` link is **not**
-byte-deterministic (static-layout ordering varies per run — an unpinned compilation-session
-input in the pinned toolchain, upstream anubis-lang fix pending); behavior is identical and
-every rebuild passes the same 83-invariant self-test and external suites.
-`tests/content_hash.py` hashes only code/data segments for comparing builds. The provenance
-chain binds the *source* hash, the *compiler* hash, the *transpile* hash, and the SHA-256 of
-the **exact shipped binary the gate receipts were produced against**.
-`JACKAL_FORCE_SOURCE=1` always bypasses any prebuilt binary and runs through the compiler;
-`JACKAL_OUT` overrides the scratch out-dir (default: `$TMPDIR/jackal-calc-run`).
+**Reproducibility — verified, byte for byte.** With the pinned compiler
+`anubis-a733565f237d`, clean builds of the committed source are **fully byte-identical** —
+same SHA-256 every time, linker UUID included (verified across repeated builds and differing
+out-dir paths, including one containing spaces). Anyone holding the pin can rebuild
+`jackal-native` and compare hashes against [`PROVENANCE.md`](PROVENANCE.md). The
+nondeterminism in earlier pins (a randomized per-build package name feeding the crate-metadata
+hash) was root-caused and fixed upstream on 2026-08-13; the diagnosis trail, including the
+byte-deterministic transpile stage and `tests/content_hash.py` for segment-level comparison,
+is preserved in `PROVENANCE.md`. `JACKAL_FORCE_SOURCE=1` always bypasses any prebuilt binary
+and runs through the compiler; `JACKAL_OUT` overrides the scratch out-dir (default:
+`$TMPDIR/jackal-calc-run`).
 
 ## The unusual part: calculation claim cards
 
@@ -361,7 +376,7 @@ register model; the `big-` lane is the exact model.
 ## Verification
 
 ```bash
-ANUBIS=/Users/sicarii/anubis-lang/vm/pins/anubis-51f4a964347a
+ANUBIS=$HOME/anubis-lang/vm/pins/anubis-a733565f237d
 $ANUBIS check jackal_calc.anb --out /tmp/jackal-check
 ./jackal self-test
 ANUBIS_BIN=$ANUBIS python3 tests/test_calculator.py

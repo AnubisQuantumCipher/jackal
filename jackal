@@ -27,7 +27,7 @@ resolve_anubis() {
         printf '%s' "$ANUBIS_BIN"
         return 0
     fi
-    _pin="$HOME/anubis-lang/vm/pins/anubis-51f4a964347a"
+    _pin="$HOME/anubis-lang/vm/pins/anubis-a733565f237d"
     if [ -x "$_pin" ]; then
         printf '%s' "$_pin"
         return 0
@@ -57,6 +57,6 @@ printf '%s\n' \
   '       ANUBIS_BIN=/path/to/anubis ./jackal help   # first run compiles + runs' \
   '     or see README "Build from source" to produce ./jackal-native.' \
   '' \
-  'The pinned compiler that built the committed engine is anubis-51f4a964347a' \
+  'The pinned compiler that built the committed engine is anubis-a733565f237d' \
   '(its digest is recorded in README.md).' >&2
 exit 127

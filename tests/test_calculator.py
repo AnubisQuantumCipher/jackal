@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "jackal_calc.anb"
-PIN = Path(os.environ.get("ANUBIS_BIN", "/Users/sicarii/anubis-lang/vm/pins/anubis-51f4a964347a"))
+PIN = Path(os.environ.get("ANUBIS_BIN", "/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"))
 OUT_ROOT = Path(os.environ.get("JACKAL_TEST_OUT", "/tmp/jackal-calc-test-out"))
 
 CASES = [

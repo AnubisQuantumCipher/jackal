@@ -1,115 +1,112 @@
-# JACKAL PROVENANCE — sealed 2026-08-13
+# JACKAL PROVENANCE
 
-The chain the 2026-08-13 field assessment asked for, with every link either
-mechanically derived or measured — and the one link that failed measurement
-stated as failed rather than papered over.
+Every link in the chain from source to shipped binary to test receipts,
+either mechanically derived or measured — and anything that failed
+measurement stated as failed rather than papered over.
 
 ```text
-source commit → compiler hash → build recipe → shipped-binary hash → gate receipts → adjudication
+source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Source
+## Seal v1.0.0 — 2026-08-13 (current)
 
-- git commit: `8a71540` (branch `master`, this repository)
+### Source
+
 - `jackal_calc.anb` SHA-256: `b74d078db6acc7b73f81001ed823643df037e4770b6062c15de411ff571f5384`
+- Git: the commit tagged `v1.0.0` in this repository.
 
-## Compiler
+### Compiler
 
-- pin: `$HOME/anubis-lang/vm/pins/anubis-51f4a964347a`
-- pin SHA-256: `51f4a964347a4a0f3ea2833331eb313315aa502c96c9d7a71fc3b20414eca027`
+- pin: `anubis-a733565f237d` (content-addressed snapshot; anubis-lang commit `b3390c7c`)
+- pin SHA-256: `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`
 
-## Build recipe
+### Build — byte-reproducible, verified
 
 ```bash
-JACKAL_FORCE_SOURCE=1 JACKAL_OUT=./.build ./jackal self-test
+ANUBIS_BIN=$HOME/anubis-lang/vm/pins/anubis-a733565f237d \
+  JACKAL_FORCE_SOURCE=1 JACKAL_OUT=./.build ./jackal self-test
 cp ./.build/anubis_run ./jackal-native && chmod +x ./jackal-native
 ```
 
-- shipped `jackal-native` SHA-256: `c37a256c38c5819e24b31c405152fb61fe06bcf4f05550dee9e5c4e8e080c2c2`
+- shipped `jackal-native` SHA-256: `609de1035be62a5183ad6555b97402567c9e4539b41806a5b52974f6be9030ae`
+- **Byte-reproducibility: verified.** Repeated clean builds of the committed
+  source with this pin are fully byte-identical (same SHA-256, linker UUID
+  included), across differing out-dir paths including one containing spaces.
+  Anyone holding the pin can rebuild and compare. The GitHub release for
+  `v1.0.0` ships this exact binary with a `SHA256SUMS` file.
 
-### Build determinism — diagnosed precisely (2026-08-13)
-
-Successive builds of identical source produce different binary SHA-256s. The
-divergence was traced through the pipeline stage by stage:
-
-1. **Anubis → Rust transpile: byte-deterministic.** Every build of source
-   `b74d078d…` emits an identical `anubis_run.rs`, SHA-256
-   `3e4fde1eb205242343d9fd62a9401acd5c14592d81e59e0e01921193202ac4ad`.
-   This is a verifiable deterministic link: rebuild and compare the `.rs`
-   hash in the out-dir.
-2. **rustc → binary: nondeterministic layout, identical behavior.** Final
-   binaries differ in static/string-pool ordering (plus per-link `LC_UUID`
-   and `__LINKEDIT` metadata) across runs of the *same* command — the
-   signature of an unpinned rustc compilation-session input
-   (`-C metadata`-class) inside the pinned compiler, not of the program
-   changing. Machine code behavior is identical: every build passes the
-   83-invariant self-test and the external suites.
-3. `tests/content_hash.py` hashes only the code/data segments (excluding
-   Mach-O headers and linker metadata); repeated builds fall into a small
-   family of layout-permuted content hashes. Once the toolchain pins its
-   rustc session inputs (upstream anubis-lang fix, filed 2026-08-13), that
-   content hash becomes the rebuild-and-verify reproducibility check.
-
-Until that upstream fix lands in a promoted pin, the chain binds the exact
-shipped binary above — the artifact every gate receipt was produced
-against — plus the deterministic transpile hash in (1).
-
-**Upstream fix: implemented and verified (2026-08-13).** The cause was
-confirmed as the randomized per-build Cargo package name in the compiler's
-native pipeline (`compile_native_rust_to_exe`), which feeds cargo's crate
-metadata hash and hence symbol mangling and codegen-unit layout. Patched in
-the anubis-lang working tree to a content-derived package name
-(`anubis_run_<sha256(generated .rs)[..12]>`); with the patched compiler,
-repeated clean builds of this repo's `jackal_calc.anb` are **fully
-byte-identical** (three builds, including one from an out-dir path containing
-spaces, all SHA-256
-`609de1035be62a5183ad6555b97402567c9e4539b41806a5b52974f6be9030ae`), and the
-83/83 self-test passes. JACKAL's own pinned compiler predates the fix; the
-rebuild-and-verify upgrade lands here when a fixed pin is promoted.
-
-## Gate receipts (2026-08-13, all green)
+### Gate receipts (2026-08-13, all against this binary/pin, all green)
 
 | Gate | Result |
 |---|---|
-| `anubis check jackal_calc.anb` (pinned compiler) | passed |
+| `anubis check jackal_calc.anb` | passed |
 | Native self-test | 83/83 invariants |
 | Black-box acceptance suite (`tests/test_calculator.py`, source-built via pin) | TOTAL 198/198, includes 7 enclosure-contains-independent-oracle checks |
-| Seeded containment campaign (`tests/bound_campaign.py 250 20260813`, run against `jackal-native` `c37a256c…`) | BOUND_OK=246 REFUSED=4 ORACLE_SKIP=0 **CONTAINMENT_VIOLATION=0 WIDTH_VIOLATION=0** |
-| Campaign JSONL (`/tmp/jackal-bound-campaign.jsonl`) SHA-256 | `4473208f8e15715f67734fc14a322afca9c52687448f93f2357768e1d36186fa` |
+| Seeded containment campaign (`tests/bound_campaign.py 250 20260813`) | BOUND_OK=246 REFUSED=4 **CONTAINMENT_VIOLATION=0 WIDTH_VIOLATION=0**; JSONL sha256 `4473208f8e15715f67734fc14a322afca9c52687448f93f2357768e1d36186fa` — byte-identical to the pre-pin-swap run, a determinism receipt in itself |
+| Cross-implementation differential gate (`tests/iv_differential.py 300 20260813`, vs mpmath.iv + 40-digit point sampling) | OK=300 **POINT_VIOLATION=0 DISJOINT_IMPLEMENTATIONS=0**; median width ratio vs mpmath.iv = 1.000; JSONL sha256 `60fe6093bd015849609586fc374be448139ab2293a5a07109dc84a802ed89f6a` — also byte-identical across binaries |
+| Lean 4 mechanization of the interval model (`proofs/lean`, Mathlib v4.32.0) | `lake build` green; 60+ theorems, zero `sorry`; `#print axioms` on all flagship theorems (incl. `taylor2/4_midpoint_enclosure`) = `[propext, Classical.choice, Quot.sound]` only; unproven residuals enumerated in `JackalIv/Ledger.lean` |
 | Adversarial multi-lens review (4 lenses, 20 agents, adversarial verify per finding) | 11 confirmed findings (2 critical soundness, 2 major honesty, 7 minor) — all fixed in commit `8a71540` with regression coverage; 2 findings refuted |
-| Cross-implementation differential gate (`tests/iv_differential.py 300 20260813`, vs mpmath.iv + 40-digit point sampling) | OK=300 REFUSED=0 **POINT_VIOLATION=0 DISJOINT_IMPLEMENTATIONS=0**; median width ratio vs mpmath.iv = 1.000; JSONL sha256 `60fe6093bd015849609586fc374be448139ab2293a5a07109dc84a802ed89f6a` |
-| Lean 4 mechanization of the interval model (`proofs/lean`, mathlib v4.32.0) | `lake build` green; 60+ theorems, zero `sorry`; `#print axioms` on all flagship theorems (incl. `taylor2/4_midpoint_enclosure`) = `[propext, Classical.choice, Quot.sound]` only; residuals enumerated in `JackalIv/Ledger.lean` |
 
-## zk-receipt binding (reconciled)
+### zk-receipt binding (reconciled)
 
 `guest_source_sha256` in `proofs/zk-receipt/risc0_metadata.json` digests the
 deterministic transpiled Rust guest (`guest_source.rs`), not the `.anb`
 bytes. Re-derived 2026-08-13 from the committed
-`proofs/jackal_proof_guest.anb`: transpile hash identical
-(`2d11f1bf…`), guest ELF byte-identical (`d363e61d…`), ImageID identical,
-fresh receipt verifies with the same journal (`8`). Details in
+`proofs/jackal_proof_guest.anb`: transpile hash identical (`2d11f1bf…`),
+guest ELF byte-identical (`d363e61d…`), ImageID identical, fresh receipt
+verifies with the same journal (`8`). Details in
 `proofs/zk-receipt/VERIFY.md`.
 
-## Prior frozen baseline
+## Build-determinism history (how the reproducibility claim was earned)
 
-The 1,402-case behavioral campaign of 2026-08-13 (adjudicated
-`NO_UNEXPLAINED_MISMATCHES`) bound to artifact
-`211c614b46f986d826b1e3272a4190b63178d83fb389bbf1d910162420c4295b` — the
-engine as it existed *before* the certified lane. That receipt remains valid
-for that artifact; this seal supersedes it for the current tree.
+Earlier pins were **not** byte-reproducible: repeated builds of identical
+source produced distinct binaries. The divergence was diagnosed stage by
+stage on 2026-08-13:
+
+1. Anubis → Rust transpile: byte-deterministic all along (every build of
+   source `b74d078d…` emits `anubis_run.rs` with SHA-256 `3e4fde1e…`).
+2. rustc → binary: layout permuted per build. Root cause: the compiler
+   generated a randomized per-build Cargo package name, which cargo folds
+   into the crate metadata hash, which decides symbol mangling and
+   codegen-unit layout.
+3. Fix (anubis-lang commit `b3390c7c`): content-derived package name
+   `anubis_run_<sha256(generated .rs)[..12]>` — reproducible for identical
+   source, unique across programs, and same-name collisions under the shared
+   target dir became benign (same name now implies same bytes).
+
+`tests/content_hash.py` (hashes only code/data segments, excluding Mach-O
+headers and linker metadata) remains available for comparing binaries across
+toolchains.
+
+## Prior seal — 2026-08-13, superseded
+
+- Compiler pin `anubis-51f4a964347a`
+  (`51f4a964347a4a0f3ea2833331eb313315aa502c96c9d7a71fc3b20414eca027`),
+  non-reproducible builds; chain bound the exact gate-tested binary
+  `c37a256c38c5819e24b31c405152fb61fe06bcf4f05550dee9e5c4e8e080c2c2`
+  (commits `8a71540`/`11cac9b`). All gates were green against that binary
+  with the same source hash; the v1.0.0 seal reproduces those results.
+- The original 1,402-case behavioral campaign (adjudicated
+  `NO_UNEXPLAINED_MISMATCHES`, 2026-08-13) bound to artifact
+  `211c614b46f986d826b1e3272a4190b63178d83fb389bbf1d910162420c4295b` — the
+  engine as it existed *before* the certified lane. That receipt remains
+  valid for that artifact.
 
 ## Non-claims
 
-Finite campaigns do not establish universal correctness. The certified lane's
-enclosures are conditional on the stated f64 rounding model (correctly
-rounded basic ops; libm within 2 ulp) and on the correctness of an
-implementation that is campaign-tested, not mechanized. `jackal maturity`
-prints the per-command epistemic grades.
+Finite campaigns do not establish universal correctness. The certified
+lane's enclosures are conditional on the stated f64 rounding model
+(correctly rounded basic ops; libm within 2 ulp) and on an implementation
+that is campaign-tested — its mathematical *model* is machine-checked in
+`proofs/lean/`, the implementation itself is not. `jackal maturity` prints
+the per-command epistemic grades.
 
 ## Regenerate
 
 ```bash
 shasum -a 256 jackal_calc.anb jackal-native
-ANUBIS_BIN=$HOME/anubis-lang/vm/pins/anubis-51f4a964347a python3 tests/test_calculator.py
+ANUBIS_BIN=$HOME/anubis-lang/vm/pins/anubis-a733565f237d python3 tests/test_calculator.py
 python3 tests/bound_campaign.py 250 20260813
+python3 tests/iv_differential.py 300 20260813
+cd proofs/lean && lake exe cache get && lake build
 ```

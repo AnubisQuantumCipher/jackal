@@ -6,7 +6,7 @@ This matrix uses official product pages as the baseline rather than review-site 
 | Baseline | Observed strengths | JACKAL response |
 |---|---|---|
 | TI-Nspire CX II CAS | Linked algebraic/graphical/numeric views; CAS; matrices; regression, distributions, hypothesis tests; saved documents; programming and sensor data.[1] | Add matrices, numerical solvers, model cards, and reproducible fingerprints. A terminal Anubis program cannot honestly claim equivalent interactive graphing or CAS. |
-| Qalculate! | "Arbitrary precision with both rational and floating point numbers"; exact/approximate forms; symbolic calculus; "propagation of uncertainty and interval arithmetic"; extensive units/constants; plotting.[2] | Add first-class measured quantities, propagated uncertainty, dimensional checks, numerical calculus, and explicit model limits. JACKAL now implements exact arbitrary-precision **integers** in pure Anubis (`big-add/mul/pow/fact/ncr`); arbitrary-precision rationals/floats, interval arithmetic, and general CAS remain outside the claimed surface. |
+| Qalculate! | "Arbitrary precision with both rational and floating point numbers"; exact/approximate forms; symbolic calculus; "propagation of uncertainty and interval arithmetic"; extensive units/constants; plotting.[2] | Add first-class measured quantities, propagated uncertainty, dimensional checks, numerical calculus, and explicit model limits. JACKAL now implements exact arbitrary-precision **integers** (`big-add/mul/pow/fact/ncr`) and exact **big rationals** (`rat`) in pure Anubis, plus outward-rounded **interval arithmetic** as a certified lane (`integrate-bound`/`range-bound`, refuse-on-doubt — with its f64/libm rounding model stated rather than implied); arbitrary-precision floats and general CAS remain outside the claimed surface. |
 | Soulver | Natural-language notepad; variables, line references, live updates, units, dates and scenario worksheets.[3] | Add human-readable calculation cards and Anubis-native audit narratives. JACKAL now has single-invocation worksheets with persistent variables (`worksheet "a = 5; b = a^2; a+b"`); a persistent reactive notebook with live updates is still not claimed. |
 | SpeedCrunch | Fast keyboard workflow; live results/history; custom functions/variables; "up to 50 digits of precision"; formula/constants library.[4] | Keep a scriptable CLI, add domain models and self-auditing output. JACKAL's `big-` integer lane is exact at any length within stated compute caps (verified against Python's arbitrary precision, e.g. 1000! at 2568 digits) — beyond 50 digits for integer work. Float work remains IEEE-754 f64: 50-digit float precision is still not claimed. |
 
@@ -44,8 +44,9 @@ being one, and the production paradigm is delegation to deterministic engines:
 Therefore the calculator worth building for this era is a **trustworthy tool endpoint**:
 deterministic and replayable, exactness-flagged, error-quantified, echoing its parsed canonical
 form (the dominant model-tool failure is transcription, not computation), and fail-closed with
-typed errors. JACKAL's claim cards, `rat` exact/approx split, Richardson estimates,
-self-verifying `diff`, and named-refusal panics are those properties, implemented.
+typed errors. JACKAL's claim cards, `rat` exact/approx split, Richardson estimates, certified
+interval enclosures (`integrate-bound`), numerically-checked `diff`, per-command epistemic
+grades (`maturity`), and named-refusal panics are those properties, implemented.
 
 ## Sources
 

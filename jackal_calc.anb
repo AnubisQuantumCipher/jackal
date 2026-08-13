@@ -64,7 +64,8 @@ fn usage() uses(io.print) {
     print("trust:      claim-card self-test measure-mul uncertain-ohm kinetic-sensitivity");
     print("numerical:  matrix2 solve2 integrate-x2 derivative-x3");
     print("expression: eval integrate integrate-adaptive derivative solve   (variable x, ^ = power)");
-    print("symbolic:   diff \"x^2*sin(x)\"   (self-verifying d/dx)");
+    print("certified:  integrate-bound range-bound   (interval enclosures under a stated f64 model)");
+    print("symbolic:   diff \"x^2*sin(x)\"   (numerically-checked d/dx)");
     print("exact-rat:  rat \"0.1 + 0.2\"   (exact rational arithmetic)");
     print("worksheet:  worksheet \"a = 5; b = a^2; a+b\"   (variables persist across ;)");
     print("exact-int:  big-add big-mul big-pow big-fact big-ncr   (arbitrary precision)");
@@ -76,7 +77,7 @@ fn usage() uses(io.print) {
     print("engineering: convert ohm parallel-r");
     print("physics:    kinetic projectile photon orbit ideal-gas molarity");
     print("programmer: hex bin band bor bxor shl shr");
-    print("knowledge:  constants");
+    print("knowledge:  constants maturity   (maturity = per-command epistemic grades)");
     print("example:    jackal quadratic 1 -3 2");
 }
 
@@ -169,9 +170,18 @@ fn refuse_non_finite(value) {
     return value;
 }
 
+// Integer rendering is only valid inside the exactly-representable range:
+// int() saturates at i64::MAX, so 2^63 once printed as 9223372036854775807
+// (off by one — a silently wrong digit string). Beyond 2^53 the float form
+// is the honest rendering.
+fn integer_renderable(value) {
+    return value == trunc(value)
+        && value < 9007199254740992.0 && value > -9007199254740992.0;
+}
+
 fn print_number(value) uses(io.print) {
     refuse_non_finite(value);
-    if value == trunc(value) {
+    if integer_renderable(value) {
         print(int(value));
     } else {
         print(value);
@@ -180,7 +190,7 @@ fn print_number(value) uses(io.print) {
 
 fn number_text(value) {
     refuse_non_finite(value);
-    if value == trunc(value) { return str(int(value)); }
+    if integer_renderable(value) { return str(int(value)); }
     return str(value);
 }
 
@@ -641,6 +651,7 @@ fn projectile_claim_card(argv) uses(io.print) {
     let height = speed * speed * sin(angle) * sin(angle) / (2.0 * gravity);
     let canonical = "jackal-claim-v1|ideal-projectile|speed=${speed}|angle-deg=${angle_degrees}|gravity=${gravity}|range=${distance}|time=${flight}|height=${height}";
     print("JACKAL CLAIM CARD v1");
+    print("status=model-based");
     print("model=ideal-projectile");
     print("inputs.speed=${number_text(speed)} m/s inputs.angle=${number_text(angle_degrees)} deg inputs.gravity=${number_text(gravity)} m/s2");
     print("assumptions=same elevation; vacuum; constant gravity; point mass");
@@ -1227,6 +1238,7 @@ struct AstState {
 struct DiffCheck {
     points: i64,
     max_dev: float,
+    skipped: i64,
 }
 
 fn function_arity(name) {
@@ -1550,6 +1562,90 @@ fn has_where_defined_convention(node) {
     return has_where_defined_convention(node[2]);
 }
 
+// SOUND simplifier for the certified-bound lane. Unlike simplify(), it never
+// applies a where-defined convention that REMOVES a subterm (u/u -> 1,
+// u-u -> 0, 0*u -> 0, u^0 -> 1 are all excluded): removing a subterm can
+// launder a domain restriction out of the expression, and the bound lane's
+// C^2 justification relies on "the formula evaluates over the interval" being
+// equivalent to "the function is defined over the interval".
+//
+// It also performs NO num-num constant folding — none at all. Folding two
+// literals in bare f64 commits a rounding error at the magnitude of the
+// INTERMEDIATES (or amplified by the operation's condition number), which the
+// per-literal pad in iv_from_literal cannot cover: the adversarial review of
+// 2026-08-13 produced certified enclosures excluding the truth by arbitrary
+// amounts this way (1e16+1-1e16 folded to an "exact" 0; 2.3^100 folded with
+// x100-amplified literal rounding). Constant subtrees are left intact for the
+// interval evaluator, which handles them with outward pads. Every rule kept
+// here is a STRUCTURAL identity on all of R (x+0, x*1, x^1, --x) that commits
+// no arithmetic and preserves definedness in both directions.
+fn simplify_bound(node) {
+    let tag = node[0];
+    if tag == "num" || tag == "var" || tag == "const" { return node; }
+    if tag == "neg" {
+        let child = simplify_bound(node[1]);
+        if child[0] == "neg" { return child[1]; }
+        return ["neg", child];
+    }
+    if tag == "call" {
+        let arguments = node[2];
+        let out = [];
+        let i = 0;
+        while i < len(arguments) { push(out, simplify_bound(arguments[i])); i = i + 1; }
+        return ["call", node[1], out];
+    }
+    let left = simplify_bound(node[1]);
+    let right = simplify_bound(node[2]);
+    if (tag == "div" || tag == "mod") && right[0] == "num" && right[1] == 0.0 {
+        panic("d/dx: literal division by zero is undefined; fail closed (consistent with eval and rat)");
+    }
+    if tag == "add" {
+        if ast_is_num(left, 0.0) { return right; }
+        if ast_is_num(right, 0.0) { return left; }
+    }
+    if tag == "sub" {
+        if ast_is_num(right, 0.0) { return left; }
+        if ast_is_num(left, 0.0) { return simplify_bound(["neg", right]); }
+    }
+    if tag == "mul" {
+        if ast_is_num(left, 1.0) { return right; }
+        if ast_is_num(right, 1.0) { return left; }
+    }
+    if tag == "div" {
+        if ast_is_num(right, 1.0) { return left; }
+    }
+    if tag == "pow" {
+        if ast_is_num(right, 1.0) { return left; }
+    }
+    return [tag, left, right];
+}
+
+// True when every construct in the AST is one the symbolic differentiator has
+// an everywhere-valid rule for, so f' and f'' formulas can be built without
+// panicking and the Taylor-2 midpoint form may be attempted. The functions
+// excluded here (abs, floor, ceil, round, trunc, min, max, and '%') are
+// exactly the ones deriv() refuses.
+fn ast_smooth_ok(node) {
+    let tag = node[0];
+    if tag == "num" || tag == "var" || tag == "const" { return true; }
+    if tag == "neg" { return ast_smooth_ok(node[1]); }
+    if tag == "mod" { return false; }
+    if tag == "call" {
+        let name = node[1];
+        if name == "abs" || name == "floor" || name == "ceil" || name == "round"
+            || name == "trunc" || name == "min" || name == "max" { return false; }
+        let arguments = node[2];
+        let i = 0;
+        while i < len(arguments) {
+            if !ast_smooth_ok(arguments[i]) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+    if !ast_smooth_ok(node[1]) { return false; }
+    return ast_smooth_ok(node[2]);
+}
+
 fn ast_const_value_or_nan(node) {
     if node[0] == "num" { return node[1]; }
     if node[0] == "const" { return constant_value(node[1]); }
@@ -1725,9 +1821,10 @@ fn deriv(node) {
 // hundreds of radians per unit at the outer sample points.
 fn verify_derivative(ast, derived) {
     let bindings = collect_vars(ast, {});
-    let samples = [-1.7, -0.6, 0.3, 0.9, 1.8];
+    let samples = [-2.6, -1.7, -1.1, -0.6, 0.3, 0.9, 1.4, 1.8, 2.7];
     let step = 0.00001;
     let used = 0;
+    let skipped = 0;
     let worst = 0.0;
     let i = 0;
     while i < len(samples) {
@@ -1754,6 +1851,19 @@ fn verify_derivative(ast, derived) {
         let numeric = (4.0 * fine - coarse) / 3.0;
         if sym != sym || numeric != numeric { continue; }
         if abs(sym) > 1000000000000.0 || abs(numeric) > 1000000000000.0 { continue; }
+        // Validate the instrument before the number: the probe must first
+        // agree with ITSELF. If the h and h/2 central differences disagree
+        // beyond 1% of scale, the probe is unreliable at this point (pole
+        // adjacency, extreme stiffness) — skip it rather than let a broken
+        // instrument condemn a correct derivative. The criterion never reads
+        // the symbolic candidate, so it cannot launder a wrong rule through;
+        // wrong rules are still caught at every point where the probe
+        // converges, and the >=3-point floor below still refuses when nothing
+        // is verifiable. (Field-adjudicated 2026-08-13: a nested-tan
+        // composition was refused not because the derivative was wrong but
+        // because the probe diverged at pole-adjacent sample points.)
+        let probe_scale = max(1.0, abs(fine));
+        if abs(fine - coarse) / probe_scale > 0.01 { skipped = skipped + 1; continue; }
         let scale = max(1.0, abs(sym));
         let deviation = abs(sym - numeric) / scale;
         if deviation > worst { worst = deviation; }
@@ -1761,7 +1871,7 @@ fn verify_derivative(ast, derived) {
     }
     if used < 3 { panic("d/dx: could not verify the derivative numerically on enough sample points; fail closed"); }
     if worst > 0.0001 { panic("d/dx: symbolic result failed numeric verification (max deviation ${worst}); fail closed"); }
-    return DiffCheck { points: used, max_dev: worst };
+    return DiffCheck { points: used, max_dev: worst, skipped: skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -2061,6 +2171,540 @@ fn adaptive_step(source, a, b, fa, fm, fb, whole, tol, depth, evals) {
     return AdaptiveResult { value: first.value + second.value, error: first.error + second.error, evals: second.evals };
 }
 
+// ---------------------------------------------------------------------------
+// JACKAL CERTIFIED INTERVAL ENGINE — outward-rounded interval arithmetic over
+// the expression AST, and an adaptive integrator whose output is a PROVEN
+// enclosure, not an estimate. Motivated by the 1,402-case field campaign
+// (2026-08-13): Richardson agreement is calibrated but cannot BOUND — a
+// feature narrower than every grid evades both grids. An interval enclosure
+// cannot be evaded: the range of f over any subinterval containing a feature
+// contains the feature.
+//
+// Rounding model (the residual trust assumptions, stated exactly):
+//   * every basic f64 op (+ - * /) is correctly rounded (<= 0.5 ulp) [IEEE-754];
+//   * every math-library call (sin, cos, exp, ln, ...) is within 2 ulp of the
+//     true real value, including argument reduction for large inputs;
+//   * every interval endpoint is padded OUTWARD by 1e-15 relative + 1e-300
+//     absolute (~4.5 ulp) after each operation, strictly exceeding both.
+// Under that model the printed enclosure provably contains the true real
+// value. Sin/cos ranges are additionally clamped to [-1,1] (always true) and
+// extremum tests are slack-widened so uncertainty about critical-point
+// positions can only WIDEN the enclosure. Division by an interval containing
+// zero, logs touching zero, tan near a pole, and non-finite intermediates all
+// REFUSE rather than guess. The implementation is tested (containment
+// campaign vs an independent oracle), not mechanized; that boundary is
+// documented in the README.
+// ---------------------------------------------------------------------------
+
+struct IBox {
+    ok: bool,
+    lo: float,
+    hi: float,
+    why: string,
+}
+
+fn iv_bad(why) {
+    return IBox { ok: false, lo: 0.0, hi: 0.0, why: why };
+}
+
+fn iv_exact(v) {
+    return IBox { ok: true, lo: v, hi: v, why: "" };
+}
+
+// Outward pad: after any operation whose endpoints carry rounding error, push
+// lo down and hi up by more than the worst-case error of the operation that
+// produced them. Refuses non-finite endpoints (before and after padding).
+fn iv_out(lo, hi) {
+    if lo != lo || hi != hi { return iv_bad("non-finite value in interval arithmetic"); }
+    if lo > 1.7976931348623157e308 || lo < -1.7976931348623157e308
+        || hi > 1.7976931348623157e308 || hi < -1.7976931348623157e308 {
+        return iv_bad("interval endpoint overflow");
+    }
+    let padded_lo = lo - (abs(lo) * 0.000000000000001 + 1.0e-300);
+    let padded_hi = hi + (abs(hi) * 0.000000000000001 + 1.0e-300);
+    if padded_lo < -1.7976931348623157e308 || padded_hi > 1.7976931348623157e308 {
+        return iv_bad("interval endpoint overflow");
+    }
+    return IBox { ok: true, lo: padded_lo, hi: padded_hi, why: "" };
+}
+
+fn iv_add(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    return iv_out(a.lo + b.lo, a.hi + b.hi);
+}
+
+fn iv_sub(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    return iv_out(a.lo - b.hi, a.hi - b.lo);
+}
+
+fn iv_neg(a) {
+    if !a.ok { return a; }
+    return IBox { ok: true, lo: -a.hi, hi: -a.lo, why: "" };
+}
+
+fn iv_mul(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    let p1 = a.lo * b.lo;
+    let p2 = a.lo * b.hi;
+    let p3 = a.hi * b.lo;
+    let p4 = a.hi * b.hi;
+    return iv_out(min(min(p1, p2), min(p3, p4)), max(max(p1, p2), max(p3, p4)));
+}
+
+fn iv_div(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    if b.lo <= 0.0 && b.hi >= 0.0 { return iv_bad("division by an interval containing zero"); }
+    let q1 = a.lo / b.lo;
+    let q2 = a.lo / b.hi;
+    let q3 = a.hi / b.lo;
+    let q4 = a.hi / b.hi;
+    return iv_out(min(min(q1, q2), min(q3, q4)), max(max(q1, q2), max(q3, q4)));
+}
+
+fn iv_abs(a) {
+    if !a.ok { return a; }
+    if a.lo >= 0.0 { return a; }
+    if a.hi <= 0.0 { return IBox { ok: true, lo: -a.hi, hi: -a.lo, why: "" }; }
+    return IBox { ok: true, lo: 0.0, hi: max(-a.lo, a.hi), why: "" };
+}
+
+fn iv_mag(a) { return max(abs(a.lo), abs(a.hi)); }
+
+fn iv_mig(a) {
+    if a.lo <= 0.0 && a.hi >= 0.0 { return 0.0; }
+    return min(abs(a.lo), abs(a.hi));
+}
+
+// x^n for integer n: dependency-aware (x*x over [-1,2] must give [0,4], not
+// [-2,4]). Even powers use mignitude/magnitude; odd powers are monotone.
+fn iv_pow_int(a, n) {
+    if !a.ok { return a; }
+    if n == 0 { return iv_exact(1.0); }
+    let m = n;
+    let invert = false;
+    if m < 0 { invert = true; m = -m; }
+    let fm = 0.0 + m;
+    let core = iv_exact(0.0);
+    if m % 2 == 0 {
+        core = iv_out(pow(iv_mig(a), fm), pow(iv_mag(a), fm));
+    } else {
+        core = iv_out(pow(a.lo, fm), pow(a.hi, fm));
+    }
+    if !core.ok { return iv_bad("overflow in x^n over the interval"); }
+    if invert {
+        return iv_div(iv_exact(1.0), core);
+    }
+    return core;
+}
+
+// General power via exp(e*ln(b)) — requires a certifiably positive base.
+fn iv_pow_general(b, e) {
+    if !b.ok { return b; }
+    if !e.ok { return e; }
+    if b.lo <= 0.0 { return iv_bad("x^y with non-integer or interval exponent requires a certifiably positive base"); }
+    let lnb = iv_ln(b);
+    let prod = iv_mul(e, lnb);
+    return iv_exp(prod);
+}
+
+fn iv_sqrt(a) {
+    if !a.ok { return a; }
+    if a.lo < 0.0 { return iv_bad("sqrt over an interval extending below zero"); }
+    let out = iv_out(sqrt(a.lo), sqrt(a.hi));
+    if !out.ok { return out; }
+    let lo = out.lo;
+    if lo < 0.0 { lo = 0.0; }
+    return IBox { ok: true, lo: lo, hi: out.hi, why: "" };
+}
+
+fn iv_cbrt(a) {
+    if !a.ok { return a; }
+    return iv_out(cbrt(a.lo), cbrt(a.hi));
+}
+
+fn iv_exp(a) {
+    if !a.ok { return a; }
+    return iv_out(exp(a.lo), exp(a.hi));
+}
+
+fn iv_ln(a) {
+    if !a.ok { return a; }
+    if a.lo <= 0.0 { return iv_bad("ln over an interval touching x <= 0"); }
+    return iv_out(ln(a.lo), ln(a.hi));
+}
+
+fn iv_log10(a) {
+    if !a.ok { return a; }
+    if a.lo <= 0.0 { return iv_bad("log10 over an interval touching x <= 0"); }
+    return iv_out(log10(a.lo), log10(a.hi));
+}
+
+fn iv_log2(a) {
+    if !a.ok { return a; }
+    if a.lo <= 0.0 { return iv_bad("log2 over an interval touching x <= 0"); }
+    return iv_out(log2(a.lo), log2(a.hi));
+}
+
+// Is there an integer k with offset + k*period inside [lo, hi]? Widened by a
+// slack that dominates every rounding error in the candidate positions, so a
+// "maybe" answers true — for extrema that only widens the enclosure (sound),
+// and for tan poles it refuses (sound). Callers guarantee width < 2*period.
+fn crit_in(lo, hi, offset, period) {
+    let slack = (abs(lo) + abs(hi)) * 0.000000000001 + 0.000000000001;
+    let k = 0.0 + floor((lo - offset) / period);
+    k = k - 1.0;
+    let step = 0.0;
+    while step < 5.0 {
+        let cand = offset + (k + step) * period;
+        if cand >= lo - slack && cand <= hi + slack { return true; }
+        step = step + 1.0;
+    }
+    return false;
+}
+
+fn iv_sin(a) {
+    if !a.ok { return a; }
+    let twopi = 6.283185307179586;
+    if a.hi - a.lo >= twopi { return IBox { ok: true, lo: -1.0, hi: 1.0, why: "" }; }
+    let s1 = sin(a.lo);
+    let s2 = sin(a.hi);
+    let out = iv_out(min(s1, s2), max(s1, s2));
+    if !out.ok { return out; }
+    let lo = out.lo;
+    let hi = out.hi;
+    if crit_in(a.lo, a.hi, 1.5707963267948966, twopi) { hi = 1.0; }
+    if crit_in(a.lo, a.hi, -1.5707963267948966, twopi) { lo = -1.0; }
+    if lo < -1.0 { lo = -1.0; }
+    if hi > 1.0 { hi = 1.0; }
+    return IBox { ok: true, lo: lo, hi: hi, why: "" };
+}
+
+fn iv_cos(a) {
+    if !a.ok { return a; }
+    let twopi = 6.283185307179586;
+    if a.hi - a.lo >= twopi { return IBox { ok: true, lo: -1.0, hi: 1.0, why: "" }; }
+    let s1 = cos(a.lo);
+    let s2 = cos(a.hi);
+    let out = iv_out(min(s1, s2), max(s1, s2));
+    if !out.ok { return out; }
+    let lo = out.lo;
+    let hi = out.hi;
+    if crit_in(a.lo, a.hi, 0.0, twopi) { hi = 1.0; }
+    if crit_in(a.lo, a.hi, 3.141592653589793, twopi) { lo = -1.0; }
+    if lo < -1.0 { lo = -1.0; }
+    if hi > 1.0 { hi = 1.0; }
+    return IBox { ok: true, lo: lo, hi: hi, why: "" };
+}
+
+fn iv_tan(a) {
+    if !a.ok { return a; }
+    let period = 3.141592653589793;
+    if a.hi - a.lo >= period { return iv_bad("tan over an interval containing a pole"); }
+    if crit_in(a.lo, a.hi, 1.5707963267948966, period) {
+        return iv_bad("tan over an interval that may contain a pole");
+    }
+    return iv_out(tan(a.lo), tan(a.hi));
+}
+
+fn iv_asin(a) {
+    if !a.ok { return a; }
+    if a.lo < -1.0 || a.hi > 1.0 { return iv_bad("asin over an interval not certifiably within [-1,1]"); }
+    return iv_out(asin(a.lo), asin(a.hi));
+}
+
+fn iv_acos(a) {
+    if !a.ok { return a; }
+    if a.lo < -1.0 || a.hi > 1.0 { return iv_bad("acos over an interval not certifiably within [-1,1]"); }
+    return iv_out(acos(a.hi), acos(a.lo));
+}
+
+fn iv_atan(a) {
+    if !a.ok { return a; }
+    return iv_out(atan(a.lo), atan(a.hi));
+}
+
+fn iv_floor_scalar(v) {
+    if v >= 9007199254740992.0 || v <= -9007199254740992.0 { return v; }
+    return 0.0 + floor(v);
+}
+
+fn iv_ceil_scalar(v) {
+    if v >= 9007199254740992.0 || v <= -9007199254740992.0 { return v; }
+    return 0.0 + ceil(v);
+}
+
+fn iv_round_scalar(v) {
+    if v >= 9007199254740992.0 || v <= -9007199254740992.0 { return v; }
+    return 0.0 + round(v);
+}
+
+fn iv_trunc_scalar(v) {
+    if v >= 9007199254740992.0 || v <= -9007199254740992.0 { return v; }
+    return 0.0 + trunc(v);
+}
+
+fn iv_hypot(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    return iv_out(hypot(iv_mig(a), iv_mig(b)), hypot(iv_mag(a), iv_mag(b)));
+}
+
+fn iv_atan2(y, x) {
+    if !y.ok { return y; }
+    if !x.ok { return x; }
+    if x.lo <= 0.0 { return iv_bad("atan2 is certified only over a strictly positive x-interval in this lane"); }
+    return iv_atan(iv_div(y, x));
+}
+
+fn iv_min(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    return IBox { ok: true, lo: min(a.lo, b.lo), hi: min(a.hi, b.hi), why: "" };
+}
+
+fn iv_max(a, b) {
+    if !a.ok { return a; }
+    if !b.ok { return b; }
+    return IBox { ok: true, lo: max(a.lo, b.lo), hi: max(a.hi, b.hi), why: "" };
+}
+
+// Literals: an integer-valued f64 within the exact-integer range IS the value
+// the user wrote — no pad. Any other literal (0.1, 1e-3, internal non-integer
+// coefficients like ln(10)) is the correctly-rounded f64 of the intended
+// value, within 0.5 ulp — pad covers it.
+fn iv_from_literal(v) {
+    if v == trunc(v) && v < 9007199254740992.0 && v > -9007199254740992.0 {
+        return iv_exact(v);
+    }
+    return iv_out(v, v);
+}
+
+// Interval evaluation of an expression AST over x in [xlo, xhi]. Returns a
+// certified SUPERSET of { f(x) : x in [xlo, xhi] } under the rounding model,
+// or a refusal. Single self-recursive function returning a struct (the pinned
+// checker's shape inference requires this shape; see deriv()).
+fn ieval(node, xlo, xhi) {
+    let tag = node[0];
+    if tag == "num" { return iv_from_literal(node[1]); }
+    if tag == "const" { return iv_from_literal(constant_value(node[1])); }
+    if tag == "var" {
+        let var_name = node[1];
+        if var_name == "x" { return IBox { ok: true, lo: xlo, hi: xhi, why: "" }; }
+        return iv_bad("unknown identifier '${var_name}' (only x is bound)");
+    }
+    if tag == "neg" {
+        let inner = ieval(node[1], xlo, xhi);
+        return iv_neg(inner);
+    }
+    if tag == "call" {
+        let name = node[1];
+        let arguments = node[2];
+        let first = ieval(arguments[0], xlo, xhi);
+        if len(arguments) == 2 {
+            let second = ieval(arguments[1], xlo, xhi);
+            if name == "hypot" { return iv_hypot(first, second); }
+            if name == "pow" {
+                if second.ok && second.lo == second.hi && second.lo == trunc(second.lo)
+                    && second.lo <= 4096.0 && second.lo >= -4096.0 {
+                    return iv_pow_int(first, int(second.lo));
+                }
+                return iv_pow_general(first, second);
+            }
+            if name == "atan2" { return iv_atan2(first, second); }
+            if name == "min" { return iv_min(first, second); }
+            if name == "max" { return iv_max(first, second); }
+            return iv_bad("no certified interval model for '${name}'");
+        }
+        if name == "sin" { return iv_sin(first); }
+        if name == "cos" { return iv_cos(first); }
+        if name == "tan" { return iv_tan(first); }
+        if name == "asin" { return iv_asin(first); }
+        if name == "acos" { return iv_acos(first); }
+        if name == "atan" { return iv_atan(first); }
+        if name == "sqrt" { return iv_sqrt(first); }
+        if name == "cbrt" { return iv_cbrt(first); }
+        if name == "ln" { return iv_ln(first); }
+        if name == "log10" { return iv_log10(first); }
+        if name == "log2" { return iv_log2(first); }
+        if name == "exp" { return iv_exp(first); }
+        if name == "abs" { return iv_abs(first); }
+        if !first.ok { return first; }
+        if name == "floor" { return IBox { ok: true, lo: iv_floor_scalar(first.lo), hi: iv_floor_scalar(first.hi), why: "" }; }
+        if name == "ceil" { return IBox { ok: true, lo: iv_ceil_scalar(first.lo), hi: iv_ceil_scalar(first.hi), why: "" }; }
+        if name == "round" { return IBox { ok: true, lo: iv_round_scalar(first.lo), hi: iv_round_scalar(first.hi), why: "" }; }
+        if name == "trunc" { return IBox { ok: true, lo: iv_trunc_scalar(first.lo), hi: iv_trunc_scalar(first.hi), why: "" }; }
+        return iv_bad("no certified interval model for '${name}'");
+    }
+    let left = ieval(node[1], xlo, xhi);
+    let right = ieval(node[2], xlo, xhi);
+    if tag == "add" { return iv_add(left, right); }
+    if tag == "sub" { return iv_sub(left, right); }
+    if tag == "mul" { return iv_mul(left, right); }
+    if tag == "div" { return iv_div(left, right); }
+    if tag == "mod" { return iv_bad("'%' has no certified interval model; fail closed"); }
+    if tag == "pow" {
+        if right.ok && right.lo == right.hi && right.lo == trunc(right.lo)
+            && right.lo <= 4096.0 && right.lo >= -4096.0 {
+            return iv_pow_int(left, int(right.lo));
+        }
+        return iv_pow_general(left, right);
+    }
+    return iv_bad("internal error: unknown AST node '${tag}'");
+}
+
+// ---------------------------------------------------------------------------
+// JACKAL CERTIFIED INTEGRATION — adaptive bisection where each accepted
+// subinterval contributes a PROVEN enclosure of its integral:
+//   range form   : h * F([a,b])                             — always valid;
+//   Taylor-2 form: h*F(m) + h^3/24 * F''([a,b])             — valid when the
+//     symbolic f, f', f'' formulas all interval-evaluate over the closed
+//     subinterval (each elementary rule holds on the open domain where its
+//     own formula is defined, so success certifies f in C^2 there);
+//   Taylor-4 form: h*F(m) + h^3/24*F''(m) + h^5/1920*F''''([a,b]) — same
+//     argument with the chain f..f'''' certifying C^4. The odd Taylor terms
+//     integrate to zero about the midpoint; the even-term constants are
+//     integral(t^2/2) = h^3/24 and integral(t^4/24) = h^5/1920 over
+//     [-h/2, h/2].
+// Every successful form is an enclosure, so intersecting them is one
+// (disjointness would be an internal soundness bug and panics). Refusal
+// semantics throughout: budget, depth, or f64-resolution exhaustion REFUSES
+// rather than prints. Derivative formulas above a size cap are simply not
+// used (degrade to a lower form) — a cost decision, never a soundness one.
+// ---------------------------------------------------------------------------
+
+struct BoundResult {
+    lo: float,
+    hi: float,
+    nodes: i64,
+    taylored: i64,
+    ranged: i64,
+}
+
+fn ast_size(node) {
+    let tag = node[0];
+    if tag == "num" || tag == "var" || tag == "const" { return 1; }
+    if tag == "neg" { return 1 + ast_size(node[1]); }
+    if tag == "call" {
+        let arguments = node[2];
+        let total = 1;
+        let i = 0;
+        while i < len(arguments) { total = total + ast_size(arguments[i]); i = i + 1; }
+        return total;
+    }
+    return 1 + ast_size(node[1]) + ast_size(node[2]);
+}
+
+fn iv_intersect_enclosures(piece, candidate) {
+    let ilo = max(piece.lo, candidate.lo);
+    let ihi = min(piece.hi, candidate.hi);
+    if ilo > ihi {
+        panic("integrate-bound: internal soundness invariant violated (disjoint enclosures); fail closed");
+    }
+    return IBox { ok: true, lo: ilo, hi: ihi, why: "" };
+}
+
+// taylor_degree: 0 = range only, 2 = chain f..f'' available, 4 = chain f..f''''.
+fn bound_step(f, f1, f2, f3, f4, taylor_degree, a_edge, b_edge, span, tol, depth, nodes) {
+    if nodes > 60000 {
+        panic("integrate-bound: subdivision budget (60000 subintervals) exhausted before certifying the requested tolerance; fail closed rather than print an unearned bound (try a larger tolerance, or integrate-adaptive for a non-certified estimate)");
+    }
+    let F = ieval(f, a_edge, b_edge);
+    if depth > 60 {
+        if !F.ok {
+            panic("integrate-bound: cannot certify: ${F.why} persists after 60 subdivision levels near x=${number_text(a_edge)}; the integrand is not certifiably bounded on the requested interval; fail closed");
+        }
+        panic("integrate-bound: subdivision depth (60) exhausted before certifying the requested tolerance; integrand structure is below certifiable scale; fail closed");
+    }
+    let h = b_edge - a_edge;
+    let local_tol = tol * h / span;
+    let hI = iv_out(h, h);
+    let piece = iv_bad("uncomputed");
+    let used_taylor = false;
+    if F.ok {
+        piece = iv_mul(hI, F);
+    }
+    if taylor_degree >= 2 && F.ok && piece.ok {
+        // The Taylor forms' odd terms cancel about the EXACT real midpoint
+        // c = (a+b)/2, but the float m = fl((a+b)/2) differs from c by up to
+        // half an ulp — and the neglected f'(m)*h*(c-m) term is not covered
+        // by any magnitude-relative pad (adversarial review 2026-08-13:
+        // a sin interval with midpoint near pi excluded the truth by 426x
+        // the enclosure width). Evaluating the midpoint terms over the
+        // outward-padded midpoint INTERVAL [m-pad, m+pad], which provably
+        // contains c, restores the theorem: the enclosure of f over that
+        // interval contains f(c), and likewise for f''.
+        let m = (a_edge + b_edge) / 2.0;
+        let mI = iv_out(m, m);
+        let Fm = ieval(f, mI.lo, mI.hi);
+        let F1 = ieval(f1, a_edge, b_edge);
+        let F2 = ieval(f2, a_edge, b_edge);
+        if mI.ok && Fm.ok && F1.ok && F2.ok {
+            let h3 = iv_mul(hI, iv_mul(hI, hI));
+            let base = iv_mul(hI, Fm);
+            let tried4 = false;
+            if taylor_degree >= 4 {
+                let F2m = ieval(f2, mI.lo, mI.hi);
+                let F3 = ieval(f3, a_edge, b_edge);
+                let F4 = ieval(f4, a_edge, b_edge);
+                if F2m.ok && F3.ok && F4.ok {
+                    let h5 = iv_mul(h3, iv_mul(hI, hI));
+                    let mid_term = iv_div(iv_mul(h3, F2m), iv_exact(24.0));
+                    let rem4 = iv_div(iv_mul(h5, F4), iv_exact(1920.0));
+                    if mid_term.ok && rem4.ok {
+                        let t4 = iv_add(base, iv_add(mid_term, rem4));
+                        if t4.ok {
+                            piece = iv_intersect_enclosures(piece, t4);
+                            used_taylor = true;
+                            tried4 = true;
+                        }
+                    }
+                }
+            }
+            if !tried4 {
+                let rem2 = iv_div(iv_mul(h3, F2), iv_exact(24.0));
+                if rem2.ok {
+                    let t2 = iv_add(base, rem2);
+                    if t2.ok {
+                        piece = iv_intersect_enclosures(piece, t2);
+                        used_taylor = true;
+                    }
+                }
+            }
+        }
+    }
+    if piece.ok {
+        // 0.9 headroom leaves room for accumulation padding so the final
+        // enclosure still meets the REQUESTED tolerance.
+        if piece.hi - piece.lo <= 0.9 * local_tol {
+            let t_count = 0;
+            let r_count = 0;
+            if used_taylor { t_count = 1; } else { r_count = 1; }
+            return BoundResult { lo: piece.lo, hi: piece.hi, nodes: nodes + 1, taylored: t_count, ranged: r_count };
+        }
+    }
+    let mid = (a_edge + b_edge) / 2.0;
+    if mid <= a_edge || mid >= b_edge {
+        if !F.ok {
+            panic("integrate-bound: cannot certify: ${F.why} persists at float64 resolution near x=${number_text(a_edge)}; the integrand is not certifiably bounded on the requested interval; fail closed");
+        }
+        panic("integrate-bound: cannot subdivide below float64 resolution while the local enclosure still exceeds tolerance; fail closed");
+    }
+    let first = bound_step(f, f1, f2, f3, f4, taylor_degree, a_edge, mid, span, tol, depth + 1, nodes + 1);
+    let second = bound_step(f, f1, f2, f3, f4, taylor_degree, mid, b_edge, span, tol, depth + 1, first.nodes);
+    let left_piece = IBox { ok: true, lo: first.lo, hi: first.hi, why: "" };
+    let right_piece = IBox { ok: true, lo: second.lo, hi: second.hi, why: "" };
+    let summed = iv_add(left_piece, right_piece);
+    if !summed.ok {
+        panic("integrate-bound: non-finite accumulation; fail closed");
+    }
+    return BoundResult { lo: summed.lo, hi: summed.hi, nodes: second.nodes, taylored: first.taylored + second.taylored, ranged: first.ranged + second.ranged };
+}
+
 fn run_native_self_test() uses(io.print) {
     let a = Vec3 { x: 1.0, y: 2.0, z: 3.0 };
     let b = Vec3 { x: 4.0, y: 5.0, z: 6.0 };
@@ -2160,7 +2804,58 @@ fn run_native_self_test() uses(io.print) {
     let big_division = big_divmod(big_from_text("123456789123456789"), big_from_text("987654321"));
     assert(big_to_text(big_division.quotient) == "124999998");
     assert(big_to_text(big_division.remainder) == "973765431");
-    print("self-test: 64/64 Anubis-native invariants pass");
+
+    // Certified interval engine: enclosures must contain, refusals must fire.
+    let sin_range = ieval(parse_ast("sin(x)"), 0.0, 3.141592653589793);
+    assert(sin_range.ok);
+    assert(sin_range.lo <= 0.0 && sin_range.lo >= -0.000001);
+    assert(sin_range.hi == 1.0);
+    let sq_range = ieval(parse_ast("x^2"), -1.0, 2.0);
+    assert(sq_range.ok);
+    assert(sq_range.lo <= 0.0 && sq_range.lo >= -0.000001);
+    assert(sq_range.hi >= 4.0 && sq_range.hi <= 4.000001);
+    let div_range = ieval(parse_ast("1/x"), -1.0, 1.0);
+    assert(!div_range.ok);
+    let ln_range = ieval(parse_ast("ln(x)"), 0.0, 1.0);
+    assert(!ln_range.ok);
+    let tan_range = ieval(parse_ast("tan(x)"), 1.0, 2.0);
+    assert(!tan_range.ok);
+    assert(ast_to_text(simplify_bound(parse_ast("x/x"))) == "x/x");
+    assert(ast_smooth_ok(parse_ast("sin(x)+x^3")));
+    assert(!ast_smooth_ok(parse_ast("abs(x)")));
+    let bf = simplify_bound(parse_ast("x^2"));
+    let bf1 = simplify_bound(deriv(bf));
+    let bf2 = simplify_bound(deriv(bf1));
+    let bf3 = simplify_bound(deriv(bf2));
+    let bf4 = simplify_bound(deriv(bf3));
+    let bres = bound_step(bf, bf1, bf2, bf3, bf4, 4, 0.0, 1.0, 1.0, 0.000001, 0, 0);
+    assert(bres.lo <= 0.3333333333333333 && bres.hi >= 0.3333333333333333);
+    assert(bres.hi - bres.lo <= 0.000001);
+
+    // Regressions from the 2026-08-13 adversarial review. (1) Constant
+    // folding must never launder f64 rounding into "exact" literals: the
+    // enclosure of 1e16+1-1e16 must contain the true value 1 (the fold once
+    // certified [0,0]). (2) Expanding the Taylor forms about the FLOAT
+    // midpoint must not break containment: this sin interval's float midpoint
+    // sits near pi where the neglected f'(m)*h*(c-m) term once pushed the
+    // certified enclosure 426x its own width away from the truth
+    // (-8.537274556592414e-18, mpmath 60dps). (3) number_text must not
+    // saturate 2^63 into a wrong digit string.
+    let fold_probe = ieval(simplify_bound(parse_ast("1e16+1-1e16")), 0.0, 1.0);
+    assert(fold_probe.ok);
+    assert(fold_probe.lo <= 1.0 && fold_probe.hi >= 1.0);
+    let mid_f = simplify_bound(parse_ast("sin(x)"));
+    let mid_f1 = simplify_bound(deriv(mid_f));
+    let mid_f2 = simplify_bound(deriv(mid_f1));
+    let mid_f3 = simplify_bound(deriv(mid_f2));
+    let mid_f4 = simplify_bound(deriv(mid_f3));
+    let mid_res = bound_step(mid_f, mid_f1, mid_f2, mid_f3, mid_f4, 4,
+        3.141092653589793, 3.1420926535898106,
+        3.1420926535898106 - 3.141092653589793, 0.000001, 0, 0);
+    assert(mid_res.lo <= -8.537274556592414e-18);
+    assert(mid_res.hi >= -8.537274556592414e-18);
+    assert(number_text(9223372036854775808.0) != "9223372036854775807");
+    print("self-test: 83/83 Anubis-native invariants pass");
 }
 
 fn main() uses(io.print) {
@@ -2192,8 +2887,8 @@ fn main() uses(io.print) {
     }
     if op == "matrix2" { require_arity(argv, 5); let matrix = matrix2(argv, 1); print("det=${number_text(determinant2(matrix))} inverse=${matrix_text(inverse2(matrix))}"); return; }
     if op == "solve2" { solve_linear2(argv); return; }
-    if op == "integrate-x2" { require_arity(argv, 4); let panels = arg_int(argv, 3); let area = integrate_square_simpson(arg_float(argv, 1), arg_float(argv, 2), panels); print("integral=${number_text(rounded(area, 12.0))} method=simpson panels=${panels}"); return; }
-    if op == "derivative-x3" { require_arity(argv, 3); let x = arg_float(argv, 1); let h = arg_float(argv, 2); let estimate = derivative_cube(x, h); let exact = 3.0 * x * x; print("derivative=${number_text(rounded(estimate, 12.0))} truncation-probe=${number_text(rounded(abs(estimate - exact), 12.0))}"); return; }
+    if op == "integrate-x2" { require_arity(argv, 4); let panels = arg_int(argv, 3); let area = integrate_square_simpson(arg_float(argv, 1), arg_float(argv, 2), panels); print("status=estimated integral=${number_text(rounded(area, 12.0))} method=simpson panels=${panels}"); return; }
+    if op == "derivative-x3" { require_arity(argv, 3); let x = arg_float(argv, 1); let h = arg_float(argv, 2); let estimate = derivative_cube(x, h); let exact = 3.0 * x * x; print("status=estimated derivative=${number_text(rounded(estimate, 12.0))} truncation-probe=${number_text(rounded(abs(estimate - exact), 12.0))}"); return; }
     if op == "ph" { require_arity(argv, 2); let concentration = arg_float(argv, 1); if concentration <= 0.0 { panic("hydrogen concentration must be positive"); } let value = -log10(concentration); let class = if value < 7.0 { "acidic" } else if value > 7.0 { "basic" } else { "neutral" }; print("pH=${number_text(value)} classification=${class}"); return; }
     if op == "dilute" { require_arity(argv, 4); let initial_c = arg_float(argv, 1); let initial_v = arg_float(argv, 2); let final_c = arg_float(argv, 3); if final_c <= 0.0 || initial_c < final_c { panic("dilution requires 0 < final concentration <= initial concentration"); } let final_v = initial_c * initial_v / final_c; print("final-volume=${number_text(final_v)} L solvent-to-add=${number_text(final_v - initial_v)} L"); return; }
     if op == "relativity" { require_arity(argv, 2); let beta = arg_float(argv, 1); if abs(beta) >= 1.0 { panic("relativity beta requires |v/c| < 1"); } let gamma = 1.0 / sqrt(1.0 - beta * beta); print("gamma=${number_text(gamma)} time-dilation=${number_text(gamma)} length-factor=${number_text(1.0 / gamma)}"); return; }
@@ -2214,7 +2909,9 @@ fn main() uses(io.print) {
         if has_where_defined_convention(raw) {
             print("domain-caveat=simplification assumed subexpressions defined (u/u, u-u, u^0, 0*u); result valid only on the original expression's domain");
         }
-        print("verified=numeric points=${check.points} max-rel-dev=${number_text(check.max_dev)} tolerance=0.0001");
+        let probe_note = "";
+        if check.skipped > 0 { probe_note = " skipped-unstable-probe=${check.skipped}"; }
+        print("status=checked check=numeric points=${check.points} max-rel-dev=${number_text(check.max_dev)} tolerance=0.0001${probe_note} assurance=numeric-sample-check(not-proof-of-identity)");
         return;
     }
     if op == "rat" {
@@ -2226,7 +2923,7 @@ fn main() uses(io.print) {
         if approx == approx && approx <= 1.7976931348623157e308 && approx >= -1.7976931348623157e308 {
             approx_text = number_text(approx);
         }
-        print("parsed=${ast_to_text(ast)} exact=${rat_to_text(exact)} approx=${approx_text}");
+        print("status=exact parsed=${ast_to_text(ast)} exact=${rat_to_text(exact)} approx=${approx_text}");
         return;
     }
 
@@ -2254,7 +2951,7 @@ fn main() uses(io.print) {
         // Richardson: error(S_n) ~= (16/15)|S_2n - S_n| — the estimate describes the
         // reported coarse integral, not the finer probe grid.
         let estimate = abs(fine - coarse) * 16.0 / 15.0;
-        print("integral=${number_text(rounded(coarse, 12.0))} method=simpson panels=${panels} richardson-error-estimate=${number_text(estimate)} assurance=estimate-not-bound(grid-limited)");
+        print("status=estimated integral=${number_text(rounded(coarse, 12.0))} method=simpson panels=${panels} richardson-error-estimate=${number_text(estimate)} assurance=estimate-not-bound(grid-limited) hint=integrate-bound-for-a-certified-enclosure");
         return;
     }
     if op == "integrate-adaptive" {
@@ -2285,7 +2982,79 @@ fn main() uses(io.print) {
             evals = piece.evals;
             i = i + 1;
         }
-        print("integral=${number_text(total)} method=adaptive-simpson evals=${evals} achieved-error-estimate=${number_text(error_sum)} tolerance=${number_text(tol)} assurance=refuses-when-unconverged(local-estimate)");
+        print("status=estimated integral=${number_text(total)} method=adaptive-simpson evals=${evals} achieved-error-estimate=${number_text(error_sum)} tolerance=${number_text(tol)} assurance=refuses-when-unconverged(local-estimate)");
+        return;
+    }
+    if op == "integrate-bound" {
+        require_arity(argv, 5);
+        let source = argv[1];
+        let a = arg_float(argv, 2);
+        let b = arg_float(argv, 3);
+        let tol = arg_float(argv, 4);
+        if tol <= 0.0 { panic("integrate-bound tolerance must be positive"); }
+        if a >= b { panic("integrate-bound requires a < b"); }
+        let f = simplify_bound(parse_ast(source));
+        let vars = collect_vars(f, {});
+        for name in vars {
+            if name != "x" { panic("integrate-bound: unknown identifier '${name}'; only x is bound in the integrand"); }
+        }
+        let smooth = ast_smooth_ok(f);
+        let f1 = mk_num(0.0);
+        let f2 = mk_num(0.0);
+        let f3 = mk_num(0.0);
+        let f4 = mk_num(0.0);
+        let taylor_degree = 0;
+        if smooth {
+            f1 = simplify_bound(deriv(f));
+            f2 = simplify_bound(deriv(f1));
+            if ast_size(f2) <= 20000 {
+                taylor_degree = 2;
+                f3 = simplify_bound(deriv(f2));
+                f4 = simplify_bound(deriv(f3));
+                if ast_size(f4) <= 20000 { taylor_degree = 4; }
+            }
+        }
+        let result = bound_step(f, f1, f2, f3, f4, taylor_degree, a, b, b - a, tol, 0, 0);
+        // One extra outward pad before printing: the decimal rendering of each
+        // endpoint round-trips to the f64 within half an ulp, so the printed
+        // decimal itself still encloses.
+        let final_iv = iv_out(result.lo, result.hi);
+        if !final_iv.ok { panic("integrate-bound: non-finite enclosure; fail closed"); }
+        let width = final_iv.hi - final_iv.lo;
+        if width > tol {
+            panic("integrate-bound: achieved certified width ${number_text(width)} exceeds the requested tolerance ${number_text(tol)} after accumulation rounding; fail closed (try a larger tolerance)");
+        }
+        let mode = "range-only(non-smooth-integrand)";
+        if taylor_degree == 2 { mode = "smooth-taylor2"; }
+        if taylor_degree == 4 { mode = "smooth-taylor4"; }
+        print("status=bounded integral-enclosure=[${number_text(final_iv.lo)},${number_text(final_iv.hi)}] width=${number_text(width)} method=adaptive-interval mode=${mode} subintervals=${result.nodes} taylor-accepted=${result.taylored} range-accepted=${result.ranged} tolerance=${number_text(tol)} assurance=certified-bound(outward-rounded-f64;libm<=2ulp-model;implementation-tested-not-mechanized)");
+        return;
+    }
+    if op == "range-bound" {
+        require_arity(argv, 4);
+        let source = argv[1];
+        let xlo = arg_float(argv, 2);
+        let xhi = arg_float(argv, 3);
+        if xlo > xhi { panic("range-bound requires lo <= hi"); }
+        let f = simplify_bound(parse_ast(source));
+        let vars = collect_vars(f, {});
+        for name in vars {
+            if name != "x" { panic("range-bound: unknown identifier '${name}'; only x is bound"); }
+        }
+        let enclosure = ieval(f, xlo, xhi);
+        if !enclosure.ok {
+            let why = enclosure.why;
+            panic("range-bound: cannot certify a range: ${why}; fail closed");
+        }
+        // Final outward pad before printing, for the same reason as
+        // integrate-bound: the decimal rendering of an endpoint round-trips
+        // to the f64 within half an ulp, so the printed decimal must carry
+        // one more pad to still enclose — several ieval paths (the variable
+        // passthrough, negation, abs, min/max) legitimately return unpadded
+        // endpoints.
+        let final_iv = iv_out(enclosure.lo, enclosure.hi);
+        if !final_iv.ok { panic("range-bound: non-finite enclosure; fail closed"); }
+        print("status=bounded range-enclosure=[${number_text(final_iv.lo)},${number_text(final_iv.hi)}] assurance=certified-superset-of-range(outward-rounded-f64;libm<=2ulp-model;implementation-tested-not-mechanized)");
         return;
     }
     if op == "derivative" {
@@ -2298,7 +3067,7 @@ fn main() uses(io.print) {
         let half = step / 2.0;
         let fine = (evaluate_expression(source, { "x": at + half }) - evaluate_expression(source, { "x": at - half })) / (2.0 * half);
         let probe = abs(fine - coarse) / 3.0;
-        print("derivative=${number_text(fine)} method=central-difference step=${number_text(half)} richardson-probe=${number_text(probe)} assurance=estimate-not-bound(grid-limited)");
+        print("status=estimated derivative=${number_text(fine)} method=central-difference step=${number_text(half)} richardson-probe=${number_text(probe)} assurance=estimate-not-bound(grid-limited)");
         return;
     }
     if op == "solve" {
@@ -2309,8 +3078,8 @@ fn main() uses(io.print) {
         if lo >= hi { panic("solve requires lo < hi"); }
         let flo = evaluate_expression(source, { "x": lo });
         let fhi = evaluate_expression(source, { "x": hi });
-        if flo == 0.0 { print("root=${number_text(lo)} residual=0 method=bisection iterations=0"); return; }
-        if fhi == 0.0 { print("root=${number_text(hi)} residual=0 method=bisection iterations=0"); return; }
+        if flo == 0.0 { print("status=estimated root=${number_text(lo)} residual=0 method=bisection iterations=0"); return; }
+        if fhi == 0.0 { print("status=estimated root=${number_text(hi)} residual=0 method=bisection iterations=0"); return; }
         if (flo > 0.0 && fhi > 0.0) || (flo < 0.0 && fhi < 0.0) {
             panic("solve requires a sign change on [lo, hi]; fail closed rather than guess");
         }
@@ -2325,7 +3094,7 @@ fn main() uses(io.print) {
         }
         let root = (lo + hi) / 2.0;
         let residual = abs(evaluate_expression(source, { "x": root }));
-        print("root=${number_text(root)} residual=${number_text(residual)} method=bisection iterations=${iterations}");
+        print("status=estimated root=${number_text(root)} residual=${number_text(residual)} method=bisection iterations=${iterations}");
         return;
     }
 
@@ -2381,7 +3150,22 @@ fn main() uses(io.print) {
     // Unit-aware engineering.
     if op == "convert" { print_conversion(argv); return; }
     if op == "ohm" { print_ohm(argv); return; }
-    if op == "parallel-r" { require_arity(argv, 3); let r1 = arg_float(argv, 1); let r2 = arg_float(argv, 2); print("${number_text(1.0 / (1.0 / r1 + 1.0 / r2))} ohm"); return; }
+    if op == "parallel-r" {
+        // Documented physical-domain policy (field-adjudicated 2026-08-13):
+        // this command models IDEAL PASSIVE resistors. A zero-ohm branch is a
+        // legal ideal short and makes the equivalent resistance exactly 0.
+        // Negative resistance describes an ACTIVE element — a different model
+        // — so it is refused rather than silently reinterpreted.
+        require_arity(argv, 3);
+        let r1 = arg_float(argv, 1);
+        let r2 = arg_float(argv, 2);
+        if r1 < 0.0 || r2 < 0.0 {
+            panic("parallel-r models ideal passive resistors: resistance must be >= 0 ohm (a negative value implies an active element, outside this model); fail closed");
+        }
+        if r1 == 0.0 || r2 == 0.0 { print("0 ohm"); return; }
+        print("${number_text(1.0 / (1.0 / r1 + 1.0 / r2))} ohm");
+        return;
+    }
 
     // Physics, chemistry, and space science.
     if op == "kinetic" { require_arity(argv, 3); print("${number_text(0.5 * arg_float(argv, 1) * pow(arg_float(argv, 2), 2.0))} J"); return; }
@@ -2394,6 +3178,24 @@ fn main() uses(io.print) {
     if op == "constants" {
         print("pi=${pi()}");
         print("e=${e()}");
+        return;
+    }
+
+    if op == "maturity" {
+        // Graded command inventory: every lane names its epistemic class, its
+        // independent oracle, and its known residual. Strong evidence in one
+        // lane must not inflate trust in another (field directive 2026-08-13).
+        // Evidence citations refer to the 1,402-case frozen-artifact campaign
+        // adjudicated 2026-08-13 and this repo's own suites.
+        print("JACKAL COMMAND MATURITY — epistemic classes, oracles, residuals");
+        print("class=exact       commands=rat,big-add,big-mul,big-pow,big-fact,big-ncr,gcd,lcm,ncr,fact,prime,hex,bin,band,bor,bxor,shl,shr  oracle=python-int+fraction  evidence=300-rational-trees+99-bigint-cases(2026-08-13)  residual=none-observed-within-grammar-and-budgets");
+        print("class=bounded     commands=integrate-bound,range-bound  guarantee=certified-enclosure-under-stated-f64-model  residual=implementation-tested-not-mechanized;libm<=2ulp-assumed");
+        print("class=checked     commands=diff  oracle=sympy+richardson-self-check  evidence=79-released-derivatives-max-rel-dev-1.221e-15(2026-08-13)  residual=sampled-agreement-not-proof-of-identity");
+        print("class=estimated   commands=integrate,integrate-adaptive,derivative,solve,integrate-x2,derivative-x3  evidence=integrate:120-oscillatory-median-calibration-ratio-0.99981;solve:150-constructed-roots-max-err-1.2e-16;derivative+legacy:suite-level-only(2026-08-13)  residual=estimate-not-bound;fixed-grids-can-share-blind-spots");
+        print("class=approximate commands=eval,worksheet,add,sub,mul,div,pow,sqrt,cbrt,sin,cos,tan,sin-deg,hypot,ln,log10,exp,quadratic,lerp,percent-error,dot,cross,norm3,stats,describe,linreg,matrix2,solve2  model=ieee-f64  evidence=eval-grammar:500-differential-cases;other-commands:suite-level-only(2026-08-13)  residual=per-command-depth-uneven");
+        print("class=model-based commands=claim-card,projectile,orbit,relativity,ph,dilute,blackbody,photon,ideal-gas,molarity,kinetic,kinetic-sensitivity,ohm,parallel-r,uncertain-ohm,measure-mul,convert,decibel-power  evidence=claim-card:50-deterministic-cards+50-external-sha256;other-model-commands:suite-level-only(2026-08-13)  residual=hash-binds-bytes-not-physical-assumptions");
+        print("class=refused     behavior=fail-closed-nonzero-exit-with-named-reason  residual=surfaced-via-runtime-panic-channel-not-a-crash");
+        print("non-claim=universal-correctness; finite campaigns cannot establish it");
         return;
     }
 

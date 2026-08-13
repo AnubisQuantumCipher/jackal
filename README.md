@@ -35,12 +35,22 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
 - **Determinism** — identical input, byte-identical output; claim cards carry SHA-256 fingerprints.
 - **Exactness flags** — `rat` and `big-*` results are exact; `approx=` is labeled IEEE f64;
   the single most common downstream error is a model treating a truncated decimal as exact.
-- **Labeled error estimates** — integration and differentiation ship Richardson estimates
-  tagged `assurance=estimate-not-bound(grid-limited)`: they are heuristic, and a feature narrower
-  than the grid can evade both grids and produce a confident wrong answer (verified: a
-  width~0.0007 Gaussian peak on a 100-panel grid underestimated its own error ~256×). Bisection
-  ships residuals; symbolic derivatives ship their own numeric verification line. Only the
-  `rat`/`big-*` lanes are exact.
+- **A three-tier assurance ladder for numerical integration** —
+  `integrate` prints a Richardson *estimate* tagged `assurance=estimate-not-bound(grid-limited)`
+  (heuristic; a feature narrower than the grid can evade both grids — verified: a width~0.0007
+  Gaussian peak on a 100-panel grid underestimated its own error ~256×);
+  `integrate-adaptive` prints a *local estimate with refusal semantics* (it refuses rather than
+  print unearned confidence, but agreement is still not a bound);
+  `integrate-bound` prints a **certified enclosure** — an interval-arithmetic bound that cannot
+  be evaded by off-grid structure, conditional only on the stated f64 rounding model (see
+  "Certified enclosures" below). Bisection ships residuals; symbolic derivatives ship their own
+  numeric verification line. Only the `rat`/`big-*` lanes are exact.
+- **Machine-readable epistemic classes** — metadata-bearing lanes print `status=` as the first
+  field: `exact` (rat), `bounded` (integrate-bound, range-bound), `checked` (diff),
+  `estimated` (integrate, integrate-adaptive, derivative, solve, integrate-x2, derivative-x3),
+  `model-based` (claim-card). `jackal maturity` prints the full graded command inventory —
+  every lane's class, oracle, evidence, and known residual — so strong evidence in one lane
+  cannot silently inflate trust in another.
 - **Echoed parse** — `rat` echoes `parsed=`, `diff` echoes `d/dx[input]`: the dominant failure
   at the model-tool boundary is transcription, not computation, and the echo lets the caller
   confirm the engine evaluated the expression it intended.
@@ -96,10 +106,15 @@ cp ./.build/anubis_run ./jackal-native && chmod +x ./jackal-native
 ./jackal self-test          # now uses the native artifact, no Anubis needed
 ```
 
-**Reproducibility.** Building the committed source with the pinned compiler yields a native binary
-whose SHA-256 is recorded in the verification receipt below. `JACKAL_FORCE_SOURCE=1` always bypasses
-any prebuilt binary and runs through the compiler; `JACKAL_OUT` overrides the scratch out-dir
-(default: `$TMPDIR/jackal-calc-run`).
+**Reproducibility — stated precisely.** Building the committed source with the pinned compiler
+is *functionally* reproducible: every build passes the same 83-invariant self-test and the same
+black-box suites. Byte-identical binaries across repeated builds are **not** claimed — measured
+2026-08-13: four successive builds of identical source produced four distinct SHA-256s (the
+pinned compiler embeds build-run-specific bytes). The provenance chain in
+[`PROVENANCE.md`](PROVENANCE.md) therefore binds the *source* hash, the *compiler* hash, and the
+SHA-256 of the **exact shipped binary the gate receipts were produced against**.
+`JACKAL_FORCE_SOURCE=1` always bypasses any prebuilt binary and runs through the compiler;
+`JACKAL_OUT` overrides the scratch out-dir (default: `$TMPDIR/jackal-calc-run`).
 
 ## The unusual part: calculation claim cards
 
@@ -128,6 +143,7 @@ tokenizer, recursive-descent parser, and evaluator all written in Anubis:
 ```bash
 ./jackal eval "2+3*sin(pi/6)^2"
 ./jackal integrate "sin(x)" 0 3.141592653589793 200   # general Simpson + Richardson error estimate
+./jackal integrate-bound "sin(x)" 0 3.141592653589793 1e-9   # certified interval enclosure
 ./jackal derivative "x^3" 2 0.001                     # central difference + Richardson probe
 ./jackal solve "x^2-2" 1 2                            # bisection + residual, requires a sign change
 ```
@@ -138,21 +154,81 @@ arguments. Functions: `sin cos tan asin acos atan sqrt cbrt ln log10 log2 exp ab
 round trunc` (one argument) and `hypot pow atan2 min max` (two). Constants: `pi e tau c g0 h
 na kb r`. The variable `x` is bound only inside `integrate`/`derivative`/`solve`.
 
-## Symbolic differentiation — that verifies itself
+## Certified enclosures — the tier above estimates
+
+The 2026-08-13 adversarial campaign (1,402 cases against a frozen artifact) proved the
+distinction that now defines this engine: JACKAL's Richardson estimates were *superbly
+calibrated* (median actual-error/estimate ratio 0.99981 across 120 independently solved
+oscillatory integrals) — and still not *bounds*, because a fixed grid cannot certify what it
+never sampled. `integrate-bound` closes that gap with mathematics instead of sampling:
+
+```bash
+./jackal integrate-bound "exp(0-1000000*(x-0.1225)^2)" 0 1 1e-9
+# status=bounded integral-enclosure=[0.0017724538498025575,0.0017724538524225815] ...
+# — the same narrow off-grid Gaussian that silently beat fixed-grid Simpson by 256×
+#   now carries a certified enclosure containing the true sqrt(pi)/1000·erf-term value
+
+./jackal range-bound "sin(x)" 0 6.4
+# status=bounded range-enclosure=[-1.000000000000001,1.000000000000001]
+# assurance=certified-superset-of-range(outward-rounded-f64;libm<=2ulp-model;implementation-tested-not-mechanized)
+```
+
+How it works, and exactly what it claims:
+
+- Every expression is evaluated in **outward-rounded interval arithmetic** over the AST:
+  each operation's result interval is padded outward by 1e-15 relative + 1e-300 absolute
+  (~4.5 ulp) — strictly more than the worst-case rounding of the operation that produced it.
+  `sin`/`cos` ranges detect interior extrema with slack-widened critical-point tests (doubt
+  can only *widen* the enclosure) and clamp to [-1,1]; `tan` refuses any interval that may
+  contain a pole; division refuses any denominator interval containing zero.
+- The integrator adaptively bisects; each accepted subinterval contributes a proven piece via
+  the sharpest valid form: **Taylor-4 midpoint** `h·F(m) + h³/24·F″(m) + h⁵/1920·F⁗([a,b])`
+  when the symbolic chain f…f⁗ interval-evaluates over the closed subinterval (which
+  certifies C⁴ there — the derivative formulas come from the same `deriv()` that powers
+  `diff`, simplified by a *sound* simplifier that never applies a where-defined convention),
+  degrading to Taylor-2, then to the always-valid pure range form `h·F([a,b])`. All
+  successful forms are enclosures, so they are intersected.
+- Refusal is the answer whenever certification fails: budget (60000 subintervals), depth
+  (60 levels), f64 resolution, domain hazards (`1/x` through zero, `ln` touching 0, `tan`
+  poles), unknown identifiers, or a final width above the requested tolerance. The refusal
+  names the reason.
+- The residual trust assumptions are stated, not hidden: IEEE-754 correctly-rounded basic
+  ops; math-library calls within 2 ulp (including argument reduction); and the
+  implementation itself is *tested, not mechanized* — a seeded containment campaign
+  (`tests/bound_campaign.py`) checks every printed enclosure against an independent
+  symbolic-antiderivative oracle, where the only fatal verdict is a bound that excludes the
+  truth.
+
+`integrate-bound` is deliberately the slowest lane — certification costs evaluations. For a
+fast heuristic with refusal semantics use `integrate-adaptive`; for raw speed use `integrate`
+and treat the estimate as an estimate.
+
+## Symbolic differentiation — numerically checked before release
 
 `diff` parses the expression to an AST, differentiates symbolically, simplifies conservatively,
 and then **refuses to print a derivative that fails its own numeric check**: the result is
 compared against a central difference (h = 1e-5, the optimal cube-root-of-epsilon scale for
-f64) at sample points, skipping points outside the domain.
+f64) at sample points, skipping points outside the domain. Sampled agreement is a check, not a
+proof of identity — the output says so (`assurance=numeric-sample-check(not-proof-of-identity)`).
 
 ```bash
 ./jackal diff "x^2*sin(x)"
 # d/dx[x^2*sin(x)] = 2*x*sin(x)+x^2*cos(x)
-# verified=numeric points=5 max-rel-dev=0.00000000008517730964996417 tolerance=0.0001
+# status=checked check=numeric points=9 max-rel-dev=0.00000000005999646518118516 tolerance=0.0001 assurance=numeric-sample-check(not-proof-of-identity)
 
 ./jackal diff "x^x"
 # d/dx[x^x] = x^x*(ln(x)+1)
 ```
+
+The verifier validates its own instrument before it is allowed to veto: a sample point where
+the h and h/2 central differences disagree beyond 1% of scale is a *broken probe*, not
+evidence against the derivative — it is skipped and disclosed
+(`skipped-unstable-probe=N`). The skip criterion never reads the symbolic candidate, so it
+cannot launder a wrong rule through; wrong rules are still refused at every point where the
+probe converges, and fewer than 3 usable points refuses outright. (Field-adjudicated
+2026-08-13: a nested-tan composition was refused by the old verifier solely because
+pole-adjacent probes diverged — `tan(tan(x))` now releases, and is sympy-cross-checked in the
+suite.)
 
 Rules cover `+ - * / ^` (constant and general exponents via ln), `sin cos tan asin acos atan
 sqrt cbrt ln log10 log2 exp hypot atan2`. Non-differentiable functions (`abs floor ceil round
@@ -167,10 +243,10 @@ which makes float error *visible*:
 
 ```bash
 ./jackal rat "0.1 + 0.2"
-# parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004
+# status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004
 
 ./jackal rat "123456789123456789/987654321987654321 + 1/3"
-# parsed=... exact=150891632/329218107 approx=0.4583333321942708
+# status=exact parsed=... exact=150891632/329218107 approx=0.4583333321942708
 ```
 
 The `exact=` field is the truth; `approx=` is the same expression through IEEE f64, printed so
@@ -224,8 +300,9 @@ register model; the `big-` lane is the exact model.
 
 | World | Commands |
 |---|---|
-| Trust and metrology | `claim-card self-test measure-mul uncertain-ohm kinetic-sensitivity` |
-| Expression engine | `eval integrate derivative solve` |
+| Trust and metrology | `claim-card self-test maturity measure-mul uncertain-ohm kinetic-sensitivity` |
+| Expression engine | `eval integrate integrate-adaptive derivative solve` |
+| Certified enclosures | `integrate-bound range-bound` (proven interval bounds, refuse-on-doubt) |
 | Symbolic | `diff` (self-verifying d/dx) |
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |
 | Worksheet | `worksheet` (persistent variables across `;`) |
@@ -273,7 +350,14 @@ ANUBIS=/Users/sicarii/anubis-lang/vm/pins/anubis-51f4a964347a
 $ANUBIS check jackal_calc.anb --out /tmp/jackal-check
 ./jackal self-test
 ANUBIS_BIN=$ANUBIS python3 tests/test_calculator.py
+python3 tests/bound_campaign.py 250 20260813   # seeded containment gate for integrate-bound
 ```
+
+The containment campaign is the permanent release gate for the certified lane: seeded
+generation, an independent symbolic-antiderivative oracle at 60 digits, immutable JSONL rows
+with a printed SHA-256, refusals counted rather than hidden — and a hard failure if any
+printed enclosure ever excludes the independently computed truth. See
+[`PROVENANCE.md`](PROVENANCE.md) for the sealed source → compiler → binary chain.
 
 ## Honest boundaries
 
@@ -327,6 +411,36 @@ ANUBIS_BIN=$ANUBIS python3 tests/test_calculator.py
   under the adaptive lane. The estimate is still local, not a proven bound: structure below
   seed/f64 resolution can evade even adaptivity. Bisection requires a bracketing sign change and
   reports its residual; it correctly refuses even-multiplicity roots.
+- `integrate-bound` is the only lane whose output is a mathematical *bound*, and its claim is
+  conditional exactly on: (a) IEEE-754 correctly-rounded `+ - * /`; (b) math-library functions
+  within 2 ulp including argument reduction; (c) the outward-padding constants exceeding both;
+  (d) the correctness of this implementation, which is campaign-tested
+  (`tests/bound_campaign.py`), **not mechanized** — there is no machine-checked proof of the
+  interval code itself. `0^0 = 1` follows the same documented pow() convention as the
+  simplifier. Non-smooth integrands (`abs`, `floor`, `min`, …) get the pure range form, whose
+  certified width converges only linearly — practical tolerances there are ~1e-4 on unit
+  spans, and the budget refusal names that honestly.
+- The `status=` epistemic classes (`exact`, `bounded`, `checked`, `estimated`, `model-based`)
+  are printed on metadata-bearing lanes only; bare-number lanes (`eval`, `big-*`,
+  single-command arithmetic) keep their historical byte-stable output and are graded in
+  `jackal maturity` instead. Refusals exit nonzero with a named reason on stderr through the
+  Anubis runtime's panic channel — fail-closed by construction; the runtime trace wrapping is
+  cosmetic, not a crash. A future typed-refusal surface (distinct exit codes per epistemic
+  state) would require a clean-exit primitive in the language.
+- `parallel-r` documents its physical-domain policy: ideal passive elements. A zero-ohm branch
+  is a legal ideal short (equivalent resistance exactly `0 ohm`, field-adjudicated
+  2026-08-13); negative resistance implies an active element and is refused rather than
+  silently reinterpreted.
+- The `diff` verifier's probe self-convergence gate (skip a sample point when the h and h/2
+  central differences disagree >1% of scale) validates the instrument before the number; the
+  criterion is independent of the symbolic candidate, so it cannot mask a wrong rule.
+- Memory is bounded by design constants, not by hoping the host is big: the certified lane's
+  work is capped at 60000 subintervals with recursion depth ≤ 60 and derivative-formula size
+  ≤ 20000 nodes (oversize formulas degrade to a lower Taylor form — a cost decision, never a
+  soundness one), so the engine's footprint stays in transient tens-of-megabytes territory on
+  any host. The test harness applies the same discipline to its *oracles*: each independent
+  truth computation runs in a disposable subprocess with a hard RSS cap (3 GB) and timeout,
+  because a symbolic-integration oracle that eats the machine is a harness bug, not evidence.
 - A calibration note from adversarial field testing: on `sin(100*x)*exp(-x)` over [0,10], a
   probe's independent reference claimed the sign was wrong — exact symbolic integration proved
   the *reference* wrong and JACKAL right, with the printed Richardson estimate (2.1865e-7)

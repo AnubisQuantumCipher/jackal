@@ -11,3 +11,6 @@ jackal-native
 *.tmp
 .build/
 
+
+# Python bytecode from the test harness
+tests/__pycache__/

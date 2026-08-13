@@ -23,6 +23,26 @@ Decode the committed journal (little-endian u32; expected value `8`):
 python3 -c "import struct; print(struct.unpack('<I', open('proofs/zk-receipt/journal.bin','rb').read()))"
 ```
 
+## Source ↔ receipt binding, reconciled (2026-08-13)
+
+A field audit asked whether `guest_source_sha256` in `risc0_metadata.json`
+(`2d11f1bf…`) matches the checked-in guest source, whose raw file hash is
+`3c0c7d30…`. The two hashes have **different preimages by design**:
+`guest_source_sha256` digests the deterministic transpiled Rust guest
+(`guest_source.rs`), not the `.anb` bytes. On 2026-08-13 the entire chain was
+re-derived from the committed `proofs/jackal_proof_guest.anb` with the pinned
+compiler:
+
+- regenerated `guest_source.rs` sha256 = `2d11f1bf7b4af2af65187fbad9ff54656c9c93e902fda8f8f1a18535a18dae83` — equal to the receipt's recorded value;
+- rebuilt `guest.elf` sha256 = `d363e61d9426d7d029a60cd9e268272f57ea0195725dde1a83b8ce47508ec2b4` — byte-identical to the receipt's recorded ELF;
+- derived ImageID identical (`2031595584 2502850517 … 2324132228`);
+- a fresh receipt was generated and verified, committing the same journal
+  (`8`, sha256 `dc765660…`).
+
+The committed guest source therefore provably produces the exact program this
+receipt binds to. (STARK receipts are randomized, so the fresh `receipt.bin`
+bytes differ; the committed original continues to verify and is retained.)
+
 ## Provenance
 
 - Proved 2026-08-12 on the CPU lane (`R0_DISABLE_METAL=1`, `lane_observed=cpu`) with the

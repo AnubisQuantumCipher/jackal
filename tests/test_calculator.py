@@ -49,6 +49,11 @@ CASES = [
     (["convert", "1", "atm", "Pa"], "101325 Pa"),
     (["ohm", "v", "12", "4"], "voltage=12 V current=3 A resistance=4 ohm power=36 W"),
     (["parallel-r", "100", "200"], "66.66666666666667 ohm"),
+    # Physical-domain policy (field-adjudicated 2026-08-13): a zero-ohm branch
+    # is an ideal short — the parallel network is exactly 0 ohm. Negative
+    # resistance is refused (see FAIL_CASES).
+    (["parallel-r", "0", "100"], "0 ohm"),
+    (["parallel-r", "0", "0"], "0 ohm"),
     # Physics, chemistry, and Earth/space science
     (["kinetic", "2", "3"], "9 J"),
     (["photon", "500"], "energy=0.00000000000000000039728917142978563 J frequency=599584916000000 Hz"),
@@ -59,16 +64,17 @@ CASES = [
     (["molarity", "0.5", "2"], "0.25 mol/L"),
     (["orbit", "6371000", "398600441800000"], "speed=7909.792402654085 m/s period=5060.837447340496 s"),
     (["projectile", "20", "45", "9.80665"], "range=40.78864851911713 m time=2.8841929963302353 s max-height=10.19716212977928 m"),
-    (["self-test"], "self-test: 64/64 Anubis-native invariants pass"),
-    # Exact rational engine (echoes its parsed form, per the transcription-check discipline)
-    (["rat", "0.1 + 0.2"], "parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004"),
-    (["rat", "1/3 + 1/6"], "parsed=1/3+1/6 exact=1/2 approx=0.5"),
+    (["self-test"], "self-test: 83/83 Anubis-native invariants pass"),
+    # Exact rational engine (echoes its parsed form, per the transcription-check
+    # discipline; status=exact is the machine-readable epistemic class)
+    (["rat", "0.1 + 0.2"], "status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004"),
+    (["rat", "1/3 + 1/6"], "status=exact parsed=1/3+1/6 exact=1/2 approx=0.5"),
     # approx is the honest IEEE f64 value of pow(2/3, -2) — NOT 2.25; the exact
     # field 9/4 is the true answer, and that discrepancy is the feature.
-    (["rat", "(2/3)^-2"], "parsed=(2/3)^-2 exact=9/4 approx=2.2500000000000004"),
-    (["rat", "1/3 - 1/3"], "parsed=1/3-1/3 exact=0 approx=0"),
-    (["rat", "-3/9"], "parsed=-3/9 exact=-1/3 approx=-0.3333333333333333"),
-    (["rat", "2.5e1 * 2"], "parsed=2.5e1*2 exact=50 approx=50"),
+    (["rat", "(2/3)^-2"], "status=exact parsed=(2/3)^-2 exact=9/4 approx=2.2500000000000004"),
+    (["rat", "1/3 - 1/3"], "status=exact parsed=1/3-1/3 exact=0 approx=0"),
+    (["rat", "-3/9"], "status=exact parsed=-3/9 exact=-1/3 approx=-0.3333333333333333"),
+    (["rat", "2.5e1 * 2"], "status=exact parsed=2.5e1*2 exact=50 approx=50"),
     # Worksheet: variables persist across semicolon-separated statements
     (["worksheet", "a = 5; b = a^2; a+b"], "a = 5\nb = 25\n30"),
     (["worksheet", "r0 = 2; area = pi*r0^2"], "r0 = 2\narea = 12.566370614359172"),
@@ -90,8 +96,8 @@ CASES = [
     (["uncertain-ohm", "12", "0.1", "3", "0.05"], "resistance=4 ± 0.1 ohm relative=2.5%"),
     (["matrix2", "1", "2", "3", "4"], "det=-2 inverse=[-2,1;1.5,-0.5]"),
     (["solve2", "2", "1", "5", "1", "-1", "1"], "x=2 y=1 residual=0"),
-    (["integrate-x2", "0", "3", "100"], "integral=9 method=simpson panels=100"),
-    (["derivative-x3", "2", "0.001"], "derivative=12.000000999998 truncation-probe=0.000000999998"),
+    (["integrate-x2", "0", "3", "100"], "status=estimated integral=9 method=simpson panels=100"),
+    (["derivative-x3", "2", "0.001"], "status=estimated derivative=12.000000999998 truncation-probe=0.000000999998"),
     (["ph", "0.001"], "pH=3 classification=acidic"),
     (["dilute", "2", "0.5", "0.25"], "final-volume=4 L solvent-to-add=3.5 L"),
     (["relativity", "0.6"], "gamma=1.25 time-dilation=1.25 length-factor=0.8"),
@@ -132,15 +138,27 @@ CONTAINS_CASES = [
         "residual=",
     ]),
     # Richardson-extrapolated verification must pass stiff-but-correct rules that
-    # the bare fixed-step check refused (rule proven sympy-equal)
+    # the bare fixed-step check refused (rule proven sympy-equal). The probe
+    # self-convergence gate skips the one sample point where the instrument
+    # itself diverges (x=2.7: the inner phase sweeps ~7.7e4 radians across the
+    # central-difference stencil) instead of letting it condemn the rule.
     (["diff", "cos(exp((x^3)))", ], [
         "d/dx[cos(exp((x^3)))] = -(sin(exp(x^3))*(exp(x^3)*(3*x^2)))",
-        "verified=numeric points=5",
+        "check=numeric points=8",
+        "skipped-unstable-probe=1",
+    ]),
+    # Field-adjudicated 2026-08-13: a nested-tan composition was refused by the
+    # old verifier because pole-adjacent probes diverged — the instrument was
+    # broken, not the derivative. The gate must now release it (sympy-checked
+    # below in SYMPY_DIFF_CASES).
+    (["diff", "tan(tan(x))"], [
+        "d/dx[tan(tan(x))] = 1/cos(x)^2/cos(tan(x))^2",
+        "status=checked check=numeric",
     ]),
     (["diff", "x/x"], [
         "d/dx[x/x] = 0",
         "domain-caveat=",
-        "verified=numeric",
+        "check=numeric",
     ]),
     (["integrate", "x^3-2*x", "0", "2", "100"], [
         "assurance=estimate-not-bound(grid-limited)",
@@ -163,16 +181,71 @@ CONTAINS_CASES = [
         "achieved-error-estimate=0 ",
     ]),
     # Symbolic differentiation: every derivative self-verifies numerically
-    (["diff", "x^2"], ["d/dx[x^2] = 2*x", "verified=numeric"]),
-    (["diff", "x^2*sin(x)"], ["2*x*sin(x)+x^2*cos(x)", "verified=numeric"]),
-    (["diff", "x^x"], ["x^x*(ln(x)+1)", "verified=numeric"]),
-    (["diff", "sqrt(x)"], ["1/(2*sqrt(x))", "verified=numeric"]),
-    (["diff", "5"], ["d/dx[5] = 0", "verified=numeric points=5"]),
+    (["diff", "x^2"], ["d/dx[x^2] = 2*x", "check=numeric"]),
+    (["diff", "x^2*sin(x)"], ["2*x*sin(x)+x^2*cos(x)", "check=numeric"]),
+    (["diff", "x^x"], ["x^x*(ln(x)+1)", "check=numeric"]),
+    (["diff", "sqrt(x)"], ["1/(2*sqrt(x))", "check=numeric"]),
+    (["diff", "5"], ["d/dx[5] = 0", "check=numeric points=9"]),
+    # Certified interval lane: the enclosure is checked NUMERICALLY against an
+    # independent oracle in BOUND_ORACLE_CASES below; here we pin the witness
+    # metadata (status class, mode, assurance wording).
+    (["integrate-bound", "x^2", "0", "3", "1e-9"], [
+        "status=bounded integral-enclosure=[",
+        "mode=smooth-taylor4",
+        "assurance=certified-bound(outward-rounded-f64;libm<=2ulp-model;implementation-tested-not-mechanized)",
+    ]),
+    (["integrate-bound", "abs(x-0.3)", "0", "1", "1e-4"], [
+        "status=bounded",
+        "mode=range-only(non-smooth-integrand)",
+    ]),
+    (["range-bound", "sin(x)", "0", "6.4"], [
+        "status=bounded range-enclosure=[-1.000000000000001,1.000000000000001]",
+        "assurance=certified-superset-of-range",
+    ]),
+    # 2026-08-13 adversarial-review regression: constant folding once
+    # certified [0,0] here while the true value is 1. Without folding the
+    # enclosure is honestly wide at 1e16 scale — and contains 1.
+    (["range-bound", "1e16+1-1e16", "0", "1"], [
+        "status=bounded",
+        "range-enclosure=[-28.000000000000057,32.00000000000007]",
+    ]),
+    (["maturity"], [
+        "class=exact",
+        "class=bounded",
+        "class=checked",
+        "class=estimated",
+        "class=model-based",
+        "non-claim=universal-correctness",
+    ]),
+    (["claim-card", "projectile", "20", "45", "9.80665"], [
+        "status=model-based",
+    ]),
+]
+
+# Certified-bound oracle: an independent high-precision oracle computes the
+# true integral; JACKAL's printed enclosure MUST contain it AND meet its own
+# tolerance. This is the lane the 2026-08-13 campaign proved missing: not an
+# estimate that happens to be calibrated, but an interval that cannot exclude
+# the truth. Entries: (expr, a, b, tol, sympy_integrand_string).
+BOUND_ORACLE_CASES = [
+    ("x^2", "0", "3", "1e-9", "x**2"),
+    ("sin(x)", "0", "3.141592653589793", "1e-9", "sin(x)"),
+    # The narrow off-grid Gaussian that beat fixed-grid Simpson by 256x — the
+    # decisive witness from the campaign — must now carry a PROVEN enclosure.
+    ("exp(0-1000000*(x-0.1225)^2)", "0", "1", "1e-9", "exp(-1000000*(x-Rational(1225,10000))**2)"),
+    # The oscillatory family the campaign measured (58 raw reds were exactly
+    # this shape): certified instead of estimated.
+    ("sin(100*x)*exp(-x)", "0", "3", "1e-8", "sin(100*x)*exp(-x)"),
+    ("1/x", "1", "2", "1e-9", "1/x"),
+    # Range-mode fallback at the sqrt kink in f' at 0, Taylor mode elsewhere.
+    ("sqrt(x)", "0", "1", "1e-6", "sqrt(x)"),
+    ("x^x", "0.5", "2", "1e-8", "x**x"),
 ]
 
 # Symbolic oracle: sympy independently differentiates each input; JACKAL's
 # printed derivative must agree with sympy's numerically at sample points.
 SYMPY_DIFF_CASES = [
+    "tan(tan(x))",
     "x^2*sin(x)",
     "x/(1+x^2)",
     "exp(x)*ln(x)",
@@ -287,16 +360,31 @@ FAIL_CASES = [
     (["rat", "sin(1)"], "exact mode supports"),
     (["rat", "pi"], "exact mode supports"),
     (["rat", "2^0.5"], "integer exponent"),
+    # Certified interval lane must REFUSE rather than print an unearned bound
+    (["integrate-bound", "1/x", "0", "1", "1e-6"], "cannot certify"),
+    (["integrate-bound", "ln(x)", "0", "1", "1e-6"], "cannot certify"),
+    (["integrate-bound", "tan(x)", "0", "3.14159", "1e-6"], "exhausted"),
+    (["integrate-bound", "x", "1", "0", "1e-6"], "requires a < b"),
+    (["integrate-bound", "x", "0", "1", "0"], "tolerance must be positive"),
+    (["integrate-bound", "y+1", "0", "1", "1e-6"], "only x is bound"),
+    (["range-bound", "1/x", "-1", "1", ], "cannot certify a range"),
+    # Physical-domain policy: negative resistance is an active-element model,
+    # outside parallel-r's ideal-passive scope (field-adjudicated 2026-08-13)
+    (["parallel-r", "-50", "100"], "resistance must be >= 0"),
 ]
 
 
 def run(args: list[str]) -> subprocess.CompletedProcess[str]:
     out = OUT_ROOT / (args[0] + "-" + str(len(args)))
+    # Work-class timeout per the operator invariant (3600 s): certified-lane
+    # refusal cases legitimately burn their full subdivision budget before
+    # failing closed, which is well beyond a snappy-CLI timeout when running
+    # from source through the compiler.
     return subprocess.run(
         [str(PIN), "run", str(APP), "--out", str(out), "--", *args],
         text=True,
         capture_output=True,
-        timeout=30,
+        timeout=3600,
     )
 
 
@@ -365,6 +453,42 @@ def main() -> int:
         print(f"{'PASS' if ok else 'FAIL'} diff {source} == sympy{detail}")
         if not ok:
             failures += 1
+    import mpmath
+    mpmath.mp.dps = 60
+    for expr, a, b, tol, sympy_src in BOUND_ORACLE_CASES:
+        result = run(["integrate-bound", expr, a, b, tol])
+        ok = result.returncode == 0
+        detail = ""
+        if ok:
+            line = result.stdout.strip().split("\n")[-1]
+            enclosure = line.split("integral-enclosure=[", 1)[1].split("]", 1)[0]
+            lo_text, hi_text = enclosure.split(",")
+            # The oracle must integrate over the SAME f64 bounds JACKAL parsed.
+            a_m = mpmath.mpf(float(a))
+            b_m = mpmath.mpf(float(b))
+            expr_s = sympy.sympify(sympy_src, locals={"x": x, "Rational": sympy.Rational})
+            anti = sympy.integrate(expr_s, x)
+            if not anti.has(sympy.Integral):
+                # Exact antiderivative, evaluated at high precision — this
+                # oracle cannot miss a narrow peak the way numeric quadrature
+                # could.
+                F = sympy.lambdify(x, anti, "mpmath")
+                truth_val = F(b_m) - F(a_m)
+            else:
+                f_num = sympy.lambdify(x, expr_s, "mpmath")
+                truth_val = mpmath.quad(f_num, [a_m, b_m])
+            lo_val = mpmath.mpf(lo_text)
+            hi_val = mpmath.mpf(hi_text)
+            width = hi_val - lo_val
+            contains = lo_val <= truth_val <= hi_val
+            meets_tol = width <= mpmath.mpf(tol) * (1 + mpmath.mpf("1e-9"))
+            ok = bool(contains and meets_tol)
+            detail = f" enclosure=[{lo_text},{hi_text}] truth={truth_val} width={width} contains={contains} meets_tol={meets_tol}"
+        print(f"{'PASS' if ok else 'FAIL'} integrate-bound {expr} [{a},{b}] tol={tol} encloses oracle{'' if ok else detail}")
+        if not ok:
+            failures += 1
+            if result.stderr:
+                print(result.stderr.strip(), file=sys.stderr)
     for source in RAT_ORACLE_CASES:
         result = run(["rat", source])
         ok = result.returncode == 0
@@ -382,7 +506,7 @@ def main() -> int:
         if not ok:
             failures += 1
     total = (len(CASES) + len(ORACLE_CASES) + len(CONTAINS_CASES) + len(FAIL_CASES)
-             + len(SYMPY_DIFF_CASES) + len(RAT_ORACLE_CASES))
+             + len(SYMPY_DIFF_CASES) + len(RAT_ORACLE_CASES) + len(BOUND_ORACLE_CASES))
     print(f"TOTAL {total - failures}/{total}")
     return 1 if failures else 0
 

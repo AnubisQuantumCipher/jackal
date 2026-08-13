@@ -26,12 +26,33 @@ cp ./.build/anubis_run ./jackal-native && chmod +x ./jackal-native
 ```
 
 - shipped `jackal-native` SHA-256: `c37a256c38c5819e24b31c405152fb61fe06bcf4f05550dee9e5c4e8e080c2c2`
-- **Byte-reproducibility of the build step is NOT claimed.** Measured
-  2026-08-13: four successive builds of identical source with the pinned
-  compiler produced four distinct binary SHA-256s. Reproducibility here is
-  *functional* (every rebuild passes the same 83-invariant self-test and the
-  same external suites); the hash above identifies the exact artifact the
-  gate receipts below were produced against.
+
+### Build determinism — diagnosed precisely (2026-08-13)
+
+Successive builds of identical source produce different binary SHA-256s. The
+divergence was traced through the pipeline stage by stage:
+
+1. **Anubis → Rust transpile: byte-deterministic.** Every build of source
+   `b74d078d…` emits an identical `anubis_run.rs`, SHA-256
+   `3e4fde1eb205242343d9fd62a9401acd5c14592d81e59e0e01921193202ac4ad`.
+   This is a verifiable deterministic link: rebuild and compare the `.rs`
+   hash in the out-dir.
+2. **rustc → binary: nondeterministic layout, identical behavior.** Final
+   binaries differ in static/string-pool ordering (plus per-link `LC_UUID`
+   and `__LINKEDIT` metadata) across runs of the *same* command — the
+   signature of an unpinned rustc compilation-session input
+   (`-C metadata`-class) inside the pinned compiler, not of the program
+   changing. Machine code behavior is identical: every build passes the
+   83-invariant self-test and the external suites.
+3. `tests/content_hash.py` hashes only the code/data segments (excluding
+   Mach-O headers and linker metadata); repeated builds fall into a small
+   family of layout-permuted content hashes. Once the toolchain pins its
+   rustc session inputs (upstream anubis-lang fix, filed 2026-08-13), that
+   content hash becomes the rebuild-and-verify reproducibility check.
+
+Until that upstream fix lands, the chain binds the exact shipped binary
+above — the artifact every gate receipt was produced against — plus the
+deterministic transpile hash in (1).
 
 ## Gate receipts (2026-08-13, all green)
 

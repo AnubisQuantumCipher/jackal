@@ -106,13 +106,15 @@ cp ./.build/anubis_run ./jackal-native && chmod +x ./jackal-native
 ./jackal self-test          # now uses the native artifact, no Anubis needed
 ```
 
-**Reproducibility — stated precisely.** Building the committed source with the pinned compiler
-is *functionally* reproducible: every build passes the same 83-invariant self-test and the same
-black-box suites. Byte-identical binaries across repeated builds are **not** claimed — measured
-2026-08-13: four successive builds of identical source produced four distinct SHA-256s (the
-pinned compiler embeds build-run-specific bytes). The provenance chain in
-[`PROVENANCE.md`](PROVENANCE.md) therefore binds the *source* hash, the *compiler* hash, and the
-SHA-256 of the **exact shipped binary the gate receipts were produced against**.
+**Reproducibility — stated precisely.** The Anubis→Rust transpile is **byte-deterministic**:
+every build of the committed source emits an identical `anubis_run.rs` (hash recorded in
+[`PROVENANCE.md`](PROVENANCE.md) — rebuild and compare). The final `rustc` link is **not**
+byte-deterministic (static-layout ordering varies per run — an unpinned compilation-session
+input in the pinned toolchain, upstream anubis-lang fix pending); behavior is identical and
+every rebuild passes the same 83-invariant self-test and external suites.
+`tests/content_hash.py` hashes only code/data segments for comparing builds. The provenance
+chain binds the *source* hash, the *compiler* hash, the *transpile* hash, and the SHA-256 of
+the **exact shipped binary the gate receipts were produced against**.
 `JACKAL_FORCE_SOURCE=1` always bypasses any prebuilt binary and runs through the compiler;
 `JACKAL_OUT` overrides the scratch out-dir (default: `$TMPDIR/jackal-calc-run`).
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the deterministic JACKAL v1.1.0 macOS arm64 release package (mission §424).
+# Build the deterministic JACKAL v1.1.1 macOS arm64 release package (mission §424).
 # Assembles a self-contained, fresh-extractable package: evaluator, proved
 # checker, release wrapper + shared validator, evidence, manifest, SHA256SUMS,
 # and honest non-claims. All artifact paths inside the package are relative to
@@ -7,7 +7,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-VER="v1.1.0"
+VER="v1.1.1"
 PKG="$ROOT/release/dist/jackal-$VER-macos-arm64"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 
@@ -26,7 +26,7 @@ chmod +x "$PKG/jackal-native" "$PKG/jackal_cert_check"
 # --- package-local release wrapper: all paths relative to the package root ---
 cat > "$PKG/jackal-cert-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.1.0 packaged certified-release gate (self-contained).
+# JACKAL v1.1.1 packaged certified-release gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 3 ] || { echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi>" >&2; exit 2; }
@@ -60,7 +60,7 @@ compiler_pin anubis-a733565f237d a733565f237df171e7cf93b9b37700a42d8713576818fd9
 EOF
 
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'
-JACKAL v1.1.0 — explicit non-claims (mission §629)
+JACKAL v1.1.1 — explicit non-claims (mission §629)
 - NOT universal correctness. The certified fragment is exactly:
   num, var, neg, add, sub, mul, div, integer pow (n>=0), sin, cos, abs,
   floor, ceil, round, trunc, min, max, and named constants (pi, e, tau).
@@ -82,7 +82,7 @@ JACKAL v1.1.0 — explicit non-claims (mission §629)
 EOF
 
 cat > "$PKG/README.txt" <<'EOF'
-JACKAL v1.1.0 — proof-carrying certified-range release (macOS arm64, public, unsigned)
+JACKAL v1.1.1 — proof-carrying certified-range release (macOS arm64, public, unsigned)
 
 Verify, then release a certified enclosure:
   shasum -a 256 -c SHA256SUMS         # every shipped file

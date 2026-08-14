@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.0.4 fresh-extraction package smoke test (mission §443).
+"""JACKAL v1.1.1 fresh-extraction package smoke test (mission §443).
 
 Copies the built package to a fresh temp directory with NO repository-relative
 fallback and exercises it end to end: valid release bounded; unsupported op,
@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_SRC = ROOT / "release/dist/jackal-v1.0.4-macos-arm64"
+PKG_SRC = ROOT / "release/dist/jackal-v1.1.1-macos-arm64"
 
 
 def sha(p: Path) -> str:

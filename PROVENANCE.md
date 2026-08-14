@@ -8,7 +8,22 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.1.0 — 2026-08-14 (current) — formal-status epoch
+## Seal v1.1.1 — 2026-08-14 (current) — public package identity repair
+
+Preserves the v1.1.0 formal-status code, evaluator, checker, theorem set, and
+certificate schema while moving the corrected public package labels into a new
+immutable release epoch. The original v1.1.0 release identity remains a
+historical scar: its archive was initially published with stale v1.0.4/private
+text and was later replaced in place. v1.1.1 is the first release intended to
+bind the corrected public labels to its own tag and archive digest without
+rewriting a predecessor asset.
+
+The evaluator remains `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c`;
+the proved checker remains `2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b`.
+The package is unsigned/ad-hoc macOS arm64; SHA-256 identifies bytes but does
+not authenticate an author. All formal claim boundaries below remain unchanged.
+
+## Seal v1.1.0 — 2026-08-14 (formal-status predecessor)
 
 Adds the completion-program formal core on top of the sealed v1.0.4 release
 bindings: a machine-validated coverage inventory, the canonical formal-status
@@ -57,8 +72,9 @@ checker-accepted, `Runs`-derived enclosure of the exact semantics for the
 exact request over the modeled fragment, under the recorded TCB (libm ≤ 2 ulp
 for the const node, Lean kernel + checker build toolchain, canonical rational
 codec). NOT claimed: universal correctness, transcendental operators,
-`bound_step`, source→native, emitter-faithfulness theorem, Apple signing,
-public access. Repository remains PRIVATE.
+`bound_step`, source→native, emitter-faithfulness theorem, Apple signing, or
+artifact authorship authentication by SHA-256. The repository is public; that
+visibility does not strengthen the mathematical claim.
 
 ## Seal v1.0.4 — 2026-08-14 (formal-binding predecessor)
 

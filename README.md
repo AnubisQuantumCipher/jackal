@@ -85,12 +85,11 @@ runs the Anubis source through a compiler it resolves in this order:
 
 If none is found it prints exactly how to fix it and exits non-zero — it never fails silently or
 misleadingly. `jackal-native` is **not** committed (it is a build artifact; its SHA-256 is
-sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the **private, authenticated**
-GitHub release (Apple Silicon macOS) — the repository and its releases are PRIVATE and require
-authorized access, there is **no public download** — or build from source (see below and
-[GETTING-STARTED.md](GETTING-STARTED.md)).
+sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub release
+(Apple Silicon macOS), verify the release checksums and pinned identities, or build from
+source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Certified-release path (v1.0.4).** `jackal-cert-release "<expr in x>" <lo> <hi>` emits
+**Certified-release path (v1.1.1).** `jackal-cert-release "<expr in x>" <lo> <hi>` emits
 `status=bounded` **only** when the shared release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
 evaluator and `jackal_cert_check` checker executable identities (pinned in
@@ -98,7 +97,7 @@ evaluator and `jackal_cert_check` checker executable identities (pinned in
 status escalation. Any break refuses with a stable class — never a bounded fallback. Checker
 *soundness* (an accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.0.4" for the receipts and the honest v1.0.3-scar note.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.1.1" for the receipts and preserved predecessor scars.
 
 ## Build from source
 

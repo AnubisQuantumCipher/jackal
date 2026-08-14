@@ -22,3 +22,4 @@ proofs/lean/.lake/
 
 # built release package (shipped as a release asset, not committed)
 release/dist/
+__pycache__/

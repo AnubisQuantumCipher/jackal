@@ -59,6 +59,14 @@ and its stated TCB — never "universal correctness" unqualified. Residuals and
 the next-wave bridge roadmap (parser→Expr, ieval→Runs, bound_step composition,
 source-to-native refinement) are enumerated in `proofs/lean/JackalIv/Ledger.lean`.
 
+**Claim boundary (cross-audited 2026-08-13).** The certified fragment's
+mathematical *model* is universally mechanized under its stated assumptions.
+The shipped *implementation* passed the stated tests, differential and
+containment gates, reproducibility checks, and this seal — it is **not**
+mechanically proved to refine that model; implementation refinement is the
+future work named above. Neither half of that sentence should be quoted
+without the other.
+
 ## Seal v1.0.0 — 2026-08-13 (superseded by v1.0.1)
 
 ### Source

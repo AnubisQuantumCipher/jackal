@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the deterministic JACKAL v1.0.4 macOS arm64 release package (mission §424).
+# Build the deterministic JACKAL v1.1.0 macOS arm64 release package (mission §424).
 # Assembles a self-contained, fresh-extractable package: evaluator, proved
 # checker, release wrapper + shared validator, evidence, manifest, SHA256SUMS,
 # and honest non-claims. All artifact paths inside the package are relative to
@@ -7,7 +7,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-VER="v1.0.4"
+VER="v1.1.0"
 PKG="$ROOT/release/dist/jackal-$VER-macos-arm64"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 
@@ -26,7 +26,7 @@ chmod +x "$PKG/jackal-native" "$PKG/jackal_cert_check"
 # --- package-local release wrapper: all paths relative to the package root ---
 cat > "$PKG/jackal-cert-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.0.4 packaged certified-release gate (self-contained).
+# JACKAL v1.1.0 packaged certified-release gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 3 ] || { echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi>" >&2; exit 2; }
@@ -60,7 +60,7 @@ compiler_pin anubis-a733565f237d a733565f237df171e7cf93b9b37700a42d8713576818fd9
 EOF
 
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'
-JACKAL v1.0.4 — explicit non-claims (mission §629)
+JACKAL v1.1.0 — explicit non-claims (mission §629)
 - NOT universal correctness. The certified fragment is exactly:
   num, var, neg, add, sub, mul, div, integer pow (n>=0), sin, cos, abs,
   floor, ceil, round, trunc, min, max, and named constants (pi, e, tau).
@@ -74,13 +74,15 @@ JACKAL v1.0.4 — explicit non-claims (mission §629)
   is TESTED (positive corpus + executed controls + A->B->A), not proved.
 - bound_step (adaptive integration) composition and Anubis source->native
   refinement remain OPEN.
-- Platform: macOS arm64, private unsigned/ad-hoc developer artifact. NO Apple
+- Platform: macOS arm64, unsigned/ad-hoc developer artifact. NO Apple
   Developer ID signing and NO notarization is claimed.
-- This is a PRIVATE, authenticated release. No public download is claimed.
+- This is a PUBLIC release of the jackal-calc project. The artifact is
+  unsigned; verify SHA256SUMS and the pinned evaluator/checker identities in
+  MANIFEST.sha256 before use.
 EOF
 
 cat > "$PKG/README.txt" <<'EOF'
-JACKAL v1.0.4 — proof-carrying certified-range release (macOS arm64, PRIVATE)
+JACKAL v1.1.0 — proof-carrying certified-range release (macOS arm64, public, unsigned)
 
 Verify, then release a certified enclosure:
   shasum -a 256 -c SHA256SUMS         # every shipped file
@@ -101,13 +103,25 @@ evaluator jackal-native $EVAL_ID
 checker jackal_cert_check $CHK_ID
 lean-theorems cert_check_sound cert_encloses certified_release
 lean-axioms propext Classical.choice Quot.sound
-platform macos-arm64 private-unsigned-adhoc
+platform macos-arm64 public-unsigned-adhoc
 EOF
 
 # --- SHA256SUMS over every shipped file (the manifest root) ---
 ( cd "$PKG" && find . -type f ! -name SHA256SUMS | LC_ALL=C sort \
     | while read -r f; do shasum -a 256 "$f"; done > SHA256SUMS )
 
+# --- byte-reproducible archive: normalize mtimes + zero owner + gzip -n so a
+# rebuild from the (unchanged) binaries + text yields the identical tarball hash.
+# Content hashes (SHA256SUMS) are unaffected by the mtime touch. ---
+TARBALL="$ROOT/release/dist/jackal-$VER-macos-arm64.tar.gz"
+find "$PKG" -exec touch -t 202608140000.00 {} +
+( cd "$ROOT/release/dist" \
+  && COPYFILE_DISABLE=1 tar --uid 0 --gid 0 --numeric-owner -cf - "jackal-$VER-macos-arm64" \
+     | gzip -n -9 > "$TARBALL" )
+
 echo "package=$PKG"
 echo "files=$(cd "$PKG" && find . -type f | wc -l | tr -d ' ')"
 echo "sha256sums_root=$(shasum -a 256 "$PKG/SHA256SUMS" | awk '{print $1}')"
+echo "tarball=$TARBALL"
+echo "tarball_sha256=$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+echo "tarball_bytes=$(command wc -c < "$TARBALL" | tr -d ' ')"

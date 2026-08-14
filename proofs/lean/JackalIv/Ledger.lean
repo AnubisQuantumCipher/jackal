@@ -66,6 +66,37 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
   invariant, and the mean-value backward-error bound
   |x̂ − r| ≤ |f x̂| / m1 with its `residual_flatters` corollary — the sound
   FORM of the engine's 2026-08-13 first-order conditioning diagnostics.
+* Parser / lowering bridge (implementation-correspondence #1)
+  (`Parser.lean`, `Lower.lean`, `Correspondence.lean`): the engine's front end
+  lifted onto the SINGLE canonical `Syntax.Expr`, closing the gap between the
+  string the user typed and the tree the interval engine bounds.
+  - `Parser.parse` is a deep, fuel-structural mirror of the engine's `tokenize`
+    + recursive-descent `ast_parse_*` (LEFT-assoc `+ - * / %`, RIGHT-assoc `^`
+    with a unary exponent, prefix `neg`, known-function/arity enforcement,
+    constant-vs-var classification), producing exactly the node shapes of
+    `Syntax.Expr`.  Proven: determinism (`parse_deterministic` / `parse_congr`),
+    a battery of structural REJECTION lemmas that reduce in the kernel
+    (`parse_empty`, `parse_unclosed_paren`, `parse_empty_call`,
+    `parse_double_plus`, `parse_malformed_number`, `parse_unknown_fn`,
+    `parse_arity_mismatch`), and totality on the verified corpus
+    (`parse_total_*`).  The serializer `exprToSexp` reproduces the engine's
+    `ast_sexp` byte-for-byte, and the in-kernel corpus lemmas
+    (`parse_dump_*`, `parse_corpus_*`) check `parseDumpString` against the
+    differential corpus (column 2) exactly.
+  - `Lower.lower` mirrors `simplify_bound` constructor-for-constructor: the
+    bottom-up algebraic-identity rewrites (neg-neg collapse; 0+u / u+0; u−0 /
+    0−u; 1·u / u·1; u/1; u^1) with NO num–num folding and the fail-closed
+    literal division/modulo-by-zero refusal.  Proven: `lower_preserves_sem`
+    (each rewrite is a semantic identity on the defined domain) and
+    `lower_preserves_defined` (each rule only drops a provably-total subterm).
+  - Composition (`Correspondence.lean`): `parse_lower_denotes` (the admitted
+    source denotes `sem ast`, and lowering preserves that denotation onto the
+    bounded `e`) and `parse_lower_encloses` (threading that identity through the
+    interval composition theorem `runs_encloses`, so every completed `ieval`
+    run encloses the exact SOURCE semantics at every point of the input
+    interval).  A trusted `@[implemented_by]` mirror (`Dump.lean`) makes the
+    noncomputable `parseSexp` / `lowerSexp` runnable for the differential-gate
+    executable (`jackal_parse_dump`) — see the residuals for its trust boundary.
 
 ## Disclosed residuals (NOT proven here)
 
@@ -75,18 +106,55 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
   engine samples f′ at ONE point (central difference), not an interval
   minimum m1, so `backward_error_bound` does not certify the printed
   number — the engine correctly keeps it `status=estimated`.
-* Embedding coverage gaps, fail-closed (`Embed.lean` header): tan / asin /
-  acos / cbrt / log10 / log2 / hypot / atan2 / abs / min / max /
-  floor-family / iv_pow_general have per-op lemmas (Monotone / Exact /
-  Pow) but NO `Runs` constructor yet — wiring them into the induction is
-  future work, not a soundness gap. The embedded sin/cos constructor is
-  the universal [-1,1] hull (conservatively wider than the shipped
-  branches separately proved in Trig.lean).
+* Embedding coverage gaps, fail-closed (`Embed.lean` header): the operators
+  still WITHOUT a `Runs` constructor are exactly `tan`, `cbrt`, `log10`,
+  `log2`, and `mod` — each is a sound refusal (`DefinedOn` = its pole/negative
+  guard or `False`; the composition theorem simply has no derivation), never an
+  unsound approximation. (`tan` awaits an `iv_tan` containment lemma; `cbrt`
+  has no Mathlib real cube root; `log10`/`log2` are covered only by the generic
+  monotone rule, not a bespoke instance; `mod` is refused by the engine
+  itself.) The embedded sin/cos constructor is the universal [-1,1] hull
+  (conservatively wider than the shipped branches separately proved in
+  Trig.lean).
+* Parser / lowering residuals (implementation-correspondence #1):
+  - The parser's BYTE-FOR-BYTE identity to the SHIPPED engine parser over the
+    full input space is a DIFFERENTIAL GATE (`tests/parser_differential.py`
+    driving the `jackal_parse_dump` executable), NOT a theorem. `Parser.lean`
+    proves determinism, the structural rejection lemmas, and corpus
+    reproduction (the in-kernel mirror); it does not prove full-space engine
+    identity, and the differential corpus is finite.
+  - The executable's runnable dump is the trusted `@[implemented_by]` mirror
+    `Dump.lean` (`parseSexpImpl` / `lowerSexpImpl`): a real-free transcription
+    of the same control flow, needed because `parseSexp` / `lowerSexp` are
+    noncomputable (`Expr.num` carries `strToReal t : ℝ`). The `@[implemented_by]`
+    attribute is trusted — part of the differential gate's TCB — and adds no
+    axiom to, and changes no logical content of, any theorem (every
+    `#print axioms` line above reports only `[propext, Classical.choice,
+    Quot.sound]`); the noncomputable spec is independently pinned to the corpus
+    by the in-kernel `Parser` lemmas.
+  - `ieval → Runs` — that an ACTUAL `ieval` execution induces a `Runs`
+    derivation — is the NEXT bridge and remains OPEN. `parse_lower_encloses`
+    still takes `Runs e (a,b) (lo,hi)` as a hypothesis; nothing here proves the
+    engine's run produces that derivation.
+  - `bound_step`'s release-policy composition over `runs_encloses` + the Taylor
+    bridges remains OPEN, and source → native refinement (verified compilation
+    of the Anubis lane) remains OPEN — see the roadmap items (3)–(5).
 * Differentiator coverage gaps (`Deriv.lean` header): `deriv()` rules for
   tan, asin, acos, cbrt, log10, log2, hypot, atan2 and the non-integer /
-  general-exponent power lanes are not modeled; `Deriv.Expr` is a minimal
-  local copy of the smooth core, to be reconciled with `Embed.Expr` in a
-  future pass.
+  general-exponent power lanes are not modeled by `D` (nodes outside `D`'s
+  domain hit the never-defined sentinel — fail-closed, never mis-differentiated).
+  `Deriv` and `Embed` now share the SINGLE canonical `Syntax.Expr` (the local
+  copy was removed this wave); the continuity ladder is scoped to a `Smooth`
+  sublanguage inhabited by every `D`-output, so the C^k theorems keep their
+  original signatures.
+
+* Gate sensitivity is itself tested (`tests/parser_differential.py --tamper`,
+  and the recorded manual mirror-tamper): a semantic mutation of the runnable
+  `Dump` mirror's power rule (base/exponent swap) that still COMPILES and RUNS
+  produces an observable `PARSE_DRIFT` and a nonzero gate result, while the
+  in-kernel spec lemmas stay proved — demonstrating the differential gate would
+  catch a mirror that drifts from the spec, so the `@[implemented_by]` TCB is
+  live, not silent.
 * Float facts consumed as model-level hypotheses where the real-number
   model cannot see them: the `IsInt` saturation hypothesis of the
   floor-family (`Exact.lean` — every binary64 of magnitude ≥ 2⁵³ is an
@@ -109,15 +177,18 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
 
 ## Next mechanization wave (roadmap, cross-audited 2026-08-13)
 
-In dependency order: (1) wire the remaining proved operators into the `Runs`
-induction and reconcile `Deriv.Expr` with `Embed.Expr`; (2) a machine-checked
-bridge from the engine's parser/lowering to `Expr`; (3) a bridge showing the
-actual `ieval` execution induces a `Runs` derivation; (4) compose
-`bound_step`'s acceptance policy over `runs_encloses` + the Taylor bridges;
-(5) source-to-native refinement (verified compilation for the Anubis lane).
-Until (2)–(5) exist, the strongest honest claim is UNIVERSAL CORRECTNESS OVER
-THE PRECISELY ADMITTED CERTIFIED FRAGMENT AND ITS STATED TCB — never
-"universal correctness" unqualified, and never all of mathematics.
+In dependency order: (1) wire the remaining proved operators
+(tan/cbrt/log10/log2) into the `Runs` induction; (2) DONE — the machine-checked
+bridge from the engine's parser/lowering to the single canonical `Expr`
+(`Parser.parse` + `Lower.lower` + `Correspondence.parse_lower_denotes` /
+`parse_lower_encloses`, this wave), which also reconciled `Deriv.Expr` with
+`Embed.Expr` onto `Syntax.Expr`; (3) a bridge showing the actual `ieval`
+execution induces a `Runs` derivation; (4) compose `bound_step`'s acceptance
+policy over `runs_encloses` + the Taylor bridges; (5) source-to-native
+refinement (verified compilation for the Anubis lane). Until (3)–(5) exist, the
+strongest honest claim is UNIVERSAL CORRECTNESS OVER THE PRECISELY ADMITTED
+CERTIFIED FRAGMENT AND ITS STATED TCB — never "universal correctness"
+unqualified, and never all of mathematics.
 
 The engine's printed `implementation-tested-not-mechanized` residual remains
 accurate: this project mechanizes the MODEL of the certified lane, not the
@@ -136,6 +207,9 @@ import JackalIv.Midpoint
 import JackalIv.Taylor
 import JackalIv.Deriv
 import JackalIv.Solve
+import JackalIv.Parser
+import JackalIv.Lower
+import JackalIv.Correspondence
 
 namespace JackalIv
 
@@ -180,5 +254,11 @@ namespace JackalIv
 #print axioms bisection_invariant
 #print axioms backward_error_bound
 #print axioms residual_flatters
+-- Parser / lowering bridge (implementation-correspondence #1)
+#print axioms Parser.parse_empty
+#print axioms lower_preserves_sem
+#print axioms lower_preserves_defined
+#print axioms parse_lower_denotes
+#print axioms parse_lower_encloses
 
 end JackalIv

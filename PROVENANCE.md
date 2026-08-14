@@ -8,7 +8,69 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.0.1 — 2026-08-13 (current)
+## Seal v1.0.2 — 2026-08-14 (current)
+
+Adds implementation-correspondence bridge #1: the engine's parser and lowering
+lifted onto a single canonical Lean `Expr`, with a machine-checked
+correspondence theorem and a parser differential gate.
+
+### Source
+- `jackal_calc.anb` SHA-256: `6fb22d3df4f6940d4b1734ce9be13f86bd322b98a74a639310fafca3746a29bb`
+- Git: the commit tagged `v1.0.2`.
+- Change vs v1.0.1: two inert diagnostic commands, `parse-dump` and
+  `lower-dump`, emitting the real parse tree / certified-lane lowering in
+  canonical s-expression form (via a new `ast_sexp`). No existing command's
+  behavior changes.
+
+### Compiler
+- pin `anubis-a733565f237d` (unchanged), SHA-256 `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`.
+
+### Build — byte-reproducible, verified
+- shipped `jackal-native` SHA-256: `f83af0793e897d07cae02e3a0fac0feab6cf079606a27180cee2da239d9fe1eb`
+  (two clean builds identical).
+
+### Gate receipts (2026-08-14, against this binary/pin, all green)
+
+| Gate | Result |
+|---|---|
+| `anubis check` + native self-test | passed; 83/83 |
+| Black-box acceptance suite | 200/200 (incl. Kepler-conditioning and Fresnel-certification cases) |
+| Containment campaign (`bound_campaign.py 250 20260813`) | BOUND_OK=246 REFUSED=4 **0 violations**; JSONL sha256 `28e834552271105cd367225d779caa0d09f629f553b1b6466d6b684cd8bdf32f` |
+| mpmath.iv differential (`iv_differential.py 300 20260813`) | OK=300 **0 violations**; median width ratio 1.000; JSONL sha256 `60fe6093bd015849609586fc374be448139ab2293a5a07109dc84a802ed89f6a` |
+| **Parser correspondence gate** (`parser_differential.py`) | **78/78** (30 accepted MATCH, 9 refused BOTH_REFUSE, 3 parser-only), all case IDs unique; green against both source and the shipped binary; `--tamper` self-test PASS |
+| **Parser tamper cycle** (recorded) | a semantic mutation of the runnable `Dump` mirror's power rule (base↔exponent) that still COMPILES and RUNS produced an observable `PARSE_DRIFT` + nonzero gate; restore verified by hash equality to canonical `Parser.lean` `3a219bc3…` and `Dump.lean` `3baba941…`; stale exe purged; gate green again |
+| Lean mechanization (`proofs/lean`, 20 modules, ~6,200 lines) | `lake build` green; 170+ theorems, zero `sorry`; flagship theorems audited to `[propext, Classical.choice, Quot.sound]` only |
+
+### Bridge #1 — what is proved vs gated vs open
+
+- PROVED (Lean, this seal): one canonical `Syntax.Expr` unifying enclosure and
+  differentiation; `Parser.parse` (determinism + structural rejection lemmas)
+  mirroring the recursive-descent grammar; `Lower.lower` mirroring
+  `simplify_bound` with **`lower_preserves_sem`** and `lower_preserves_defined`;
+  and the composition `parse_lower_denotes` (the admitted source denotes
+  `sem ast`, preserved by lowering) / `parse_lower_encloses` (that denotation,
+  threaded through `runs_encloses`, is enclosed at every point). ~30 operators
+  wired into `Runs`.
+  `#print axioms parse_lower_denotes` = `#print axioms parse_lower_encloses` =
+  `[propext, Classical.choice, Quot.sound]` — the `@[implemented_by]` runnable
+  mirror is a compiler directive, NOT an axiom, and is excluded from theorem
+  trust (it lives only in the differential gate's TCB).
+- GATED, not proved: byte-for-byte identity of the Lean parser to the SHIPPED
+  engine parser (the differential gate over a finite corpus).
+- OPEN, unclaimed: still-fail-closed operators tan/cbrt/log10/log2/mod; the
+  actual `ieval`→`Runs` bridge; `bound_step` release-policy composition; and
+  source→native refinement. The exact target claim is unchanged — universal
+  correctness over the precisely admitted certified fragment and its stated TCB,
+  never unqualified.
+
+**Claim boundary (unchanged, cross-audited).** The certified fragment's
+mathematical model is universally mechanized under stated assumptions, and the
+front-end correspondence now ties the admitted *source string* to it; the
+shipped implementation is tested, differential-gated, reproducible, and sealed
+— NOT mechanically proved to refine the model. Neither half quoted without the
+other.
+
+## Seal v1.0.1 — 2026-08-13 (superseded by v1.0.2)
 
 ### Source
 

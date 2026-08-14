@@ -217,31 +217,37 @@ How it works, and exactly what it claims:
   checks every range enclosure against 40-digit point sampling and mpmath's independent
   interval arithmetic. The only fatal verdict in either is a bound that excludes the truth.
 - **The model is machine-checked — universally quantified, conditionally stated.**
-  [`proofs/lean/`](proofs/lean/) is a Lean 4 + Mathlib development (14 modules, ~4,000
-  lines, 120+ theorems, zero `sorry`, 42 flagship theorems axiom-audited to Lean's
-  standard three) proving, over the stated rounding model: the pad-beats-rounding core;
-  containment of every arithmetic interval op (add/sub/neg/mul/div, integer and negative
-  powers, general powers on positive bases); the monotone-endpoint rule with
-  exp/sqrt/log/arctan/arcsin/arccos instances; the exact ops (abs/min/max/floor-family/
-  hypot/atan2); sin/cos range soundness across all widening branches; **conservativity of
-  the float critical-point test** on the engine's parameter range (a maybe can only widen,
-  never miss); bisection bracket soundness and the backward-error bound behind `solve`'s
-  conditioning diagnostics; the float-midpoint containment chain; the Taylor-2/Taylor-4
-  midpoint enclosures (`h³/24` and `h⁵/1920` are theorems, not constants); a
-  **deep-embedded composition theorem** (`runs_encloses`: *every* execution of the modeled
-  evaluator core over *every* interval yields a true enclosure — all-quantifiers, no
-  sampling); and the **evaluability-certifies-smoothness chain** (interval-evaluable
-  f/f′/f″ formulas imply the C²/C⁴ hypotheses of the Taylor theorems, composed end-to-end).
-  What is *not* proven is enumerated in
-  [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm actually
-  meeting its 2-ulp model on this platform; a handful of operators not yet wired into the
-  deep embedding (tan/asin/acos/cbrt/log10/log2/hypot/atan2 and the exact-op family — each
-  proved standalone, not yet in the induction); the bigint/rational lanes (their carry-split
-  invariants are machine-checked in-language by the Anubis SMT checker; full functional
-  correctness is outside this Lean scope); and the Anubis-implementation-to-binary gap.
-  The engine's printed `implementation-tested-not-mechanized` residual therefore stays,
-  accurately: the *model* is proven for all inputs; the *implementation* is
-  campaign-tested against it.
+  [`proofs/lean/`](proofs/lean/) is a Lean 4 + Mathlib development (20 modules, ~6,200
+  lines, 170+ theorems, zero `sorry`, flagship theorems axiom-audited to Lean's standard
+  three) proving,
+  over the stated rounding model: the pad-beats-rounding core; containment of every
+  arithmetic interval op (add/sub/neg/mul/div, integer and negative powers, general powers
+  on positive bases); the monotone-endpoint rule with exp/sqrt/log/arctan/arcsin/arccos
+  instances; the exact ops (abs/min/max/floor-family/hypot/atan2); sin/cos range soundness
+  across all widening branches; **conservativity of the float critical-point test** on the
+  engine's parameter range (a maybe can only widen, never miss); bisection bracket soundness
+  and the backward-error bound behind `solve`'s conditioning diagnostics; the float-midpoint
+  containment chain; the Taylor-2/Taylor-4 midpoint enclosures (`h³/24` and `h⁵/1920` are
+  theorems, not constants); a **deep-embedded composition theorem** (`runs_encloses`: *every*
+  execution of the modeled evaluator core over *every* interval yields a true enclosure —
+  all-quantifiers, no sampling, now with ~30 operators wired in); the
+  **evaluability-certifies-smoothness chain**; and — implementation-correspondence bridge #1 —
+  a **mechanized parser and lowerer** on one canonical syntax: `parse` mirrors the engine's
+  recursive-descent grammar (determinism + structural rejection lemmas), `lower` mirrors the
+  certified-lane simplifier with a proved **`lower_preserves_sem`** (lowering never changes the
+  real semantics on the defined domain), and `parse_lower_denotes` / `parse_lower_encloses`
+  compose them so the admitted *source string* — not just an abstract tree — is what the
+  enclosure covers. That the Lean parser matches the *shipped* parser byte-for-byte is enforced
+  by a **differential gate** (`tests/parser_differential.py`, 78 cases incl. a semantic
+  tamper test), not a theorem. What is *not* proven is enumerated in
+  [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm meeting its
+  2-ulp model; the five still-fail-closed operators (tan/cbrt/log10/log2/mod); the bigint/
+  rational lanes (checked in-language by the Anubis SMT checker, outside this Lean scope); and
+  the next three bridges — `ieval`→`Runs`, `bound_step` release composition, and
+  source→native refinement — which remain **open and unclaimed**. The engine's printed
+  `implementation-tested-not-mechanized` residual therefore stays, accurately: the *model* is
+  proven for all inputs; the *implementation* is campaign-tested and differential-gated
+  against it.
 
 `integrate-bound` is deliberately the slowest lane — certification costs evaluations. For a
 fast heuristic with refusal semantics use `integrate-adaptive`; for raw speed use `integrate`
@@ -347,6 +353,7 @@ register model; the `big-` lane is the exact model.
 | Trust and metrology | `claim-card self-test maturity measure-mul uncertain-ohm kinetic-sensitivity` |
 | Expression engine | `eval integrate integrate-adaptive derivative solve` |
 | Certified enclosures | `integrate-bound range-bound` (proven interval bounds, refuse-on-doubt) |
+| Provenance | `parse-dump lower-dump` (canonical s-expr of the parse/lowering — drives the Lean parser-correspondence gate) |
 | Symbolic | `diff` (self-verifying d/dx) |
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |
 | Worksheet | `worksheet` (persistent variables across `;`) |

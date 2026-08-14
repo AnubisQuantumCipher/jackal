@@ -1,89 +1,41 @@
 /-
 JACKAL certified integration — formula evaluability certifies
-differentiability.
+differentiability, over the SINGLE canonical `Expr` (`JackalIv/Syntax.lean`).
 
-This file mechanizes the C^k justification the bound lane relies on: the
-engine's `bound_step` (jackal_calc.anb, section "JACKAL CERTIFIED
-INTEGRATION", git 8a71540) accepts the Taylor-2 midpoint form only after the
-symbolic formulas f, f', f'' ALL interval-evaluate (`ieval` success) over the
-closed subinterval (lines 2643–2646), and the Taylor-4 form only after the
-chain f..f'''' succeeds (2650–2654); the engine's stated argument
-(lines 2564–2567) is
+The engine's `bound_step` accepts the Taylor-2 / Taylor-4 midpoint forms only
+after the symbolic formulas f, f', … ALL interval-evaluate over the closed
+subinterval; its stated argument is "each elementary rule holds on the open
+domain where its own formula is defined, so success certifies f in C^k there".
+Here that becomes a theorem about the MODEL: a symbolic differentiator `D`
+mirroring the engine's `deriv()`, and proofs that evaluability of the chain
+e, D e, … certifies `HasDerivAt` / C¹ / C² / C⁴ — exactly the hypotheses the
+Taylor midpoint enclosures (Taylor.lean) consume.
 
-    "each elementary rule holds on the open domain where its own formula is
-     defined, so success certifies f in C^2 there".
+`D` ↔ engine `deriv()`, rule for rule (smooth core):
+  num/const → 0, x → 1; neg, add, sub; mul → du·v + u·dv; div → quotient rule
+  with `v^2` denominator; pow with a NUM-LITERAL exponent c → power rule
+  `(c·b^(c-1))·db` (via `Real.hasDerivAt_rpow_const`, matching the engine's
+  `ast_const_value_or_nan` constant-exponent branch); sin → cos·du,
+  cos → −(sin·du), atan → du/(1+u²), sqrt → du/(2√u), ln → du/u, exp → exp·du.
 
-Here that argument becomes a theorem about the MODEL: a symbolic
-differentiator `D` mirroring the engine's `deriv()` (lines 1662–1813), a
-pointwise definedness predicate `DefinedOn` mirroring the `ieval` domain
-guards (lines 2491–2558), and proofs that evaluability of the chain
-e, D e, … certifies `HasDerivAt` / C¹ / C² / C⁴ — exactly the hypotheses
-`taylor2_midpoint_enclosure` / `taylor4_midpoint_enclosure` (Taylor.lean)
-consume.  `taylor2_enclosure_of_evaluable` / `taylor4_enclosure_of_evaluable`
-compose the two ends.
+Every OTHER canonical node — `mod`, the general (non-literal-exponent) `pow`,
+`call1` names outside {sin,cos,atan,sqrt,exp,ln} (tan/asin/acos/cbrt/log10/
+log2/abs/floor/ceil/round/trunc), every `call2` (hypot/atan2/min/max/pow) —
+maps to the never-defined sentinel `Dbad`, so it is OUTSIDE `D`'s domain
+(`DefinedOn (D e)` is `False` there → the C^k hypotheses are unsatisfiable,
+a fail-closed refusal), never mis-differentiated.  This mirrors the engine's
+`deriv()` `panic`/general-`x^y` branches, which the model deliberately leaves
+as residual (as the pre-canonical `Deriv` wave did).
 
-Engine correspondence, constructor by constructor:
-
-* `Expr` / `sem` — the smooth core of the expression AST (the subset
-  `ast_smooth_ok`, engine lines 1628–1647, admits to the Taylor lanes):
-  num/const literals (`lit` covers both), the variable x (`var`),
-  neg/add/sub/mul/div, integer powers (`powInt`, the `iv_pow_int` lane of
-  `pow`, lines 2285–2303 and 2550–2556), and the unary calls
-  sqrt/exp/ln/sin/cos/atan.  NOTE: `Embed.lean` does not exist in this wave,
-  so `Expr`/`sem`/`DefinedOn` are minimal local copies under the `Deriv`
-  namespace, to be reconciled when the deep embedding lands.
-
-* `D` ↔ `deriv()`, rule for rule:
-    - num/const → 0, x → 1                        (engine lines 1670–1674)
-    - neg, add, sub                               (1675–1683)
-    - mul → du·v + u·dv   (product rule)          (1684–1692)
-    - div → (du·v − u·dv)/v²  (quotient rule)     (1693–1703)
-    - powInt n → (n·u^(n−1))·du  (power rule)     (1705–1716, integer c)
-    - sin  → cos(u)·du                            (1759–1762)
-    - cos  → −(sin(u)·du)                         (1763–1767)
-    - atan → du/(1+u²)                            (1781–1785)
-    - sqrt → du/(2·√u)                            (1786–1790)
-    - ln   → du/u                                 (1797)
-    - exp  → exp(u)·du                            (1806–1809)
-  Deliberately OUT of scope this wave (`deriv()` has rules, not modeled
-  here): tan, asin, acos, cbrt, log10, log2, hypot, atan2, and the
-  non-integer / general-exponent power lanes (constant real c by the same
-  power rule; x^y via exp(y·ln x), lines 1717–1724).  Recorded as residual
-  rather than weakening any statement below.
-
-* `DefinedOn` ↔ the pointwise shadow of the `ieval` guards: div refuses a
-  denominator interval containing zero (`iv_div`, line 2261) — pointwise
-  `sem e₂ x ≠ 0`; sqrt refuses lo < 0 (`iv_sqrt`, 2317) — pointwise
-  `0 ≤ sem e x`; ln refuses lo ≤ 0 (`iv_ln`, 2337) — pointwise
-  `0 < sem e x`; x^n for n < 0 routes through `iv_div` on the core
-  (`iv_pow_int`, 2299–2301) — pointwise `sem e x ≠ 0`; exp/sin/cos/atan are
-  total (2330, 2370, 2387, 2426).  `ieval` success over a subinterval
-  implies these pointwise conditions at every point of it (the interval
-  guards are strictly stronger, since outward pads only widen), so
-  `∀ x ∈ Icc a b, DefinedOn … x` is exactly what a successful engine
-  evaluation furnishes to the theorems below.
-
-* `deriv_correct` / `deriv_correct_on` — the sqrt case is why the ENGINE
-  needs the f' formula to evaluate, not just f: `DefinedOn (sqrt u)` alone
-  gives only 0 ≤ u (and √ is not differentiable at u = 0), but
-  `DefinedOn (D (sqrt u))` carries the guard 2·√u ≠ 0 of the emitted
-  quotient du/(2·√u), which forces u > 0 — the engine's f' formula refuses
-  at u = 0 through exactly that division guard.  No openness hypothesis is
-  needed: Mathlib's `HasDerivAt` composition lemmas are genuinely pointwise,
-  so the engine's "open domain" phrasing is subsumed.
-
-* `taylor2_hypotheses_of_evaluable` / `taylor4_hypotheses_of_evaluable` —
-  produce literally the `HasDerivAt` hypothesis tuples that
-  `taylor2_midpoint_enclosure` / `taylor4_midpoint_enclosure` take,
-  mirroring `bound_step`'s gating.  The engine builds the chain f1..f4 as
-  `simplify_bound(deriv(...))` (lines 3008–3013); `simplify_bound`'s
-  documented contract (1565–1581) is that every rule it applies is a
-  structural identity on all of ℝ preserving definedness in both
-  directions, so the unsimplified `D` chain modeled here evaluates iff the
-  engine's simplified chain does.
+`DefinedOn`/`sem` are the canonical ones (Syntax.lean).  Continuity of the
+derivative FORMULA (needed for the C^k ladder) is proved only for the
+`Smooth` sublanguage — the closure of the smooth core under num-literal
+powers — which every `D`-output inhabits (`D_smooth`) and whose inhabitation
+is forced by `DefinedOn (D e)` (`definedOn_D_smooth`); the discontinuous nodes
+(`floor`, general `pow`, …) are simply not `Smooth`, so the ladder never has
+to claim their continuity.
 -/
-import JackalIv.Model
-import JackalIv.Pad
+import JackalIv.Syntax
 import JackalIv.Taylor
 
 namespace JackalIv
@@ -92,247 +44,453 @@ namespace Deriv
 open Set
 open scoped ContDiff
 
-/-- Smooth-core expression AST — the subset of the engine grammar that
-`ast_smooth_ok` admits to the Taylor lanes and this wave models.  `lit`
-covers both "num" and "const" engine nodes (a named constant is just a real
-literal to the semantics). -/
-inductive Expr : Type
-  | var    : Expr
-  | lit    : ℝ → Expr
-  | neg    : Expr → Expr
-  | add    : Expr → Expr → Expr
-  | sub    : Expr → Expr → Expr
-  | mul    : Expr → Expr → Expr
-  | div    : Expr → Expr → Expr
-  | powInt : Expr → ℤ → Expr
-  | sqrt   : Expr → Expr
-  | exp    : Expr → Expr
-  | log    : Expr → Expr
-  | sin    : Expr → Expr
-  | cos    : Expr → Expr
-  | atan   : Expr → Expr
+/-- The never-defined sentinel: `1 / 0`, whose `DefinedOn` is `False`
+(denominator literally zero).  `D` returns it for every node outside its
+smooth-core rule set, so that node is fail-closed (outside `D`'s domain). -/
+def Dbad : Expr := .div (.num 1 "1") (.num 0 "0")
 
-/-- Real semantics of the smooth core (the exact function the engine's
-certified enclosures are ABOUT — total, with Lean's junk values exactly
-where `DefinedOn` is false). -/
-noncomputable def sem : Expr → ℝ → ℝ
-  | .var, x => x
-  | .lit c, _ => c
-  | .neg e, x => -(sem e x)
-  | .add e₁ e₂, x => sem e₁ x + sem e₂ x
-  | .sub e₁ e₂, x => sem e₁ x - sem e₂ x
-  | .mul e₁ e₂, x => sem e₁ x * sem e₂ x
-  | .div e₁ e₂, x => sem e₁ x / sem e₂ x
-  | .powInt e n, x => sem e x ^ n
-  | .sqrt e, x => Real.sqrt (sem e x)
-  | .exp e, x => Real.exp (sem e x)
-  | .log e, x => Real.log (sem e x)
-  | .sin e, x => Real.sin (sem e x)
-  | .cos e, x => Real.cos (sem e x)
-  | .atan e, x => Real.arctan (sem e x)
+/-- `Dbad` is never defined anywhere — the mechanized meaning of "the engine's
+`deriv()` refuses (panics) here, so no derivative formula evaluates". -/
+lemma dbad_undefined (x : ℝ) : ¬ DefinedOn Dbad x := by
+  simp [Dbad, DefinedOn, sem]
 
-/-- Pointwise definedness — the shadow of the `ieval` refusal guards:
-`iv_div` (zero-free denominator), `iv_sqrt` (nonnegative argument),
-`iv_ln` (positive argument), `iv_pow_int` with negative exponent
-(nonzero base, via its `iv_div(1, core)` lane). -/
-def DefinedOn : Expr → ℝ → Prop
-  | .var, _ => True
-  | .lit _, _ => True
-  | .neg e, x => DefinedOn e x
-  | .add e₁ e₂, x => DefinedOn e₁ x ∧ DefinedOn e₂ x
-  | .sub e₁ e₂, x => DefinedOn e₁ x ∧ DefinedOn e₂ x
-  | .mul e₁ e₂, x => DefinedOn e₁ x ∧ DefinedOn e₂ x
-  | .div e₁ e₂, x => DefinedOn e₁ x ∧ DefinedOn e₂ x ∧ sem e₂ x ≠ 0
-  | .powInt e n, x => DefinedOn e x ∧ (0 ≤ n ∨ sem e x ≠ 0)
-  | .sqrt e, x => DefinedOn e x ∧ 0 ≤ sem e x
-  | .exp e, x => DefinedOn e x
-  | .log e, x => DefinedOn e x ∧ 0 < sem e x
-  | .sin e, x => DefinedOn e x
-  | .cos e, x => DefinedOn e x
-  | .atan e, x => DefinedOn e x
-
-/-- The symbolic differentiator — rule for rule the engine's `deriv()`
-(smooth core).  In particular the sqrt rule emits `du / (2·√u)`, whose
-`DefinedOn` carries the `2·√u ≠ 0` division guard: evaluability of `D e`
-refuses at `u = 0` exactly as the engine's f' formula does. -/
+/-- The symbolic differentiator — rule for rule the engine's `deriv()` smooth
+core; every other node is `Dbad` (outside `D`'s domain). -/
 noncomputable def D : Expr → Expr
-  | .var => .lit 1
-  | .lit _ => .lit 0
-  | .neg e => .neg (D e)
-  | .add e₁ e₂ => .add (D e₁) (D e₂)
-  | .sub e₁ e₂ => .sub (D e₁) (D e₂)
-  | .mul e₁ e₂ => .add (.mul (D e₁) e₂) (.mul e₁ (D e₂))
-  | .div e₁ e₂ =>
-      .div (.sub (.mul (D e₁) e₂) (.mul e₁ (D e₂))) (.powInt e₂ 2)
-  | .powInt e n => .mul (.mul (.lit (n : ℝ)) (.powInt e (n - 1))) (D e)
-  | .sqrt e => .div (D e) (.mul (.lit 2) (.sqrt e))
-  | .exp e => .mul (.exp e) (D e)
-  | .log e => .div (D e) e
-  | .sin e => .mul (.cos e) (D e)
-  | .cos e => .neg (.mul (.sin e) (D e))
-  | .atan e => .div (D e) (.add (.lit 1) (.powInt e 2))
+  | .num _ _ => .num 0 "0"
+  | .var name => if name = "x" then .num 1 "1" else .num 0 "0"
+  | .constant _ => .num 0 "0"
+  | .neg u => .neg (D u)
+  | .add l r => .add (D l) (D r)
+  | .sub l r => .sub (D l) (D r)
+  | .mul l r => .add (.mul (D l) r) (.mul l (D r))
+  | .div l r => .div (.sub (.mul (D l) r) (.mul l (D r))) (.pow r (.num 2 "2"))
+  | .mod _ _ => Dbad
+  | .pow b (.num c t) => .mul (.mul (.num c t) (.pow b (.num (c - 1) t))) (D b)
+  | .pow _ _ => Dbad
+  | .call1 name u =>
+      if name = "sin" then .mul (.call1 "cos" u) (D u)
+      else if name = "cos" then .neg (.mul (.call1 "sin" u) (D u))
+      else if name = "atan" then .div (D u) (.add (.num 1 "1") (.pow u (.num 2 "2")))
+      else if name = "sqrt" then .div (D u) (.mul (.num 2 "2") (.call1 "sqrt" u))
+      else if name = "exp" then .mul (.call1 "exp" u) (D u)
+      else if name = "ln" then .div (D u) u
+      else Dbad
+  | .call2 _ _ _ => Dbad
+
+/-! ### The `Smooth` sublanguage (closure of the smooth core under
+num-literal powers) — the fragment `D` ranges over and over which the
+derivative formula is continuous. -/
+
+/-- A formula is `Smooth` when it is built from the differentiable core with
+num-literal exponents only.  Every `D`-output is `Smooth` (`D_smooth`), and
+`DefinedOn (D e)` forces `Smooth e` (`definedOn_D_smooth`). -/
+def Smooth : Expr → Prop
+  | .num _ _ => True
+  | .var _ => True
+  | .constant _ => True
+  | .neg u => Smooth u
+  | .add l r => Smooth l ∧ Smooth r
+  | .sub l r => Smooth l ∧ Smooth r
+  | .mul l r => Smooth l ∧ Smooth r
+  | .div l r => Smooth l ∧ Smooth r
+  | .mod _ _ => False
+  | .pow b (.num _ _) => Smooth b
+  | .pow _ _ => False
+  | .call1 name u =>
+      (name = "sin" ∨ name = "cos" ∨ name = "atan" ∨ name = "sqrt" ∨
+        name = "exp" ∨ name = "ln") ∧ Smooth u
+  | .call2 _ _ _ => False
 
 /-! ### Small plumbing -/
 
 private lemma hasDerivAt_congr_val {g : ℝ → ℝ} {v w x : ℝ}
     (h : HasDerivAt g v x) (hvw : v = w) : HasDerivAt g w x := hvw ▸ h
 
-private lemma zpow_two_eq (a : ℝ) : a ^ (2 : ℤ) = a ^ (2 : ℕ) := by
-  rw [zpow_two, pow_two]
+/-- The `rpow_const` differentiability side condition `b ≠ 0 ∨ 1 ≤ c`, read
+off the pow guard `powDom b (c - 1)` (= evaluability of the emitted
+derivative's `b^(c-1)` factor). -/
+private lemma rpow_const_cond {b c : ℝ} (h : powDom b (c - 1)) : b ≠ 0 ∨ 1 ≤ c := by
+  rcases h with hpos | ⟨n, hn, hg⟩
+  · exact Or.inl (ne_of_gt hpos)
+  · rcases lt_or_ge n 0 with hlt | hge
+    · exact Or.inl (hg hlt)
+    · right
+      have hnn : (0 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hge
+      linarith [hn]
 
 /-! ### Main theorem 1 — evaluability of `e` and `D e` certifies the
 derivative -/
 
 /-- **Symbolic differentiation is correct on the evaluable domain**: at any
-point where both the formula `e` and its emitted derivative formula `D e`
-are defined (= where `ieval` of both succeeds, in the engine), `sem e` is
-differentiable with derivative exactly `sem (D e)`.  Structural induction;
-every domain side condition Mathlib needs is supplied by a `DefinedOn`
-guard, which is the mechanized content of the engine comment "each
-elementary rule holds on the open domain where its own formula is
-defined". -/
+point where both `e` and its emitted derivative formula `D e` are defined
+(= where `ieval` of both succeeds, in the engine), `sem e` is differentiable
+with derivative exactly `sem (D e)`.  Every domain side condition Mathlib
+needs is supplied by a `DefinedOn` guard. -/
 theorem deriv_correct (e : Expr) (x : ℝ)
     (he : DefinedOn e x) (hD : DefinedOn (D e) x) :
     HasDerivAt (sem e) (sem (D e) x) x := by
   induction e with
-  | var =>
-      exact hasDerivAt_id x
-  | lit c =>
-      exact hasDerivAt_const x c
-  | neg e ih =>
+  | num c t =>
+      have hfun : sem (.num c t) = fun _ : ℝ => c := rfl
+      have hval : sem (D (.num c t)) x = 0 := by simp [D, sem]
+      rw [hfun, hval]; exact hasDerivAt_const x c
+  | var name =>
+      simp only [DefinedOn] at he
+      subst he
+      have hfun : sem (.var "x") = fun y : ℝ => y := by funext y; simp [sem]
+      have hval : sem (D (.var "x")) x = 1 := by simp [D, sem]
+      rw [hfun, hval]; exact hasDerivAt_id x
+  | constant name =>
+      have hfun : sem (.constant name) = fun _ : ℝ => constValue name := rfl
+      have hval : sem (D (.constant name)) x = 0 := by simp [D, sem]
+      rw [hfun, hval]; exact hasDerivAt_const x _
+  | neg u ih =>
       simp only [DefinedOn] at he
       simp only [D, DefinedOn] at hD
-      exact (ih he hD).neg
+      have hfun : sem (.neg u) = fun y : ℝ => -(sem u y) := by funext y; simp [sem]
+      have hval : sem (D (.neg u)) x = -(sem (D u) x) := by simp [D, sem]
+      rw [hfun, hval]; exact (ih he hD).neg
   | add e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
       simp only [D, DefinedOn] at hD
-      exact (ih₁ he.1 hD.1).add (ih₂ he.2 hD.2)
+      have hfun : sem (.add e₁ e₂) = fun y : ℝ => sem e₁ y + sem e₂ y := by funext y; simp [sem]
+      have hval : sem (D (.add e₁ e₂)) x = sem (D e₁) x + sem (D e₂) x := by simp [D, sem]
+      rw [hfun, hval]; exact (ih₁ he.1 hD.1).add (ih₂ he.2 hD.2)
   | sub e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
       simp only [D, DefinedOn] at hD
-      exact (ih₁ he.1 hD.1).sub (ih₂ he.2 hD.2)
+      have hfun : sem (.sub e₁ e₂) = fun y : ℝ => sem e₁ y - sem e₂ y := by funext y; simp [sem]
+      have hval : sem (D (.sub e₁ e₂)) x = sem (D e₁) x - sem (D e₂) x := by simp [D, sem]
+      rw [hfun, hval]; exact (ih₁ he.1 hD.1).sub (ih₂ he.2 hD.2)
   | mul e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
       simp only [D, DefinedOn] at hD
-      exact (ih₁ he.1 hD.1.1).mul (ih₂ he.2 hD.2.2)
+      obtain ⟨⟨hd₁, -⟩, -, hd₂⟩ := hD
+      have hfun : sem (.mul e₁ e₂) = fun y : ℝ => sem e₁ y * sem e₂ y := by funext y; simp [sem]
+      have hval : sem (D (.mul e₁ e₂)) x
+          = sem (D e₁) x * sem e₂ x + sem e₁ x * sem (D e₂) x := by simp [D, sem]
+      rw [hfun, hval]; exact (ih₁ he.1 hd₁).mul (ih₂ he.2 hd₂)
   | div e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
-      simp only [D, DefinedOn, sem] at hD
       obtain ⟨he₁, he₂, hz⟩ := he
-      obtain ⟨⟨⟨hd₁, -⟩, ⟨-, hd₂⟩⟩, -, -⟩ := hD
-      refine hasDerivAt_congr_val
-        ((ih₁ he₁ hd₁).fun_div (ih₂ he₂ hd₂) hz) ?_
-      simp only [D, sem]
-      rw [zpow_two_eq]
-  | powInt u n ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn, true_and] at hD
-      obtain ⟨hu, -⟩ := he
-      obtain ⟨⟨-, hcase⟩, hdu⟩ := hD
-      have hcond : sem u x ≠ 0 ∨ 0 ≤ n := by
-        rcases hcase with h | h
-        · exact Or.inr (by omega)
-        · exact Or.inl h
-      exact (hasDerivAt_zpow n (sem u x) hcond).comp x (ih hu hdu)
-  | sqrt u ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn, sem, true_and] at hD
-      obtain ⟨hdu, -, hne⟩ := hD
-      have hsne : Real.sqrt (sem u x) ≠ 0 := fun h => hne (by rw [h, mul_zero])
-      have hupos : (0 : ℝ) < sem u x := Real.sqrt_ne_zero'.mp hsne
-      exact (ih he.1 hdu).sqrt (ne_of_gt hupos)
-  | exp u ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn] at hD
-      exact (ih he hD.2).exp
-  | log u ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn] at hD
-      exact (ih he.1 hD.1).log (ne_of_gt he.2)
-  | sin u ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn] at hD
-      exact (ih he hD.2).sin
-  | cos u ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn] at hD
-      refine hasDerivAt_congr_val ((ih he hD.2).cos) ?_
-      simp only [D, sem]
-      exact neg_mul _ _
-  | atan u ih =>
-      simp only [DefinedOn] at he
-      simp only [D, DefinedOn, sem, true_and] at hD
-      obtain ⟨hdu, -, -⟩ := hD
-      refine hasDerivAt_congr_val ((ih he hdu).arctan) ?_
-      simp only [D, sem]
-      rw [zpow_two_eq, one_div_mul_eq_div]
+      simp only [D, DefinedOn, sem] at hD
+      obtain ⟨⟨⟨hd₁, -⟩, -, hd₂⟩, -, -⟩ := hD
+      have hfun : sem (.div e₁ e₂) = fun y : ℝ => sem e₁ y / sem e₂ y := by funext y; simp [sem]
+      have hval : sem (D (.div e₁ e₂)) x
+          = (sem (D e₁) x * sem e₂ x - sem e₁ x * sem (D e₂) x) / sem e₂ x ^ 2 := by
+        show sem (.sub (.mul (D e₁) e₂) (.mul e₁ (D e₂))) x
+            / sem (.pow e₂ (.num 2 "2")) x = _
+        rw [sem_pow_ofNat_two]; simp [sem]
+      rw [hfun, hval]; exact (ih₁ he₁ hd₁).div (ih₂ he₂ hd₂) hz
+  | mod e₁ e₂ ih₁ ih₂ =>
+      exact absurd hD (dbad_undefined x)
+  | pow b e ihb ihe =>
+      clear ihe
+      cases e with
+      | num c t =>
+          simp only [D, DefinedOn, sem] at hD
+          obtain ⟨⟨-, hbdef, -, hpd⟩, hDb⟩ := hD
+          have hb := ihb hbdef hDb
+          have hcond : sem b x ≠ 0 ∨ 1 ≤ c := rpow_const_cond hpd
+          have key := (Real.hasDerivAt_rpow_const hcond).comp x hb
+          have hfun : sem (.pow b (.num c t)) = fun y : ℝ => sem b y ^ c := by
+            funext y; simp [sem]
+          have hval : sem (D (.pow b (.num c t))) x
+              = c * sem b x ^ (c - 1) * sem (D b) x := by simp [D, sem]
+          rw [hfun, hval]; exact key
+      | var n => exact absurd hD (dbad_undefined x)
+      | constant n => exact absurd hD (dbad_undefined x)
+      | neg u => exact absurd hD (dbad_undefined x)
+      | add l r => exact absurd hD (dbad_undefined x)
+      | sub l r => exact absurd hD (dbad_undefined x)
+      | mul l r => exact absurd hD (dbad_undefined x)
+      | div l r => exact absurd hD (dbad_undefined x)
+      | mod l r => exact absurd hD (dbad_undefined x)
+      | pow bb ee => exact absurd hD (dbad_undefined x)
+      | call1 nm u => exact absurd hD (dbad_undefined x)
+      | call2 nm u v => exact absurd hD (dbad_undefined x)
+  | call1 name u ihu =>
+      by_cases h1 : name = "sin"
+      · subst h1
+        simp only [DefinedOn] at he
+        simp only [D, if_pos, DefinedOn] at hD
+        have hu := ihu he.1 hD.2
+        have hval : sem (D (.call1 "sin" u)) x = Real.cos (sem u x) * sem (D u) x := by
+          simp [D, sem]
+        have hfun : sem (.call1 "sin" u) = fun y : ℝ => Real.sin (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun, hval]; exact hu.sin
+      · by_cases h2 : name = "cos"
+        · subst h2
+          simp only [DefinedOn] at he
+          simp only [D, if_neg h1, if_pos, DefinedOn] at hD
+          have hu := ihu he.1 hD.2
+          have hval : sem (D (.call1 "cos" u)) x = -(Real.sin (sem u x) * sem (D u) x) := by
+            simp [D, sem]
+          have hfun : sem (.call1 "cos" u) = fun y : ℝ => Real.cos (sem u y) := by
+            funext y; simp [sem]
+          rw [hfun, hval]
+          have key := hu.cos
+          rwa [neg_mul] at key
+        · by_cases h3 : name = "atan"
+          · subst h3
+            simp only [DefinedOn] at he
+            simp only [D, if_neg h1, if_neg h2, if_pos, DefinedOn] at hD
+            have hu := ihu he.1 hD.1
+            have hval : sem (D (.call1 "atan" u)) x
+                = sem (D u) x / (1 + sem u x ^ 2) := by
+              show sem (D u) x / sem (.add (.num 1 "1") (.pow u (.num 2 "2"))) x = _
+              rw [show sem (.add (.num 1 "1") (.pow u (.num 2 "2"))) x
+                  = sem (.num 1 "1") x + sem (.pow u (.num 2 "2")) x from rfl,
+                sem_pow_ofNat_two]
+              simp [sem]
+            have hfun : sem (.call1 "atan" u) = fun y : ℝ => Real.arctan (sem u y) := by
+              funext y; simp [sem]
+            rw [hfun, hval]
+            have key := hu.arctan
+            rw [one_div, mul_comm] at key
+            rw [div_eq_mul_inv]; exact key
+          · by_cases h4 : name = "sqrt"
+            · subst h4
+              simp only [DefinedOn] at he
+              simp only [D, if_neg h1, if_neg h2, if_neg h3, if_pos, DefinedOn, sem,
+                call1Sem_sqrt] at hD
+              obtain ⟨hdu, -, hne⟩ := hD
+              have hsne : Real.sqrt (sem u x) ≠ 0 := fun h => hne (by rw [h, mul_zero])
+              have hupos : (0 : ℝ) < sem u x := Real.sqrt_ne_zero'.mp hsne
+              have hu := ihu he.1 hdu
+              have hval : sem (D (.call1 "sqrt" u)) x
+                  = sem (D u) x / (2 * Real.sqrt (sem u x)) := by simp [D, sem]
+              have hfun : sem (.call1 "sqrt" u) = fun y : ℝ => Real.sqrt (sem u y) := by
+                funext y; simp [sem]
+              rw [hfun, hval]; exact hu.sqrt (ne_of_gt hupos)
+            · by_cases h5 : name = "exp"
+              · subst h5
+                simp only [DefinedOn] at he
+                simp only [D, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_pos, DefinedOn] at hD
+                have hu := ihu he.1 hD.2
+                have hval : sem (D (.call1 "exp" u)) x = Real.exp (sem u x) * sem (D u) x := by
+                  simp [D, sem]
+                have hfun : sem (.call1 "exp" u) = fun y : ℝ => Real.exp (sem u y) := by
+                  funext y; simp [sem]
+                rw [hfun, hval]; exact hu.exp
+              · by_cases h6 : name = "ln"
+                · subst h6
+                  simp only [DefinedOn] at he
+                  obtain ⟨heu, hpos⟩ := he
+                  simp only [call1Dom_ln] at hpos
+                  simp only [D, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_neg h5,
+                    if_pos, DefinedOn] at hD
+                  have hu := ihu heu hD.1
+                  have hval : sem (D (.call1 "ln" u)) x = sem (D u) x / sem u x := by
+                    simp [D, sem]
+                  have hfun : sem (.call1 "ln" u) = fun y : ℝ => Real.log (sem u y) := by
+                    funext y; simp [sem]
+                  rw [hfun, hval]
+                  have key := (hu.log (ne_of_gt hpos))
+                  simpa [div_eq_mul_inv] using key
+                · exfalso
+                  have hbad : D (.call1 name u) = Dbad := by
+                    simp only [D, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_neg h5, if_neg h6]
+                  rw [hbad] at hD
+                  exact dbad_undefined x hD
+  | call2 name u v ihu ihv =>
+      exact absurd hD (dbad_undefined x)
 
-/-- Set-quantified form of `deriv_correct` (the shape `bound_step` needs
-over the closed subinterval).  `U` needs no openness hypothesis: the
-`HasDerivAt` chain lemmas are pointwise, so the engine's "open domain"
-phrasing is subsumed by pointwise definedness. -/
+/-- Set-quantified form of `deriv_correct` (the shape `bound_step` needs over
+the closed subinterval).  Pointwise — the engine's "open domain" phrasing is
+subsumed. -/
 theorem deriv_correct_on (e : Expr) (U : Set ℝ)
     (hdef : ∀ x ∈ U, DefinedOn e x) (hDdef : ∀ x ∈ U, DefinedOn (D e) x) :
     ∀ x ∈ U, HasDerivAt (sem e) (sem (D e) x) x :=
   fun x hx => deriv_correct e x (hdef x hx) (hDdef x hx)
 
-/-! ### Continuity of an evaluable formula (helper for the C^k ladder) -/
+/-! ### `Smooth` bookkeeping for the continuity ladder -/
 
-/-- An evaluable formula is continuous at every point where it is defined:
-each `DefinedOn` guard is exactly the side condition Mathlib's pointwise
-continuity lemmas need (`ContinuousAt.div`, `continuousAt_zpow₀`,
-`Real.continuousAt_log`). -/
-theorem sem_continuousAt (e : Expr) (x : ℝ) (he : DefinedOn e x) :
+/-- Every `D`-output lies in the `Smooth` sublanguage. -/
+theorem D_smooth (e : Expr) (hs : Smooth e) : Smooth (D e) := by
+  induction e with
+  | num c t => simp [D, Smooth]
+  | var name => by_cases h : name = "x" <;> simp [D, Smooth, h]
+  | constant name => simp [D, Smooth]
+  | neg u ih => exact ih hs
+  | add l r ih₁ ih₂ => exact ⟨ih₁ hs.1, ih₂ hs.2⟩
+  | sub l r ih₁ ih₂ => exact ⟨ih₁ hs.1, ih₂ hs.2⟩
+  | mul l r ih₁ ih₂ => exact ⟨⟨ih₁ hs.1, hs.2⟩, hs.1, ih₂ hs.2⟩
+  | div l r ih₁ ih₂ => exact ⟨⟨⟨ih₁ hs.1, hs.2⟩, hs.1, ih₂ hs.2⟩, hs.2⟩
+  | mod l r ih₁ ih₂ => exact hs.elim
+  | pow b e ihb ihe =>
+      cases e with
+      | num c t => exact ⟨⟨trivial, hs⟩, ihb hs⟩
+      | _ => exact hs.elim
+  | call1 name u ihu =>
+      obtain ⟨hname, hsu⟩ := hs
+      have hDu : Smooth (D u) := ihu hsu
+      rcases hname with h | h | h | h | h | h <;> subst h
+      · exact ⟨⟨by simp, hsu⟩, hDu⟩
+      · exact ⟨⟨by simp, hsu⟩, hDu⟩
+      · exact ⟨hDu, trivial, hsu⟩
+      · exact ⟨hDu, trivial, by simp, hsu⟩
+      · exact ⟨⟨by simp, hsu⟩, hDu⟩
+      · exact ⟨hDu, hsu⟩
+  | call2 name u v ihu ihv => exact hs.elim
+
+/-- Evaluability of a derivative formula forces its argument to be `Smooth`
+(the non-`Smooth` nodes all differentiate to the never-defined `Dbad`). -/
+theorem definedOn_D_smooth (e : Expr) (x : ℝ) (hD : DefinedOn (D e) x) : Smooth e := by
+  induction e with
+  | num c t => trivial
+  | var name => trivial
+  | constant name => trivial
+  | neg u ih => exact ih (by simpa [D, DefinedOn] using hD)
+  | add l r ih₁ ih₂ =>
+      simp only [D, DefinedOn] at hD
+      exact ⟨ih₁ hD.1, ih₂ hD.2⟩
+  | sub l r ih₁ ih₂ =>
+      simp only [D, DefinedOn] at hD
+      exact ⟨ih₁ hD.1, ih₂ hD.2⟩
+  | mul l r ih₁ ih₂ =>
+      simp only [D, DefinedOn] at hD
+      exact ⟨ih₁ hD.1.1, ih₂ hD.2.2⟩
+  | div l r ih₁ ih₂ =>
+      simp only [D, DefinedOn] at hD
+      exact ⟨ih₁ hD.1.1.1, ih₂ hD.1.2.2⟩
+  | mod l r ih₁ ih₂ => exact absurd hD (dbad_undefined x)
+  | pow b e ihb ihe =>
+      cases e with
+      | num c t =>
+          simp only [D, DefinedOn] at hD
+          exact ihb hD.2
+      | var n => exact absurd hD (dbad_undefined x)
+      | constant n => exact absurd hD (dbad_undefined x)
+      | neg u => exact absurd hD (dbad_undefined x)
+      | add l r => exact absurd hD (dbad_undefined x)
+      | sub l r => exact absurd hD (dbad_undefined x)
+      | mul l r => exact absurd hD (dbad_undefined x)
+      | div l r => exact absurd hD (dbad_undefined x)
+      | mod l r => exact absurd hD (dbad_undefined x)
+      | pow bb ee => exact absurd hD (dbad_undefined x)
+      | call1 nm u => exact absurd hD (dbad_undefined x)
+      | call2 nm u v => exact absurd hD (dbad_undefined x)
+  | call1 name u ihu =>
+      by_cases h1 : name = "sin"
+      · subst h1; refine ⟨by tauto, ihu ?_⟩; simpa [D, DefinedOn] using hD.2
+      · by_cases h2 : name = "cos"
+        · subst h2; refine ⟨by tauto, ihu ?_⟩
+          simp only [D, if_neg h1, if_pos, DefinedOn] at hD; exact hD.2
+        · by_cases h3 : name = "atan"
+          · subst h3; refine ⟨by tauto, ihu ?_⟩
+            simp only [D, if_neg h1, if_neg h2, if_pos, DefinedOn] at hD; exact hD.1
+          · by_cases h4 : name = "sqrt"
+            · subst h4; refine ⟨by tauto, ihu ?_⟩
+              simp only [D, if_neg h1, if_neg h2, if_neg h3, if_pos, DefinedOn] at hD; exact hD.1
+            · by_cases h5 : name = "exp"
+              · subst h5; refine ⟨by tauto, ihu ?_⟩
+                simp only [D, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_pos, DefinedOn] at hD
+                exact hD.2
+              · by_cases h6 : name = "ln"
+                · subst h6; refine ⟨by tauto, ihu ?_⟩
+                  simp only [D, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_neg h5, if_pos,
+                    DefinedOn] at hD
+                  exact hD.1
+                · exfalso
+                  have hbad : D (.call1 name u) = Dbad := by
+                    simp only [D, if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_neg h5, if_neg h6]
+                  rw [hbad] at hD; exact dbad_undefined x hD
+  | call2 name u v ihu ihv => exact absurd hD (dbad_undefined x)
+
+/-! ### Continuity of an evaluable `Smooth` formula -/
+
+/-- A `Smooth`, evaluable formula is continuous at every point where it is
+defined.  Only the smooth-core cases arise (the discontinuous nodes are not
+`Smooth`), so each `DefinedOn` guard is exactly the side condition Mathlib's
+pointwise continuity lemmas need. -/
+theorem sem_continuousAt (e : Expr) (x : ℝ) (hs : Smooth e) (he : DefinedOn e x) :
     ContinuousAt (sem e) x := by
   induction e with
-  | var => exact continuousAt_id
-  | lit c => exact continuousAt_const
-  | neg e ih =>
+  | num c t => simpa [sem] using continuousAt_const
+  | var name =>
+      simp only [DefinedOn] at he; subst he
+      have hfun : sem (.var "x") = fun y : ℝ => y := by funext y; simp [sem]
+      rw [hfun]; exact continuousAt_id
+  | constant name =>
+      have hfun : sem (.constant name) = fun _ : ℝ => constValue name := rfl
+      rw [hfun]; exact continuousAt_const
+  | neg u ih =>
       simp only [DefinedOn] at he
-      exact (ih he).neg
+      have hfun : sem (.neg u) = fun y : ℝ => -(sem u y) := by funext y; simp [sem]
+      rw [hfun]; exact (ih hs he).neg
   | add e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
-      exact (ih₁ he.1).add (ih₂ he.2)
+      have hfun : sem (.add e₁ e₂) = fun y : ℝ => sem e₁ y + sem e₂ y := by funext y; simp [sem]
+      rw [hfun]; exact (ih₁ hs.1 he.1).add (ih₂ hs.2 he.2)
   | sub e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
-      exact (ih₁ he.1).sub (ih₂ he.2)
+      have hfun : sem (.sub e₁ e₂) = fun y : ℝ => sem e₁ y - sem e₂ y := by funext y; simp [sem]
+      rw [hfun]; exact (ih₁ hs.1 he.1).sub (ih₂ hs.2 he.2)
   | mul e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
-      exact (ih₁ he.1).mul (ih₂ he.2)
+      have hfun : sem (.mul e₁ e₂) = fun y : ℝ => sem e₁ y * sem e₂ y := by funext y; simp [sem]
+      rw [hfun]; exact (ih₁ hs.1 he.1).mul (ih₂ hs.2 he.2)
   | div e₁ e₂ ih₁ ih₂ =>
       simp only [DefinedOn] at he
-      exact (ih₁ he.1).div (ih₂ he.2.1) he.2.2
-  | powInt u n ih =>
+      have hfun : sem (.div e₁ e₂) = fun y : ℝ => sem e₁ y / sem e₂ y := by funext y; simp [sem]
+      rw [hfun]; exact (ih₁ hs.1 he.1).div (ih₂ hs.2 he.2.1) he.2.2
+  | mod e₁ e₂ ih₁ ih₂ => exact hs.elim
+  | pow b e ihb ihe =>
+      cases e with
+      | num c t =>
+          simp only [DefinedOn, sem] at he
+          obtain ⟨hbdef, -, hpd⟩ := he
+          have hbc := ihb hs hbdef
+          have hcond : sem b x ≠ 0 ∨ 0 ≤ c := by
+            rcases hpd with hpos | ⟨n, hn, hg⟩
+            · exact Or.inl (ne_of_gt hpos)
+            · rcases lt_or_ge n 0 with hlt | hge
+              · exact Or.inl (hg hlt)
+              · right
+                have hnn : (0 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hge
+                linarith [hn]
+          have key := (Real.continuousAt_rpow_const (sem b x) c hcond).comp hbc
+          have hfun : sem (.pow b (.num c t)) = fun y : ℝ => sem b y ^ c := by
+            funext y; simp [sem]
+          rw [hfun]; exact key
+      | _ => exact hs.elim
+  | call1 name u ihu =>
+      obtain ⟨hname, hsu⟩ := hs
       simp only [DefinedOn] at he
-      exact (continuousAt_zpow₀ (sem u x) n he.2.symm).comp (ih he.1)
-  | sqrt u ih =>
-      simp only [DefinedOn] at he
-      exact Real.continuous_sqrt.continuousAt.comp (ih he.1)
-  | exp u ih =>
-      simp only [DefinedOn] at he
-      exact Real.continuous_exp.continuousAt.comp (ih he)
-  | log u ih =>
-      simp only [DefinedOn] at he
-      exact (Real.continuousAt_log (ne_of_gt he.2)).comp (ih he.1)
-  | sin u ih =>
-      simp only [DefinedOn] at he
-      exact Real.continuous_sin.continuousAt.comp (ih he)
-  | cos u ih =>
-      simp only [DefinedOn] at he
-      exact Real.continuous_cos.continuousAt.comp (ih he)
-  | atan u ih =>
-      simp only [DefinedOn] at he
-      exact Real.continuous_arctan.continuousAt.comp (ih he)
+      have hcu := ihu hsu he.1
+      rcases hname with h | h | h | h | h | h <;> subst h
+      · have hfun : sem (.call1 "sin" u) = fun y : ℝ => Real.sin (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun]; exact Real.continuous_sin.continuousAt.comp hcu
+      · have hfun : sem (.call1 "cos" u) = fun y : ℝ => Real.cos (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun]; exact Real.continuous_cos.continuousAt.comp hcu
+      · have hfun : sem (.call1 "atan" u) = fun y : ℝ => Real.arctan (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun]; exact Real.continuous_arctan.continuousAt.comp hcu
+      · have hfun : sem (.call1 "sqrt" u) = fun y : ℝ => Real.sqrt (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun]; exact Real.continuous_sqrt.continuousAt.comp hcu
+      · have hfun : sem (.call1 "exp" u) = fun y : ℝ => Real.exp (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun]; exact Real.continuous_exp.continuousAt.comp hcu
+      · have hpos : 0 < sem u x := by simpa only [call1Dom_ln] using he.2
+        have hfun : sem (.call1 "ln" u) = fun y : ℝ => Real.log (sem u y) := by
+          funext y; simp [sem]
+        rw [hfun]; exact (Real.continuousAt_log (ne_of_gt hpos)).comp hcu
+  | call2 name u v ihu ihv => exact hs.elim
 
-/-- Set version of `sem_continuousAt`. -/
-theorem sem_continuousOn (e : Expr) (s : Set ℝ)
+/-- Set version of `sem_continuousAt` for a `Smooth` formula. -/
+theorem sem_continuousOn (e : Expr) (s : Set ℝ) (hs : Smooth e)
     (h : ∀ x ∈ s, DefinedOn e x) : ContinuousOn (sem e) s :=
-  fun x hx => (sem_continuousAt e x (h x hx)).continuousWithinAt
+  fun x hx => (sem_continuousAt e x hs (h x hx)).continuousWithinAt
 
 /-! ### Main theorem 2 — the C^k ladder -/
 
-/-- One rung of the C^k ladder: a pointwise derivative on `Icc a b` whose
-formula is `C^n` there makes the function `C^(n+1)` there. -/
+/-- One rung of the C^k ladder. -/
 private lemma contDiffOn_succ_step {g dg : ℝ → ℝ} {a b : ℝ} {n : ℕ∞ω}
     (hn : n ≠ ω) (hab : a < b)
     (hd : ∀ x ∈ Icc a b, HasDerivAt g (dg x) x)
@@ -345,10 +503,10 @@ private lemma contDiffOn_succ_step {g dg : ℝ → ℝ} {a b : ℝ} {n : ℕ∞�
   intro x hx
   exact ((hd x hx).hasDerivWithinAt).derivWithin (hu x hx)
 
-/-- **Evaluability certifies C¹** — the engine's claim, one level up:
-if the formula `e` and its emitted derivative formula `D e` both evaluate
-everywhere on `[a, b]`, then `sem e` is continuously differentiable on
-`[a, b]`. -/
+/-- **Evaluability certifies C¹**: if `e` and `D e` both evaluate everywhere
+on `[a, b]`, then `sem e` is continuously differentiable there.  Continuity of
+the derivative `sem (D e)` comes from `sem_continuousOn` on the `Smooth`
+sublanguage, whose membership is forced by evaluability of `D e`. -/
 theorem c1_on_of_evaluable (e : Expr) (a b : ℝ) (hab : a < b)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)
     (h1 : ∀ x ∈ Icc a b, DefinedOn (D e) x) :
@@ -356,16 +514,16 @@ theorem c1_on_of_evaluable (e : Expr) (a b : ℝ) (hab : a < b)
   have hu : UniqueDiffOn ℝ (Icc a b) := uniqueDiffOn_Icc hab
   have hd : ∀ x ∈ Icc a b, HasDerivAt (sem e) (sem (D e) x) x :=
     deriv_correct_on e (Icc a b) h0 h1
+  have hsmooth_e : Smooth e :=
+    definedOn_D_smooth e a (h1 a (left_mem_Icc.mpr hab.le))
+  have hsmooth_De : Smooth (D e) := D_smooth e hsmooth_e
   rw [contDiffOn_one_iff_derivWithin hu]
   refine ⟨fun x hx => (hd x hx).differentiableAt.differentiableWithinAt, ?_⟩
-  refine (sem_continuousOn (D e) (Icc a b) h1).congr ?_
+  refine (sem_continuousOn (D e) (Icc a b) hsmooth_De h1).congr ?_
   intro x hx
   exact ((hd x hx).hasDerivWithinAt).derivWithin (hu x hx)
 
-/-- **Evaluability of the chain e, e′, e″ certifies C²** — iterating
-`c1_on_of_evaluable` one rung: exactly the smoothness the engine's
-`smooth-taylor2` acceptance implicitly claims ("success certifies f in C^2
-there", engine lines 2564–2567). -/
+/-- **Evaluability of the chain e, e′, e″ certifies C²**. -/
 theorem c2_on_of_evaluable (e : Expr) (a b : ℝ) (hab : a < b)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)
     (h1 : ∀ x ∈ Icc a b, DefinedOn (D e) x)
@@ -377,8 +535,7 @@ theorem c2_on_of_evaluable (e : Expr) (a b : ℝ) (hab : a < b)
   rw [show (2 : ℕ∞ω) = 1 + 1 from one_add_one_eq_two.symm]
   exact step
 
-/-- **Evaluability of the chain e, …, e⁗ certifies C⁴** — the smoothness
-the engine's `smooth-taylor4` acceptance claims. -/
+/-- **Evaluability of the chain e, …, e⁗ certifies C⁴**. -/
 theorem c4_on_of_evaluable (e : Expr) (a b : ℝ) (hab : a < b)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)
     (h1 : ∀ x ∈ Icc a b, DefinedOn (D e) x)
@@ -400,10 +557,7 @@ theorem c4_on_of_evaluable (e : Expr) (a b : ℝ) (hab : a < b)
 
 /-! ### Main theorem 3 — bridges into the Taylor midpoint enclosures -/
 
-/-- **Taylor-2 hypothesis tuple from evaluability**: if the chain
-e, D e, D² e all evaluate over `[a, b]` (= the engine's `F.ok && Fm.ok &&
-F1.ok && F2.ok` gate in `bound_step`, lines 2643–2646), the two
-`HasDerivAt` chains `taylor2_midpoint_enclosure` takes hold literally. -/
+/-- **Taylor-2 hypothesis tuple from evaluability**. -/
 theorem taylor2_hypotheses_of_evaluable (e : Expr) (a b : ℝ)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)
     (h1 : ∀ x ∈ Icc a b, DefinedOn (D e) x)
@@ -413,10 +567,7 @@ theorem taylor2_hypotheses_of_evaluable (e : Expr) (a b : ℝ)
   ⟨deriv_correct_on e (Icc a b) h0 h1,
    deriv_correct_on (D e) (Icc a b) h1 h2⟩
 
-/-- **Taylor-4 hypothesis tuple from evaluability**: the four `HasDerivAt`
-chains `taylor4_midpoint_enclosure` takes, from evaluability of
-e, D e, D² e, D³ e, D⁴ e (= the engine's additional `F2m.ok && F3.ok &&
-F4.ok` gate, lines 2650–2654). -/
+/-- **Taylor-4 hypothesis tuple from evaluability**. -/
 theorem taylor4_hypotheses_of_evaluable (e : Expr) (a b : ℝ)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)
     (h1 : ∀ x ∈ Icc a b, DefinedOn (D e) x)
@@ -433,10 +584,7 @@ theorem taylor4_hypotheses_of_evaluable (e : Expr) (a b : ℝ)
    deriv_correct_on (D (D e)) (Icc a b) h2 h3,
    deriv_correct_on (D (D (D e))) (Icc a b) h3 h4⟩
 
-/-- **End-to-end Taylor-2**: evaluability of e, D e, D² e over `[a, b]`
-plus interval bounds on the second-derivative FORMULA `D² e` (the engine's
-`F2 = ieval(f2, a, b)`) yield the `smooth-taylor2` enclosure of
-`bound_step` — `h·f(c) + h³/24·[m2, M2]` brackets `∫_a^b f`. -/
+/-- **End-to-end Taylor-2**. -/
 theorem taylor2_enclosure_of_evaluable (e : Expr) (a b m2 M2 : ℝ)
     (hab : a < b)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)
@@ -452,11 +600,7 @@ theorem taylor2_enclosure_of_evaluable (e : Expr) (a b m2 M2 : ℝ)
   exact taylor2_midpoint_enclosure (sem e) (sem (D e)) (sem (D (D e)))
     a b m2 M2 hab hd1 hd2 hm2 hM2
 
-/-- **End-to-end Taylor-4**: evaluability of the chain e … D⁴ e over
-`[a, b]` plus interval bounds on the fourth-derivative FORMULA `D⁴ e` (the
-engine's `F4 = ieval(f4, a, b)`) yield the `smooth-taylor4` enclosure of
-`bound_step` — `h·f(c) + h³/24·f″(c) + h⁵/1920·[m4, M4]` brackets
-`∫_a^b f`. -/
+/-- **End-to-end Taylor-4**. -/
 theorem taylor4_enclosure_of_evaluable (e : Expr) (a b m4 M4 : ℝ)
     (hab : a < b)
     (h0 : ∀ x ∈ Icc a b, DefinedOn e x)

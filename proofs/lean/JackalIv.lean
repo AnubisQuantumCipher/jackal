@@ -6,9 +6,14 @@ import JackalIv.Exact
 import JackalIv.Trig
 import JackalIv.CritIn
 import JackalIv.Pow
+import JackalIv.Syntax
+import JackalIv.Parser
 import JackalIv.Embed
 import JackalIv.Midpoint
 import JackalIv.Taylor
 import JackalIv.Deriv
 import JackalIv.Solve
+import JackalIv.Lower
+import JackalIv.Dump
+import JackalIv.Correspondence
 import JackalIv.Ledger

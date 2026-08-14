@@ -1620,6 +1620,38 @@ fn simplify_bound(node) {
     return [tag, left, right];
 }
 
+// Canonical s-expression serialization of the parse tree, for the
+// parser-correspondence gate (tests/parser_differential.py): JACKAL's real
+// parser output must match, byte for byte, the canonical Lean parser's output
+// on the same input (proofs/lean/JackalIv/Parser.lean). Numeric literals are
+// serialized as their ORIGINAL TOKEN TEXT so both sides must agree about the
+// same characters, not about a float rendering. Any drift in tokenization,
+// precedence, associativity, or lowering breaks the gate.
+fn ast_sexp(node) {
+    let tag = node[0];
+    if tag == "num" { return "(num " + node[2] + ")"; }
+    if tag == "var" { return "(var " + node[1] + ")"; }
+    if tag == "const" { return "(const " + node[1] + ")"; }
+    if tag == "neg" {
+        let inner = ast_sexp(node[1]);
+        return "(neg " + inner + ")";
+    }
+    if tag == "call" {
+        let arguments = node[2];
+        let text = "(call " + node[1];
+        let i = 0;
+        while i < len(arguments) {
+            let piece = ast_sexp(arguments[i]);
+            text = text + " " + piece;
+            i = i + 1;
+        }
+        return text + ")";
+    }
+    let left = ast_sexp(node[1]);
+    let right = ast_sexp(node[2]);
+    return "(" + tag + " " + left + " " + right + ")";
+}
+
 // True when every construct in the AST is one the symbolic differentiator has
 // an everywhere-valid rule for, so f' and f'' formulas can be built without
 // panicking and the Taylor-2 midpoint form may be attempted. The functions
@@ -3203,6 +3235,20 @@ fn main() uses(io.print) {
     if op == "constants" {
         print("pi=${pi()}");
         print("e=${e()}");
+        return;
+    }
+
+    // Parser-correspondence surface: dump the REAL parse (and the certified
+    // lane's REAL lowering) in canonical form for the differential gate
+    // against the mechanized Lean parser. No evaluation happens here.
+    if op == "parse-dump" {
+        require_arity(argv, 2);
+        print("ast=${ast_sexp(parse_ast(argv[1]))}");
+        return;
+    }
+    if op == "lower-dump" {
+        require_arity(argv, 2);
+        print("lowered=${ast_sexp(simplify_bound(parse_ast(argv[1])))}");
         return;
     }
 

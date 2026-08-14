@@ -8,3 +8,7 @@ rev = "v4.32.0"
 
 [[lean_lib]]
 name = "JackalIv"
+
+[[lean_exe]]
+name = "jackal_parse_dump"
+root = "JackalIv.ParseDumpMain"

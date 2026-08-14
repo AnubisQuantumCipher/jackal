@@ -2,7 +2,13 @@ import JackalIv.Model
 import JackalIv.Pad
 import JackalIv.Arith
 import JackalIv.Monotone
+import JackalIv.Exact
 import JackalIv.Trig
+import JackalIv.CritIn
+import JackalIv.Pow
+import JackalIv.Embed
 import JackalIv.Midpoint
 import JackalIv.Taylor
+import JackalIv.Deriv
+import JackalIv.Solve
 import JackalIv.Ledger

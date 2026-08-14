@@ -3094,7 +3094,32 @@ fn main() uses(io.print) {
         }
         let root = (lo + hi) / 2.0;
         let residual = abs(evaluate_expression(source, { "x": root }));
-        print("status=estimated root=${number_text(root)} residual=${number_text(residual)} method=bisection iterations=${iterations}");
+        // A tiny residual FLATTERS an ill-conditioned root: |x - r| ~= |f(x)| / |f'(r)|,
+        // so when f'(r) is small the root error is the residual AMPLIFIED by 1/|f'(r)|
+        // (field-adjudicated 2026-08-13: a near-parabolic Kepler equation returned
+        // residual 2.3e-20 while the root was off by 1.3e-12 — condition amplification
+        // ~6e7). Report the first-order backward-error estimate alongside the residual.
+        // The derivative probe uses the SOFT evaluator (NaN flows through) so an
+        // off-domain step can only degrade the diagnostic, never fail the solve.
+        let probe_ast = parse_ast(source);
+        let h = 0.000000014901161193847656 * max(1.0, abs(root));
+        let f_up = eval_ast(probe_ast, { "x": root + h });
+        let f_dn = eval_ast(probe_ast, { "x": root - h });
+        let fprime = (f_up - f_dn) / (2.0 * h);
+        let diagnostics = " root-error-estimate=unavailable(derivative-probe-failed)";
+        if fprime == fprime && fprime <= 1.7976931348623157e308 && fprime >= -1.7976931348623157e308 {
+            if abs(fprime) < 1.0e-300 {
+                diagnostics = " derivative-estimate=${number_text(fprime)} root-error-estimate=indeterminate(derivative-vanishes-at-root;residual-cannot-bound-root-error)";
+            } else {
+                let amplification = 1.0 / abs(fprime);
+                let first_order = residual * amplification;
+                let estimate = max((hi - lo) / 2.0, first_order);
+                if estimate <= 1.7976931348623157e308 {
+                    diagnostics = " derivative-estimate=${number_text(fprime)} condition-amplification=${number_text(amplification)} root-error-estimate=${number_text(estimate)}";
+                }
+            }
+        }
+        print("status=estimated root=${number_text(root)} residual=${number_text(residual)} method=bisection iterations=${iterations}${diagnostics} assurance=estimate-not-bound(first-order)");
         return;
     }
 

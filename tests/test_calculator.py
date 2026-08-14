@@ -136,6 +136,21 @@ CONTAINS_CASES = [
         "root=1.414213562373095",
         "method=bisection",
         "residual=",
+        "condition-amplification=",
+        "root-error-estimate=",
+        "assurance=estimate-not-bound(first-order)",
+    ]),
+    # Field-adjudicated 2026-08-13 (near-parabolic Kepler equation,
+    # E - 0.999999999999*sin(E) = 1e-12): the residual (2.3e-20) flattered a
+    # root error of 1.3e-12 because |f'(r)| ~ 1.65e-8 amplifies function-value
+    # error ~6.06e7x. The solver must now report the first-order backward-error
+    # estimate (~1.4e-12, matching the independently measured 1.297e-12) and
+    # the condition amplification alongside the residual.
+    (["solve", "x-0.999999999999*sin(x)-0.000000000001", "0", "0.01"], [
+        "root=0.000181701",
+        "condition-amplification=6057",
+        "root-error-estimate=0.0000000000013",
+        "assurance=estimate-not-bound(first-order)",
     ]),
     # Richardson-extrapolated verification must pass stiff-but-correct rules that
     # the bare fixed-step check refused (rule proven sympy-equal). The probe
@@ -240,6 +255,12 @@ BOUND_ORACLE_CASES = [
     # Range-mode fallback at the sqrt kink in f' at 0, Taylor mode elsewhere.
     ("sqrt(x)", "0", "1", "1e-6", "sqrt(x)"),
     ("x^x", "0.5", "2", "1e-8", "x**x"),
+    # Field-adjudicated 2026-08-13: the Fresnel integral int_0^50 sin(x^2) dx
+    # (~796 oscillations). The 1000-panel Simpson lane is badly wrong here and
+    # says so via a large Richardson probe; the certified lane returned an
+    # enclosure of width 2.6e-7 with the analytic value nearly centered. Keep
+    # that as a permanent gate: enclosure must contain the Fresnel truth.
+    ("sin(x^2)", "0", "50", "1e-6", "sin(x**2)"),
 ]
 
 # Symbolic oracle: sympy independently differentiates each input; JACKAL's

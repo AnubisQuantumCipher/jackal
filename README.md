@@ -162,7 +162,7 @@ tokenizer, recursive-descent parser, and evaluator all written in Anubis:
 ./jackal integrate "sin(x)" 0 3.141592653589793 200   # general Simpson + Richardson error estimate
 ./jackal integrate-bound "sin(x)" 0 3.141592653589793 1e-9   # certified interval enclosure
 ./jackal derivative "x^3" 2 0.001                     # central difference + Richardson probe
-./jackal solve "x^2-2" 1 2                            # bisection + residual, requires a sign change
+./jackal solve "x^2-2" 1 2         # bisection + residual + first-order root-error estimate
 ```
 
 Grammar: `+ - * / %`, `^` (power, right-associative), unary minus (binds looser than `^`,
@@ -216,18 +216,32 @@ How it works, and exactly what it claims:
   symbolic-antiderivative oracle, and a differential gate (`tests/iv_differential.py`)
   checks every range enclosure against 40-digit point sampling and mpmath's independent
   interval arithmetic. The only fatal verdict in either is a bound that excludes the truth.
-- **The model is machine-checked.** [`proofs/lean/`](proofs/lean/) is a Lean 4 + Mathlib
-  development (60+ theorems, zero `sorry`, axiom footprint audited to Lean's standard
-  three) proving, over the stated rounding model: the pad-beats-rounding core; containment
-  of the add/sub/neg/mul/div interval ops (both division sign cases); the generic
-  monotone-endpoint rule with exp/sqrt/log/arctan/arcsin/arccos instances; sin/cos range
-  soundness across all widening branches; the float-midpoint containment chain that fixed
-  the 2026-08-13 adversarial-review bug; and the Taylor-2/Taylor-4 midpoint integral
-  enclosures — the engine's `h³/24` and `h⁵/1920` are now theorems, not constants. What is
-  *not* proven — libm actually meeting its 2-ulp model, the float critical-point test's
-  conservativity, and the Anubis-implementation-to-binary gap — is enumerated in
-  [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean); the engine's
-  printed `implementation-tested-not-mechanized` residual therefore stays, accurately.
+- **The model is machine-checked — universally quantified, conditionally stated.**
+  [`proofs/lean/`](proofs/lean/) is a Lean 4 + Mathlib development (14 modules, ~4,000
+  lines, 120+ theorems, zero `sorry`, 42 flagship theorems axiom-audited to Lean's
+  standard three) proving, over the stated rounding model: the pad-beats-rounding core;
+  containment of every arithmetic interval op (add/sub/neg/mul/div, integer and negative
+  powers, general powers on positive bases); the monotone-endpoint rule with
+  exp/sqrt/log/arctan/arcsin/arccos instances; the exact ops (abs/min/max/floor-family/
+  hypot/atan2); sin/cos range soundness across all widening branches; **conservativity of
+  the float critical-point test** on the engine's parameter range (a maybe can only widen,
+  never miss); bisection bracket soundness and the backward-error bound behind `solve`'s
+  conditioning diagnostics; the float-midpoint containment chain; the Taylor-2/Taylor-4
+  midpoint enclosures (`h³/24` and `h⁵/1920` are theorems, not constants); a
+  **deep-embedded composition theorem** (`runs_encloses`: *every* execution of the modeled
+  evaluator core over *every* interval yields a true enclosure — all-quantifiers, no
+  sampling); and the **evaluability-certifies-smoothness chain** (interval-evaluable
+  f/f′/f″ formulas imply the C²/C⁴ hypotheses of the Taylor theorems, composed end-to-end).
+  What is *not* proven is enumerated in
+  [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm actually
+  meeting its 2-ulp model on this platform; a handful of operators not yet wired into the
+  deep embedding (tan/asin/acos/cbrt/log10/log2/hypot/atan2 and the exact-op family — each
+  proved standalone, not yet in the induction); the bigint/rational lanes (their carry-split
+  invariants are machine-checked in-language by the Anubis SMT checker; full functional
+  correctness is outside this Lean scope); and the Anubis-implementation-to-binary gap.
+  The engine's printed `implementation-tested-not-mechanized` residual therefore stays,
+  accurately: the *model* is proven for all inputs; the *implementation* is
+  campaign-tested against it.
 
 `integrate-bound` is deliberately the slowest lane — certification costs evaluations. For a
 fast heuristic with refusal semantics use `integrate-adaptive`; for raw speed use `integrate`
@@ -440,7 +454,14 @@ printed enclosure ever excludes the independently computed truth. See
   The narrow-Gaussian case that beat the fixed grid by 256× resolves to 12 significant figures
   under the adaptive lane. The estimate is still local, not a proven bound: structure below
   seed/f64 resolution can evade even adaptivity. Bisection requires a bracketing sign change and
-  reports its residual; it correctly refuses even-multiplicity roots.
+  reports its residual; it correctly refuses even-multiplicity roots. Because a tiny residual
+  FLATTERS an ill-conditioned root (|x−r| ≈ |f(x)|/|f′(r)|), `solve` also reports a
+  `derivative-estimate`, the `condition-amplification` 1/|f′(r)|, and a first-order
+  `root-error-estimate` — field-adjudicated 2026-08-13 on a near-parabolic Kepler equation where
+  a 2.3e-20 residual accompanied a 1.3e-12 root error (amplification ≈6.06×10⁷; the printed
+  estimate matched the independently measured error to two significant figures). The estimate
+  uses a point sample of f′, so it remains `estimate-not-bound(first-order)`; the sound form it
+  instantiates (m ≤ |f′| on the bracket ⇒ |x−r| ≤ |f(x)|/m) is mechanized in `proofs/lean`.
 - `integrate-bound` is the only lane whose output is a mathematical *bound*, and its claim is
   conditional exactly on: (a) IEEE-754 correctly-rounded `+ - * /`; (b) math-library functions
   within 2 ulp including argument reduction; (c) the outward-padding constants exceeding both;

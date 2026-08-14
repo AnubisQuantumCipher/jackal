@@ -8,7 +8,58 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.0.0 — 2026-08-13 (current)
+## Seal v1.0.1 — 2026-08-13 (current)
+
+### Source
+
+- `jackal_calc.anb` SHA-256: `43810ce5b8e5fe05be7c3411067b00d0aaa74b8083accdbca6e840ecfa10e2b9`
+- Git: the commit tagged `v1.0.1` in this repository.
+- Change vs v1.0.0: `solve` conditioning diagnostics (derivative-estimate,
+  condition-amplification, first-order root-error-estimate) — field-adjudicated
+  the same day on a near-parabolic Kepler equation where a 2.3e-20 residual
+  accompanied a 1.3e-12 root error (amplification ~6.06e7; the printed estimate
+  matched the independently measured error to two significant figures).
+
+### Compiler
+
+- pin: `anubis-a733565f237d` (content-addressed snapshot; anubis-lang commit `b3390c7c`)
+- pin SHA-256: `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`
+
+### Build — byte-reproducible, verified
+
+Same recipe as v1.0.0. Two clean builds of this source: byte-identical.
+
+- shipped `jackal-native` SHA-256: `d8dd82a23f0b5f920c2f26bab734d45b050d2219007eef573ae69313daaa7d22`
+
+### Gate receipts (2026-08-13, all against this binary/pin, all green)
+
+| Gate | Result |
+|---|---|
+| `anubis check jackal_calc.anb` | passed |
+| Native self-test | 83/83 invariants |
+| Black-box acceptance suite | TOTAL **200/200** — now includes the Kepler-conditioning case and the Fresnel integral (~796 oscillations) certified-enclosure case |
+| Seeded containment campaign (`tests/bound_campaign.py 250 20260813`) | BOUND_OK=246 REFUSED=4 ORACLE_SKIP=0 **CONTAINMENT_VIOLATION=0 WIDTH_VIOLATION=0**; JSONL sha256 `28e834552271105cd367225d779caa0d09f629f553b1b6466d6b684cd8bdf32f` (the harness oracle may legitimately choose antiderivative vs quadrature per run, so campaign JSONLs are not byte-stable across runs; counts and verdict are the receipt) |
+| Cross-implementation differential gate (`tests/iv_differential.py 300 20260813`) | OK=300 **POINT_VIOLATION=0 DISJOINT_IMPLEMENTATIONS=0**; median width ratio vs mpmath.iv = 1.000; JSONL sha256 `60fe6093bd015849609586fc374be448139ab2293a5a07109dc84a802ed89f6a` — byte-identical to the v1.0.0 runs (range-bound behavior unchanged) |
+| Lean 4 mechanization (`proofs/lean`, 14 modules, ~4,000 lines) | `lake build` green (8,670 jobs); **121+ theorems, zero `sorry`**; 42 flagship theorems axiom-audited to exactly `[propext, Classical.choice, Quot.sound]`; independently cross-audited read-only the same day (fresh-snapshot rebuild: clean; `runs_encloses` axiom audit: clean) |
+
+### What the Lean development now covers
+
+Pad model; add/sub/neg/mul/div; integer, negative, and positive-base general
+powers; exact ops (abs/min/max/floor-family/hypot/atan2); monotone rule with
+exp/sqrt/log/arctan/arcsin/arccos; sin/cos hulls across all widening branches;
+**float critical-point-test conservativity** on the engine's parameter range;
+bisection bracket soundness and the backward-error bound behind `solve`'s new
+diagnostics; float-midpoint containment; Taylor-2/4 midpoint enclosures; the
+**deep-embedded composition theorem** `runs_encloses` (every modeled execution
+over every interval encloses the exact semantics at every point — universal
+quantifiers, no sampling); and the **evaluability-certifies-smoothness chain**
+composing end-to-end into the Taylor theorems. The target claim, stated
+exactly: universal correctness over the precisely admitted certified fragment
+and its stated TCB — never "universal correctness" unqualified. Residuals and
+the next-wave bridge roadmap (parser→Expr, ieval→Runs, bound_step composition,
+source-to-native refinement) are enumerated in `proofs/lean/JackalIv/Ledger.lean`.
+
+## Seal v1.0.0 — 2026-08-13 (superseded by v1.0.1)
 
 ### Source
 

@@ -57,7 +57,7 @@ here in the repo.
 ./jackal rat "0.1 + 0.2"               # exact rational arithmetic
 ./jackal big-fact 100                  # exact arbitrary-precision integers
 ./jackal diff "x^2*sin(x)"             # symbolic derivative, checked before release
-./jackal solve "x^2-2" 1 2             # root by bisection, with residual
+./jackal solve "x^2-2" 1 2             # bisection: residual + conditioning + root-error estimate
 ./jackal quadratic 1 -3 2              # and ~40 more commands: ./jackal help
 ```
 

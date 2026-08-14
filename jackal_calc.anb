@@ -2445,24 +2445,38 @@ fn cert_parse_rat(s) {
     return rat_from_num_text(s);
 }
 
+// range-bound-cert <expr> <lo> <hi> [<evaluator-id-hex> <request-commit-b64>]
+// Emits a schema-v2 certificate. The engine DERIVES the soundness-relevant
+// fields itself (expr_commitment, input, nodes) — those are what the proved
+// checker adjudicates. The two runtime-PROVENANCE tokens (exe = the invoking
+// evaluator's own SHA-256, source = the release validator's request
+// commitment) are passed in explicitly and echoed verbatim; provenance is
+// enforced by the fail-closed release validator, never by the checker
+// (mission §270). Absent tokens emit empty fields, which the v2 validator
+// then refuses — a bare `range-bound-cert` is a diagnostic, not a release.
 fn run_range_bound_cert(argv) uses(io.print) {
-    require_arity(argv, 4);
+    if len(argv) != 4 && len(argv) != 6 {
+        panic("range-bound-cert requires <expr> <lo> <hi> [<evaluator-id> <request-commit>]");
+    }
     let source = argv[1];
     let xlo = cert_parse_rat(argv[2]);
     let xhi = cert_parse_rat(argv[3]);
     if rat_cmp(xlo, xhi) > 0 { panic("range-bound-cert requires lo <= hi"); }
+    let exe_id = "";
+    let req_commit = "";
+    if len(argv) == 6 { exe_id = argv[4]; req_commit = argv[5]; }
     let f = simplify_bound(parse_ast(source));
     let vars = collect_vars(f, {});
     for nm in vars {
         if nm != "x" { panic("range-bound-cert: unknown identifier '" + nm + "'; only x is bound"); }
     }
     let ce = cert_eval(f, xlo, xhi, [], 0);
-    print("jackal-eval-cert v1");
+    print("jackal-eval-cert v2");
     print("model jackal-iv-model-v1");
-    print("exe ");
+    print("exe " + exe_id);
     print("status bounded");
     print("expr " + ast_sexp(f));
-    print("source ");
+    print("source " + req_commit);
     print("input " + rat_to_text(xlo) + " " + rat_to_text(xhi));
     print("root " + str(ce.id));
     print("output " + rat_to_text(ce.lo) + " " + rat_to_text(ce.hi));

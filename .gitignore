@@ -19,3 +19,6 @@ tests/__pycache__/
 
 # Lean build artifacts (Mathlib cache is multi-GB)
 proofs/lean/.lake/
+
+# built release package (shipped as a release asset, not committed)
+release/dist/

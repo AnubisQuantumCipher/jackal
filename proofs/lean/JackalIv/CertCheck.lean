@@ -200,7 +200,7 @@ def reachableIds (hdr : Header) (nodes : List Node) : List Nat :=
 
 /-- The determinism / well-formedness pass.  Rejects on any violation. -/
 def structuralOk (hdr : Header) (nodes : List Node) : Bool :=
-  decide (hdr.schema_version = 1) &&
+  decide (hdr.schema_version = 2) &&
   (hdr.model_const_version == pinnedModelConst) &&
   (!nodes.isEmpty) &&
   nodupIds (nodes.map (·.id)) &&
@@ -429,7 +429,7 @@ def validNodes : List Node :=
 
 /-- The matching header. -/
 def validHeader : Header :=
-  { schema_version := 1
+  { schema_version := 2
     model_const_version := pinnedModelConst
     expr_commitment := "(neg (var x))"
     source_commitment := ""

@@ -1,0 +1,5 @@
+# JACKAL v1.0.4 pinned release identities (epoch: schema v2, model jackal-iv-model-v1)
+evaluator jackal-native 820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c
+checker jackal_cert_check 2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b
+source jackal_calc.anb 5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40
+compiler_pin anubis-a733565f237d a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2

@@ -8,7 +8,59 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.0.4 — 2026-08-14 (current)
+## Seal v1.1.0 — 2026-08-14 (current) — formal-status epoch
+
+Adds the completion-program formal core on top of the sealed v1.0.4 release
+bindings: a machine-validated coverage inventory, the canonical formal-status
+gate, and the assurance lattice wired into the release path. Certificate
+schema advanced to **v2** (checker requires `schema_version=2`; v1 certs are
+rejected — epoch separation). This is the "formal-plugin input package" the
+Hermes plugin v2 consumes.
+
+### Source / build (byte-reproducible, verified)
+- `jackal_calc.anb` SHA-256: `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40`
+- `jackal-native` SHA-256: `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c` (two clean builds identical)
+- `jackal_cert_check` SHA-256: `2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b`
+- deterministic package root: `9f28472dbaa516be8534c7e52548463328d4571eb06ba8b241f115a7cf4bc111`
+- compiler pin `anubis-a733565f237d` (unchanged).
+
+### What v1.1.0 adds
+- **Coverage inventory** (`release/coverage/formal_coverage_inventory.json`,
+  `tools/coverage_inventory.py`): 18 FORMAL operators (num/var/const/neg/add/
+  sub/mul/div/pow-n≥0/sin/cos/abs/floor/ceil/round/trunc/min/max) wired
+  engine→cert→checker→`Runs`→`cert_check_sound`; 15 REFUSED
+  (transcendentals/general-neg-pow/mod, fail closed); weaker lanes kept at
+  their honest class. Cross-checked against the live `Runs` constructors.
+- **Formal-status gate** (`tools/formal_status_gate.py`): the ONE authority
+  that assigns `formal-exact`/`formal-bounded`, derived only from a real
+  checker ACCEPT over a live-verified FORMAL operator + matching theorem id +
+  request binding. Repo/CI recomputes the FORMAL set from the live trees
+  (tamper → `inventory-integrity`); the shipped package trusts the inventory
+  via the `SHA256SUMS` seal.
+- **Release path** now derives `status=formal-bounded` through the gate
+  (`cert-status=bounded` kept distinct), refusing formal status for any
+  operator outside the fragment.
+
+### Gate receipts (2026-08-14, all green vs this epoch)
+| Gate | Result |
+|---|---|
+| `lake build` | 8679 jobs; `cert_check_sound`/`cert_encloses`/`certified_release` axioms `[propext, Classical.choice, Quot.sound]` only |
+| self-test / suite / campaign / iv / parser | 83/83 · 200/200 · 250 (0-viol) · 300 (0-viol) · 78/78 |
+| executed negative controls | 30/30 at intended layer (+ `python3 -O`) |
+| positive corpus | 20/20 `formal-bounded` through the shared validator (full fragment) |
+| fresh-extraction package smokes | 7/7 |
+| formal-status gate mutation (§382) | caught as `inventory-integrity` |
+| evidence independent verifier | PASS |
+
+**Claim boundary.** `formal-bounded` means: the released interval is a
+checker-accepted, `Runs`-derived enclosure of the exact semantics for the
+exact request over the modeled fragment, under the recorded TCB (libm ≤ 2 ulp
+for the const node, Lean kernel + checker build toolchain, canonical rational
+codec). NOT claimed: universal correctness, transcendental operators,
+`bound_step`, source→native, emitter-faithfulness theorem, Apple signing,
+public access. Repository remains PRIVATE.
+
+## Seal v1.0.4 — 2026-08-14 (formal-binding predecessor)
 
 Corrective **release-binding** epoch. v1.0.3 proved the checker core and a
 working certificate path, but its *runtime release seal* lacked exact

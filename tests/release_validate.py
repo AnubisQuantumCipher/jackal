@@ -128,6 +128,18 @@ def _valid_sha256_hex(s: str) -> bool:
     return bool(re.fullmatch(r"[0-9a-f]{64}", s))
 
 
+def _operators_in_sexp(sexp: str) -> set[str]:
+    """Extract operator/leaf tags from a canonical ast s-expression. Function
+    calls render as `(call NAME ...)`, so map those to NAME (sin/cos/abs/...);
+    all other heads (add/sub/mul/div/pow/neg/var/num/const) map to themselves.
+    E.g. '(call min (call sin (var x)) (num 1))' -> {min, sin, var, num}."""
+    ops = {m.group(1) for m in re.finditer(r"\(call\s+([a-z0-9_]+)", sexp)}
+    for m in re.finditer(r"\(([a-z0-9_]+)", sexp):
+        if m.group(1) != "call":
+            ops.add(m.group(1))
+    return ops
+
+
 def canonical_rat(tok: str) -> str:
     """Canonicalize a decimal/rational input token to the engine's reduced ℚ
     string, so the validator can bind cert.input to the request independently
@@ -250,9 +262,33 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
     if sha256_file(chk_real) != chk_id_pre:
         raise ReleaseRefusal("checker-toctou", "checker bytes changed across release")
 
-    # Gate 9: output/status derive from the SAME validated parsed certificate.
+    # Gate 9 + Phase F: the released status is DERIVED through the canonical
+    # formal-status gate — never a hardcoded string. Every operator appearing
+    # in the certified expression must be in the live-verified FORMAL fragment;
+    # otherwise the release refuses formal status rather than overclaiming.
+    ops = _operators_in_sexp(hdr["expr"])
+    _here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, _here)                                   # package: sibling
+    sys.path.insert(0, os.path.join(_here, "..", "tools"))      # repo: tools/
+    import formal_status_gate as fsg
+    try:
+        inv = fsg.load_inventory()
+        formal_ops = fsg.formal_operators(inv)
+        nonformal = sorted(ops - formal_ops)
+        if nonformal:
+            raise ReleaseRefusal("not-formal-fragment", f"operators outside formal fragment: {nonformal}")
+        for op in sorted(ops):
+            fsg.derive_status(operator=op, requested="formal-bounded", checker_accepted=True,
+                              certificate_sha256=cert_hash_pre, theorem_id="cert_check_sound",
+                              request_bound=True, inv=inv)
+        status = "formal-bounded"
+    except fsg.StatusRefusal as r:
+        raise ReleaseRefusal("formal-status-refused", f"{r.cls}: {r.detail}")
+
     return {
-        "status": "bounded",
+        "status": status,
+        "cert_status": hdr["status"],
+        "operators": sorted(ops),
         "certified_enclosure": [hdr["output_lo"], hdr["output_hi"]],
         "input": [hdr["input_lo"], hdr["input_hi"]],
         "expr_commitment": hdr["expr"],
@@ -320,7 +356,8 @@ def _cli() -> int:
     except ReleaseRefusal as r:
         print(f"status=refused reason={r.cls} detail=\"{r.detail}\"", file=sys.stderr)
         return 1
-    print("status=bounded")
+    print(f"status={receipt['status']}")
+    print(f"cert-status={receipt['cert_status']}")
     print(f"certified-enclosure=[{receipt['certified_enclosure'][0]},{receipt['certified_enclosure'][1]}]")
     print(f"input=[{receipt['input'][0]},{receipt['input'][1]}]")
     print(f"assurance={receipt['assurance']}")

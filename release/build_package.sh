@@ -18,6 +18,9 @@ mkdir -p "$PKG/evidence"
 cp "$ROOT/jackal-native" "$PKG/jackal-native"
 cp "$CHECKER" "$PKG/jackal_cert_check"
 cp "$ROOT/tests/release_validate.py" "$PKG/release_validate.py"
+cp "$ROOT/tools/formal_status_gate.py" "$PKG/formal_status_gate.py"
+cp "$ROOT/tools/coverage_inventory.py" "$PKG/coverage_inventory.py"
+cp "$ROOT/release/coverage/formal_coverage_inventory.json" "$PKG/formal_coverage_inventory.json"
 chmod +x "$PKG/jackal-native" "$PKG/jackal_cert_check"
 
 # --- package-local release wrapper: all paths relative to the package root ---

@@ -82,7 +82,7 @@ def main() -> int:
             receipt = rv.validate_release(
                 expr=expr, lo=lo, hi=hi, evaluator=str(EVALUATOR), checker=str(CHECKER),
                 expected_evaluator=ev_id, expected_checker=chk_id)
-            verdict = "bounded"
+            verdict = receipt["status"]  # gate-derived, e.g. "formal-bounded"
         except rv.ReleaseRefusal as r:
             receipt, verdict = {"refusal": r.cls}, "refused"
         # Constructor coverage: inspect operator characters and function names
@@ -114,9 +114,9 @@ def main() -> int:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(json.dumps(r, sort_keys=True) for r in rows) + "\n")
     digest = hashlib.sha256(OUT.read_bytes()).hexdigest()
-    n_bounded = sum(1 for r in rows if r["verdict"] == "bounded")
+    n_bounded = sum(1 for r in rows if r["verdict"] == "formal-bounded")
     missing = FRAGMENT - covered
-    print(f"positive_cases={len(rows)} bounded={n_bounded} "
+    print(f"positive_cases={len(rows)} formal_bounded={n_bounded} "
           f"fragment_covered={len(covered)}/{len(FRAGMENT)}")
     print(f"jsonl={OUT} sha256={digest}")
     if n_bounded != len(rows):

@@ -1,0 +1,1005 @@
+{
+  "formal_fragment": [
+    "abs",
+    "add",
+    "ceil",
+    "const",
+    "cos",
+    "div",
+    "floor",
+    "max",
+    "min",
+    "mul",
+    "neg",
+    "num",
+    "pow",
+    "round",
+    "sin",
+    "sub",
+    "trunc",
+    "var"
+  ],
+  "refused_from_formal": [
+    "acos",
+    "asin",
+    "atan",
+    "atan2",
+    "cbrt",
+    "exp",
+    "hypot",
+    "ln",
+    "log10",
+    "log2",
+    "mod",
+    "pow_general",
+    "pow_neg",
+    "sqrt",
+    "tan"
+  ],
+  "rows": [
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "num_exact"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "num",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "num_exact"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "var"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "var",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "var"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "const_rounded"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "ModelTCB.const (within delta0)",
+      "notes": "",
+      "operator": "const",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "const_rounded"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "neg"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "neg",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "neg"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "add"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "add",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "add"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "sub"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "sub",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "sub"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "mul"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "mul",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "mul"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "div"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "div",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "div"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "powZero",
+        "powEvenPos",
+        "powOddPos"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "pow",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "powZero",
+        "powEvenPos",
+        "powOddPos"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "sin"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "sin",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "sin"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "cos"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "cos",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "cos"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "abs"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "abs",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "abs"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "floor"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "floor",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "floor"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "ceil"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "ceil",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "ceil"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "round"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "round",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "round"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "trunc"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "trunc",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "trunc"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "min"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "min",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "min"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "max"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "max",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "max"
+      ],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "sqrt",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "exp",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "ln",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "tan",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "cbrt",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "atan",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "asin",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "acos",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "log10",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "log2",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "hypot",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "atan2",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "n/a",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "pow_neg",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "n/a",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "pow_general",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "n/a",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "mod",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
+      "allowed_status": "estimated",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "IEEE f64 expression evaluation",
+      "evaluator_path": "eval",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "eval",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "estimated",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "checked",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "symbolic differentiation, numerically checked",
+      "evaluator_path": "diff",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "diff",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "checked",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "estimated",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "fixed-grid Simpson + Richardson estimate",
+      "evaluator_path": "integrate",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "integrate",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "estimated",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "estimated",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "adaptive Simpson estimate, refuse-on-unconverged",
+      "evaluator_path": "integrate-adaptive",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "integrate-adaptive",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "estimated",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "estimated",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "bisection root with conditioning diagnostic",
+      "evaluator_path": "solve",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "solve",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "estimated",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "exact rational arithmetic (not yet checker-covered)",
+      "evaluator_path": "rat",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "rat",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "exact big-integer arithmetic (not yet checker-covered)",
+      "evaluator_path": "big-*",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "big-*",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "model-based",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "physical model with assumptions",
+      "evaluator_path": "claim-card",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "claim-card",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "model-based",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "WEAK"
+    }
+  ],
+  "schema": "jackal-coverage-inventory-v1"
+}

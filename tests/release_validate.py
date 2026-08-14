@@ -228,16 +228,18 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
     if hdr["exe"] != eval_id_pre:
         raise ReleaseRefusal("evaluator-cert-identity", f"cert exe {hdr['exe']!r} != invoked {eval_id_pre}")
 
-    # EXPLICIT test seam (TOCTOU control only): mutate after binding, before check.
-    if post_check_mutate is not None:
-        post_check_mutate(cert_path)
-
     # Gate 1/7: the proved checker adjudicates the EXACT cert bytes on disk.
     cproc = subprocess.run([chk_real, cert_path], stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, text=True, timeout=3600)
     if cproc.returncode != 0 or cproc.stdout.strip() != "ACCEPT":
         raise ReleaseRefusal("checker-rejected",
                              (cproc.stderr.strip() or cproc.stdout.strip())[:200])
+
+    # EXPLICIT test seam (TOCTOU control only): swap the artifact AFTER the
+    # checker accepted bytes A, BEFORE the stability gate. Production never
+    # passes this hook, so the swap window is structurally unreachable there.
+    if post_check_mutate is not None:
+        post_check_mutate(cert_path)
 
     # Gate 8/10: certificate + executables unchanged across the checked window.
     cert_hash_post = sha256_file(cert_path)

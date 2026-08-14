@@ -8,7 +8,78 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.0.3 — 2026-08-14 (current)
+## Seal v1.0.4 — 2026-08-14 (current)
+
+Corrective **release-binding** epoch. v1.0.3 proved the checker core and a
+working certificate path, but its *runtime release seal* lacked exact
+request/evaluator bindings and shipped partly documentary controls and
+`/tmp`-only evidence (independent Hermes audit). v1.0.4 supersedes that runtime
+seal — the Lean proof core is unchanged and un-weakened — without erasing the
+scar.
+
+### The v1.0.3 runtime-seal defect (preserved scar, mission §460)
+Hermes reproduced these on v1.0.3 and they are now closed:
+- **A** — the certificate's `source` field was empty and unchecked; a forged
+  base64 source still produced checker ACCEPT.
+- **B** — the certificate's `exe` field was empty and unchecked; a forged
+  evaluator identity still produced checker ACCEPT.
+- **C** — the release receipt labeled the **launcher** hash
+  (`de049b95…`) as `engine.sha256`; the real engine is `jackal-native`.
+- **D** — several mandatory controls were documentary `True` rows, not executed.
+- **E** — the positive corpus lived only under `/tmp`, not shipped.
+- **F** — the release was called "publicly downloadable"; the repository is
+  PRIVATE and the asset requires authenticated access.
+
+The checker soundness was never the defect (`JACKAL_BRIDGE2_PROOF_CORE_PASS`);
+the runtime release seal was (`JACKAL_V1.0.3_RUNTIME_RELEASE_SEAL_BLOCKED`).
+
+### Source / compiler / build (schema v2 epoch)
+- `jackal_calc.anb` SHA-256: `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40`
+- pin `anubis-a733565f237d` (`a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`).
+- `jackal-native` SHA-256: `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c` (two clean builds identical).
+- `jackal_cert_check` SHA-256: `2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b` (compiled from the proved `checkCert`).
+- Package root (`SHA256SUMS`): `bd6dc77bbfe46f1ce83df3536118b43f7848a1ed205f0c06584548a78401a086` (deterministic; two builds identical).
+
+### What changed
+- **Cert schema v2**: the checker now requires `schema_version = 2`; old v1
+  empty-field certificates are REJECTED (epoch separation). Proof core
+  unchanged — `cert_check_sound`/`cert_encloses`/`certified_release` still
+  audit to `[propext, Classical.choice, Quot.sound]` only.
+- **Exact bindings in the certificate**: non-empty `exe` (evaluator identity,
+  passed via an explicit non-ambient argument) and `source` (an injective,
+  length-delimited request commitment).
+- **One shared release validator** (`tests/release_validate.py`), used by both
+  production and the adversarial controls, binding: exact request commitment
+  vs argv; exact evaluator+checker executable identity (pinned in
+  `release/MANIFEST.sha256`, pre/post-hashed, TOCTOU); canonical parse; the
+  checker's ACCEPT protocol; cert-bytes-checked == released; 0600 temp; no
+  status escalation; no stale success receipt. No `assert` on load-bearing
+  gates; `python3` and `python3 -O` verdicts identical.
+- **The wrapper invokes `jackal-native` directly** (not the launcher — C fixed).
+
+### Gate receipts (2026-08-14, against this epoch, all green)
+| Gate | Result |
+|---|---|
+| `lake build` + axiom audit | green (8679 jobs); the three theorems `[propext, Classical.choice, Quot.sound]` only |
+| native self-test / suite / campaign / iv / parser gate | 83/83 · 200/200 · 250 0-viol · 300 0-viol · 78/78 |
+| Executed negative controls (`tests/cert_controls.py`) | **30/30** each failing at its intended layer; JSONL sha256 `2f8f65676c55a37387e1015207f18bd52071534f0d21b62fc070e0fe023f6b87`; identical under `python3 -O` |
+| Positive corpus (`tests/cert_positive_corpus.py`, through the shared validator) | **20/20 bounded**, full 18/18 fragment coverage; JSONL sha256 `ff844db9c4f26889ebac996365ae2fe9c8601d4ec68b4d197f497506ad03e04f` |
+| Independent evidence verifier (`tests/cert_evidence_verify.py`) | PASS — non-vacuous, complete, no documentary rows |
+| A→B→A mutations M1/M2 (`tests/cert_aba_mutations.py`) | PASS — refuse → admit-on-disable → refuse, restored by hash; receipt sha256 `6bbfaf1af6b9504ab8d312f676a8728284b7a1644b48549fc12d58fffa7c75d2` |
+| Fresh-extraction package smokes (`tests/package_smoke.py`) | 7/7 — valid bounded; unsupported/forged-request/forged-evaluator/forged-checker/missing-checker/manifest-tamper all refuse; output identifies exact packaged hashes |
+
+### Claim boundary (unchanged, §189/§629)
+For every admitted request in the certified fragment, a released
+`status=bounded` result carries a checker-accepted certificate AND passes the
+shared validator's request/evaluator/checker/TOCTOU bindings. Checker
+acceptance mechanically implies a `Runs` derivation (enclosure under
+`ModelTCB`); the validator adds the runtime provenance the theorem does not
+prove (§270). NOT claimed: universal correctness, unsupported operators,
+bigint/rational proofs, `bound_step`, source→native, emitter-faithfulness
+theorem, Apple Developer ID signing / notarization, or **public** access — the
+repository and release are **PRIVATE / authenticated-only**.
+
+## Seal v1.0.3 — 2026-08-14 (superseded by v1.0.4; runtime seal was overstated)
 
 Adds implementation-correspondence bridge #2: a PROOF-CARRYING `ieval` → `Runs`
 certificate. Certified `range-bound-cert` results carry a machine-checkable

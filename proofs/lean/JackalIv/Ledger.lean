@@ -233,6 +233,21 @@ unqualified, and never all of mathematics.
 The engine's printed `implementation-tested-not-mechanized` residual remains
 accurate: this project mechanizes the MODEL of the certified lane, not the
 shipped implementation.
+
+## Runtime provenance vs checker soundness (v1.0.4 release binding)
+
+`cert_check_sound` proves ENCLOSURE — an accepted certificate implies a `Runs`
+derivation under `ModelTCB`. It deliberately does NOT prove runtime
+PROVENANCE: that the certificate was emitted for the exact request the caller
+framed, by the exact evaluator executable, and checked by the exact checker
+executable. That provenance is enforced OUTSIDE Lean by the fail-closed shared
+release validator (`tests/release_validate.py`): exact request-commitment
+binding, evaluator/checker executable-identity binding (pre/post-hashed,
+TOCTOU), and no status escalation. This separation is the honest boundary — a
+raw or forged certificate may lie about `source`/`exe`; the checker theorem is
+agnostic to those fields, and the validator catches the lie. Do not read the
+Lean theorems as proving request parsing, emitter faithfulness, executable
+identity, or release-wrapper correctness.
 -/
 import JackalIv.Model
 import JackalIv.Pad

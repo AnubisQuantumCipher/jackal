@@ -1,0 +1,40 @@
+{
+  "checker_sha256": "2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b",
+  "evaluator_sha256": "820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c",
+  "harness": "cert_aba_mutations.py",
+  "mutations": {
+    "M1": {
+      "A_post": "pass",
+      "A_post_exit": 1,
+      "A_post_reason": "request-commitment",
+      "A_pre": "pass",
+      "A_pre_exit": 1,
+      "A_pre_reason": "request-commitment",
+      "B": "red-for-intended-reason",
+      "B_exit": 0,
+      "B_reason": "",
+      "gate": "M1-request-binding",
+      "restore_hash_verified": true,
+      "source_hash_mutated": "4e9fda535f342202d4cc3bf9544d85b04975c625e12762893ede185367cec7c4",
+      "source_hash_post": "e35db3e073cb2edd2b0e2ca59cb2f6d2b8c98f9f807407b1921a6852919b14d6",
+      "source_hash_pre": "e35db3e073cb2edd2b0e2ca59cb2f6d2b8c98f9f807407b1921a6852919b14d6"
+    },
+    "M2": {
+      "A_post": "pass",
+      "A_post_exit": 1,
+      "A_post_reason": "evaluator-identity",
+      "A_pre": "pass",
+      "A_pre_exit": 1,
+      "A_pre_reason": "evaluator-identity",
+      "B": "red-for-intended-reason",
+      "B_exit": 0,
+      "B_reason": "",
+      "gate": "M2-evaluator-identity",
+      "restore_hash_verified": true,
+      "source_hash_mutated": "73bbd9a0c65a52361d60c2aba51f8cfbfeb7042b51ad21b5de694cb5bdbbcae4",
+      "source_hash_post": "e35db3e073cb2edd2b0e2ca59cb2f6d2b8c98f9f807407b1921a6852919b14d6",
+      "source_hash_pre": "e35db3e073cb2edd2b0e2ca59cb2f6d2b8c98f9f807407b1921a6852919b14d6"
+    }
+  },
+  "validator": "tests/release_validate.py"
+}

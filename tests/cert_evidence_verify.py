@@ -114,8 +114,8 @@ def main() -> int:
     if len(pids) != len(set(pids)):
         fail("duplicate positive IDs")
     for r in pos:
-        if r.get("verdict") != "bounded":
-            fail(f"{r['id']}: positive case not bounded")
+        if r.get("verdict") != "formal-bounded":
+            fail(f"{r['id']}: positive case not formal-bounded (got {r.get('verdict')!r})")
         if r.get("evaluator_sha256") != ev_id or r.get("checker_sha256") != ck_id:
             fail(f"{r['id']}: positive subject identity mismatch")
         if not r.get("certificate_sha256"):

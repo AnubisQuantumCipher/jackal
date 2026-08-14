@@ -8,7 +8,70 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.0.2 — 2026-08-14 (current)
+## Seal v1.0.3 — 2026-08-14 (current)
+
+Adds implementation-correspondence bridge #2: a PROOF-CARRYING `ieval` → `Runs`
+certificate. Certified `range-bound-cert` results carry a machine-checkable
+witness; the Lean-proved checker accepting it mechanically implies a true
+enclosure under the named model TCB.
+
+### Source
+- `jackal_calc.anb` SHA-256: `a6dc3619cf46ea806c487294ee80d39a51b986499372559d100b3f328785734a`
+- Git: the commit tagged `v1.0.3`.
+- Change vs v1.0.2: a new `range-bound-cert` command — an EXACT-RATIONAL
+  interval evaluator (reusing the big-rational engine) that emits a canonical
+  evaluation certificate for its actual computation — plus the fail-closed
+  release wrapper `jackal-cert-release`. No existing command changes.
+
+### Compiler
+- pin `anubis-a733565f237d` (unchanged), SHA-256 `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`.
+
+### Build — byte-reproducible, verified
+- shipped `jackal-native` SHA-256: `b70c22f11463cd07d963ebe5dae4b9f558eae60ba635b28ee8bd89cadcde0239`
+  (two clean builds identical).
+
+### Gate receipts (2026-08-14, against this binary/pin, all green)
+
+| Gate | Result |
+|---|---|
+| `anubis check` + native self-test | passed; 83/83 |
+| Black-box acceptance suite | 200/200 |
+| Containment campaign (`bound_campaign.py 250 20260813`) | 246 bounded, 4 refused, **0 violations** |
+| mpmath.iv differential (`iv_differential.py 300 20260813`) | 300 OK, **0 violations** |
+| Lean mechanization (`proofs/lean`, 24 modules) | `lake build` green (8679 jobs); zero `sorry`; bridge-#2 theorems `cert_check_sound`/`cert_encloses`/`certified_release` audit to `[propext, Classical.choice, Quot.sound]` only |
+| **Certificate positive corpus** (`range-bound-cert` → `jackal_cert_check`) | 18/18 ACCEPT across the certified fragment; JSONL sha256 `69beae32d196d23198435b882c081b786723a14c6edf3795c17b4a87e5f8a6e2` |
+| **24 negative controls** (`tests/cert_controls.py`) | 31/31 poison cases fail for the intended semantic reason (CHECK_REJECT / PARSE_REJECT / ENGINE_REFUSE / RELEASE_REFUSE); JSONL sha256 `6c4db75da081bcea5e73f967fe706e871536a9d97a9c8f6ed57a2b9b6f1b4cd3` |
+| **A→B→A tamper** (`tests/cert_tamper.sh`) | PASS — a non-enclosing emitter mutation (still compiles+runs) is REJECTED by the checker; restore hash-verified (`7a73425f…` canonical), stale build purged; gate green again |
+
+### Bridge #2 — what is proved vs tested vs open
+
+- PROVED (Lean): `cert_check_sound` — an accepted certificate (checked by the
+  COMPUTABLE `checkCert`, compiled DIRECTLY into `jackal_cert_check`, no
+  `@[implemented_by]` on the trust path) induces a `Runs` derivation; composed
+  to `cert_encloses` / `certified_release` (the §189 statement). The whole-tree
+  induction `runs_of_check` reconstructs all 31 `Runs` constructors. Named TCB:
+  `ModelTCB = LibmModel ∧ ConstTCB` (8 transcendental libm bounds + the
+  const-rounding declared-value facts — Prop hypotheses, never axioms).
+- TESTED, not proved: that the Anubis `range-bound-cert` emitter faithfully
+  produces the certificate for the computation it performed (positive corpus +
+  24 controls + A→B→A tamper). The canonical ℚ codec and the Lean
+  compiler/runtime that builds `jackal_cert_check` are in the TCB.
+- FAIL-CLOSED (outside the bridge): the true-transcendental operators
+  (sqrt/exp/ln/atan/asin/acos/hypot/atan2/tan/cbrt/log10/log2/%) and negative
+  integer powers — the emitter refuses them (a soundness decision: routing them
+  through ℚ→f64→libm→decimal→ℚ could exceed δlib and make `LibmModel` false).
+- OPEN, unclaimed: `bound_step` release-policy composition and source→native
+  refinement remain the last two bridges.
+
+**Claim boundary (verbatim §189).** For every admitted request in the
+mechanically defined certified fragment, any `range-bound-cert` result released
+as certified carries a checker-accepted certificate; checker acceptance
+mechanically implies a `Runs` derivation and therefore the released interval
+encloses the exact semantics under the stated model and TCB. NOT claimed:
+universal correctness, all operators, bigint/rational proofs, `bound_step`,
+source→native, or libm/hardware beyond the stated TCB.
+
+## Seal v1.0.2 — 2026-08-14 (superseded by v1.0.3)
 
 Adds implementation-correspondence bridge #1: the engine's parser and lowering
 lifted onto a single canonical Lean `Expr`, with a machine-checked

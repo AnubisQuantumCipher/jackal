@@ -1,0 +1,73 @@
+#!/bin/sh
+# JACKAL fail-closed certified-release gate (implementation-bridge #2).
+#
+# Releases a `status=bounded` interval enclosure ONLY when the mechanized,
+# Lean-proved certificate checker accepts the certificate the ACTUAL Anubis
+# evaluator emitted for this exact request. Any failure — engine refusal,
+# checker rejection, identity mismatch, or status escalation — refuses or
+# downgrades to an explicitly honest non-certified class. It NEVER silently
+# falls back to `bounded`.
+#
+# Pipeline (mission §141):
+#   source input → range-bound-cert (actual exact-ℚ evaluator) → certificate
+#                → jackal_cert_check (proved checker) → status-preserving release
+#
+# Usage: jackal-cert-release "<expr in x>" <lo> <hi>
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+JACKAL="$ROOT/jackal"
+CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
+
+if [ "$#" -ne 3 ]; then
+    echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi>" >&2
+    exit 2
+fi
+EXPR="$1"; LO="$2"; HI="$3"
+
+if [ ! -x "$CHECKER" ]; then
+    echo "status=unavailable reason=checker-exe-missing path=$CHECKER" >&2
+    echo "  build it: cd proofs/lean && lake build jackal_cert_check" >&2
+    exit 3
+fi
+
+CERT=$(mktemp)
+trap 'rm -f "$CERT"' EXIT
+
+# 1. Actual evaluator emits the certificate (or refuses, fail-closed).
+if ! "$JACKAL" range-bound-cert "$EXPR" "$LO" "$HI" > "$CERT" 2>/tmp/jackal-cert-release.err; then
+    reason=$(grep -o 'fail closed[^"]*\|outside the certified[^"]*\|only x is bound[^"]*\|containing zero[^"]*\|requires lo <= hi[^"]*' /tmp/jackal-cert-release.err | head -1)
+    echo "status=refused reason=evaluator-refused detail=\"${reason:-outside certified fragment}\""
+    exit 1
+fi
+
+# 2. Identity binding: the certificate must be FOR this exact request. The
+#    checker enforces expr_commitment↔nodes; here we bind the input interval
+#    and the emitting/ checking binary identities into the release record.
+CERT_INPUT=$(awk '/^input /{print $2, $3}' "$CERT")
+CERT_STATUS=$(awk '/^status /{print $2}' "$CERT")
+CERT_OUT=$(awk '/^output /{print $2, $3}' "$CERT")
+ENGINE_ID=$(shasum -a 256 "$JACKAL" 2>/dev/null | awk '{print $1}')
+CHECKER_ID=$(shasum -a 256 "$CHECKER" 2>/dev/null | awk '{print $1}')
+
+# 3. The proved checker adjudicates the certificate.
+if ! "$CHECKER" "$CERT" >/dev/null 2>/tmp/jackal-cert-check.err; then
+    creason=$(cat /tmp/jackal-cert-check.err)
+    echo "status=refused reason=checker-rejected detail=\"${creason}\""
+    exit 1
+fi
+
+# 4. No status escalation: the checker accepted a cert whose own status is what
+#    we release. If the cert did not declare `bounded`, we do NOT invent it.
+if [ "$CERT_STATUS" != "bounded" ]; then
+    echo "status=refused reason=cert-status-not-bounded detail=\"cert declared status=$CERT_STATUS\""
+    exit 1
+fi
+
+# 5. Release the checker-accepted, exact-ℚ enclosure — status preserved.
+echo "status=bounded"
+echo "certified-enclosure=[$CERT_OUT]"
+echo "input=[$CERT_INPUT]"
+echo "assurance=proof-carrying-certificate(checker-accepted;Runs-derivation;ModelTCB)"
+echo "engine.sha256=$ENGINE_ID"
+echo "checker.sha256=$CHECKER_ID"

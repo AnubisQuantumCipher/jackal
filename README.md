@@ -239,15 +239,27 @@ How it works, and exactly what it claims:
   compose them so the admitted *source string* — not just an abstract tree — is what the
   enclosure covers. That the Lean parser matches the *shipped* parser byte-for-byte is enforced
   by a **differential gate** (`tests/parser_differential.py`, 78 cases incl. a semantic
-  tamper test), not a theorem. What is *not* proven is enumerated in
+  tamper test), not a theorem.
+- **Results can carry a machine-checkable proof (bridge #2).** `range-bound-cert` runs an
+  exact-rational interval evaluation and emits a canonical **evaluation certificate**; the
+  compiled Lean checker `jackal_cert_check` — built *directly from the proved `checkCert`*, no
+  `@[implemented_by]` on the trust path — verifies it, and the theorem `cert_check_sound` proves
+  that acceptance mechanically **induces a `Runs` derivation**, hence a true enclosure under the
+  named `ModelTCB`. The fail-closed `jackal-cert-release` gate emits `status=bounded` only when
+  the checker accepts, so *an error in the actual evaluator causes refusal, never an unsupported
+  certified release* — verified by a positive corpus, 24 negative controls (each failing for its
+  intended semantic reason, `tests/cert_controls.py`), and an A→B→A tamper where a deliberately
+  non-enclosing emitter is rejected then restored by hash (`tests/cert_tamper.sh`). The certified
+  fragment is the exact-ℚ operators + `sin`/`cos` + named constants; true-transcendentals fail
+  closed. What is *not* proven is enumerated in
   [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm meeting its
-  2-ulp model; the five still-fail-closed operators (tan/cbrt/log10/log2/mod); the bigint/
-  rational lanes (checked in-language by the Anubis SMT checker, outside this Lean scope); and
-  the next three bridges — `ieval`→`Runs`, `bound_step` release composition, and
-  source→native refinement — which remain **open and unclaimed**. The engine's printed
-  `implementation-tested-not-mechanized` residual therefore stays, accurately: the *model* is
-  proven for all inputs; the *implementation* is campaign-tested and differential-gated
-  against it.
+  2-ulp model; the still-fail-closed operators; the bigint/rational lanes (checked in-language by
+  the Anubis SMT checker, outside this Lean scope); that the Anubis emitter faithfully produces
+  its certificate (tested, not proven); and the last two bridges — `bound_step` release
+  composition and source→native refinement — which remain **open and unclaimed**. The engine's
+  printed `implementation-tested-not-mechanized` residual therefore stays, accurately: the
+  *model* is proven for all inputs, `range-bound-cert` results carry a proof-checked witness, and
+  the broader *implementation* is campaign-tested and differential-gated against the model.
 
 `integrate-bound` is deliberately the slowest lane — certification costs evaluations. For a
 fast heuristic with refusal semantics use `integrate-adaptive`; for raw speed use `integrate`
@@ -353,6 +365,7 @@ register model; the `big-` lane is the exact model.
 | Trust and metrology | `claim-card self-test maturity measure-mul uncertain-ohm kinetic-sensitivity` |
 | Expression engine | `eval integrate integrate-adaptive derivative solve` |
 | Certified enclosures | `integrate-bound range-bound` (proven interval bounds, refuse-on-doubt) |
+| Proof-carrying | `range-bound-cert` (emits a Lean-checker-verifiable enclosure certificate) |
 | Provenance | `parse-dump lower-dump` (canonical s-expr of the parse/lowering — drives the Lean parser-correspondence gate) |
 | Symbolic | `diff` (self-verifying d/dx) |
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |

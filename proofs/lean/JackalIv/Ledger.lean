@@ -97,6 +97,33 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
     interval).  A trusted `@[implemented_by]` mirror (`Dump.lean`) makes the
     noncomputable `parseSexp` / `lowerSexp` runnable for the differential-gate
     executable (`jackal_parse_dump`) — see the residuals for its trust boundary.
+* Proof-carrying `ieval` → `Runs` bridge (implementation-correspondence #2)
+  (`CertTypes.lean`, `CertCheck.lean`, `CertSound.lean`, `CertCodec.lean`): a
+  canonical, versioned evaluation certificate (`Header × List Node`, exact-ℚ
+  fields) and a GENUINELY COMPUTABLE checker `checkCert` (structural
+  well-formedness — unique ids, below-parent child refs ⇒ acyclic, single root,
+  full reachability, canonical rationals; plus the per-node exact-ℚ interval
+  formula and pad verification for the 23 rational-exact `Runs` constructors and
+  the structural padding for the 8 transcendental ones).  The deliverables:
+  - `cert_check_sound : checkCert hdr nodes = true → exprOf nodes = some e →
+    ModelTCB hdr nodes → Runs e (↑input) (↑output)` — an accepted certificate
+    INDUCES a `Runs` derivation (the whole-tree induction `runs_of_check`
+    reconstructing all 31 constructors);
+  - `cert_encloses` / `certified_release` (the mission §189 statement): the
+    released interval encloses `sem e` at every point of the input interval.
+  `#print axioms` on all three = `[propext, Classical.choice, Quot.sound]` ONLY.
+  The checker is compiled to the executable `jackal_cert_check` DIRECTLY from
+  the proved `checkCert`/`parseCert` (NO `@[implemented_by]`, NO `native_decide`
+  on the trust path — unlike bridge #1's dumper).  The named TCB is
+  `ModelTCB = LibmModel ∧ ConstTCB` (the 8 transcendental libm bounds + the
+  const-rounding declared-value facts — Prop hypotheses, never axioms).  The
+  actual engine command `range-bound-cert` (exact-ℚ evaluator) emits the
+  certificate for its real computation; the fail-closed `jackal-cert-release`
+  gate releases `status=bounded` only when `jackal_cert_check` accepts.
+  DESIGN-BRIEF CORRECTION (2026-08-14): the soundness proof produced a
+  counterexample showing `const_rounded` is NOT rational-exact (`constValue
+  "pi" = Real.pi` is irrational), forcing it into `ConstTCB` — the mechanization
+  refusing an unsound classification.
 
 ## Disclosed residuals (NOT proven here)
 
@@ -132,13 +159,22 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
     `#print axioms` line above reports only `[propext, Classical.choice,
     Quot.sound]`); the noncomputable spec is independently pinned to the corpus
     by the in-kernel `Parser` lemmas.
-  - `ieval → Runs` — that an ACTUAL `ieval` execution induces a `Runs`
-    derivation — is the NEXT bridge and remains OPEN. `parse_lower_encloses`
-    still takes `Runs e (a,b) (lo,hi)` as a hypothesis; nothing here proves the
-    engine's run produces that derivation.
+  - `ieval → Runs` is now CLOSED for the certified `range-bound-cert` fragment
+    via bridge #2: the actual evaluator emits a certificate and
+    `cert_check_sound` proves an accepted certificate induces `Runs`.  The
+    RESIDUALS of that bridge: (a) the certified fragment is the exact-ℚ
+    operators + `sin`/`cos` (universal `[-1,1]`) + named constants; the
+    true-transcendental operators (`sqrt`/`exp`/`ln`/`atan`/`asin`/`acos`/
+    `hypot`/`atan2`/`tan`/`cbrt`/`log10`/`log2`/`%`) and negative integer powers
+    FAIL CLOSED in the emitter (outside this bridge, sound refusals); (b) that
+    the Anubis emitter faithfully produces the certificate for the computation
+    it performed is enforced by testing (positive corpus + 24 negative controls
+    + the A→B→A tamper showing a non-enclosing emitter is REJECTED), not proof;
+    (c) the canonical ℚ codec and the Lean compiler/runtime that builds
+    `jackal_cert_check` are in the TCB.
   - `bound_step`'s release-policy composition over `runs_encloses` + the Taylor
     bridges remains OPEN, and source → native refinement (verified compilation
-    of the Anubis lane) remains OPEN — see the roadmap items (3)–(5).
+    of the Anubis lane) remains OPEN — see the roadmap items (4)–(5).
 * Differentiator coverage gaps (`Deriv.lean` header): `deriv()` rules for
   tan, asin, acos, cbrt, log10, log2, hypot, atan2 and the non-integer /
   general-exponent power lanes are not modeled by `D` (nodes outside `D`'s
@@ -182,10 +218,14 @@ In dependency order: (1) wire the remaining proved operators
 bridge from the engine's parser/lowering to the single canonical `Expr`
 (`Parser.parse` + `Lower.lower` + `Correspondence.parse_lower_denotes` /
 `parse_lower_encloses`, this wave), which also reconciled `Deriv.Expr` with
-`Embed.Expr` onto `Syntax.Expr`; (3) a bridge showing the actual `ieval`
-execution induces a `Runs` derivation; (4) compose `bound_step`'s acceptance
-policy over `runs_encloses` + the Taylor bridges; (5) source-to-native
-refinement (verified compilation for the Anubis lane). Until (3)–(5) exist, the
+`Embed.Expr` onto `Syntax.Expr`; (3) DONE — the proof-carrying `ieval → Runs`
+bridge (`CertTypes`/`CertCheck`/`CertSound`/`CertCodec`, `cert_check_sound`,
+compiled checker `jackal_cert_check`, `range-bound-cert` emitter, fail-closed
+`jackal-cert-release`): an accepted certificate for the exact-ℚ fragment
+mechanically induces a `Runs` derivation, so the actual evaluator's certified
+release carries a checker-verified witness; (4) compose `bound_step`'s
+acceptance policy over `runs_encloses` + the Taylor bridges; (5) source-to-native
+refinement (verified compilation for the Anubis lane). Until (4)–(5) exist, the
 strongest honest claim is UNIVERSAL CORRECTNESS OVER THE PRECISELY ADMITTED
 CERTIFIED FRAGMENT AND ITS STATED TCB — never "universal correctness"
 unqualified, and never all of mathematics.

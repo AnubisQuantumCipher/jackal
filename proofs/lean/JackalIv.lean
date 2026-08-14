@@ -16,4 +16,8 @@ import JackalIv.Solve
 import JackalIv.Lower
 import JackalIv.Dump
 import JackalIv.Correspondence
+import JackalIv.CertTypes
+import JackalIv.CertCheck
+import JackalIv.CertSound
+import JackalIv.CertCodec
 import JackalIv.Ledger

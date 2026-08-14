@@ -12,3 +12,7 @@ name = "JackalIv"
 [[lean_exe]]
 name = "jackal_parse_dump"
 root = "JackalIv.ParseDumpMain"
+
+[[lean_exe]]
+name = "jackal_cert_check"
+root = "JackalIv.CertCheckMain"

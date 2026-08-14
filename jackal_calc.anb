@@ -65,6 +65,7 @@ fn usage() uses(io.print) {
     print("numerical:  matrix2 solve2 integrate-x2 derivative-x3");
     print("expression: eval integrate integrate-adaptive derivative solve   (variable x, ^ = power)");
     print("certified:  integrate-bound range-bound   (interval enclosures under a stated f64 model)");
+    print("proof-carrying: range-bound-cert   (emits a Lean-checker-verifiable enclosure certificate)");
     print("symbolic:   diff \"x^2*sin(x)\"   (numerically-checked d/dx)");
     print("exact-rat:  rat \"0.1 + 0.2\"   (exact rational arithmetic)");
     print("worksheet:  worksheet \"a = 5; b = a^2; a+b\"   (variables persist across ;)");
@@ -2156,6 +2157,320 @@ fn rat_to_text(r) {
 }
 
 // ---------------------------------------------------------------------------
+// JACKAL PROOF-CARRYING CERTIFIED EVALUATOR (range-bound-cert).
+// An EXACT-RATIONAL interval evaluation over the expression tree that emits a
+// canonical certificate (parsed + checked by the mechanized Lean checker
+// `jackal_cert_check`, whose soundness theorem `cert_check_sound` proves the
+// certificate induces a `Runs` derivation, hence a true enclosure under the
+// stated model TCB). Everything the checker verifies stays in exact ℚ so the
+// pad relations hold with equality. The admitted certified fragment is the
+// exact-ℚ operators plus sin/cos (universal [-1,1]) plus named constants;
+// true-transcendental operators (sqrt/exp/ln/atan/asin/acos/hypot/atan2/tan/
+// cbrt/log10/log2/%) FAIL CLOSED — they are outside this bridge's model.
+// ---------------------------------------------------------------------------
+
+fn rat_zero() { return Rational { neg: false, num: [0], den: [1] }; }
+fn rat_one() { return Rational { neg: false, num: [1], den: [1] }; }
+
+fn rat_int(n) {
+    if n < 0 { return rat_neg(rat_from_num_text(str(-n))); }
+    return rat_from_num_text(str(n));
+}
+
+fn rat_abs(r) { return Rational { neg: false, num: r.num, den: r.den }; }
+
+// -1 if a<b, 0 if a==b, 1 if a>b.
+fn rat_cmp(a, b) {
+    let d = rat_sub(a, b);
+    if big_is_zero(d.num) { return 0; }
+    if d.neg { return -1; }
+    return 1;
+}
+
+fn rat_min(a, b) { if rat_cmp(a, b) <= 0 { return a; } return b; }
+fn rat_max(a, b) { if rat_cmp(a, b) >= 0 { return a; } return b; }
+fn rat_min4(a, b, c, d) { return rat_min(rat_min(a, b), rat_min(c, d)); }
+fn rat_max4(a, b, c, d) { return rat_max(rat_max(a, b), rat_max(c, d)); }
+
+// Outward pad, EXACT ℚ: pad(v) = ε|v| + τ with ε = 1e-15, τ = 1e-300 (the
+// model constants of Model.lean). padLoQ v = v − pad v ; padHiQ v = v + pad v.
+fn cert_eps() { return Rational { neg: false, num: [1], den: big_pow([10], 15) }; }
+fn cert_tau() { return Rational { neg: false, num: [1], den: big_pow([10], 300) }; }
+fn cert_pad(v) { return rat_add_impl(rat_mul(cert_eps(), rat_abs(v)), cert_tau()); }
+fn cert_pad_lo(v) { return rat_sub(v, cert_pad(v)); }
+fn cert_pad_hi(v) { return rat_add_impl(v, cert_pad(v)); }
+
+// Integer-valued rationals for floor/ceil/round(half-away)/trunc(toward zero).
+fn rat_floor(r) {
+    let q = big_divmod(r.num, r.den);
+    if big_is_zero(q.remainder) { if r.neg { return rat_neg(Rational { neg: false, num: q.quotient, den: [1] }); } return Rational { neg: false, num: q.quotient, den: [1] }; }
+    // non-integer: floor(-p/q) = -(floor_div)-1
+    if r.neg { return rat_neg(Rational { neg: false, num: big_add(q.quotient, [1]), den: [1] }); }
+    return Rational { neg: false, num: q.quotient, den: [1] };
+}
+fn rat_ceil(r) { return rat_neg(rat_floor(rat_neg(r))); }
+fn rat_trunc(r) {
+    let q = big_divmod(r.num, r.den);
+    if r.neg { return rat_neg(Rational { neg: false, num: q.quotient, den: [1] }); }
+    return Rational { neg: false, num: q.quotient, den: [1] };
+}
+// Round half away from zero (C round): trunc(x + sign*1/2).
+fn rat_round_away(r) {
+    let half = Rational { neg: r.neg, num: [1], den: [2] };
+    return rat_trunc(rat_add_impl(r, half));
+}
+
+// mignitude / magnitude of an interval [l,u] (for even powers).
+fn rat_mig(l, u) {
+    if rat_cmp(l, rat_zero()) <= 0 && rat_cmp(u, rat_zero()) >= 0 { return rat_zero(); }
+    return rat_min(rat_abs(l), rat_abs(u));
+}
+fn rat_mag(l, u) { return rat_max(rat_abs(l), rat_abs(u)); }
+
+// Node-line + interval carrier threaded through the recursive evaluator.
+struct CE {
+    lo: Rational,
+    hi: Rational,
+    id: i64,
+    nodes: list,
+    next: i64,
+}
+
+fn cert_pair(lo, hi) { return rat_to_text(lo) + "," + rat_to_text(hi); }
+
+fn cert_leaf_line(id, op, out_lo, out_hi, extra) {
+    return "node " + str(id) + " " + op + " children[] out[" + cert_pair(out_lo, out_hi) + "]" + extra;
+}
+
+// The recursive exact-ℚ certified evaluator. Returns this node's interval,
+// its assigned id, the accumulated node lines, and the next free id. Children
+// are evaluated (and assigned ids) before the parent, so every child id is
+// strictly below its parent id — exactly the codec's well-formedness rule.
+fn cert_eval(node, xlo, xhi, nodes, next) {
+    let tag = node[0];
+    if tag == "num" {
+        let r = rat_from_num_text(node[2]);
+        let line = cert_leaf_line(next, "num_exact", r, r, " val " + rat_to_text(r) + " name " + node[2]);
+        return CE { lo: r, hi: r, id: next, nodes: push_str(nodes, line), next: next + 1 };
+    }
+    if tag == "var" {
+        if node[1] != "x" { panic("range-bound-cert: only x is bound; fail closed"); }
+        let line = cert_leaf_line(next, "var", xlo, xhi, " name x");
+        return CE { lo: xlo, hi: xhi, id: next, nodes: push_str(nodes, line), next: next + 1 };
+    }
+    if tag == "const" {
+        // Named constant: a rational approximation is a DECLARED-VALUE TCB fact
+        // (ConstTCB: within δ0 of the true real). We emit a 30-digit rational.
+        let approx = cert_const_rat(node[1]);
+        let out_lo = cert_pad_lo(approx);
+        let out_hi = cert_pad_hi(approx);
+        let extra = " val " + rat_to_text(approx) + " f[" + cert_pair(approx, approx) + "] name " + node[1];
+        let line = "node " + str(next) + " const_rounded children[] out[" + cert_pair(out_lo, out_hi) + "]" + extra;
+        return CE { lo: out_lo, hi: out_hi, id: next, nodes: push_str(nodes, line), next: next + 1 };
+    }
+    if tag == "neg" {
+        let c = cert_eval(node[1], xlo, xhi, nodes, next);
+        let out_lo = rat_neg(c.hi);
+        let out_hi = rat_neg(c.lo);
+        let line = "node " + str(c.next) + " neg children[" + str(c.id) + "] out[" + cert_pair(out_lo, out_hi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: c.next, nodes: push_str(c.nodes, line), next: c.next + 1 };
+    }
+    if tag == "add" || tag == "sub" || tag == "mul" || tag == "div" {
+        let l = cert_eval(node[1], xlo, xhi, nodes, next);
+        let r = cert_eval(node[2], xlo, xhi, l.nodes, l.next);
+        return cert_binary(tag, l, r);
+    }
+    if tag == "call" {
+        return cert_call(node, xlo, xhi, nodes, next);
+    }
+    if tag == "pow" {
+        return cert_pow(node, xlo, xhi, nodes, next);
+    }
+    panic("range-bound-cert: unsupported construct '" + tag + "'; fail closed (outside the certified fragment)");
+}
+
+fn cert_binary(tag, l, r) {
+    let id = r.next;
+    if tag == "add" {
+        let flo = rat_add_impl(l.lo, r.lo);
+        let fhi = rat_add_impl(l.hi, r.hi);
+        let out_lo = cert_pad_lo(flo);
+        let out_hi = cert_pad_hi(fhi);
+        let line = "node " + str(id) + " add children[" + str(l.id) + "," + str(r.id) + "] out[" + cert_pair(out_lo, out_hi) + "] f[" + cert_pair(flo, fhi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(r.nodes, line), next: id + 1 };
+    }
+    if tag == "sub" {
+        let flo = rat_sub(l.lo, r.hi);
+        let fhi = rat_sub(l.hi, r.lo);
+        let out_lo = cert_pad_lo(flo);
+        let out_hi = cert_pad_hi(fhi);
+        let line = "node " + str(id) + " sub children[" + str(l.id) + "," + str(r.id) + "] out[" + cert_pair(out_lo, out_hi) + "] f[" + cert_pair(flo, fhi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(r.nodes, line), next: id + 1 };
+    }
+    if tag == "mul" {
+        let p1 = rat_mul(l.lo, r.lo);
+        let p2 = rat_mul(l.lo, r.hi);
+        let p3 = rat_mul(l.hi, r.lo);
+        let p4 = rat_mul(l.hi, r.hi);
+        let out_lo = cert_pad_lo(rat_min4(p1, p2, p3, p4));
+        let out_hi = cert_pad_hi(rat_max4(p1, p2, p3, p4));
+        let pstr = rat_to_text(p1) + "," + rat_to_text(p2) + "," + rat_to_text(p3) + "," + rat_to_text(p4);
+        let line = "node " + str(id) + " mul children[" + str(l.id) + "," + str(r.id) + "] out[" + cert_pair(out_lo, out_hi) + "] p[" + pstr + "]";
+        return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(r.nodes, line), next: id + 1 };
+    }
+    // div: zero-free denominator guard.
+    let dsign = 0;
+    if rat_cmp(r.lo, rat_zero()) > 0 { dsign = 1; }
+    else if rat_cmp(r.hi, rat_zero()) < 0 { dsign = -1; }
+    else { panic("range-bound-cert: division by an interval containing zero; fail closed"); }
+    let q1 = rat_div(l.lo, r.lo);
+    let q2 = rat_div(l.lo, r.hi);
+    let q3 = rat_div(l.hi, r.lo);
+    let q4 = rat_div(l.hi, r.hi);
+    let out_lo = cert_pad_lo(rat_min4(q1, q2, q3, q4));
+    let out_hi = cert_pad_hi(rat_max4(q1, q2, q3, q4));
+    let qstr = rat_to_text(q1) + "," + rat_to_text(q2) + "," + rat_to_text(q3) + "," + rat_to_text(q4);
+    let line = "node " + str(id) + " div children[" + str(l.id) + "," + str(r.id) + "] out[" + cert_pair(out_lo, out_hi) + "] p[" + qstr + "] den " + str(dsign);
+    return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(r.nodes, line), next: id + 1 };
+}
+
+fn push_str(xs, s) { push(xs, s); return xs; }
+
+fn cert_const_rat(name) {
+    if name == "pi" { return rat_from_num_text("3.14159265358979323846264338327950288"); }
+    if name == "e" { return rat_from_num_text("2.71828182845904523536028747135266250"); }
+    if name == "tau" { return rat_from_num_text("6.28318530717958647692528676655900577"); }
+    panic("range-bound-cert: constant '" + name + "' is outside the certified fragment; fail closed");
+}
+
+fn cert_call(node, xlo, xhi, nodes, next) {
+    let name = node[1];
+    let args = node[2];
+    if name == "sin" || name == "cos" {
+        let c = cert_eval(args[0], xlo, xhi, nodes, next);
+        let out_lo = rat_int(-1);
+        let out_hi = rat_one();
+        let line = "node " + str(c.next) + " " + name + " children[" + str(c.id) + "] out[" + cert_pair(out_lo, out_hi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: c.next, nodes: push_str(c.nodes, line), next: c.next + 1 };
+    }
+    if name == "abs" {
+        let c = cert_eval(args[0], xlo, xhi, nodes, next);
+        let out_lo = rat_zero();
+        let out_hi = rat_zero();
+        if rat_cmp(c.lo, rat_zero()) >= 0 { out_lo = c.lo; out_hi = c.hi; }
+        else if rat_cmp(c.hi, rat_zero()) <= 0 { out_lo = rat_neg(c.hi); out_hi = rat_neg(c.lo); }
+        else { out_lo = rat_zero(); out_hi = rat_max(rat_neg(c.lo), c.hi); }
+        let line = "node " + str(c.next) + " abs children[" + str(c.id) + "] out[" + cert_pair(out_lo, out_hi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: c.next, nodes: push_str(c.nodes, line), next: c.next + 1 };
+    }
+    if name == "floor" || name == "ceil" || name == "round" || name == "trunc" {
+        let c = cert_eval(args[0], xlo, xhi, nodes, next);
+        let out_lo = cert_int_op(name, c.lo);
+        let out_hi = cert_int_op(name, c.hi);
+        let line = "node " + str(c.next) + " " + name + " children[" + str(c.id) + "] out[" + cert_pair(out_lo, out_hi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: c.next, nodes: push_str(c.nodes, line), next: c.next + 1 };
+    }
+    if name == "min" || name == "max" {
+        let l = cert_eval(args[0], xlo, xhi, nodes, next);
+        let r = cert_eval(args[1], xlo, xhi, l.nodes, l.next);
+        let id = r.next;
+        let out_lo = rat_min(l.lo, r.lo);
+        let out_hi = rat_min(l.hi, r.hi);
+        if name == "max" { out_lo = rat_max(l.lo, r.lo); out_hi = rat_max(l.hi, r.hi); }
+        let line = "node " + str(id) + " " + name + " children[" + str(l.id) + "," + str(r.id) + "] out[" + cert_pair(out_lo, out_hi) + "]";
+        return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(r.nodes, line), next: id + 1 };
+    }
+    panic("range-bound-cert: function '" + name + "' is a true-transcendental outside the certified fragment; fail closed");
+}
+
+fn cert_int_op(name, r) {
+    if name == "floor" { return rat_floor(r); }
+    if name == "ceil" { return rat_ceil(r); }
+    if name == "round" { return rat_round_away(r); }
+    return rat_trunc(r);
+}
+
+// Integer exponent from the parser's exponent subtree (num or neg(num)).
+fn cert_exp_int(node) {
+    if node[0] == "neg" { return -cert_exp_int(node[1]); }
+    if node[0] == "num" {
+        let text = node[2];
+        let i = 0;
+        while i < len(text) {
+            let ch = char_at(text, i);
+            if ch == "." || ch == "e" || ch == "E" { panic("range-bound-cert: non-integer exponent outside the certified fragment; fail closed"); }
+            i = i + 1;
+        }
+        return parse_int(text);
+    }
+    panic("range-bound-cert: non-literal exponent outside the certified fragment; fail closed");
+}
+
+fn cert_pow(node, xlo, xhi, nodes, next) {
+    let n = cert_exp_int(node[2]);
+    if n < 0 { panic("range-bound-cert: negative integer powers not yet in the certified emitter; fail closed"); }
+    let exptok = ast_to_text(node[2]);
+    let c = cert_eval(node[1], xlo, xhi, nodes, next);
+    let id = c.next;
+    if n == 0 {
+        let out_lo = rat_one();
+        let out_hi = rat_one();
+        let line = "node " + str(id) + " powZero children[" + str(c.id) + "] out[" + cert_pair(out_lo, out_hi) + "] n 0 name " + exptok;
+        return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(c.nodes, line), next: id + 1 };
+    }
+    let flo = rat_zero();
+    let fhi = rat_zero();
+    let op = "powOddPos";
+    if n % 2 == 0 {
+        op = "powEvenPos";
+        flo = rat_pow(rat_mig(c.lo, c.hi), n);
+        fhi = rat_pow(rat_mag(c.lo, c.hi), n);
+    } else {
+        flo = rat_pow(c.lo, n);
+        fhi = rat_pow(c.hi, n);
+    }
+    let out_lo = cert_pad_lo(flo);
+    let out_hi = cert_pad_hi(fhi);
+    let line = "node " + str(id) + " " + op + " children[" + str(c.id) + "] out[" + cert_pair(out_lo, out_hi) + "] f[" + cert_pair(flo, fhi) + "] n " + str(n) + " name " + exptok;
+    return CE { lo: out_lo, hi: out_hi, id: id, nodes: push_str(c.nodes, line), next: id + 1 };
+}
+
+fn cert_parse_rat(s) {
+    if len(s) > 0 && char_at(s, 0) == "-" {
+        let rest = "";
+        let i = 1;
+        while i < len(s) { rest = rest + char_at(s, i); i = i + 1; }
+        return rat_neg(rat_from_num_text(rest));
+    }
+    return rat_from_num_text(s);
+}
+
+fn run_range_bound_cert(argv) uses(io.print) {
+    require_arity(argv, 4);
+    let source = argv[1];
+    let xlo = cert_parse_rat(argv[2]);
+    let xhi = cert_parse_rat(argv[3]);
+    if rat_cmp(xlo, xhi) > 0 { panic("range-bound-cert requires lo <= hi"); }
+    let f = simplify_bound(parse_ast(source));
+    let vars = collect_vars(f, {});
+    for nm in vars {
+        if nm != "x" { panic("range-bound-cert: unknown identifier '" + nm + "'; only x is bound"); }
+    }
+    let ce = cert_eval(f, xlo, xhi, [], 0);
+    print("jackal-eval-cert v1");
+    print("model jackal-iv-model-v1");
+    print("exe ");
+    print("status bounded");
+    print("expr " + ast_sexp(f));
+    print("source ");
+    print("input " + rat_to_text(xlo) + " " + rat_to_text(xhi));
+    print("root " + str(ce.id));
+    print("output " + rat_to_text(ce.lo) + " " + rat_to_text(ce.hi));
+    for line in ce.nodes { print(line); }
+    print("end");
+}
+
+// ---------------------------------------------------------------------------
 // JACKAL ADAPTIVE INTEGRATION — recursive adaptive Simpson with REFUSAL
 // semantics. Motivated by the verified narrow-Gaussian failure (a width~7e-4
 // peak between the samples of a 100-panel grid underestimated its own error
@@ -3246,6 +3561,7 @@ fn main() uses(io.print) {
         print("ast=${ast_sexp(parse_ast(argv[1]))}");
         return;
     }
+    if op == "range-bound-cert" { run_range_bound_cert(argv); return; }
     if op == "lower-dump" {
         require_arity(argv, 2);
         print("lowered=${ast_sexp(simplify_bound(parse_ast(argv[1])))}");
@@ -3261,6 +3577,7 @@ fn main() uses(io.print) {
         print("JACKAL COMMAND MATURITY — epistemic classes, oracles, residuals");
         print("class=exact       commands=rat,big-add,big-mul,big-pow,big-fact,big-ncr,gcd,lcm,ncr,fact,prime,hex,bin,band,bor,bxor,shl,shr  oracle=python-int+fraction  evidence=300-rational-trees+99-bigint-cases(2026-08-13)  residual=none-observed-within-grammar-and-budgets");
         print("class=bounded     commands=integrate-bound,range-bound  guarantee=certified-enclosure-under-stated-f64-model  residual=implementation-tested-not-mechanized;libm<=2ulp-assumed");
+        print("class=proof-carrying commands=range-bound-cert  guarantee=emits-a-checker-verifiable-certificate; jackal_cert_check (Lean-proved cert_check_sound) accepting it mechanically implies a Runs derivation, hence a true enclosure under ModelTCB  fragment=exact-Q ops+sin/cos+named-consts (transcendentals fail closed)  residual=emitter-faithfulness-tested;codec+Lean-runtime in TCB");
         print("class=checked     commands=diff  oracle=sympy+richardson-self-check  evidence=79-released-derivatives-max-rel-dev-1.221e-15(2026-08-13)  residual=sampled-agreement-not-proof-of-identity");
         print("class=estimated   commands=integrate,integrate-adaptive,derivative,solve,integrate-x2,derivative-x3  evidence=integrate:120-oscillatory-median-calibration-ratio-0.99981;solve:150-constructed-roots-max-err-1.2e-16;derivative+legacy:suite-level-only(2026-08-13)  residual=estimate-not-bound;fixed-grids-can-share-blind-spots");
         print("class=approximate commands=eval,worksheet,add,sub,mul,div,pow,sqrt,cbrt,sin,cos,tan,sin-deg,hypot,ln,log10,exp,quadratic,lerp,percent-error,dot,cross,norm3,stats,describe,linreg,matrix2,solve2  model=ieee-f64  evidence=eval-grammar:500-differential-cases;other-commands:suite-level-only(2026-08-13)  residual=per-command-depth-uneven");

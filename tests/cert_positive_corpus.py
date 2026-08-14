@@ -54,12 +54,12 @@ FRAGMENT = {"num", "var", "add", "sub", "mul", "div", "neg", "pow", "sin", "cos"
             "abs", "floor", "ceil", "round", "trunc", "min", "max", "const"}
 
 
-def git_commit() -> str:
-    try:
-        return subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-                                       text=True).strip()
-    except Exception:  # noqa: BLE001
-        return "unknown"
+def source_sha() -> str:
+    """Commit-independent provenance anchor: the SHA-256 of the engine source
+    the evaluator was built from. Stable regardless of which git commit ships,
+    so the evidence never carries a self-referential (off-by-one) commit label.
+    The git release commit is recorded once, at the release receipt level."""
+    return hashlib.sha256((ROOT / "jackal_calc.anb").read_bytes()).hexdigest()
 
 
 def manifest_ids():
@@ -74,7 +74,7 @@ def manifest_ids():
 
 def main() -> int:
     ev_id, chk_id = manifest_ids()
-    commit = git_commit()
+    src = source_sha()
     rows = []
     covered = set()
     for cid, expr, lo, hi in CASES:
@@ -105,7 +105,7 @@ def main() -> int:
             covered.add("const")
         rows.append({
             "id": cid, "expr": expr, "lo": lo, "hi": hi, "verdict": verdict,
-            "source_commit": commit, "evaluator_sha256": ev_id, "checker_sha256": chk_id,
+            "source_sha256": src, "evaluator_sha256": ev_id, "checker_sha256": chk_id,
             "model": rv.MODEL_CONST, "schema": rv.SCHEMA_MAGIC,
             "request_commitment": receipt.get("request_commitment", ""),
             "certificate_sha256": receipt.get("certificate_sha256", ""),

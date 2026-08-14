@@ -60,12 +60,12 @@ def main() -> int:
         if mutate:
             mutate(p)
         cp = run([str(rel), *args], cwd=p)
-        ok_bounded = cp.returncode == 0 and "status=bounded" in cp.stdout
+        ok_bounded = cp.returncode == 0 and "status=formal-bounded" in cp.stdout
         if expect_bounded and not ok_bounded:
             fail(f"{name}: expected bounded, got rc={cp.returncode} {cp.stdout}{cp.stderr}")
         if not expect_bounded and ok_bounded:
             fail(f"{name}: expected refusal, got bounded")
-        results.append((name, "bounded" if ok_bounded else "refused", cp.stdout, cp.stderr))
+        results.append((name, "formal-bounded" if ok_bounded else "refused", cp.stdout, cp.stderr))
         return cp
 
     cp = smoke("valid", ["x^2+1", "1", "2"], True)

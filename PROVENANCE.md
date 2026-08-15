@@ -8,7 +8,133 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.4.1b — 2026-08-15 (current) — self-audit closure
+## Seal v1.4.2 — 2026-08-15 (current) — variant receipt round-trip landed
+
+The v1.4.1b seal called out one deferred item: extending
+`jackal-formal-receipt-v1` so `jackal_verify_receipt` could round-trip
+the `variant=sqrt_rat` / `variant=exp_rat` payloads emitted by the two
+new plugin tools.  That's now done.
+
+### Schema evolution: backward-compatible `variant` field
+
+The envelope keeps `schema = "jackal-formal-receipt-v1"`.  A new
+optional top-level `variant` field takes one of `"range"`, `"gaussian"`,
+`"sqrt_rat"`, `"exp_rat"`.  Missing → `"range"` (backward compat for
+every v1.3.x/v1.4.0/v1.4.1 receipt).  The verifier dispatches on
+`variant` for:
+
+* **theorem_id**: range family (including sqrt_rat/exp_rat) →
+  `request_bound_certified_release`; Gaussian →
+  `gaussian_integral_check_sound`.
+* **cert schema consistency**: `gaussian ↔ jackal-gaussian-integral-cert v1`,
+  every range-family variant ↔ `jackal-eval-cert v2`.  A `variant=gaussian`
+  receipt with a range cert (or vice versa) refuses
+  `variant-cert-schema`.
+* **assumptions + non_claims**: each variant has its own lock (`sqrt_rat`
+  and `exp_rat` explicitly disclose NO libm on the proof-decision path
+  and the positive-argument restriction on `exp`); mutation flips refuse
+  `receipt-assumptions` / `receipt-non-claims`.
+* **identity shape**: sqrt_rat/exp_rat require `producer_sha256` (like
+  Gaussian) and `source_anb_sha256: null` (they bypass `jackal-native`
+  entirely).  A non-null source on a variant refuses
+  `variant-source-identity`.  The certificate's `exe` header is bound
+  to `identities.producer_sha256` on variants (mirror of the range
+  lane's `exe ↔ evaluator_sha256` bind).
+* **admitted-operator lock**: sqrt_rat admits `{sqrt, var}` only; exp_rat
+  admits `{exp, var}` only.  Coverage row is the plugin-tool row
+  (`jackal_sqrt_rat_bound` / `jackal_exp_rat_bound`); a receipt naming a
+  different coverage row refuses `coverage-row-set`.  Additionally the
+  underlying operator row must be FORMAL in the inventory
+  (`variant-operator-row`).
+
+### New emitters
+
+* `formal_receipt.build_variant_formal_receipt(variant=…, …)` assembles
+  a canonical envelope for sqrt_rat/exp_rat, computes the outer digest
+  identically to the range/Gaussian builders, and refuses any
+  expression whose reconstructed operator set doesn't match the variant.
+* `plugin/hermes/server.py`: `tool_sqrt_rat_bound` and
+  `tool_exp_rat_bound` now return `{status: formal-bounded, variant, checker_rerun: ACCEPT, receipt: <envelope>}`.
+  A caller can archive the receipt and hand it back to
+  `jackal_verify_receipt` — the pinned Lean-proved checker re-executes
+  the certificate bytes and the verdict is `verified/ACCEPT`.
+* `jackal-sqrt-rat-release` / `jackal-exp-rat-release` (repo top-level
+  and packaged wrappers) accept an optional fourth argument
+  `formal-receipt.json`; when supplied they materialize the same
+  canonical envelope via `tools/isolated_entry.py emit-variant-receipt`.
+
+### Verifier dispatch (`tools/receipt_verify.py`)
+
+A top-level `variant` field is read and validated at receipt entry.
+Every downstream check that used to branch on `is_gaussian` now also
+branches on `is_variant`.  A new `_RANGE_RELEASE_NODE_OPS` row admits
+the `exp_rat` node (mirror of the existing `sqrt_rat` admission).
+`jackal_verify_receipt` (plugin) reads the variant from the incoming
+receipt and expects the corresponding producer's SHA-256 as
+`--expected-evaluator`, `null` for `--expected-source`, and the
+`range-bound-cert` command.  The CLI needs no new flags — everything is
+driven by the receipt's `variant` field.
+
+### Regressions expanded
+
+* `tests/receipt_semantic_mutations.py`: 24 → **33** coordinated
+  mutations.  Nine new locks cover
+  `sqrt-rat-wrong-variant-tag` (relabel → `receipt-assumptions`),
+  `exp-rat-wrong-variant-tag` (relabel to gaussian → `variant-cert-schema`),
+  `sqrt-rat-producer-identity-forged` (→ `producer-identity`),
+  `exp-rat-producer-identity-forged` (→ `producer-identity`),
+  `sqrt-rat-source-anb-forged-nonnull` (→ `variant-source-identity`),
+  `exp-rat-fragment-admitted-forged` (add `sqrt` to admitted →
+  `fragment-admitted`),
+  `sqrt-rat-coverage-row-forged` (swap coverage row for the range one →
+  `coverage-row-set`),
+  `sqrt-rat-request-command-relabel` (→ `request-command`),
+  `exp-rat-non-claims-forged` (→ `receipt-non-claims`).  Every case
+  passes RED — every mutation refuses with the stable class it should.
+* `tests/plugin_smoke.py`: S14 and S15 now emit + reverify (via
+  `jackal_verify_receipt`) in one case each.  S16 refusal set unchanged.
+  16 total plugin smoke cases.
+* `tests/package_smoke.py`: two new cases
+  `sqrt-rat-receipt-round-trip` and `exp-rat-receipt-round-trip`
+  materialize a receipt via the packaged CLI wrapper and re-execute
+  the packaged `jackal-receipt-verify` on it.  **18 fresh-extraction
+  cases** (up from 16).
+
+### Frozen v1.4.2 identities
+
+```
+jackal-native            820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c  (unchanged)
+jackal_cert_check        b567b8a94ce7acd49ecaa807d86a5bb66d695fb0ce4fea2eb84f0073425984d7  (unchanged)
+jackal_gaussian_check    42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77  (unchanged)
+range_proof_identity     82376d501264a2aabe1cdce6a373f9c53f2bedf262a25494253131835d8bb2ae  (unchanged)
+gaussian_proof_identity  22c59e60b66a7fc6ef232e01fe64967285d36bb65e92847f9b42af721b36a54e  (unchanged)
+coverage_inventory       17890f7e001462eb1c38baedad5bcf1d977a55e1d0258d4ddf233ba1ac86b1dd  (unchanged)
+sqrt_rat_producer        4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926  (unchanged)
+exp_rat_producer         ccbc48633bd3980613413399d552321eaa67b15bd101643e53b0dd5f10a37918  (unchanged)
+plugin_hermes            06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae  (bumped — server.py variant emit + verify dispatch)
+package tarball          30b1a7441cdd9c1b0f24ac6d187608d3235f1ced6c57469dc1b1f697f475b1a0  (byte-reproducible)
+```
+
+### Gate receipts on the v1.4.2 final bytes
+
+Lake build 8682 jobs · Range + Gaussian proof identity · Positive corpus 20/20 ·
+Negative controls 30/30 · A→B→A 2-mutation 2/2 · 11-category mutations 11/11 ·
+Formal-status gate 11/11 · sqrt_rat 7/7 · exp_rat 8/8 · Plugin smoke S1..S16
+(S14/S15 now include jackal_verify_receipt round-trip) · Plugin bundle identity
+17 files · output_path_safety 6/6 · **receipt_semantic_mutations 33/33** ·
+Gaussian receipt + mutations · Package smoke **18 cases** (including two new
+variant receipt round-trips through the packaged jackal-receipt-verify).
+Deterministic tarball `30b1a744…` across two consecutive rebuilds.
+
+**Claim boundary unchanged.** No new axioms.  The schema evolution is a
+dispatch field, not a new proof premise — `sqrt_rat`/`exp_rat` receipts
+bind through the SAME `jackal_cert_check` binary + SAME
+`request_bound_certified_release` theorem the range lane already ships.
+The nine new mutation-lock rows ensure the router refuses receipts that
+drift between variants.  Universal correctness for arbitrary expressions
+remains NOT claimed and NOT achievable for a general calculator.
+
+## Seal v1.4.1b — 2026-08-15 (predecessor) — self-audit closure
 
 Immediately after landing v1.4.1a I did a personal audit sweep and found
 the outer-seal work still had holes I hadn't caught.  Closing them here.

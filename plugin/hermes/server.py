@@ -177,7 +177,16 @@ import release_validate as rv  # noqa: E402
 import receipt_verify as vr  # noqa: E402
 import formal_status_gate as fsg  # noqa: E402
 import gaussian_release as gr  # noqa: E402
-from formal_receipt import _operators_in_sexp as sexp_ops  # noqa: E402
+from formal_receipt import (  # noqa: E402
+    _operators_in_sexp as sexp_ops,
+    build_variant_formal_receipt,
+    SQRT_RAT_VARIANT,
+    EXP_RAT_VARIANT,
+    RATIONAL_VARIANTS,
+    canonical_rat as _canonical_rat,
+    request_commitment_b64 as _request_commitment_b64,
+    load_proof_identity_binding,
+)
 
 
 def _manifest_rows(raw: bytes) -> dict[str, str]:
@@ -379,7 +388,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_checker=ck_expected,
                 formal_receipt_path=formal_path,
                 plugin_sha256=PLUGIN_HASH,
-                release_epoch="v1.4.1",
+                release_epoch="v1.4.2",
             )
             receipt = _strict_json_loads(Path(formal_path).read_bytes())
             rerun = vr.verify_receipt(
@@ -394,7 +403,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
                 expected_source=_load_pinned_source_id(),
-                expected_release_epoch="v1.4.1",
+                expected_release_epoch="v1.4.2",
                 expected_request={
                     "command": "range-bound-cert",
                     "expression": expr,
@@ -453,7 +462,7 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
             expected_checker=checker_expected,
             receipt=str(receipt_path),
             plugin_sha256=PLUGIN_HASH,
-            release_epoch="v1.4.1",
+            release_epoch="v1.4.2",
             timeout=60,
         )
         try:
@@ -470,7 +479,7 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_file=proof_file_expected,
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
-                expected_release_epoch="v1.4.1",
+                expected_release_epoch="v1.4.2",
                 expected_request={
                     "command": "integrate",
                     "expression": args["expression"],
@@ -534,7 +543,8 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
             "tolerance": args["expected_tolerance"],
         }
     else:
-        ev_expected, ck_expected = _load_pinned_ids()
+        # variant is optional in the envelope; missing = range (backward compat)
+        variant = receipt.get("variant") or "range"
         checker = LAYOUT["checker"]
         proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("range")
         expected_request = {
@@ -543,6 +553,17 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
             "input_lo": args["expected_input_lo"],
             "input_hi": args["expected_input_hi"],
         }
+        if variant == "sqrt_rat":
+            ev_expected = _manifest_alias({"sqrt_rat_producer"}, "sqrt_rat_producer")
+            _, ck_expected = _load_pinned_ids()
+            expected_source_val = None
+        elif variant == "exp_rat":
+            ev_expected = _manifest_alias({"exp_rat_producer"}, "exp_rat_producer")
+            _, ck_expected = _load_pinned_ids()
+            expected_source_val = None
+        else:
+            ev_expected, ck_expected = _load_pinned_ids()
+            expected_source_val = _load_pinned_source_id()
     try:
         result = vr.verify_receipt(
             receipt=receipt,
@@ -560,7 +581,7 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
             expected_proof_identity_digest=proof_digest_expected,
             expected_plugin=PLUGIN_HASH,
             expected_source=(None if cert_schema == "jackal-gaussian-integral-cert v1"
-                             else _load_pinned_source_id()),
+                             else expected_source_val),
             expected_release_epoch=args["expected_release_epoch"],
             expected_request=expected_request,
         )
@@ -662,8 +683,14 @@ def _rational_bound_result(
     *, variant: str, admitted_expr: str, producer_key: str,
     producer_manifest_label: str, expr: str, lo: str, hi: str,
 ) -> dict[str, Any]:
-    """Common body for jackal_sqrt_rat_bound / jackal_exp_rat_bound."""
-    import base64
+    """Common body for jackal_sqrt_rat_bound / jackal_exp_rat_bound.
+
+    Emits a full `jackal-formal-receipt-v1` envelope with `variant` set to
+    `sqrt_rat` / `exp_rat`, so downstream can round-trip through
+    `jackal_verify_receipt` (v1.4.2+).
+    """
+    if variant not in RATIONAL_VARIANTS:
+        raise PluginRefusal("plugin-fragment", f"unknown variant {variant!r}")
     if expr.replace(" ", "") != admitted_expr:
         raise PluginRefusal(
             "plugin-fragment",
@@ -677,31 +704,35 @@ def _rational_bound_result(
     checker_out, checker_sha = _run_checker_on_cert_bytes(
         cert_bytes, "range-bound-cert", expr, lo, hi, expected_checker,
     )
+    # Assemble the canonical envelope so jackal_verify_receipt can round-trip.
+    canon_lo = _canonical_rat(lo)
+    canon_hi = _canonical_rat(hi)
+    req_commit = _request_commitment_b64("range-bound-cert", expr, lo, hi)
+    proof_binding = load_proof_identity_binding(LAYOUT["range_proof_identity"])
+    inv_bytes = LAYOUT["inventory"].read_bytes()
+    inv_sha = hashlib.sha256(inv_bytes).hexdigest()
+    receipt = build_variant_formal_receipt(
+        variant=variant,
+        release_epoch="v1.4.2",
+        request={"command": "range-bound-cert", "expression": expr,
+                 "input_lo": lo, "input_hi": hi},
+        enclosure=(encl_lo, encl_hi),
+        cert_bytes=cert_bytes,
+        producer_sha256=expected_producer,
+        checker_sha256=checker_sha,
+        canonical_lo=canon_lo,
+        canonical_hi=canon_hi,
+        request_commitment_b64=req_commit,
+        coverage_inventory_sha256=inv_sha,
+        proof_identity=proof_binding,
+        plugin_sha256=PLUGIN_HASH,
+    )
     return {
         "status": "formal-bounded",
         "variant": variant,
-        "expression": expr,
-        "input_lo": lo,
-        "input_hi": hi,
-        "enclosure": [encl_lo, encl_hi],
-        "certificate_b64": base64.b64encode(cert_bytes).decode("ascii"),
-        "certificate_sha256": hashlib.sha256(cert_bytes).hexdigest(),
-        "checker_verdict": "ACCEPT",
+        "checker_rerun": "ACCEPT",
         "checker_output": checker_out,
-        "identities": {
-            "producer_sha256": expected_producer,
-            "checker_sha256": checker_sha,
-            "plugin_sha256": PLUGIN_HASH,
-        },
-        "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.4.1",
-        "non_claims": [
-            f"NOT universal correctness: this tool admits ONLY `{admitted_expr}`",
-            "Checker verdict ACCEPT + certificate together imply Real enclosure under "
-            "[propext, Classical.choice, Quot.sound]",
-            "This payload is a variant response and NOT yet a `jackal-formal-receipt-v1` "
-            "envelope; `jackal_verify_receipt` does not currently accept variants",
-        ],
+        "receipt": receipt,
     }
 
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# JACKAL v1.4.1 exp_rat fail-closed release wrapper.
+# JACKAL v1.4.2 exp_rat fail-closed release wrapper.
 #
 # Admits ONLY `exp(x)` on a canonical rational interval [lo, hi] with lo >= 0
 # and emits a request-bound release ACCEPT from the pinned Lean-proved checker.
@@ -8,7 +8,13 @@
 # stable) exactly like every other formal lane. Any drift refuses fail-closed
 # with a stable class, never a bounded fallback.
 #
-# Usage: jackal-exp-rat-release "exp(x)" <lo> <hi>
+# When a fourth argument is supplied, the wrapper writes a canonical
+# `jackal-formal-receipt-v1` JSON receipt (variant=exp_rat) that can be
+# independently re-checked by `jackal-receipt-verify`.
+#
+# Usage:
+#   jackal-exp-rat-release "exp(x)" <lo> <hi>
+#   jackal-exp-rat-release "exp(x)" <lo> <hi> <formal-receipt.json>
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -16,11 +22,11 @@ PRODUCER="$ROOT/tools/exp_rat_producer.py"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 MANIFEST="$ROOT/release/MANIFEST.sha256"
 
-if [ "$#" -ne 3 ]; then
-    echo "usage: jackal-exp-rat-release \"exp(x)\" <lo> <hi>" >&2
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+    echo "usage: jackal-exp-rat-release \"exp(x)\" <lo> <hi> [formal-receipt.json]" >&2
     exit 2
 fi
-EXPR="$1"; LO="$2"; HI="$3"
+EXPR="$1"; LO="$2"; HI="$3"; RECEIPT_OUT="${4:-}"
 
 if [ ! -f "$MANIFEST" ]; then
     echo "status=unavailable reason=manifest-missing path=$MANIFEST" >&2
@@ -86,3 +92,39 @@ echo "assurance=proof-carrying-certificate(checker-accepted;expRat-Runs-derivati
 echo "checker.ACCEPT=$OUT"
 echo "checker.sha256=$CHK_PRE"
 echo "producer.sha256=$PROD_PRE"
+
+if [ -n "$RECEIPT_OUT" ]; then
+    PYTHONPATH="$ROOT/tools" python3 -I -S -B - "$CERT" "$EXPR" "$LO" "$HI" "$RECEIPT_OUT" "$ROOT" <<'PY'
+import base64, hashlib, json, sys
+from pathlib import Path
+cert_path, expr, lo, hi, out_path, root_str = sys.argv[1:7]
+root = Path(root_str)
+sys.path.insert(0, str(root / "tools"))
+import formal_receipt as fr
+cert_bytes = Path(cert_path).read_bytes()
+producer_sha = hashlib.sha256((root / "tools/exp_rat_producer.py").read_bytes()).hexdigest()
+checker_sha = hashlib.sha256((root / "proofs/lean/.lake/build/bin/jackal_cert_check").read_bytes()).hexdigest()
+proof = fr.load_proof_identity_binding(root / "release/evidence/range_proof_identity.json")
+inv_bytes = (root / "release/coverage/formal_coverage_inventory.json").read_bytes()
+inv_sha = hashlib.sha256(inv_bytes).hexdigest()
+receipt = fr.build_variant_formal_receipt(
+    variant=fr.EXP_RAT_VARIANT,
+    release_epoch="v1.4.2",
+    request={"command": "range-bound-cert", "expression": expr,
+             "input_lo": lo, "input_hi": hi},
+    enclosure=tuple(fr._parse_cert_header(cert_bytes).get("output","").split(" ", 1)),
+    cert_bytes=cert_bytes,
+    producer_sha256=producer_sha,
+    checker_sha256=checker_sha,
+    canonical_lo=fr.canonical_rat(lo),
+    canonical_hi=fr.canonical_rat(hi),
+    request_commitment_b64=fr.request_commitment_b64("range-bound-cert", expr, lo, hi),
+    coverage_inventory_sha256=inv_sha,
+    proof_identity=proof,
+    plugin_sha256=None,
+)
+Path(out_path).write_text(fr.dump_receipt(receipt))
+print(f"receipt={out_path}", file=sys.stderr)
+PY
+    echo "receipt=$RECEIPT_OUT"
+fi

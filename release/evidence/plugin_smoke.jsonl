@@ -1,6 +1,6 @@
-{"id": "S1-bundle-hash-pin-matches", "note": "computed=fa5dc67098b80ef47977874b9636499b9f4b84fdb4fafaadc107a73c1fa6140d pinned=fa5dc67098b80ef47977874b9636499b9f4b84fdb4fafaadc107a73c1fa6140d", "ok": true}
-{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=fa5dc67098b80ef47977874b9636499b9f4b84fdb4fafaadc107a73c1fa6140d\nplugin_hermes.pinned_sha256=fa5dc67098b80ef47977874b9636499b9f4b84fdb4fafaadc107a73c1fa6140d\nplugin_her", "ok": true}
-{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=fa5dc67098b80ef47977874b9636499b9f4b84fdb4fafaadc107a73c1fa6140d", "ok": true}
+{"id": "S1-bundle-hash-pin-matches", "note": "computed=06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae pinned=06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae", "ok": true}
+{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae\nplugin_hermes.pinned_sha256=06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae\nplugin_her", "ok": true}
+{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae", "ok": true}
 {"id": "S4-refuse:'exp(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
 {"id": "S4-refuse:'sqrt(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
 {"id": "S4-refuse:'ln(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
@@ -31,8 +31,8 @@
 {"id": "S13-weak-refuse:jackal_exact", "note": "status=refused reason=evaluator-refused detail=rat: exact mode supports integers, decimals, + - * / ^ with ", "ok": true}
 {"id": "S13-weak-refuse:jackal_solve", "note": "status=refused reason=evaluator-refused detail=solve requires a sign change on [lo, hi]; fail closed rather", "ok": true}
 {"id": "S13-weak-refuse:jackal_integrate_bound", "note": "status=refused reason=evaluator-refused detail=integrate-bound: subdivision budget (60000 subintervals) exh", "ok": true}
-{"id": "S14-sqrt-rat-accept", "note": "enclosure=['353553390593273762200422181/250000000000000000000000000', '17320508075688772935274463420000000000001/10000000000000000000000000000000000000000'] verdict=ACCEPT", "ok": true}
-{"id": "S15-exp-rat-accept", "note": "enclosure=['1', '979/360'] verdict=ACCEPT", "ok": true}
+{"id": "S14-sqrt-rat-accept-and-round-trip", "note": "enclosure=[353553390593273762200422181/250000000000000000000000000,17320508075688772935274463420000000000001/10000000000000000000000000000000000000000] round_trip=True", "ok": true}
+{"id": "S15-exp-rat-accept-and-round-trip", "note": "enclosure=[1,979/360]=True round_trip=True", "ok": true}
 {"id": "S16-refuse:jackal_sqrt_rat_bound:cos(x):lo=0", "note": "status=refused reason=plugin-fragment", "ok": true}
 {"id": "S16-refuse:jackal_sqrt_rat_bound:sqrt(x):lo=-1", "note": "status=refused reason=producer-refused", "ok": true}
 {"id": "S16-refuse:jackal_exp_rat_bound:sqrt(x):lo=0", "note": "status=refused reason=plugin-fragment", "ok": true}

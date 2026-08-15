@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.1 formal-bounded receipt — schema, emitter, and outer digest.
+"""JACKAL v1.4.2 formal-bounded receipt — schema, emitter, and outer digest.
 
 A "formal receipt" carries EVERY field a downstream reverifier needs to
 mechanically re-establish the release verdict without trusting anything
@@ -180,6 +180,79 @@ GAUSSIAN_NON_CLAIMS = [
     "SHA-256 identifies bytes; it does NOT authenticate an author",
     "The artifact is unsigned and has not received an independent external proof audit",
 ]
+
+# Variant identifiers ship inside the envelope so the verifier can dispatch
+# without inferring from the cert schema alone (sqrt_rat and exp_rat both
+# use `jackal-eval-cert v2`, same as the general range lane, so a separate
+# marker is needed to distinguish them and select the right identity shape
+# and admitted-operator lock).
+RANGE_VARIANT = "range"
+GAUSSIAN_VARIANT = "gaussian"
+SQRT_RAT_VARIANT = "sqrt_rat"
+EXP_RAT_VARIANT = "exp_rat"
+RATIONAL_VARIANTS = {SQRT_RAT_VARIANT, EXP_RAT_VARIANT}
+ALL_VARIANTS = {RANGE_VARIANT, GAUSSIAN_VARIANT, SQRT_RAT_VARIANT, EXP_RAT_VARIANT}
+
+_VARIANT_ADMITTED_OPERATOR: dict[str, str] = {
+    SQRT_RAT_VARIANT: "sqrt",
+    EXP_RAT_VARIANT: "exp",
+}
+_VARIANT_ADMITTED_EXPRESSION: dict[str, str] = {
+    SQRT_RAT_VARIANT: "sqrt(x)",
+    EXP_RAT_VARIANT: "exp(x)",
+}
+_VARIANT_COVERAGE_ROW: dict[str, str] = {
+    SQRT_RAT_VARIANT: "jackal_sqrt_rat_bound",
+    EXP_RAT_VARIANT: "jackal_exp_rat_bound",
+}
+
+SQRT_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "The sqrt_rat cert node bypasses every LibmModel obligation (Runs.sqrtRat carries no `Approx δlib` fact)",
+    "The Lean releaseNodeOp allowlist admits the `sqrt_rat` constructor with zero libm TCB",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned sqrt_rat producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+SQRT_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "sqrt_rat admits ONLY the exact form `sqrt(x)` on a canonical rational interval",
+    "Every other transcendental operator (exp/ln/tan/cbrt/atan/asin/acos/log10/log2/hypot/atan2) FAIL CLOSED on this variant",
+    "The Python sqrt_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+EXP_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "The exp_rat cert node bypasses every LibmModel obligation (Runs.expRat carries no `Approx δlib` fact; the Taylor partial + remainder are pure ℚ)",
+    "The Lean releaseNodeOp allowlist admits the `exp_rat` constructor with zero libm TCB",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned exp_rat producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+EXP_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "exp_rat admits ONLY the exact form `exp(x)` on a canonical rational interval `[lo, hi]` with `lo >= 0`",
+    "The negative-argument branch of `exp` is NOT covered by this variant",
+    "Every other transcendental operator (sqrt/ln/tan/cbrt/atan/asin/acos/log10/log2/hypot/atan2) FAIL CLOSED on this variant",
+    "The Python exp_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+_VARIANT_ASSUMPTIONS: dict[str, list[str]] = {
+    SQRT_RAT_VARIANT: SQRT_RAT_ASSUMPTIONS,
+    EXP_RAT_VARIANT: EXP_RAT_ASSUMPTIONS,
+}
+_VARIANT_NON_CLAIMS: dict[str, list[str]] = {
+    SQRT_RAT_VARIANT: SQRT_RAT_NON_CLAIMS,
+    EXP_RAT_VARIANT: EXP_RAT_NON_CLAIMS,
+}
 
 PROOF_IDENTITY_BINDING_KEYS = {
     "schema", "file_sha256", "identity_digest_sha256",
@@ -393,6 +466,7 @@ def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosu
     refused = sorted(set(unsupported_refused))
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
+        "variant": RANGE_VARIANT,
         "release_epoch": release_epoch,
         "emitted_at_unix": int(emitted_at_unix if emitted_at_unix is not None else time.time()),
         "request": {
@@ -460,6 +534,7 @@ def build_gaussian_formal_receipt(*, release_epoch: str, request: dict[str, str]
     hdr = _parse_cert_header(cert_bytes)
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
+        "variant": GAUSSIAN_VARIANT,
         "release_epoch": release_epoch,
         "emitted_at_unix": int(emitted_at_unix if emitted_at_unix is not None else time.time()),
         "request": {
@@ -526,3 +601,120 @@ def recompute_receipt_digest(receipt: dict[str, Any]) -> str:
 def dump_receipt(receipt: dict[str, Any]) -> str:
     """Serialize a receipt canonically (JSON, sort_keys, 2-space indent for eyes)."""
     return json.dumps(receipt, sort_keys=True, indent=2, ensure_ascii=False)
+
+
+def build_variant_formal_receipt(
+    *,
+    variant: str,
+    release_epoch: str,
+    request: dict[str, str],
+    enclosure: tuple[str, str],
+    cert_bytes: bytes,
+    producer_sha256: str,
+    checker_sha256: str,
+    canonical_lo: str,
+    canonical_hi: str,
+    request_commitment_b64: str,
+    coverage_inventory_sha256: str,
+    proof_identity: dict[str, Any],
+    plugin_sha256: str | None = None,
+    emitted_at_unix: int | None = None,
+) -> dict[str, Any]:
+    """Assemble a `jackal-formal-receipt-v1` for one of the pure-ℚ fragment
+    extensions (`sqrt_rat` v1.4.0 / `exp_rat` v1.4.1).
+
+    The envelope reuses the range-lane framing exactly (same cert schema,
+    same theorem, same request commitment scheme, same checker) but binds
+    the STANDALONE Python producer's SHA-256 instead of `jackal-native` —
+    the standalone lane never invokes the engine — and locks the
+    admitted-operator set to `{sqrt}` or `{exp}` per variant.  The
+    `variant` field lets the verifier dispatch without inferring from cert
+    contents.
+    """
+    if variant not in RATIONAL_VARIANTS:
+        raise ValueError(f"build_variant_formal_receipt: unknown variant {variant!r}")
+    admitted_op = _VARIANT_ADMITTED_OPERATOR[variant]
+    admitted_expr = _VARIANT_ADMITTED_EXPRESSION[variant]
+    coverage_row = _VARIANT_COVERAGE_ROW[variant]
+    hdr = _parse_cert_header(cert_bytes)
+    sexp = hdr.get("expr", "")
+    expr_ops = _operators_in_sexp(sexp) if sexp else set()
+    # `var` is a leaf tag, not an operator lock — the variant's operator is
+    # what wraps it.  For the sqrt_rat/exp_rat variants the wrapping call
+    # must be exactly the admitted operator and nothing else.
+    non_leaf_ops = expr_ops - {"var"}
+    if non_leaf_ops != {admitted_op}:
+        raise ValueError(
+            f"variant {variant!r} expected wrapping operator {{{admitted_op!r}}}; "
+            f"got {sorted(expr_ops)!r}"
+        )
+    if request.get("expression", "").replace(" ", "") != admitted_expr:
+        raise ValueError(
+            f"variant {variant!r} admits only {admitted_expr!r}; got {request.get('expression')!r}"
+        )
+    receipt: dict[str, Any] = {
+        "schema": SCHEMA,
+        "variant": variant,
+        "release_epoch": release_epoch,
+        "emitted_at_unix": int(emitted_at_unix if emitted_at_unix is not None else time.time()),
+        "request": {
+            "command": request["command"],
+            "expression": request["expression"],
+            "input_lo": request["input_lo"],
+            "input_hi": request["input_hi"],
+            "canonical_lo": canonical_lo,
+            "canonical_hi": canonical_hi,
+            "request_commitment_b64": request_commitment_b64,
+        },
+        "result": {
+            "status": "formal-bounded",
+            "enclosure_lo": enclosure[0],
+            "enclosure_hi": enclosure[1],
+            "cert_status": "bounded",
+        },
+        "certificate": {
+            "schema": hdr.get("schema", ""),
+            "model_const_version": hdr.get("model", ""),
+            "sexp": sexp,
+            "bytes_b64": base64.b64encode(cert_bytes).decode("ascii"),
+            "sha256": sha256_hex(cert_bytes),
+        },
+        "identities": {
+            "evaluator_sha256": producer_sha256,
+            "producer_sha256": producer_sha256,
+            "checker_sha256": checker_sha256,
+            "plugin_sha256": plugin_sha256,
+            "source_anb_sha256": None,
+        },
+        "theorem": {
+            "id": THEOREM_ID,
+            "lean_kernel_axioms": sorted(set(LEAN_KERNEL_AXIOMS)),
+        },
+        "proof_identity": proof_identity,
+        "fragment": {
+            "admitted_operators": sorted({admitted_op, "var"}),
+            "expression_operators": sorted({admitted_op, "var"}),
+            "coverage_row_ids": [coverage_row],
+            "coverage_inventory_sha256": coverage_inventory_sha256,
+            "unsupported_refused": [f"every expression except {admitted_expr}"],
+        },
+        "checker": {"verdict": "ACCEPT", "reverify_required": True},
+        "assumptions": list(_VARIANT_ASSUMPTIONS[variant]),
+        "non_claims": list(_VARIANT_NON_CLAIMS[variant]),
+    }
+    receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
+    return receipt
+
+
+def receipt_variant(receipt: dict[str, Any]) -> str:
+    """Return the receipt's declared variant, defaulting to RANGE.
+
+    Missing = "range" is intentional backward-compat for receipts emitted
+    before v1.4.2; the verifier never dispatches on an unknown variant.
+    """
+    v = receipt.get("variant")
+    if v is None:
+        return RANGE_VARIANT
+    if v not in ALL_VARIANTS:
+        raise ValueError(f"unknown receipt variant: {v!r}")
+    return v

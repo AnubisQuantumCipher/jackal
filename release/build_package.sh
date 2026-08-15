@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the deterministic JACKAL v1.4.1 macOS arm64 release package.
+# Build the deterministic JACKAL v1.4.2 macOS arm64 release package.
 # Assembles a self-contained, fresh-extractable package: evaluator, proved
 # checker, release wrapper + shared validator, evidence, manifest, SHA256SUMS,
 # and honest non-claims. All artifact paths inside the package are relative to
@@ -7,7 +7,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-VER="v1.4.1"
+VER="v1.4.2"
 PKG="$ROOT/release/dist/jackal-$VER-macos-arm64"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
@@ -42,7 +42,7 @@ chmod +x "$PKG/plugin/hermes/jackal_hermes"
 # --- package-local release wrapper: all paths relative to the package root ---
 cat > "$PKG/jackal-cert-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.1 packaged certified-release gate (self-contained).
+# JACKAL v1.4.2 packaged certified-release gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 4 ] || { echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi> <formal-receipt.json>" >&2; exit 2; }
@@ -61,13 +61,13 @@ exec python3 -I -S -B "$HERE/isolated_entry.py" range \
   --inventory "$HERE/formal_coverage_inventory.json" --expected-inventory "$EI" \
   --proof-identity "$HERE/range_proof_identity.json" \
   --expected-proof-identity-file "$EPF" --expected-proof-identity-digest "$EPD" \
-  --release-epoch v1.4.1 --formal-receipt "$4"
+  --release-epoch v1.4.2 --formal-receipt "$4"
 WRAP
 chmod +x "$PKG/jackal-cert-release"
 
 cat > "$PKG/jackal-gaussian-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.1 theorem-backed Gaussian integration gate (self-contained).
+# JACKAL v1.4.2 theorem-backed Gaussian integration gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 5 ] || { echo "usage: jackal-gaussian-release <expression> <lo> <hi> <tolerance> <receipt.json>" >&2; exit 2; }
@@ -81,7 +81,7 @@ EPD=$(awk '/^gaussian_proof_digest /{print $2}' "$HERE/MANIFEST.sha256")
 exec python3 -I -S -B "$HERE/isolated_entry.py" gaussian \
   --expression "$1" --lower "$2" --upper "$3" --tolerance "$4" \
   --producer "$HERE/gaussian_certificate.py" --checker "$HERE/jackal_gaussian_check" \
-  --expected-producer "$EP" --expected-checker "$EC" --release-epoch v1.4.1 \
+  --expected-producer "$EP" --expected-checker "$EC" --release-epoch v1.4.2 \
   --inventory "$HERE/formal_coverage_inventory.json" --expected-inventory "$EI" \
   --proof-identity "$HERE/gaussian_proof_identity.json" \
   --expected-proof-identity-file "$EPF" --expected-proof-identity-digest "$EPD" \
@@ -91,7 +91,7 @@ chmod +x "$PKG/jackal-gaussian-release"
 
 cat > "$PKG/jackal-receipt-verify" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.1 isolated formal-receipt verifier (self-contained).
+# JACKAL v1.4.2 isolated formal-receipt verifier (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec python3 -I -S -B "$HERE/isolated_entry.py" verify "$@"
@@ -102,12 +102,17 @@ cp "$ROOT/tools/sqrt_rat_producer.py" "$PKG/sqrt_rat_producer.py"
 chmod +x "$PKG/sqrt_rat_producer.py"
 cat > "$PKG/jackal-sqrt-rat-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.1 sqrt_rat pure-ℚ release gate (self-contained; NO libm TCB).
+# JACKAL v1.4.2 sqrt_rat pure-ℚ release gate (self-contained; NO libm TCB).
 # Producer + checker identities pinned to MANIFEST.sha256; TOCTOU stable.
+# When a 4th argument is supplied, writes a canonical jackal-formal-receipt-v1
+# JSON receipt (variant=sqrt_rat) that jackal-receipt-verify accepts.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-[ "$#" -eq 3 ] || { echo "usage: jackal-sqrt-rat-release \"sqrt(x)\" <lo> <hi>" >&2; exit 2; }
-EXPR="$1"; LO="$2"; HI="$3"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+  echo "usage: jackal-sqrt-rat-release \"sqrt(x)\" <lo> <hi> [formal-receipt.json]" >&2
+  exit 2
+fi
+EXPR="$1"; LO="$2"; HI="$3"; RECEIPT_OUT="${4:-}"
 EP=$(awk '$1=="sqrt_rat_producer" {print $NF}' "$HERE/MANIFEST.sha256")
 EC=$(awk '$1=="checker" {print $NF}' "$HERE/MANIFEST.sha256")
 [ -n "$EP" ] && [ -n "$EC" ] || { echo "status=unavailable reason=manifest-incomplete" >&2; exit 3; }
@@ -132,6 +137,16 @@ echo "assurance=proof-carrying-certificate(checker-accepted;sqrtRat-Runs-derivat
 echo "checker.ACCEPT=$OUT"
 echo "checker.sha256=$CP"
 echo "producer.sha256=$PP"
+if [ -n "$RECEIPT_OUT" ]; then
+  python3 -I -S -B "$HERE/isolated_entry.py" emit-variant-receipt \
+    --variant sqrt_rat --expression "$EXPR" --lower "$LO" --upper "$HI" \
+    --cert "$CERT" --producer "$HERE/sqrt_rat_producer.py" \
+    --checker "$HERE/jackal_cert_check" \
+    --proof-identity "$HERE/range_proof_identity.json" \
+    --inventory "$HERE/formal_coverage_inventory.json" \
+    --release-epoch v1.4.2 --output "$RECEIPT_OUT"
+  echo "receipt=$RECEIPT_OUT"
+fi
 WRAP
 chmod +x "$PKG/jackal-sqrt-rat-release"
 
@@ -139,13 +154,18 @@ cp "$ROOT/tools/exp_rat_producer.py" "$PKG/exp_rat_producer.py"
 chmod +x "$PKG/exp_rat_producer.py"
 cat > "$PKG/jackal-exp-rat-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.1 exp_rat pure-ℚ release gate (self-contained; NO libm TCB).
+# JACKAL v1.4.2 exp_rat pure-ℚ release gate (self-contained; NO libm TCB).
 # Producer + checker identities pinned to MANIFEST.sha256; TOCTOU stable.
 # First libm-free transcendental beyond sqrt in the formal fragment.
+# When a 4th argument is supplied, writes a canonical jackal-formal-receipt-v1
+# JSON receipt (variant=exp_rat) that jackal-receipt-verify accepts.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-[ "$#" -eq 3 ] || { echo "usage: jackal-exp-rat-release \"exp(x)\" <lo> <hi>" >&2; exit 2; }
-EXPR="$1"; LO="$2"; HI="$3"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+  echo "usage: jackal-exp-rat-release \"exp(x)\" <lo> <hi> [formal-receipt.json]" >&2
+  exit 2
+fi
+EXPR="$1"; LO="$2"; HI="$3"; RECEIPT_OUT="${4:-}"
 EP=$(awk '$1=="exp_rat_producer" {print $NF}' "$HERE/MANIFEST.sha256")
 EC=$(awk '$1=="checker" {print $NF}' "$HERE/MANIFEST.sha256")
 [ -n "$EP" ] && [ -n "$EC" ] || { echo "status=unavailable reason=manifest-incomplete" >&2; exit 3; }
@@ -170,6 +190,16 @@ echo "assurance=proof-carrying-certificate(checker-accepted;expRat-Runs-derivati
 echo "checker.ACCEPT=$OUT"
 echo "checker.sha256=$CP"
 echo "producer.sha256=$PP"
+if [ -n "$RECEIPT_OUT" ]; then
+  python3 -I -S -B "$HERE/isolated_entry.py" emit-variant-receipt \
+    --variant exp_rat --expression "$EXPR" --lower "$LO" --upper "$HI" \
+    --cert "$CERT" --producer "$HERE/exp_rat_producer.py" \
+    --checker "$HERE/jackal_cert_check" \
+    --proof-identity "$HERE/range_proof_identity.json" \
+    --inventory "$HERE/formal_coverage_inventory.json" \
+    --release-epoch v1.4.2 --output "$RECEIPT_OUT"
+  echo "receipt=$RECEIPT_OUT"
+fi
 WRAP
 chmod +x "$PKG/jackal-exp-rat-release"
 
@@ -220,12 +250,12 @@ sqrt_rat_producer sqrt_rat_producer.py $SQRT_RAT_PRODUCER_ID
 exp_rat_producer exp_rat_producer.py $EXP_RAT_PRODUCER_ID
 EOF
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'
-JACKAL v1.4.1 — explicit non-claims
+JACKAL v1.4.2 — explicit non-claims
 - NOT universal correctness. The certified range fragment is exactly:
   num, var, neg, add, sub, mul, div, integer pow (n>=0), sin, cos, abs,
   floor, ceil, round, trunc, min, max, sqrt (via `sqrt_rat`, v1.4.0:
   pure-ℚ Newton square bracket — NO libm TCB), AND exp (via `exp_rat`,
-  v1.4.1: pure-ℚ Taylor partial + certified remainder on [lo, hi] with
+  v1.4.2: pure-ℚ Taylor partial + certified remainder on [lo, hi] with
   lo >= 0 — NO libm TCB).  Every other transcendental range operator
   (ln, tan, cbrt, atan, asin, acos, log10, log2, hypot, atan2, generic
   and negative powers, `%`) AND named constants (pi, e, tau) are
@@ -260,13 +290,13 @@ JACKAL v1.4.1 — explicit non-claims
 EOF
 
 cat > "$PKG/README.txt" <<'EOF'
-JACKAL v1.4.1 — proof-carrying formal-receipt release + pure-ℚ sqrt + exp (macOS arm64, public, unsigned)
+JACKAL v1.4.2 — proof-carrying formal-receipt release + pure-ℚ sqrt + exp (macOS arm64, public, unsigned)
 
 Verify, then release a certified enclosure:
   shasum -a 256 -c SHA256SUMS         # every shipped file
   ./jackal-cert-release "x^2+1" 1 2 receipt.json
   ./jackal-sqrt-rat-release "sqrt(x)" 2 3           # pure-ℚ sqrt (NO libm TCB)
-  ./jackal-exp-rat-release  "exp(x)"  0 1           # pure-ℚ exp  (NO libm TCB, v1.4.1)
+  ./jackal-exp-rat-release  "exp(x)"  0 1           # pure-ℚ exp  (NO libm TCB, v1.4.2)
   ./jackal-gaussian-release 'exp(-10000000000*(x-0.5000123456789)^2)' \
     0 1 1/1000000000000 gaussian-receipt.json
   ./jackal-receipt-verify --receipt receipt.json \
@@ -274,7 +304,7 @@ Verify, then release a certified enclosure:
     --expected-evaluator "$(awk '/^evaluator /{print $3}' MANIFEST.sha256)" \
     --expected-checker "$(awk '/^checker /{print $3}' MANIFEST.sha256)" \
     --expected-source "$(awk '/^source /{print $3}' MANIFEST.sha256)" \
-    --expected-release-epoch v1.4.1 \
+    --expected-release-epoch v1.4.2 \
     --expected-command range-bound-cert \
     --expected-expression 'x^2+1' \
     --expected-input-lo 1 --expected-input-hi 2 \

@@ -12,15 +12,18 @@ proof-carrying formal tools and seven honest weaker-lane adapters
 | `jackal_gaussian_integral` | Accepts only canonical `exp(-A*(x-mu)^2)` requests in the theorem-covered fragment, emits a zero-libm formal receipt, and re-runs the pinned Gaussian checker before returning it. |
 | `jackal_sqrt_rat_bound` (v1.4.0) | Emits a pure-ℚ formal-bounded enclosure of `sqrt(x)` on a canonical rational interval.  Producer `tools/sqrt_rat_producer.py` is untrusted; the compiled Lean-proved `jackal_cert_check` validates a rational Newton square bracket.  **NO libm on the proof-decision path.** Admits ONLY the exact form `sqrt(x)`. |
 | `jackal_exp_rat_bound` (v1.4.1) | Emits a pure-ℚ formal-bounded enclosure of `exp(x)` on `[lo, hi]` with `lo >= 0`.  Producer `tools/exp_rat_producer.py` is untrusted (uses exact `fractions.Fraction`, never `math.exp`); the compiled Lean-proved `jackal_cert_check` validates a rational Taylor partial + certified remainder.  **NO libm on the proof-decision path.** Admits ONLY the exact form `exp(x)`. |
-| `jackal_verify_receipt` | Selects and re-runs the matching pinned range or Gaussian checker over an embedded `jackal-formal-receipt-v1` certificate; returns `verified` or a stable refusal class.  Does NOT currently accept the `variant=sqrt_rat`/`exp_rat` payloads from the two new tools (see below). |
+| `jackal_verify_receipt` | Selects and re-runs the matching pinned range or Gaussian checker over an embedded `jackal-formal-receipt-v1` certificate; returns `verified` or a stable refusal class.  Dispatches on the receipt's `variant` field so `sqrt_rat` and `exp_rat` receipts round-trip verbatim (v1.4.2). |
 
-The `sqrt_rat` and `exp_rat` tools return a payload with a `variant`
-marker, the certificate bytes (base64) with SHA-256, the enclosure
-endpoints as exact rationals, and the pinned producer/checker/plugin
-identities.  Their payload shape is intentionally NOT the
-`jackal-formal-receipt-v1` envelope — schema extension is a documented
-follow-up.  Downstream can independently re-run the checker on the
-embedded certificate bytes today.
+The `sqrt_rat` and `exp_rat` tools now return a full `jackal-formal-receipt-v1`
+envelope (with `variant = "sqrt_rat"` or `"exp_rat"`) that
+`jackal_verify_receipt` re-executes end-to-end — the standalone Python
+producer's SHA-256 fills the `evaluator_sha256`/`producer_sha256` slot,
+`source_anb_sha256` is `null` (the engine is not on the proof-decision
+path), and the fragment lock restricts `admitted_operators` to
+`{sqrt}` / `{exp}` (plus the `var` leaf).  Downstream can archive the
+receipt, later reverify with `jackal-receipt-verify`, and the pinned
+Lean-proved checker will re-execute the exact certificate bytes on the
+destination machine.
 
 ## Weaker-lane adapters (never inflated)
 

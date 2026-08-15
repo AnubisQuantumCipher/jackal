@@ -135,6 +135,60 @@
       "ok": true
     },
     {
+      "expected": "receipt-assumptions",
+      "id": "sqrt-rat-wrong-variant-tag",
+      "observed": "receipt-assumptions",
+      "ok": true
+    },
+    {
+      "expected": "variant-cert-schema",
+      "id": "exp-rat-wrong-variant-tag",
+      "observed": "variant-cert-schema",
+      "ok": true
+    },
+    {
+      "expected": "producer-identity",
+      "id": "sqrt-rat-producer-identity-forged",
+      "observed": "producer-identity",
+      "ok": true
+    },
+    {
+      "expected": "producer-identity",
+      "id": "exp-rat-producer-identity-forged",
+      "observed": "producer-identity",
+      "ok": true
+    },
+    {
+      "expected": "variant-source-identity",
+      "id": "sqrt-rat-source-anb-forged-nonnull",
+      "observed": "variant-source-identity",
+      "ok": true
+    },
+    {
+      "expected": "fragment-admitted",
+      "id": "exp-rat-fragment-admitted-forged",
+      "observed": "fragment-admitted",
+      "ok": true
+    },
+    {
+      "expected": "coverage-row-set",
+      "id": "sqrt-rat-coverage-row-forged",
+      "observed": "coverage-row-set",
+      "ok": true
+    },
+    {
+      "expected": "request-command",
+      "id": "sqrt-rat-request-command-relabel",
+      "observed": "request-command",
+      "ok": true
+    },
+    {
+      "expected": "receipt-non-claims",
+      "id": "exp-rat-non-claims-forged",
+      "observed": "receipt-non-claims",
+      "ok": true
+    },
+    {
       "expected": "cert-illegal-line-boundary",
       "id": "audit-lock-u2028-line-boundary-injection",
       "observed": "cert-illegal-line-boundary",

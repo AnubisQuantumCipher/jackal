@@ -35,4 +35,4 @@ exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" gaussian \
   --proof-identity "$ROOT/release/evidence/gaussian_proof_identity.json" \
   --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
   --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
-  --receipt "$5" --release-epoch v1.4.1 --timeout "$TIMEOUT"
+  --receipt "$5" --release-epoch v1.4.2 --timeout "$TIMEOUT"

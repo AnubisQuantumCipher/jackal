@@ -1,5 +1,5 @@
 #!/bin/sh
-# JACKAL v1.4.1 fail-closed formal-release gate.
+# JACKAL v1.4.2 fail-closed formal-release gate.
 #
 # Emits `status=formal-bounded` ONLY when the shared release validator confirms
 # the whole bound chain:
@@ -53,4 +53,4 @@ exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" range \
     --proof-identity "$ROOT/release/evidence/range_proof_identity.json" \
     --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
     --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
-    --release-epoch v1.4.1 --formal-receipt "$4"
+    --release-epoch v1.4.2 --formal-receipt "$4"

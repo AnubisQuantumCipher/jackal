@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_SRC = ROOT / "release/dist/jackal-v1.4.1-macos-arm64"
+PKG_SRC = ROOT / "release/dist/jackal-v1.4.2-macos-arm64"
 
 
 def sha(p: Path) -> str:
@@ -95,7 +95,7 @@ def main() -> int:
                     "--expected-evaluator", eval_id,
                     "--expected-checker", chk_id,
                     "--expected-source", source_id,
-                    "--expected-release-epoch", "v1.4.1",
+                    "--expected-release-epoch", "v1.4.2",
                     "--expected-command", "range-bound-cert",
                     "--expected-expression", "x^2+1",
                     "--expected-input-lo", "1",
@@ -124,7 +124,7 @@ def main() -> int:
         "--checker", str(pkg / "jackal_gaussian_check"),
         "--expected-evaluator", gaussian_producer_id,
         "--expected-checker", gaussian_checker_id,
-        "--expected-release-epoch", "v1.4.1",
+        "--expected-release-epoch", "v1.4.2",
         "--expected-command", "integrate",
         "--expected-expression", "exp(-10000000000*(x-0.5000123456789)^2)",
         "--expected-input-lo", "0",
@@ -254,6 +254,64 @@ def main() -> int:
              f"{plugin_exp.stdout}{plugin_exp.stderr}")
     results.append(("plugin-exp-rat", "formal-bounded",
                      plugin_exp.stdout, plugin_exp.stderr))
+
+    # v1.4.2 variant receipt round-trip: emit a canonical
+    # jackal-formal-receipt-v1 (variant=sqrt_rat / exp_rat) via the CLI's
+    # optional fourth argument, then reverify it with the packaged
+    # `jackal-receipt-verify` binary using explicit external context.
+    sqrt_rcpt_path = pkg / "sqrt-receipt.json"
+    sqrt_emit = run([str(pkg / "jackal-sqrt-rat-release"), "sqrt(x)", "2", "3",
+                     str(sqrt_rcpt_path)], cwd=pkg)
+    if sqrt_emit.returncode != 0 or not sqrt_rcpt_path.exists():
+        fail(f"packaged sqrt-rat receipt emit failed: {sqrt_emit.stdout}{sqrt_emit.stderr}")
+    sqrt_verify = run([
+        str(pkg / "jackal-receipt-verify"),
+        "--receipt", str(sqrt_rcpt_path),
+        "--checker", str(pkg / "jackal_cert_check"),
+        "--expected-evaluator", sha(pkg / "sqrt_rat_producer.py"),
+        "--expected-checker",   chk_id,
+        "--expected-release-epoch", "v1.4.2",
+        "--expected-command",   "range-bound-cert",
+        "--expected-expression", "sqrt(x)",
+        "--expected-input-lo", "2", "--expected-input-hi", "3",
+        "--proof-identity", str(pkg / "range_proof_identity.json"),
+        "--expected-proof-identity-file", range_proof_file_id,
+        "--expected-proof-identity-digest", range_proof_digest,
+        "--expected-inventory", sha(pkg / "formal_coverage_inventory.json"),
+        "--inventory", str(pkg / "formal_coverage_inventory.json"),
+    ])
+    if sqrt_verify.returncode != 0 or "verified" not in sqrt_verify.stdout:
+        fail(f"packaged sqrt-rat receipt reverify failed: "
+             f"{sqrt_verify.stdout}{sqrt_verify.stderr}")
+    results.append(("sqrt-rat-receipt-round-trip", "verified",
+                     sqrt_verify.stdout, sqrt_verify.stderr))
+
+    exp_rcpt_path = pkg / "exp-receipt.json"
+    exp_emit = run([str(pkg / "jackal-exp-rat-release"), "exp(x)", "0", "1",
+                    str(exp_rcpt_path)], cwd=pkg)
+    if exp_emit.returncode != 0 or not exp_rcpt_path.exists():
+        fail(f"packaged exp-rat receipt emit failed: {exp_emit.stdout}{exp_emit.stderr}")
+    exp_verify = run([
+        str(pkg / "jackal-receipt-verify"),
+        "--receipt", str(exp_rcpt_path),
+        "--checker", str(pkg / "jackal_cert_check"),
+        "--expected-evaluator", sha(pkg / "exp_rat_producer.py"),
+        "--expected-checker",   chk_id,
+        "--expected-release-epoch", "v1.4.2",
+        "--expected-command",   "range-bound-cert",
+        "--expected-expression", "exp(x)",
+        "--expected-input-lo", "0", "--expected-input-hi", "1",
+        "--proof-identity", str(pkg / "range_proof_identity.json"),
+        "--expected-proof-identity-file", range_proof_file_id,
+        "--expected-proof-identity-digest", range_proof_digest,
+        "--expected-inventory", sha(pkg / "formal_coverage_inventory.json"),
+        "--inventory", str(pkg / "formal_coverage_inventory.json"),
+    ])
+    if exp_verify.returncode != 0 or "verified" not in exp_verify.stdout:
+        fail(f"packaged exp-rat receipt reverify failed: "
+             f"{exp_verify.stdout}{exp_verify.stderr}")
+    results.append(("exp-rat-receipt-round-trip", "verified",
+                     exp_verify.stdout, exp_verify.stderr))
 
     shutil.rmtree(tmp, ignore_errors=True)
     for name, verdict, _, _ in results:

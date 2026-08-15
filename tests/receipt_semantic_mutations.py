@@ -131,6 +131,89 @@ def verify_gaussian(receipt: dict, request: dict[str, str] | None = None,
     )
 
 
+SQRT_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "sqrt(x)",
+    "input_lo": "2",
+    "input_hi": "3",
+}
+EXP_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "exp(x)",
+    "input_lo": "0",
+    "input_hi": "1",
+}
+SQRT_RAT_PRODUCER = ROOT / "tools" / "sqrt_rat_producer.py"
+EXP_RAT_PRODUCER = ROOT / "tools" / "exp_rat_producer.py"
+
+
+def _fresh_variant(*, variant: str, request: dict[str, str], producer: Path) -> dict:
+    import subprocess
+    from formal_receipt import (
+        build_variant_formal_receipt, canonical_rat,
+        request_commitment_b64 as _rcb,
+        _parse_cert_header, load_proof_identity_binding,
+    )
+    with tempfile.TemporaryDirectory(prefix=f"jackal-receipt-mutation-{variant}-") as td:
+        cert_path = Path(td) / f"{variant}.cert"
+        proc = subprocess.run(
+            [sys.executable, "-I", "-S", "-B", str(producer), "emit",
+             "--expression", request["expression"],
+             "--lower", request["input_lo"], "--upper", request["input_hi"]],
+            capture_output=True, check=True, timeout=60,
+        )
+        cert_path.write_bytes(proc.stdout)
+        cert_bytes = cert_path.read_bytes()
+    hdr = _parse_cert_header(cert_bytes)
+    encl_lo, encl_hi = hdr.get("output", "").split(" ", 1)
+    inv_bytes = INVENTORY.read_bytes()
+    return build_variant_formal_receipt(
+        variant=variant,
+        release_epoch="v1.4.2",
+        request=request,
+        enclosure=(encl_lo, encl_hi),
+        cert_bytes=cert_bytes,
+        producer_sha256=file_sha(producer),
+        checker_sha256=file_sha(RANGE_CHECKER),
+        canonical_lo=canonical_rat(request["input_lo"]),
+        canonical_hi=canonical_rat(request["input_hi"]),
+        request_commitment_b64=_rcb(request["command"], request["expression"],
+                                     request["input_lo"], request["input_hi"]),
+        coverage_inventory_sha256=hashlib.sha256(inv_bytes).hexdigest(),
+        proof_identity=load_proof_identity_binding(RANGE_PROOF_IDENTITY),
+        plugin_sha256=None,
+    )
+
+
+def fresh_sqrt_rat() -> dict:
+    return _fresh_variant(variant="sqrt_rat", request=SQRT_RAT_REQUEST,
+                           producer=SQRT_RAT_PRODUCER)
+
+
+def fresh_exp_rat() -> dict:
+    return _fresh_variant(variant="exp_rat", request=EXP_RAT_REQUEST,
+                           producer=EXP_RAT_PRODUCER)
+
+
+def verify_variant(receipt: dict, *, variant: str, request: dict,
+                   producer: Path, epoch: str = "v1.4.2",
+                   inventory_sha: str | None = None,
+                   proof_file_sha: str | None = None,
+                   proof_digest: str | None = None,
+                   producer_sha: str | None = None) -> dict:
+    return vr.verify_receipt(
+        receipt=receipt, checker=str(RANGE_CHECKER),
+        expected_evaluator=producer_sha or file_sha(producer),
+        expected_checker=file_sha(RANGE_CHECKER),
+        expected_source=None, inventory_path=INVENTORY,
+        expected_inventory_sha256=inventory_sha or file_sha(INVENTORY),
+        proof_identity_path=RANGE_PROOF_IDENTITY,
+        expected_proof_identity_file=proof_file_sha or file_sha(RANGE_PROOF_IDENTITY),
+        expected_proof_identity_digest=proof_digest or identity_digest(RANGE_PROOF_IDENTITY),
+        expected_release_epoch=epoch, expected_request=request,
+    )
+
+
 def redigest(receipt: dict) -> dict:
     receipt["receipt_digest_sha256"] = recompute_receipt_digest(receipt)
     return receipt
@@ -174,6 +257,14 @@ def main() -> int:
         raise RuntimeError("baseline range receipt did not verify")
     if verify_gaussian(gaussian_receipt).get("verdict") != "ACCEPT":
         raise RuntimeError("baseline Gaussian receipt did not verify")
+    sqrt_receipt = fresh_sqrt_rat()
+    exp_receipt = fresh_exp_rat()
+    if verify_variant(sqrt_receipt, variant="sqrt_rat", request=SQRT_RAT_REQUEST,
+                      producer=SQRT_RAT_PRODUCER).get("verdict") != "ACCEPT":
+        raise RuntimeError("baseline sqrt_rat receipt did not verify")
+    if verify_variant(exp_receipt, variant="exp_rat", request=EXP_RAT_REQUEST,
+                      producer=EXP_RAT_PRODUCER).get("verdict") != "ACCEPT":
+        raise RuntimeError("baseline exp_rat receipt did not verify")
 
     cases: list[tuple[str, callable, str]] = []
 
@@ -306,6 +397,57 @@ def main() -> int:
     add("coordinated-operation-relabel",
         lambda: verify_range(operation_relabel, request=operation_request),
         "request-command")
+
+    # ---- v1.4.2 variant round-trip mutation locks --------------------------
+    # Every sqrt_rat / exp_rat variant receipt must refuse under the same
+    # tamper classes as range / gaussian, plus variant-specific gates.
+    add("sqrt-rat-wrong-variant-tag",
+        lambda: verify_variant(mutate(sqrt_receipt, ("variant",), "range"),
+                                variant="sqrt_rat", request=SQRT_RAT_REQUEST,
+                                producer=SQRT_RAT_PRODUCER),
+        "receipt-assumptions")
+    add("exp-rat-wrong-variant-tag",
+        lambda: verify_variant(mutate(exp_receipt, ("variant",), "gaussian"),
+                                variant="exp_rat", request=EXP_RAT_REQUEST,
+                                producer=EXP_RAT_PRODUCER),
+        "variant-cert-schema")
+    add("sqrt-rat-producer-identity-forged",
+        lambda: verify_variant(mutate(sqrt_receipt, ("identities", "producer_sha256"), "0" * 64),
+                                variant="sqrt_rat", request=SQRT_RAT_REQUEST,
+                                producer=SQRT_RAT_PRODUCER),
+        "producer-identity")
+    add("exp-rat-producer-identity-forged",
+        lambda: verify_variant(mutate(exp_receipt, ("identities", "producer_sha256"), "0" * 64),
+                                variant="exp_rat", request=EXP_RAT_REQUEST,
+                                producer=EXP_RAT_PRODUCER),
+        "producer-identity")
+    add("sqrt-rat-source-anb-forged-nonnull",
+        lambda: verify_variant(mutate(sqrt_receipt, ("identities", "source_anb_sha256"), "0" * 64),
+                                variant="sqrt_rat", request=SQRT_RAT_REQUEST,
+                                producer=SQRT_RAT_PRODUCER),
+        "variant-source-identity")
+    add("exp-rat-fragment-admitted-forged",
+        lambda: verify_variant(mutate(exp_receipt, ("fragment", "admitted_operators"),
+                                       ["exp", "sqrt", "var"]),
+                                variant="exp_rat", request=EXP_RAT_REQUEST,
+                                producer=EXP_RAT_PRODUCER),
+        "fragment-admitted")
+    add("sqrt-rat-coverage-row-forged",
+        lambda: verify_variant(mutate(sqrt_receipt, ("fragment", "coverage_row_ids"),
+                                       ["jackal_range_bound"]),
+                                variant="sqrt_rat", request=SQRT_RAT_REQUEST,
+                                producer=SQRT_RAT_PRODUCER),
+        "coverage-row-set")
+    add("sqrt-rat-request-command-relabel",
+        lambda: verify_variant(mutate(sqrt_receipt, ("request", "command"), "integrate"),
+                                variant="sqrt_rat", request={**SQRT_RAT_REQUEST, "command": "integrate"},
+                                producer=SQRT_RAT_PRODUCER),
+        "request-command"),
+    add("exp-rat-non-claims-forged",
+        lambda: verify_variant(mutate(exp_receipt, ("non_claims",), ["UNIVERSAL exp"]),
+                                variant="exp_rat", request=EXP_RAT_REQUEST,
+                                producer=EXP_RAT_PRODUCER),
+        "receipt-non-claims")
 
     # ---- §487 audit regression locks (2026-08-15) --------------------------
     # AUDIT-CRITICAL lock: U+2028 (LINE SEPARATOR) injected into the

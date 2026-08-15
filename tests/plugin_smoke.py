@@ -62,7 +62,7 @@ from formal_receipt import recompute_receipt_digest  # noqa: E402
 
 RANGE_EXPR = "sin(x)+x^2"
 RANGE_CONTEXT = {
-    "expected_release_epoch": "v1.4.1",
+    "expected_release_epoch": "v1.4.2",
     "expected_command": "range-bound-cert",
     "expected_expression": RANGE_EXPR,
     "expected_input_lo": "0",
@@ -70,7 +70,7 @@ RANGE_CONTEXT = {
 }
 GAUSSIAN_EXPR = "exp(-10000000000*(x-0.5000123456789)^2)"
 GAUSSIAN_CONTEXT = {
-    "expected_release_epoch": "v1.4.1",
+    "expected_release_epoch": "v1.4.2",
     "expected_command": "integrate",
     "expected_expression": GAUSSIAN_EXPR,
     "expected_input_lo": "0",
@@ -355,45 +355,76 @@ def s13_weak_lane_refusals() -> bool:
 
 
 def _accepts_fragment(tool: str, expr: str, lo: str, hi: str,
-                       variant: str) -> bool:
+                       variant: str) -> tuple[bool, dict]:
     code, obj = _call(tool, {"expression": expr, "input_lo": lo, "input_hi": hi})
+    receipt = obj.get("receipt") if isinstance(obj, dict) else None
     ok = (code == 0
           and obj.get("status") == "formal-bounded"
           and obj.get("variant") == variant
-          and obj.get("checker_verdict") == "ACCEPT"
-          and obj.get("release_epoch") == "v1.4.1"
-          and obj.get("theorem_id") == "request_bound_certified_release"
-          and len(obj.get("enclosure") or []) == 2
-          and isinstance(obj.get("identities", {}).get("plugin_sha256"), str)
-          and isinstance(obj.get("identities", {}).get("producer_sha256"), str)
-          and isinstance(obj.get("identities", {}).get("checker_sha256"), str)
-          and isinstance(obj.get("certificate_sha256"), str)
-          and len(obj.get("certificate_sha256") or "") == 64)
+          and obj.get("checker_rerun") == "ACCEPT"
+          and isinstance(receipt, dict)
+          and receipt.get("variant") == variant
+          and receipt.get("release_epoch") == "v1.4.2"
+          and receipt.get("theorem", {}).get("id") == "request_bound_certified_release"
+          and receipt.get("identities", {}).get("plugin_sha256") == _pinned_bundle_hash()
+          and isinstance(receipt.get("identities", {}).get("producer_sha256"), str)
+          and isinstance(receipt.get("identities", {}).get("checker_sha256"), str)
+          and isinstance(receipt.get("certificate", {}).get("sha256"), str)
+          and len(receipt.get("certificate", {}).get("sha256") or "") == 64)
     return ok, obj
 
 
 def s14_sqrt_rat_bound() -> bool:
-    """v1.4.0 fragment extension: pure-Q sqrt(x) via the plugin."""
+    """v1.4.0 fragment extension: pure-Q sqrt(x) emit + round-trip verify."""
     ok, obj = _accepts_fragment("jackal_sqrt_rat_bound", "sqrt(x)", "2", "3",
                                  variant="sqrt_rat")
-    record("S14-sqrt-rat-accept",
-           ok and obj["identities"]["plugin_sha256"] == _pinned_bundle_hash(),
-           f"enclosure={obj.get('enclosure')} verdict={obj.get('checker_verdict')}")
-    return ok and obj["identities"]["plugin_sha256"] == _pinned_bundle_hash()
+    receipt = obj.get("receipt") if ok else None
+    encl = receipt.get("result", {}) if isinstance(receipt, dict) else {}
+    round_trip_ok = False
+    if ok and isinstance(receipt, dict):
+        code, obj2 = _call("jackal_verify_receipt", {
+            "receipt": receipt,
+            "expected_release_epoch": "v1.4.2",
+            "expected_command": "range-bound-cert",
+            "expected_expression": "sqrt(x)",
+            "expected_input_lo": "2",
+            "expected_input_hi": "3",
+        })
+        round_trip_ok = (code == 0
+                          and obj2.get("status") == "verified"
+                          and obj2.get("verdict") == "ACCEPT")
+    record("S14-sqrt-rat-accept-and-round-trip", ok and round_trip_ok,
+           f"enclosure=[{encl.get('enclosure_lo')},{encl.get('enclosure_hi')}] round_trip={round_trip_ok}")
+    return ok and round_trip_ok
 
 
 def s15_exp_rat_bound() -> bool:
-    """v1.4.1 fragment extension: pure-Q exp(x) via the plugin."""
+    """v1.4.1 fragment extension: pure-Q exp(x) emit + round-trip verify."""
     ok, obj = _accepts_fragment("jackal_exp_rat_bound", "exp(x)", "0", "1",
                                  variant="exp_rat")
-    expected_enclosure = obj.get("enclosure") == ["1", "979/360"]
-    record("S15-exp-rat-accept",
-           ok and expected_enclosure and
-           obj["identities"]["plugin_sha256"] == _pinned_bundle_hash(),
-           f"enclosure={obj.get('enclosure')} verdict={obj.get('checker_verdict')}")
-    return ok and expected_enclosure and \
-        obj["identities"]["plugin_sha256"] == _pinned_bundle_hash()
-
+    receipt = obj.get("receipt") if ok else None
+    expected_enclosure = (
+        isinstance(receipt, dict)
+        and receipt.get("result", {}).get("enclosure_lo") == "1"
+        and receipt.get("result", {}).get("enclosure_hi") == "979/360"
+    )
+    round_trip_ok = False
+    if ok and isinstance(receipt, dict) and expected_enclosure:
+        code, obj2 = _call("jackal_verify_receipt", {
+            "receipt": receipt,
+            "expected_release_epoch": "v1.4.2",
+            "expected_command": "range-bound-cert",
+            "expected_expression": "exp(x)",
+            "expected_input_lo": "0",
+            "expected_input_hi": "1",
+        })
+        round_trip_ok = (code == 0
+                          and obj2.get("status") == "verified"
+                          and obj2.get("verdict") == "ACCEPT")
+    record("S15-exp-rat-accept-and-round-trip",
+           ok and expected_enclosure and round_trip_ok,
+           f"enclosure=[1,979/360]={expected_enclosure} round_trip={round_trip_ok}")
+    return ok and expected_enclosure and round_trip_ok
 
 def s16_rational_bounds_refuse() -> bool:
     """sqrt_rat / exp_rat plugin tools refuse non-admitted expressions and

@@ -76,6 +76,12 @@ def _run_target(mode: str, argv: list[str]) -> int:
         "verify": project_modules[3][1],
         "plugin": root / "plugin/hermes/server.py",
     }
+    if mode == "emit-variant-receipt":
+        # Preload the formal_receipt module and dispatch inline (no external
+        # script needed).  The wrappers pass all required paths as flags.
+        for name, path in project_modules:
+            _load_exact(name, path)
+        return _emit_variant_receipt(argv)
     target = targets.get(mode)
     if target is None:
         raise RuntimeError(f"isolated-mode-unknown: {mode}")
@@ -98,9 +104,65 @@ def _run_target(mode: str, argv: list[str]) -> int:
     return 0
 
 
+def _emit_variant_receipt(argv: list[str]) -> int:
+    """Emit a canonical jackal-formal-receipt-v1 for a sqrt_rat/exp_rat cert.
+
+    Flags (all required):
+      --variant sqrt_rat|exp_rat
+      --expression <expr>
+      --lower <lo>          --upper <hi>
+      --cert <cert.txt>     (bytes already accepted by the checker)
+      --producer <path>     --checker <path>
+      --proof-identity <range_proof_identity.json>
+      --inventory <formal_coverage_inventory.json>
+      --release-epoch <label>
+      --output <receipt.json>
+    """
+    import argparse
+    import hashlib
+    ap = argparse.ArgumentParser(prog="emit-variant-receipt")
+    ap.add_argument("--variant", required=True, choices=("sqrt_rat", "exp_rat"))
+    ap.add_argument("--expression", required=True)
+    ap.add_argument("--lower", required=True)
+    ap.add_argument("--upper", required=True)
+    ap.add_argument("--cert", required=True)
+    ap.add_argument("--producer", required=True)
+    ap.add_argument("--checker", required=True)
+    ap.add_argument("--proof-identity", required=True, dest="proof_identity")
+    ap.add_argument("--inventory", required=True)
+    ap.add_argument("--release-epoch", required=True, dest="release_epoch")
+    ap.add_argument("--output", required=True)
+    ns = ap.parse_args(argv)
+    import formal_receipt as fr
+    cert_bytes = Path(ns.cert).read_bytes()
+    prod_sha = hashlib.sha256(Path(ns.producer).read_bytes()).hexdigest()
+    chk_sha = hashlib.sha256(Path(ns.checker).read_bytes()).hexdigest()
+    inv_bytes = Path(ns.inventory).read_bytes()
+    proof = fr.load_proof_identity_binding(Path(ns.proof_identity))
+    hdr = fr._parse_cert_header(cert_bytes)
+    encl_lo, encl_hi = hdr.get("output", "").split(" ", 1)
+    receipt = fr.build_variant_formal_receipt(
+        variant=ns.variant, release_epoch=ns.release_epoch,
+        request={"command": "range-bound-cert", "expression": ns.expression,
+                 "input_lo": ns.lower, "input_hi": ns.upper},
+        enclosure=(encl_lo, encl_hi),
+        cert_bytes=cert_bytes,
+        producer_sha256=prod_sha, checker_sha256=chk_sha,
+        canonical_lo=fr.canonical_rat(ns.lower),
+        canonical_hi=fr.canonical_rat(ns.upper),
+        request_commitment_b64=fr.request_commitment_b64(
+            "range-bound-cert", ns.expression, ns.lower, ns.upper),
+        coverage_inventory_sha256=hashlib.sha256(inv_bytes).hexdigest(),
+        proof_identity=proof,
+        plugin_sha256=None,
+    )
+    Path(ns.output).write_text(fr.dump_receipt(receipt))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if not argv:
-        print("usage: isolated_entry.py <range|gaussian|verify|plugin> [args...]", file=sys.stderr)
+        print("usage: isolated_entry.py <range|gaussian|verify|plugin|emit-variant-receipt> [args...]", file=sys.stderr)
         return 64
     try:
         return _run_target(argv[0], argv[1:])

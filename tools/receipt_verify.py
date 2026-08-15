@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.1 formal-receipt independent verifier.
+"""JACKAL v1.4.2 formal-receipt independent verifier.
 
 Consumes a `jackal-formal-receipt-v1` JSON document and mechanically
 re-establishes every binding it claims — WITHOUT trusting the release
@@ -74,11 +74,16 @@ from formal_receipt import (  # noqa: E402
     SCHEMA, THEOREM_ID, GAUSSIAN_THEOREM_ID, LEAN_KERNEL_AXIOMS,
     MODEL_ASSUMPTIONS, NON_CLAIMS, GAUSSIAN_ASSUMPTIONS,
     GAUSSIAN_NON_CLAIMS,
+    RANGE_VARIANT, GAUSSIAN_VARIANT, SQRT_RAT_VARIANT, EXP_RAT_VARIANT,
+    RATIONAL_VARIANTS, ALL_VARIANTS,
+    SQRT_RAT_ASSUMPTIONS, SQRT_RAT_NON_CLAIMS,
+    EXP_RAT_ASSUMPTIONS, EXP_RAT_NON_CLAIMS,
     recompute_receipt_digest, sha256_hex,
     load_proof_identity_binding, PROOF_IDENTITY_BINDING_KEYS,
     canonical_rat as _shared_canonical_rat,
     request_commitment_b64 as _shared_request_commitment_b64,
     gaussian_request_commitment_b64 as _shared_gaussian_request_commitment_b64,
+    receipt_variant,
 )
 
 
@@ -185,7 +190,11 @@ _RANGE_RELEASE_NODE_OPS: dict[str, set[str]] = {
     # `const_rounded` deliberately ABSENT (2026-08-15, §487-const audit): its
     # value/fl_lo fields are bound only by the undischarged `ConstTCB` premise,
     # so the Lean `releaseNodeOp` refuses it and this mirror MUST refuse too
-    # (`node-op-outside-release-fragment`), keeping Python and Lean views of
+    "sqrt_rat": {"sqrt"},
+    # exp_rat (§487 fragment extension, v1.4.1): pure-ℚ exp via rational
+    # Taylor + certified remainder.  The Lean `releaseNodeOp` allowlist
+    # accepts this and `Runs.expRat` is checker-sound with no libm TCB.
+    "exp_rat": {"exp"},
     # the release fragment identical.  `num_rounded` likewise absent.
     # sqrt_rat (§487 fragment extension, v1.4.0): pure-ℚ sqrt via rational
     # square bracket.  The Lean `releaseNodeOp` allowlist accepts this and
@@ -312,15 +321,27 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     # R1 — schema / theorem; the certificate schema selects the proved theorem.
     if not isinstance(receipt, dict):
         raise ReceiptRefusal("receipt-schema", "not an object")
-    required_top_level = {
+    base_top_level = {
         "schema", "release_epoch", "emitted_at_unix", "request", "result",
         "certificate", "identities", "theorem", "proof_identity", "fragment",
         "checker", "assumptions", "non_claims", "receipt_digest_sha256",
     }
-    if set(receipt) != required_top_level:
+    # variant is optional on the outer envelope; if present it must be one of
+    # the declared set.  Absent = RANGE_VARIANT (backward compat for receipts
+    # emitted before v1.4.2).
+    extra = set(receipt) - base_top_level
+    if extra - {"variant"}:
         raise ReceiptRefusal(
-            "receipt-fields", str(sorted(set(receipt) ^ required_top_level))
+            "receipt-fields", str(sorted((set(receipt) ^ base_top_level) - {"variant"}))
         )
+    if not base_top_level.issubset(set(receipt)):
+        raise ReceiptRefusal(
+            "receipt-fields", str(sorted(base_top_level - set(receipt)))
+        )
+    try:
+        variant = receipt_variant(receipt)
+    except ValueError as exc:
+        raise ReceiptRefusal("receipt-variant", str(exc)) from exc
     if receipt.get("schema") != SCHEMA:
         raise ReceiptRefusal("receipt-schema", str(receipt.get("schema")))
     if not isinstance(expected_release_epoch, str) or not expected_release_epoch:
@@ -341,6 +362,15 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     if cert_schema not in {CERT_SCHEMA, GAUSSIAN_CERT_SCHEMA}:
         raise ReceiptRefusal("cert-schema", str(cert_schema))
     is_gaussian = cert_schema == GAUSSIAN_CERT_SCHEMA
+    is_variant = variant in RATIONAL_VARIANTS
+    # variant must line up with cert schema: gaussian ↔ gaussian cert; every
+    # range-family variant (range / sqrt_rat / exp_rat) uses the range cert.
+    if is_gaussian and variant != GAUSSIAN_VARIANT:
+        raise ReceiptRefusal("variant-cert-schema",
+                             f"variant {variant!r} incompatible with cert schema {cert_schema!r}")
+    if not is_gaussian and variant == GAUSSIAN_VARIANT:
+        raise ReceiptRefusal("variant-cert-schema",
+                             f"variant {variant!r} incompatible with cert schema {cert_schema!r}")
     expected_cert_keys = (
         {"schema", "family", "method", "bytes_b64", "sha256"}
         if is_gaussian else
@@ -360,8 +390,18 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     lka = sorted(set(thm.get("lean_kernel_axioms") or []))
     if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
         raise ReceiptRefusal("theorem-axioms", str(lka))
-    expected_assumptions = GAUSSIAN_ASSUMPTIONS if is_gaussian else MODEL_ASSUMPTIONS
-    expected_non_claims = GAUSSIAN_NON_CLAIMS if is_gaussian else NON_CLAIMS
+    if variant == SQRT_RAT_VARIANT:
+        expected_assumptions = SQRT_RAT_ASSUMPTIONS
+        expected_non_claims = SQRT_RAT_NON_CLAIMS
+    elif variant == EXP_RAT_VARIANT:
+        expected_assumptions = EXP_RAT_ASSUMPTIONS
+        expected_non_claims = EXP_RAT_NON_CLAIMS
+    elif is_gaussian:
+        expected_assumptions = GAUSSIAN_ASSUMPTIONS
+        expected_non_claims = GAUSSIAN_NON_CLAIMS
+    else:
+        expected_assumptions = MODEL_ASSUMPTIONS
+        expected_non_claims = NON_CLAIMS
     if receipt.get("assumptions") != expected_assumptions:
         raise ReceiptRefusal("receipt-assumptions", "mandatory assumptions changed")
     if receipt.get("non_claims") != expected_non_claims:
@@ -503,7 +543,7 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     required_identity_keys = {
         "evaluator_sha256", "checker_sha256", "plugin_sha256", "source_anb_sha256"
     }
-    if is_gaussian:
+    if is_gaussian or is_variant:
         required_identity_keys.add("producer_sha256")
     if set(ids) != required_identity_keys:
         raise ReceiptRefusal(
@@ -517,21 +557,32 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
             raise ReceiptRefusal(f"expected-{label}-malformed", str(expected))
         if present != expected:
             raise ReceiptRefusal(f"{label}-identity", f"receipt {present} != expected {expected}")
-    if not is_gaussian and hdr.get("exe") != ids.get("evaluator_sha256"):
+    # For the range lane the certificate's `exe` field binds the invoking
+    # jackal-native evaluator; every other variant bypasses jackal-native.
+    if not is_gaussian and not is_variant and hdr.get("exe") != ids.get("evaluator_sha256"):
         raise ReceiptRefusal(
             "evaluator-vs-certificate",
             f"cert {hdr.get('exe')} != receipt {ids.get('evaluator_sha256')}",
         )
-    if is_gaussian:
+    if is_gaussian or is_variant:
         if ids.get("producer_sha256") != expected_evaluator:
             raise ReceiptRefusal(
                 "producer-identity",
                 f"receipt {ids.get('producer_sha256')} != expected {expected_evaluator}",
             )
         if ids.get("source_anb_sha256") is not None:
-            raise ReceiptRefusal("gaussian-source-identity", str(ids.get("source_anb_sha256")))
+            raise ReceiptRefusal("variant-source-identity",
+                                 str(ids.get("source_anb_sha256")))
         if expected_source is not None:
             raise ReceiptRefusal("expected-source-unexpected", expected_source)
+        # sqrt_rat / exp_rat certs also carry the producer SHA in `exe`
+        # (mirroring the range lane's convention) so the exe/receipt bind is
+        # still enforced end-to-end.
+        if is_variant and hdr.get("exe") != ids.get("producer_sha256"):
+            raise ReceiptRefusal(
+                "producer-vs-certificate",
+                f"cert {hdr.get('exe')} != receipt {ids.get('producer_sha256')}",
+            )
     else:
         source_id = ids.get("source_anb_sha256")
         if not _valid_hex(expected_source or ""):
@@ -762,6 +813,18 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
         expected_admitted = {"exp", "mul", "neg", "pow2", "sub"}
         expected_coverage = ["gaussian-exp-square-integral-v1"]
         expected_refused = ["all expressions outside gaussian-exp-square-v1"]
+    elif variant == SQRT_RAT_VARIANT:
+        # sqrt_rat variant restricts the release fragment to `sqrt` alone
+        # (plus the `var` leaf every range expression carries).  The
+        # coverage-row id points at the plugin-tool row rather than the
+        # per-operator row; the operator row still exists and must be FORMAL.
+        expected_admitted = {"sqrt", "var"}
+        expected_coverage = ["jackal_sqrt_rat_bound"]
+        expected_refused = ["every expression except sqrt(x)"]
+    elif variant == EXP_RAT_VARIANT:
+        expected_admitted = {"exp", "var"}
+        expected_coverage = ["jackal_exp_rat_bound"]
+        expected_refused = ["every expression except exp(x)"]
     else:
         expected_admitted = {
             key for key, row in rows.items()
@@ -791,6 +854,20 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
         if row.get("soundness_theorem") != expected_theorem:
             raise ReceiptRefusal("coverage-row-theorem-mismatch",
                                  f"{key}:{row.get('soundness_theorem')}")
+    # For rational-fragment variants, the coverage-row loop above locks
+    # the plugin-tool row.  Also require the underlying operator row (sqrt/exp)
+    # to still be FORMAL in the inventory so a mutation that quietly demotes
+    # the operator from FORMAL cannot be masked by a plugin-tool-row alone.
+    if variant == SQRT_RAT_VARIANT:
+        op_row = rows.get("sqrt")
+        if op_row is None or op_row.get("verdict") != "FORMAL":
+            raise ReceiptRefusal("variant-operator-row",
+                                 f"sqrt operator row must be FORMAL for sqrt_rat variant")
+    elif variant == EXP_RAT_VARIANT:
+        op_row = rows.get("exp")
+        if op_row is None or op_row.get("verdict") != "FORMAL":
+            raise ReceiptRefusal("variant-operator-row",
+                                 f"exp operator row must be FORMAL for exp_rat variant")
 
     # Result-status must be exactly formal-bounded (no silent downgrade).
     res = receipt.get("result", {})

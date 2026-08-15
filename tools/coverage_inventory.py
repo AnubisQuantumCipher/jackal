@@ -140,6 +140,45 @@ def build_rows() -> list[dict]:
             "verdict": "WEAK" if status != "exact" else "CONDITIONAL",
             "notes": "weaker lane; must never inherit formal-* language",
         })
+    # Plugin-binding rows: the Hermes plugin threads every call through the
+    # shared validator and re-runs the pinned checker on receipt verification.
+    # These rows document the plugin surface itself, distinct from operator
+    # rows.  They ship with the release manifest so a reverifier can bind
+    # against the tool name it invoked.
+    rows.append({
+        "kind": "plugin-tool", "operator": "jackal_range_bound",
+        "description": "Hermes plugin tool: emit a jackal-formal-receipt-v1 for a range-bound-cert request",
+        "parser_admission": True, "canonical_lowering": "simplify_bound",
+        "evaluator_path": "plugin/hermes/server.py -> release_validate.validate_release -> jackal-native range-bound-cert",
+        "certificate_op": [], "checker_decode": "CertCodec.parseCert",
+        "checker_rule": "CertCheck.checkNode",
+        "soundness_theorem": "cert_check_sound",
+        "runs_constructors": [],
+        "libm_assumption": "as per operator rows",
+        "plugin_tool": "jackal_range_bound",
+        "requested_assurance": "formal-bounded",
+        "allowed_status": "formal-bounded",
+        "tests": ["plugin_smoke.py", "cert_mutations_11.py::M11"],
+        "verdict": "FORMAL",
+        "notes": "plugin bundle hash is pinned in release/MANIFEST.sha256 as plugin_hermes",
+    })
+    rows.append({
+        "kind": "plugin-tool", "operator": "jackal_verify_receipt",
+        "description": "Hermes plugin tool: re-run the pinned checker over an embedded certificate",
+        "parser_admission": True, "canonical_lowering": "n/a",
+        "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_cert_check",
+        "certificate_op": [], "checker_decode": "CertCodec.parseCert",
+        "checker_rule": "CertCheck.checkNode",
+        "soundness_theorem": "cert_check_sound",
+        "runs_constructors": [],
+        "libm_assumption": "as per operator rows",
+        "plugin_tool": "jackal_verify_receipt",
+        "requested_assurance": "verified",
+        "allowed_status": "verified",
+        "tests": ["plugin_smoke.py", "cert_mutations_11.py::M2/M3/M4/M7/M9"],
+        "verdict": "FORMAL",
+        "notes": "verifier re-runs jackal_cert_check on embedded certificate bytes; outer digest alone is NOT sufficient",
+    })
     return rows
 
 

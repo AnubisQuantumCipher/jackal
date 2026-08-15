@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.1.1 fresh-extraction package smoke test (mission §443).
+"""JACKAL v1.2.0 fresh-extraction package smoke test.
 
 Copies the built package to a fresh temp directory with NO repository-relative
 fallback and exercises it end to end: valid release bounded; unsupported op,
@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_SRC = ROOT / "release/dist/jackal-v1.1.1-macos-arm64"
+PKG_SRC = ROOT / "release/dist/jackal-v1.2.0-macos-arm64"
 
 
 def sha(p: Path) -> str:
@@ -68,9 +68,21 @@ def main() -> int:
         results.append((name, "formal-bounded" if ok_bounded else "refused", cp.stdout, cp.stderr))
         return cp
 
-    cp = smoke("valid", ["x^2+1", "1", "2"], True)
+    receipt_path = pkg / "formal-receipt.json"
+    cp = smoke("valid", ["x^2+1", "1", "2", str(receipt_path)], True)
     if eval_id not in cp.stdout or chk_id not in cp.stdout:
         fail("released output does not identify exact packaged evaluator/checker hashes")
+    if not receipt_path.is_file():
+        fail("valid release did not emit the requested formal receipt")
+    verified = run([sys.executable, str(pkg / "receipt_verify.py"),
+                    "--receipt", str(receipt_path),
+                    "--checker", str(pkg / "jackal_cert_check"),
+                    "--expected-evaluator", eval_id,
+                    "--expected-checker", chk_id,
+                    "--inventory", str(pkg / "formal_coverage_inventory.json")])
+    if verified.returncode != 0 or "status=verified verdict=ACCEPT" not in verified.stdout:
+        fail(f"standalone receipt verifier did not accept: {verified.stdout}{verified.stderr}")
+    results.append(("formal-receipt-reverify", "verified", verified.stdout, verified.stderr))
 
     smoke("unsupported-op", ["sqrt(x)", "1", "2"], False)
     smoke("invalid-domain", ["1/x", "-1", "1"], False)
@@ -112,6 +124,19 @@ def main() -> int:
         fail("manifest tamper released bounded")
     man.write_text(orig)
     results.append(("manifest-tamper", "refused", mt.stdout, mt.stderr))
+
+    # The packaged Hermes adapter must bind its own pinned bundle identity and
+    # re-run the same checker from the fresh extraction, with no repo fallback.
+    plugin = pkg / "plugin" / "hermes" / "jackal_hermes"
+    plugin.chmod(0o755)
+    ps = run([str(plugin), "selftest"], cwd=pkg)
+    if ps.returncode != 0 or "identity_match=true" not in ps.stdout:
+        fail(f"packaged plugin identity selftest failed: {ps.stdout}{ps.stderr}")
+    pc = run([str(plugin), "call", "jackal_range_bound",
+              '{"expression":"sin(x)+x^2","input_lo":"0","input_hi":"1"}'], cwd=pkg)
+    if pc.returncode != 0 or '"status": "formal-bounded"' not in pc.stdout:
+        fail(f"packaged plugin formal call failed: {pc.stdout}{pc.stderr}")
+    results.append(("plugin-fresh-extraction", "formal-bounded", pc.stdout, pc.stderr))
 
     shutil.rmtree(tmp, ignore_errors=True)
     for name, verdict, _, _ in results:

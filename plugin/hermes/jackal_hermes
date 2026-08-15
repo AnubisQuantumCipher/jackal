@@ -1,0 +1,12 @@
+#!/bin/sh
+# JACKAL Hermes plugin launcher — thin wrapper around server.py so downstream
+# hosts see a stable executable name they can pin and invoke.
+#
+# All arguments pass through unchanged.  See `server.py` for the surface:
+#     jackal_hermes stdio                     JSON-RPC 2.0 (MCP transport)
+#     jackal_hermes call <tool> <args-json>   one-shot call
+#     jackal_hermes http --port 8181          HTTP wrapper
+#     jackal_hermes selftest                  bundle-hash + pin diagnostic
+set -eu
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 "$DIR/server.py" "$@"

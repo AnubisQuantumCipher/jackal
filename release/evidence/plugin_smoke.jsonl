@@ -1,0 +1,20 @@
+{"id": "S1-bundle-hash-pin-matches", "note": "computed=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf pinned=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf", "ok": true}
+{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf\nplugin_hermes.pinned_sha256=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf\nplugin_her", "ok": true}
+{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf", "ok": true}
+{"id": "S4-refuse:'exp(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'sqrt(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'ln(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'tan(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'atan(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'asin(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'acos(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'hypot(x,1)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'log10(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'log2(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'cbrt(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'x % 2'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S4-refuse:'x^(-2)'", "note": "status=refused reason=evaluator-refused", "ok": true}
+{"id": "S5-verify-round-trip", "note": "status=verified verdict=ACCEPT", "ok": true}
+{"id": "S6-plugin-identity-swap-refuses", "note": "status=refused reason=plugin-identity", "ok": true}
+{"id": "S7-enclosure-tamper-refuses", "note": "status=refused reason=enclosure-hi-mismatch", "ok": true}
+{"id": "S8-stdio-transport", "note": "list=True ok=True refuse=True", "ok": true}

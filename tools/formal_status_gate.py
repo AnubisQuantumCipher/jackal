@@ -78,14 +78,20 @@ def load_inventory(path: Path | None = None, verify_integrity: bool = True) -> d
             recomputed = {r["operator"] for r in ci.build_rows() if r["verdict"] == "FORMAL"}
             claimed = {op for op, r in by_op.items() if r["verdict"] == "FORMAL"}
             if claimed != recomputed:
-                raise StatusRefusal("inventory-integrity",
-                                    f"FORMAL set diverges from live trees: "
-                                    f"+{sorted(claimed - recomputed)} -{sorted(recomputed - claimed)}")
+                raise StatusRefusal("inventory-integrity", f"FORMAL set diverges from live trees: +{sorted(claimed - recomputed)} -{sorted(recomputed - claimed)}")
     return {"doc": doc, "by_op": by_op}
 
 
 def formal_operators(inv: dict) -> set[str]:
-    return {op for op, r in inv["by_op"].items() if r["verdict"] == "FORMAL"}
+    """Live FORMAL-verdict set — expression operators only.
+
+    Plugin-tool rows may also carry `verdict=FORMAL` to document that the
+    plugin surface is formally bound end-to-end, but they are NOT operators
+    the release-path operator-fragment gate compares against.  The plugin
+    binding is verified separately (bundle hash pin + receipt `plugin_sha256`
+    field), not via this set."""
+    return {op for op, r in inv["by_op"].items()
+            if r["verdict"] == "FORMAL" and r.get("kind") == "operator"}
 
 
 def derive_status(*, operator: str, requested: str, checker_accepted: bool,

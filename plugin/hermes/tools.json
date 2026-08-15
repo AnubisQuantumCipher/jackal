@@ -1,0 +1,50 @@
+{
+  "schema": "jackal-hermes-plugin-v1",
+  "plugin_id": "jackal_range_bound",
+  "version": "v1.2.0",
+  "description": "JACKAL formal-bounded range enclosures + independent receipt verification.",
+  "bundle_files": [
+    "server.py",
+    "bundle_hash.py",
+    "jackal_hermes",
+    "tools.json"
+  ],
+  "tools": [
+    {
+      "name": "jackal_range_bound",
+      "description": "Emit a formal-bounded receipt with the certificate embedded (or refuse).",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Anubis expression in the single variable x, restricted to the certified fragment."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced ℚ (e.g. '1', '2/3')."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo)."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "receipt": "jackal-formal-receipt-v1 object on success",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_verify_receipt",
+      "description": "Re-run the pinned Lean-proved checker over an embedded certificate.",
+      "arguments": {
+        "receipt": {"type": "object", "required": true,
+                    "help": "A jackal-formal-receipt-v1 JSON document."}
+      },
+      "returns": {
+        "status": "verified | refused",
+        "verdict": "ACCEPT on success",
+        "receipt_digest_sha256": "recomputed outer digest",
+        "certificate_sha256": "recomputed certificate SHA-256",
+        "checker_sha256": "pinned checker binary hash",
+        "evaluator_sha256": "pinned evaluator binary hash",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    }
+  ]
+}

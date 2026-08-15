@@ -31,6 +31,20 @@ import subprocess
 import sys
 import tempfile
 
+# Load-bearing shared canonicalization used by BOTH this validator and the
+# independent receipt verifier / Hermes plugin.  Import order picks the repo
+# layout (tools/…) first, then the shipped-package layout (sibling).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _cand in (os.path.join(_HERE, "..", "tools"), _HERE):
+    if os.path.exists(os.path.join(_cand, "formal_receipt.py")):
+        sys.path.insert(0, _cand)
+        break
+from formal_receipt import (  # noqa: E402
+    canonical_rat as _shared_canonical_rat,
+    request_commitment_b64 as _shared_request_commitment_b64,
+    build_formal_receipt, dump_receipt,
+)
+
 SCHEMA_MAGIC = "jackal-eval-cert v2"
 MODEL_CONST = "jackal-iv-model-v1"
 COMMAND_ID = "range-bound-cert"
@@ -57,18 +71,12 @@ def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
+# Backward-compatible re-exports of the shared helpers.  The load-bearing
+# definitions live in `tools/formal_receipt.py` (§Bridge-3) so the release
+# validator, the independent receipt verifier, and the Hermes plugin share
+# the SAME framing byte-for-byte.
 def request_commitment_b64(cmd: str, expr: str, lo: str, hi: str) -> str:
-    """Injective, length-delimited framing of the exact request bytes, digested
-    and base64-wrapped. Length prefixes make it unambiguous under any payload
-    (embedded delimiters, whitespace, newlines, Unicode)."""
-    def framed(p: str) -> bytes:
-        b = p.encode("utf-8")
-        return str(len(b)).encode() + b":" + b
-    framing = (b"jackal-req-v2\x00" + framed(cmd) + b"|" + framed(expr)
-               + b"|" + framed(lo) + b"|" + framed(hi))
-    hexd = hashlib.sha256(framing).hexdigest()          # 64 ASCII hex chars
-    return base64.b64encode(hexd.encode()).decode()     # ASCII base64, null-free
-
+    return _shared_request_commitment_b64(cmd, expr, lo, hi)
 
 _RAT = r"-?(?:0|[1-9][0-9]*)(?:/[1-9][0-9]*)?"
 
@@ -141,33 +149,43 @@ def _operators_in_sexp(sexp: str) -> set[str]:
 
 
 def canonical_rat(tok: str) -> str:
-    """Canonicalize a decimal/rational input token to the engine's reduced ℚ
-    string, so the validator can bind cert.input to the request independently
-    of spelling (e.g. '2.0' and '2' and '4/2' all canonicalize to '2')."""
-    from fractions import Fraction
-    t = tok.strip()
+    """Delegate to the shared canonicalization (see `tools/formal_receipt.py`).
+
+    Wraps `ValueError` in `ReleaseRefusal("request-input-malformed", …)` so
+    the caller's refusal-class contract is preserved."""
     try:
-        fr = Fraction(t)
-    except (ValueError, ZeroDivisionError):
-        raise ReleaseRefusal("request-input-malformed", f"not a rational: {tok!r}")
-    if fr.denominator == 1:
-        return str(fr.numerator)
-    return f"{fr.numerator}/{fr.denominator}"
+        return _shared_canonical_rat(tok)
+    except ValueError as e:
+        raise ReleaseRefusal("request-input-malformed", f"not a rational: {tok!r}") from e
 
 
 def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: str,
                      expected_evaluator: str, expected_checker: str,
                      workdir: str | None = None, receipt_path: str | None = None,
+                     formal_receipt_path: str | None = None,
+                     plugin_sha256: str | None = None,
+                     release_epoch: str = "v1.2.0",
                      post_check_mutate=None) -> dict:
     """Run the full bound release pipeline. Returns a receipt dict on success;
     raises ReleaseRefusal (stable class) on any failure. `post_check_mutate` is
     an EXPLICIT test seam (a callable(cert_path) run once after checking) used
     only by the TOCTOU control; it is None in production and structurally
     unreachable there.
+
+    When `formal_receipt_path` is supplied, additionally writes the canonical
+    `jackal-formal-receipt-v1` JSON receipt (§7 of the mission brief) with
+    the certificate bytes EMBEDDED so an independent verifier can re-run the
+    proved checker without seeing the original cert file.  The receipt's
+    `identities.plugin_sha256` is populated from `plugin_sha256` when the
+    caller is the Hermes plugin (else `null`).
     """
-    # Gate 11 (pre): destroy any stale success receipt before we begin.
-    if receipt_path and os.path.exists(receipt_path):
-        os.remove(receipt_path)
+    # Gate 11 (pre): destroy any stale success receipt before we begin.  The
+    # `os.remove` line is the single-line target of ABA mutation M10 (stale-
+    # success reuse); disabling that line MUST cause the poison factory to
+    # find the pre-existing receipt file still on disk after the run fails.
+    for stale in (receipt_path, formal_receipt_path):
+        if stale and os.path.exists(stale):
+            os.remove(stale)  # GATE-M10-stale-cleanup
 
     # Gate 5/6 (pre): resolve + hash the exact executables we will invoke.
     eval_real = _resolve_executable(evaluator, "evaluator")
@@ -214,6 +232,13 @@ def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: st
     if receipt_path:
         with open(receipt_path, "w") as f:
             json.dump(receipt, f, sort_keys=True, indent=2)
+    if formal_receipt_path:
+        with open(cert_path, "rb") as f:
+            cert_bytes = f.read()
+        _emit_formal_receipt(
+            formal_receipt_path, receipt=receipt, cert_bytes=cert_bytes,
+            expr=expr, lo=lo, hi=hi, plugin_sha256=plugin_sha256,
+            release_epoch=release_epoch)
     return receipt
 
 
@@ -302,6 +327,63 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
     }
 
 
+
+def _emit_formal_receipt(path: str, *, receipt: dict, cert_bytes: bytes,
+                         expr: str, lo: str, hi: str,
+                         plugin_sha256: str | None,
+                         release_epoch: str) -> None:
+    """Emit the canonical `jackal-formal-receipt-v1` JSON receipt (§7).
+
+    Populates `identities.source_anb_sha256` from the repo's `jackal_calc.anb`
+    when it is discoverable next to this validator; None in the shipped
+    package layout (integrity is via SHA256SUMS there).
+    """
+    _here = os.path.dirname(os.path.abspath(__file__))
+    src_candidates = [
+        os.path.join(_here, "..", "jackal_calc.anb"),
+        os.path.join(_here, "jackal_calc.anb"),
+    ]
+    source_anb_sha256 = None
+    for cand in src_candidates:
+        if os.path.exists(cand):
+            source_anb_sha256 = sha256_file(os.path.realpath(cand))
+            break
+    # `admitted_operators` = the FULL live-verified FORMAL fragment (§Fragment).
+    # `coverage_row_ids` = the operators the accepted cert actually used.
+    # `unsupported_refused` = the fragment-adjacent operators that fail closed.
+    coverage = sorted(receipt["operators"])
+    admitted: list[str] = coverage[:]  # sensible fallback for the shipped-pkg no-inventory path
+    refused: list[str] = []
+    try:
+        sys.path.insert(0, os.path.join(_here, "..", "tools"))
+        sys.path.insert(0, _here)
+        import formal_status_gate as fsg  # noqa: E402
+        inv = fsg.load_inventory(verify_integrity=False)
+        admitted = sorted(fsg.formal_operators(inv))
+        refused = sorted(op for op, r in inv["by_op"].items() if r["verdict"] == "REFUSED")
+    except Exception:  # noqa: BLE001
+        pass
+    formal_receipt = build_formal_receipt(
+        release_epoch=release_epoch,
+        request={"command": COMMAND_ID, "expression": expr,
+                 "input_lo": lo, "input_hi": hi},
+        enclosure=(receipt["certified_enclosure"][0], receipt["certified_enclosure"][1]),
+        cert_bytes=cert_bytes,
+        evaluator_sha256=receipt["evaluator_sha256"],
+        checker_sha256=receipt["checker_sha256"],
+        source_anb_sha256=source_anb_sha256,
+        plugin_sha256=plugin_sha256,
+        admitted_operators=admitted,
+        coverage_row_ids=coverage,
+        unsupported_refused=refused,
+        canonical_lo=canonical_rat(lo),
+        canonical_hi=canonical_rat(hi),
+        request_commitment_b64=receipt["request_commitment"],
+        cert_status=receipt["cert_status"],
+    )
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(dump_receipt(formal_receipt))
+
 def validate_cert_file(*, cert_path: str, expr: str, lo: str, hi: str,
                        evaluator: str, checker: str,
                        expected_evaluator: str, expected_checker: str) -> dict:
@@ -337,6 +419,12 @@ def _cli() -> int:
     ap.add_argument("--expected-evaluator", required=True)
     ap.add_argument("--expected-checker", required=True)
     ap.add_argument("--receipt", default=None)
+    ap.add_argument("--formal-receipt", default=None,
+                    help="emit jackal-formal-receipt-v1 JSON (embedded cert; §7)")
+    ap.add_argument("--plugin-sha256", default=None,
+                    help="pin the Hermes plugin binary hash into the formal receipt")
+    ap.add_argument("--release-epoch", default="v1.2.0",
+                    help="release epoch label recorded in the formal receipt")
     ap.add_argument("--cert", default=None,
                     help="validate an EXISTING cert file (no emission); for controls")
     args = ap.parse_args()
@@ -352,7 +440,11 @@ def _cli() -> int:
                 expr=args.expr, lo=args.lo, hi=args.hi,
                 evaluator=args.evaluator, checker=args.checker,
                 expected_evaluator=args.expected_evaluator,
-                expected_checker=args.expected_checker, receipt_path=args.receipt)
+                expected_checker=args.expected_checker,
+                receipt_path=args.receipt,
+                formal_receipt_path=args.formal_receipt,
+                plugin_sha256=args.plugin_sha256,
+                release_epoch=args.release_epoch)
     except ReleaseRefusal as r:
         print(f"status=refused reason={r.cls} detail=\"{r.detail}\"", file=sys.stderr)
         return 1

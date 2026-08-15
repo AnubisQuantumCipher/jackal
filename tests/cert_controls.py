@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.0.4 EXECUTED negative-control roster (mission §334).
+"""JACKAL v1.2.0 executed negative-control roster.
 
 Every mandatory control is exercised against a REAL trust boundary — the
 Anubis evaluator (`range-bound-cert`), the Lean-proved checker
@@ -23,6 +23,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -114,9 +115,21 @@ def observed_reason(stderr: str) -> str:
 ROWS: list[dict] = []
 
 
+def stable_diagnostic(text: str) -> str:
+    """Remove runtime-only identifiers while preserving refusal semantics.
+
+    Rust panic diagnostics include a per-thread numeric id.  Recording that id
+    made the durable evidence and every package containing it change on each
+    otherwise identical run.  Normalize only that known volatile field.
+    """
+    return re.sub(r"(thread '<unnamed>' \()\d+(\) panicked at)", r"\1<TID>\2", text)
+
+
 def record(cid: str, layer_expected: str, invoked: str, argv_sanitized: str,
            exit_code: int, reason_observed: str, layer_observed: str,
            marker_expected: str, stderr: str) -> None:
+    stderr = stable_diagnostic(stderr)
+    reason_observed = stable_diagnostic(reason_observed)
     failed = (exit_code != 0 and layer_observed == layer_expected
               and (marker_expected == "" or marker_expected in reason_observed
                    or marker_expected in stderr))

@@ -999,6 +999,52 @@
         "test_calculator.py"
       ],
       "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "description": "Hermes plugin tool: emit a jackal-formal-receipt-v1 for a range-bound-cert request",
+      "evaluator_path": "plugin/hermes/server.py -> release_validate.validate_release -> jackal-native range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "as per operator rows",
+      "notes": "plugin bundle hash is pinned in release/MANIFEST.sha256 as plugin_hermes",
+      "operator": "jackal_range_bound",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "plugin_smoke.py",
+        "cert_mutations_11.py::M11"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "verified",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "description": "Hermes plugin tool: re-run the pinned checker over an embedded certificate",
+      "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_cert_check",
+      "kind": "plugin-tool",
+      "libm_assumption": "as per operator rows",
+      "notes": "verifier re-runs jackal_cert_check on embedded certificate bytes; outer digest alone is NOT sufficient",
+      "operator": "jackal_verify_receipt",
+      "parser_admission": true,
+      "plugin_tool": "jackal_verify_receipt",
+      "requested_assurance": "verified",
+      "runs_constructors": [],
+      "soundness_theorem": "cert_check_sound",
+      "tests": [
+        "plugin_smoke.py",
+        "cert_mutations_11.py::M2/M3/M4/M7/M9"
+      ],
+      "verdict": "FORMAL"
     }
   ],
   "schema": "jackal-coverage-inventory-v1"

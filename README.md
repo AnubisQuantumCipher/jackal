@@ -89,15 +89,40 @@ sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub re
 (Apple Silicon macOS), verify the release checksums and pinned identities, or build from
 source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Certified-release path (v1.1.1).** `jackal-cert-release "<expr in x>" <lo> <hi>` emits
-`status=bounded` **only** when the shared release validator (`tests/release_validate.py`)
+**Formal-release path (v1.2.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
+emits `status=formal-bounded` **only** when the shared
+release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
 evaluator and `jackal_cert_check` checker executable identities (pinned in
 `release/MANIFEST.sha256`, pre/post-hashed, TOCTOU-checked), the proved checker's ACCEPT, and no
 status escalation. Any break refuses with a stable class — never a bounded fallback. Checker
 *soundness* (an accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.1.1" for the receipts and preserved predecessor scars.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.2.0" for the receipts and preserved predecessor scars.
+
+**Formal receipt + Hermes plugin.** When the optional fourth path is supplied,
+the wrapper emits a canonical `jackal-formal-receipt-v1` JSON receipt with
+the certificate **embedded** (base64) and every field a downstream reverifier
+needs: exact canonical request, exact enclosure, evaluator/checker/plugin
+identities, theorem id `cert_check_sound`, Lean kernel axiom list, admitted
+operator set, coverage-row ids, assumptions, non-claims, and an outer
+`receipt_digest_sha256`. The independent verifier `tools/receipt_verify.py`
+re-hydrates the embedded certificate and **re-runs the pinned Lean-proved
+checker on this machine** — recomputing the outer digest alone is not
+sufficient. A Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) exposes
+two tools — `jackal_range_bound` and `jackal_verify_receipt` — that thread every
+call through the same shared validator, the same formal-status gate, the same
+pinned executables, and additionally bind the plugin's OWN bundle hash into the
+receipt via `identities.plugin_sha256`. The v1.2.0 eleven-category A→B→A
+mutation harness (`tests/cert_mutations_11.py`) proves that every trust-boundary
+gate — request/AST/enclosure/certificate/limits/formal-status/checker/
+evaluator/outer-digest/stale-success/plugin-bundle — is load-bearing: for each
+category the mutation harness disables one governing gate (still-compiling),
+the poison is admitted only under that disablement, and the exact pre-mutation
+bytes are restored hash-verified before A(post). See `release/evidence/` for
+the durable transcripts (`positive_corpus.jsonl`, `negative_controls.jsonl`,
+`plugin_smoke.jsonl`, `mutations_11.json`, `fail_closed_sweep.jsonl`, and
+`aba_mutations.json`).
 
 ## Build from source
 

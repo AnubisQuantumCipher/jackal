@@ -8,7 +8,79 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.1.1 — 2026-08-14 (current) — public package identity repair
+## Seal v1.2.0 — 2026-08-15 (current) — formal receipts + Hermes plugin + 11-category ABA
+
+Extends the sealed v1.1.1 evaluator, proved checker, theorem set, coverage
+inventory, and certificate schema with three new load-bearing surfaces —
+without weakening any earlier claim:
+
+1. **Formal-receipt schema (`jackal-formal-receipt-v1`).** The release wrapper
+   `jackal-cert-release`, the shared validator, and the Hermes plugin now emit
+   a canonical JSON receipt (`--formal-receipt PATH`) with the certificate
+   bytes **embedded** and every field a downstream reverifier needs: exact
+   canonical request, exact enclosure, evaluator/checker/plugin identities,
+   theorem id `cert_check_sound`, Lean kernel axiom list
+   (`Classical.choice`, `Quot.sound`, `propext`), admitted operator set,
+   coverage-row ids, model assumptions, non-claims, and an outer
+   `receipt_digest_sha256`. The load-bearing check is not the outer digest
+   alone: an independent verifier (`tools/receipt_verify.py`) rehydrates the
+   embedded certificate and RE-RUNS the pinned Lean-proved `jackal_cert_check`
+   binary on THIS machine before accepting.
+2. **Hermes plugin (`plugin/hermes/`).** A self-contained MCP-style tool
+   server exposes exactly two tools — `jackal_range_bound` (emit) and
+   `jackal_verify_receipt` (re-run the checker) — over three transports
+   (stdio JSON-RPC 2.0, one-shot call, HTTP). Every call threads through
+   the SAME shared validator, formal-status gate, coverage inventory, and
+   pinned evaluator/checker executables the CLI uses. The plugin's own
+   bundle hash is bound into the receipt (`identities.plugin_sha256`) and
+   verified at startup against the pinned `plugin_hermes` line in
+   `release/MANIFEST.sha256`. Failure classes are stable
+   (`plugin-bundle-mismatch`, `plugin-manifest-missing`,
+   `plugin-args-schema`, `plugin-operator-refused`, plus all validator /
+   verifier classes).
+3. **11-category A→B→A mutation harness (`tests/cert_mutations_11.py`).**
+   Extends the v1.0.4 M1/M2 harness to the full trust-boundary matrix from
+   the mission brief §9 — request/AST/enclosure/certificate/limits/
+   formal-status/checker-binary/evaluator-binary/outer-digest-recompute/
+   stale-success/plugin-binary. Each row proves the gate is load-bearing:
+   A(pre) refuses at the named layer, B disables ONE governing raise
+   (still compiling, still runnable) and the poison is admitted, A(post)
+   restores the exact pre-mutation bytes hash-verified and refuses again.
+
+### Source / build (byte-reproducible, unchanged from v1.1.1)
+- `jackal_calc.anb` SHA-256: `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40`
+- `jackal-native` SHA-256: `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c`
+- `jackal_cert_check` SHA-256: `2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b`
+- `plugin_hermes` bundle SHA-256: `daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf`
+- compiler pin `anubis-a733565f237d` (unchanged).
+- `jackal-v1.2.0-macos-arm64.tar.gz`: 39,929,946 bytes, SHA-256 `3b63e86bd9d2cffafa33dde813c40919cc754343db2232b1c33072a3ec41e0a7`; two consecutive builds were byte-identical.
+
+### Gate receipts (2026-08-15, all green vs this epoch)
+| Gate | Result |
+|---|---|
+| `lake build` | 8679 jobs; flagship theorems' axioms remain `[propext, Classical.choice, Quot.sound]` |
+| Positive corpus (`cert_positive_corpus.py`, full fragment) | 20/20 formal-bounded through the shared validator |
+| Formal receipt round-trip (v1.2.0) | receipt emitted + independent verifier ACCEPT via re-run of `jackal_cert_check` |
+| Hermes plugin smoke (`tests/plugin_smoke.py`) | 8 gate groups / 20 rows — bundle pin, fragment enforcement, verify round-trip, plugin-identity tamper refused, enclosure tamper refused, stdio transport correct |
+| 11-category ABA (`tests/cert_mutations_11.py`) | 11/11 — every gate RED-on-disable, hash-restored |
+| Negative controls (`cert_controls.py`) | 30/30 (unchanged; §Seal v1.1.0) |
+| Fail-closed sweep (`tests/fail_closed_sweep.py`) | 21/21 wrapper/plugin/verifier poisons refused; no `formal-*` leak |
+| Fresh-extraction package (`tests/package_smoke.py`) | package SHA256SUMS, formal-receipt reverify, bundled plugin, and refusal controls green with no repository fallback |
+
+### Claim boundary (v1.2.0)
+For every request in the certified fragment, `formal-bounded` is released
+ONLY when the shared validator confirms the whole bound chain AND the
+embedded certificate re-verifies through the pinned Lean-proved checker.
+The v1.2.0 additions add binding and re-verification plumbing; they do NOT
+widen the Lean-proved fragment (which is unchanged from v1.1.0: num, var,
+neg, add, sub, mul, div, integer pow (n≥0), sin, cos, abs, floor, ceil,
+round, trunc, min, max, named constants). All transcendental operators
+continue to fail closed. Runtime provenance is validator-enforced;
+checker soundness is Lean-proved; the outer receipt digest is a
+fingerprint, not a proof — re-running the checker is the load-bearing
+step.
+
+## Seal v1.1.1 — 2026-08-14 (formal-receipt predecessor) — public package identity repair
 
 Preserves the v1.1.0 formal-status code, evaluator, checker, theorem set, and
 certificate schema while moving the corrected public package labels into a new

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.3.0 formal-receipt independent verifier.
+"""JACKAL v1.4.1 formal-receipt independent verifier.
 
 Consumes a `jackal-formal-receipt-v1` JSON document and mechanically
 re-establishes every binding it claims — WITHOUT trusting the release

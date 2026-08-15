@@ -103,20 +103,35 @@ chmod +x "$PKG/sqrt_rat_producer.py"
 cat > "$PKG/jackal-sqrt-rat-release" <<'WRAP'
 #!/bin/sh
 # JACKAL v1.4.1 sqrt_rat pure-ℚ release gate (self-contained; NO libm TCB).
+# Producer + checker identities pinned to MANIFEST.sha256; TOCTOU stable.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 3 ] || { echo "usage: jackal-sqrt-rat-release \"sqrt(x)\" <lo> <hi>" >&2; exit 2; }
 EXPR="$1"; LO="$2"; HI="$3"
+EP=$(awk '$1=="sqrt_rat_producer" {print $NF}' "$HERE/MANIFEST.sha256")
+EC=$(awk '$1=="checker" {print $NF}' "$HERE/MANIFEST.sha256")
+[ -n "$EP" ] && [ -n "$EC" ] || { echo "status=unavailable reason=manifest-incomplete" >&2; exit 3; }
+PP=$(shasum -a 256 "$HERE/sqrt_rat_producer.py" | awk '{print $1}')
+CP=$(shasum -a 256 "$HERE/jackal_cert_check" | awk '{print $1}')
+[ "$PP" = "$EP" ] || { echo "status=refused reason=producer-identity detail=\"$PP != pinned $EP\"" >&2; exit 1; }
+[ "$CP" = "$EC" ] || { echo "status=refused reason=checker-identity detail=\"$CP != pinned $EC\"" >&2; exit 1; }
 CERT=$(mktemp)
 trap 'rm -f "$CERT"' EXIT
 python3 -I -S -B "$HERE/sqrt_rat_producer.py" emit \
   --expression "$EXPR" --lower "$LO" --upper "$HI" > "$CERT" 2>&1 || {
   err=$(head -1 "$CERT"); echo "status=refused reason=producer-refused detail=\"${err#REFUSE }\"" >&2; exit 1; }
-"$HERE/jackal_cert_check" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" || {
-  echo "status=refused reason=checker-rejected" >&2; exit 1; }
+PP2=$(shasum -a 256 "$HERE/sqrt_rat_producer.py" | awk '{print $1}')
+[ "$PP2" = "$PP" ] || { echo "status=refused reason=producer-toctou" >&2; exit 1; }
+OUT=$("$HERE/jackal_cert_check" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" 2>&1) || {
+  echo "status=refused reason=checker-rejected detail=\"$OUT\"" >&2; exit 1; }
+CP2=$(shasum -a 256 "$HERE/jackal_cert_check" | awk '{print $1}')
+[ "$CP2" = "$CP" ] || { echo "status=refused reason=checker-toctou" >&2; exit 1; }
 echo "status=formal-bounded"
 echo "cert-status=bounded"
 echo "assurance=proof-carrying-certificate(checker-accepted;sqrtRat-Runs-derivation;NO-libm-TCB)"
+echo "checker.ACCEPT=$OUT"
+echo "checker.sha256=$CP"
+echo "producer.sha256=$PP"
 WRAP
 chmod +x "$PKG/jackal-sqrt-rat-release"
 
@@ -125,21 +140,36 @@ chmod +x "$PKG/exp_rat_producer.py"
 cat > "$PKG/jackal-exp-rat-release" <<'WRAP'
 #!/bin/sh
 # JACKAL v1.4.1 exp_rat pure-ℚ release gate (self-contained; NO libm TCB).
+# Producer + checker identities pinned to MANIFEST.sha256; TOCTOU stable.
 # First libm-free transcendental beyond sqrt in the formal fragment.
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 3 ] || { echo "usage: jackal-exp-rat-release \"exp(x)\" <lo> <hi>" >&2; exit 2; }
 EXPR="$1"; LO="$2"; HI="$3"
+EP=$(awk '$1=="exp_rat_producer" {print $NF}' "$HERE/MANIFEST.sha256")
+EC=$(awk '$1=="checker" {print $NF}' "$HERE/MANIFEST.sha256")
+[ -n "$EP" ] && [ -n "$EC" ] || { echo "status=unavailable reason=manifest-incomplete" >&2; exit 3; }
+PP=$(shasum -a 256 "$HERE/exp_rat_producer.py" | awk '{print $1}')
+CP=$(shasum -a 256 "$HERE/jackal_cert_check" | awk '{print $1}')
+[ "$PP" = "$EP" ] || { echo "status=refused reason=producer-identity detail=\"$PP != pinned $EP\"" >&2; exit 1; }
+[ "$CP" = "$EC" ] || { echo "status=refused reason=checker-identity detail=\"$CP != pinned $EC\"" >&2; exit 1; }
 CERT=$(mktemp)
 trap 'rm -f "$CERT"' EXIT
 python3 -I -S -B "$HERE/exp_rat_producer.py" emit \
   --expression "$EXPR" --lower "$LO" --upper "$HI" > "$CERT" 2>&1 || {
   err=$(head -1 "$CERT"); echo "status=refused reason=producer-refused detail=\"${err#REFUSE }\"" >&2; exit 1; }
-"$HERE/jackal_cert_check" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" || {
-  echo "status=refused reason=checker-rejected" >&2; exit 1; }
+PP2=$(shasum -a 256 "$HERE/exp_rat_producer.py" | awk '{print $1}')
+[ "$PP2" = "$PP" ] || { echo "status=refused reason=producer-toctou" >&2; exit 1; }
+OUT=$("$HERE/jackal_cert_check" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" 2>&1) || {
+  echo "status=refused reason=checker-rejected detail=\"$OUT\"" >&2; exit 1; }
+CP2=$(shasum -a 256 "$HERE/jackal_cert_check" | awk '{print $1}')
+[ "$CP2" = "$CP" ] || { echo "status=refused reason=checker-toctou" >&2; exit 1; }
 echo "status=formal-bounded"
 echo "cert-status=bounded"
 echo "assurance=proof-carrying-certificate(checker-accepted;expRat-Runs-derivation;NO-libm-TCB)"
+echo "checker.ACCEPT=$OUT"
+echo "checker.sha256=$CP"
+echo "producer.sha256=$PP"
 WRAP
 chmod +x "$PKG/jackal-exp-rat-release"
 
@@ -166,6 +196,8 @@ GAUSSIAN_PROOF_FILE_ID=$(shasum -a 256 "$PKG/gaussian_proof_identity.json" | awk
 RANGE_PROOF_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/range_proof_identity.json")
 GAUSSIAN_PROOF_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/gaussian_proof_identity.json")
 COVERAGE_ID=$(shasum -a 256 "$PKG/formal_coverage_inventory.json" | awk '{print $1}')
+SQRT_RAT_PRODUCER_ID=$(shasum -a 256 "$PKG/sqrt_rat_producer.py" | awk '{print $1}')
+EXP_RAT_PRODUCER_ID=$(shasum -a 256 "$PKG/exp_rat_producer.py" | awk '{print $1}')
 
 cat > "$PKG/MANIFEST.sha256" <<EOF
 # JACKAL $VER package manifest — macOS arm64, schema v2, model jackal-iv-model-v1
@@ -184,8 +216,9 @@ range_proof_digest $RANGE_PROOF_ID
 gaussian_proof_identity gaussian_proof_identity.json $GAUSSIAN_PROOF_FILE_ID
 gaussian_proof_digest $GAUSSIAN_PROOF_ID
 coverage_inventory formal_coverage_inventory.json $COVERAGE_ID
+sqrt_rat_producer sqrt_rat_producer.py $SQRT_RAT_PRODUCER_ID
+exp_rat_producer exp_rat_producer.py $EXP_RAT_PRODUCER_ID
 EOF
-
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'
 JACKAL v1.4.1 — explicit non-claims
 - NOT universal correctness. The certified range fragment is exactly:

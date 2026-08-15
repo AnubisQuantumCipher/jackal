@@ -8,7 +8,112 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.4.1a — 2026-08-15 (current) — outer-seal drift closed
+## Seal v1.4.1b — 2026-08-15 (current) — self-audit closure
+
+Immediately after landing v1.4.1a I did a personal audit sweep and found
+the outer-seal work still had holes I hadn't caught.  Closing them here.
+
+### 🔴 Real functional gap: packaged plugin refused sqrt/exp
+
+The v1.4.1a plugin-server change added `_manifest_alias({"sqrt_rat_producer"}, ...)`
+and the analogous `exp_rat_producer` lookup, but `release/build_package.sh`
+never emitted those labels into the *packaged* `MANIFEST.sha256`.  Result:
+`plugin/hermes/jackal_hermes call jackal_sqrt_rat_bound …` on any
+fresh-extracted package refused with
+`{"reason": "plugin-manifest-incomplete", "detail": "sqrt_rat_producer: expected exactly one of ['sqrt_rat_producer'], got []"}`.
+The repo path worked (repo MANIFEST had the labels); the shipped path did
+not.  A user calling the plugin from the tarball would have been dead in
+the water.
+
+`build_package.sh` now hashes both producer files and emits
+`sqrt_rat_producer sqrt_rat_producer.py $SHA` and
+`exp_rat_producer exp_rat_producer.py $SHA` inside the MANIFEST heredoc.
+`tests/package_smoke.py` gained explicit `sqrt-rat-release-cli`,
+`exp-rat-release-cli`, `exp-rat-release-cli-refuse-neg`,
+`plugin-sqrt-rat`, and `plugin-exp-rat` cases so this regression class
+cannot land silently again.  Package smoke now runs 16 fresh-extraction
+cases (up from 11).
+
+### 🟡 Producer identities were unpinned in the release wrappers
+
+`jackal-sqrt-rat-release` and `jackal-exp-rat-release` (both repo top-level
+and packaged embeddings) previously invoked the producer directly with no
+identity check.  Every other formal lane (`jackal-cert-release`,
+`jackal-gaussian-release`, the plugin's `tool_range_bound` /
+`tool_sqrt_rat_bound` / `tool_exp_rat_bound`) hashes the executables
+before and after the call against `MANIFEST.sha256` pins.  Now the two
+standalone wrappers do the same: `producer-identity`, `producer-toctou`,
+`checker-identity`, `checker-toctou` are stable refusal classes here too.
+
+### 🟡 Coverage inventory missed the two new plugin tools
+
+`release/coverage/formal_coverage_inventory.json` had 4 plugin rows
+(`jackal_range_bound`, `jackal_gaussian_integral`, `jackal_verify_receipt:range`,
+`jackal_verify_receipt:gaussian`) but no rows for `jackal_sqrt_rat_bound` or
+`jackal_exp_rat_bound`.  The operator rows for `sqrt` and `exp` also still
+pointed `plugin_tool: jackal_range_bound`, which is wrong — that tool
+refuses sqrt/exp because it routes through the engine which does not emit
+sqrt_rat/exp_rat certs.  Added a `_OPERATOR_PLUGIN_TOOL` routing table so
+`sqrt` → `jackal_sqrt_rat_bound` and `exp` → `jackal_exp_rat_bound`, and
+two new `plugin-tool` rows describing the standalone-producer path.
+Inventory now 50 rows (26 FORMAL), was 48/24.
+
+### 🟡 GETTING-STARTED.md was entirely v1.3-era
+
+The user-facing quickstart never mentioned any formal-release CLI or the
+Hermes plugin.  A new user reading the guide could not discover the
+whole v1.4.x lane.  New §5b ("Proof-carrying releases — the
+formal-bounded lane") walks through all five release wrappers with
+concrete `awk`-driven `--expected-*` invocations; §5c documents the
+twelve-tool Hermes plugin surface with three worked examples.
+
+### 🔵 Cosmetic docstring drift (5 files)
+
+`tests/{cert_controls,cert_mutations_11,fail_closed_sweep}.py` +
+`tools/{formal_receipt,receipt_verify}.py` still opened with
+`"""JACKAL v1.3.0 …`.  All five now say `v1.4.1`.  Load-bearing
+`release_epoch="v1.3.0"` DEFAULTS in `release_validate.py` /
+`gaussian_release.py` / `receipt_verify.py` are intentionally left alone —
+they are the shared-API backward-compat default, and every v1.4.x
+wrapper and the plugin already override them explicitly to `v1.4.1`.
+
+### Deliberately deferred
+
+Extending `jackal-formal-receipt-v1` (or introducing a variant envelope)
+so `jackal_verify_receipt` can round-trip the `variant=sqrt_rat` /
+`variant=exp_rat` payloads.  That requires new schema, new codec passes,
+and re-doing `receipt_semantic_mutations.py` against the extended
+envelope.  Scoped for v1.4.2, not polish.
+
+### Frozen v1.4.1b identities
+
+```
+jackal-native                     820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c  (unchanged)
+jackal_cert_check                 b567b8a94ce7acd49ecaa807d86a5bb66d695fb0ce4fea2eb84f0073425984d7  (unchanged)
+jackal_gaussian_check             42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77  (unchanged)
+range_proof_identity              82376d501264a2aabe1cdce6a373f9c53f2bedf262a25494253131835d8bb2ae  (unchanged)
+gaussian_proof_identity           22c59e60b66a7fc6ef232e01fe64967285d36bb65e92847f9b42af721b36a54e  (unchanged)
+coverage_inventory                17890f7e001462eb1c38baedad5bcf1d977a55e1d0258d4ddf233ba1ac86b1dd  (v1.4.1a: 113828eb… → +2 plugin-tool rows)
+plugin_hermes                     fa5dc67098b80ef47977874b9636499b9f4b84fdb4fafaadc107a73c1fa6140d  (v1.4.1a: c613df47… → server.py hardened)
+sqrt_rat_producer                 4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926  (unchanged)
+exp_rat_producer                  ccbc48633bd3980613413399d552321eaa67b15bd101643e53b0dd5f10a37918  (unchanged)
+package tarball                   1da476ba5020376780598caa80d548893d94f86db23027e6e23d37e27a729581
+                                  (byte-reproducible across two rebuilds)
+```
+
+### Gate receipts on the v1.4.1b final bytes (16/16 + package smoke 16 cases)
+
+Lake build 8682 jobs · Range + Gaussian proof identity · Positive corpus 20/20 ·
+Negative controls 30/30 · A→B→A 2-mutation 2/2 · 11-category mutations 11/11 ·
+Formal-status gate 11/11 · sqrt_rat 7/7 · exp_rat 8/8 · Plugin smoke S1..S16
+(with S14/S15/S16 for the two new formal tools) · Plugin bundle identity 17 files ·
+output_path_safety 6/6 · receipt_semantic_mutations 24/24 · Gaussian receipt +
+mutations · Package smoke **16 cases** (up from 11) including new
+`sqrt-rat-release-cli`, `exp-rat-release-cli`, `exp-rat-release-cli-refuse-neg`,
+`plugin-sqrt-rat`, `plugin-exp-rat`.  Deterministic tarball across two
+consecutive rebuilds.
+
+## Seal v1.4.1a — 2026-08-15 (predecessor) — outer-seal drift closed
 
 A candid third-party audit against the v1.4.1 push flagged five outer-seal
 drifts where the plugin/wrapper/documentation surface had NOT caught up to

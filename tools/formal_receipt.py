@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.3.0 formal-bounded receipt — schema, emitter, and outer digest.
+"""JACKAL v1.4.1 formal-bounded receipt — schema, emitter, and outer digest.
 
 A "formal receipt" carries EVERY field a downstream reverifier needs to
 mechanically re-establish the release verdict without trusting anything

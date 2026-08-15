@@ -172,6 +172,95 @@ channel, so you'll see a runtime trace around the message. That is the
 fail-closed mechanism, not a crash — the named reason on stderr is the
 answer.
 
+## 5b. Proof-carrying releases — the formal-bounded lane
+
+Everything in §3 up through Tier 3 emits `status=bounded` under a stated
+f64/libm rounding model.  In v1.4.x JACKAL added a stricter lane that
+takes a request all the way through an untrusted producer and an
+**independently compiled Lean-proved checker** before it prints anything.
+The output is `status=formal-bounded`, and it is emitted ONLY when a
+shared validator confirms the exact request commitment, the exact
+evaluator + checker + producer identities (pinned in
+`release/MANIFEST.sha256`), the checker's `ACCEPT`, TOCTOU stability,
+and no status escalation.  Any break refuses with a stable class — never
+a bounded fallback.
+
+Five wrappers cover the current fragment:
+
+```bash
+# General range-bound on the arithmetic+trig+integer-pow fragment
+./jackal-cert-release "x^2+1" 1 2 receipt.json
+
+# Pure-ℚ sqrt (v1.4.0 fragment extension, NO libm on the proof path)
+./jackal-sqrt-rat-release "sqrt(x)" 2 3
+
+# Pure-ℚ exp on [lo, hi] with lo >= 0 (v1.4.1 fragment extension)
+./jackal-exp-rat-release "exp(x)" 0 1
+
+# Zero-libm Gaussian integral: exp(-A*(x-mu)^2) with A an exact rational square
+./jackal-gaussian-release \
+    'exp(-10000000000*(x-0.5000123456789)^2)' \
+    0 1 1/1000000000000 gaussian-receipt.json
+
+# Independent re-verification of an emitted receipt (re-runs the pinned checker)
+./jackal-receipt-verify --receipt receipt.json \
+    --checker ./proofs/lean/.lake/build/bin/jackal_cert_check \
+    --expected-evaluator "$(awk '/^evaluator /{print $3}' release/MANIFEST.sha256)" \
+    --expected-checker  "$(awk '/^checker /{print $NF}'   release/MANIFEST.sha256)" \
+    --expected-source   "$(awk '/^source /{print $NF}'    release/MANIFEST.sha256)" \
+    --expected-release-epoch v1.4.1 \
+    --expected-command range-bound-cert \
+    --expected-expression 'x^2+1' \
+    --expected-input-lo 1 --expected-input-hi 2 \
+    --proof-identity ./release/evidence/range_proof_identity.json \
+    --expected-proof-identity-file "$(awk '/^range-proof-identity /{print $NF}' release/MANIFEST.sha256)" \
+    --expected-proof-identity-digest "$(awk '/^range-proof-digest /{print $2}' release/MANIFEST.sha256)" \
+    --expected-inventory "$(awk '/^coverage-inventory /{print $NF}' release/MANIFEST.sha256)" \
+    --inventory ./release/coverage/formal_coverage_inventory.json
+```
+
+A `status=formal-bounded` output ships with `assurance=proof-carrying-certificate(checker-accepted;<Runs>-derivation;NO-libm-TCB)`
+and the pinned producer/checker SHA-256s the sealed receipt bound in.
+`jackal-receipt-verify` re-runs the checker on the embedded certificate
+bytes — recomputing the outer digest alone is **not** sufficient.
+
+The Lean theorems (`proofs/lean/JackalIv/`, `lake build`) each depend
+only on `[propext, Classical.choice, Quot.sound]`.  What is **not**
+covered by the theorem — source parsing, engine faithfulness, executable
+identity, release-wrapper correctness — is validator-enforced from the
+embedded certificate, tested end to end in
+`tests/cert_mutations_11.py` (11 categories) and
+`tests/receipt_semantic_mutations.py` (24 coordinated mutations).
+
+## 5c. The Hermes / MCP-style plugin
+
+The bundled `plugin/hermes/jackal_hermes` wraps the same five formal
+wrappers plus seven weaker-lane adapters as tools an MCP-speaking host
+can call over stdio JSON-RPC or a small HTTP wrapper.  A recomputed
+bundle hash MUST equal the pinned value in `release/MANIFEST.sha256`
+under `plugin_hermes` before the plugin accepts any request:
+
+```bash
+plugin/hermes/jackal_hermes call jackal_sqrt_rat_bound \
+    '{"expression":"sqrt(x)","input_lo":"2","input_hi":"3"}'
+
+plugin/hermes/jackal_hermes call jackal_exp_rat_bound \
+    '{"expression":"exp(x)","input_lo":"0","input_hi":"1"}'
+
+plugin/hermes/jackal_hermes call jackal_verify_receipt \
+    "$(< /tmp/formal-receipt.json)"
+```
+
+Twelve tools total: five proof-carrying (`jackal_range_bound`,
+`jackal_gaussian_integral`, `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`,
+`jackal_verify_receipt`) plus seven weaker-lane adapters (`jackal_exact`,
+`jackal_evaluate`, `jackal_diff`, `jackal_integrate`,
+`jackal_integrate_adaptive`, `jackal_integrate_bound`, `jackal_solve`)
+that thread through the same pinned engine and return the engine's
+honest inventory-derived class with `formal: false` — status inflation
+is structurally impossible.  See `plugin/hermes/README.md` for the full
+refusal-class table.
+
 ## 6. Claim cards — answers you can hand to someone else
 
 ```bash

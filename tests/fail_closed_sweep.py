@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.3.0 fail-closed sweep.
+"""JACKAL v1.4.1 fail-closed sweep.
 
 Confirms every load-bearing surface — the release wrapper, the Hermes plugin,
 and the independent receipt verifier — refuses with a stable class for every

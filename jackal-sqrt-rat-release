@@ -1,9 +1,12 @@
 #!/bin/sh
-# JACKAL v1.4.0 sqrt_rat fail-closed release wrapper.
+# JACKAL v1.4.1 sqrt_rat fail-closed release wrapper.
 #
 # Admits ONLY `sqrt(x)` on a canonical rational interval [lo, hi] and emits
 # a request-bound release ACCEPT from the pinned Lean-proved checker.
-# Every other expression refuses without downgrade.
+# The producer and checker binaries are pinned to their release/MANIFEST.sha256
+# SHA-256 values; identities are hashed before AND after invocation (TOCTOU
+# stable) exactly like every other formal lane. Any drift refuses fail-closed
+# with a stable class, never a bounded fallback.
 #
 # Usage: jackal-sqrt-rat-release "sqrt(x)" <lo> <hi>
 set -eu
@@ -11,6 +14,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PRODUCER="$ROOT/tools/sqrt_rat_producer.py"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
+MANIFEST="$ROOT/release/MANIFEST.sha256"
 
 if [ "$#" -ne 3 ]; then
     echo "usage: jackal-sqrt-rat-release \"sqrt(x)\" <lo> <hi>" >&2
@@ -18,6 +22,10 @@ if [ "$#" -ne 3 ]; then
 fi
 EXPR="$1"; LO="$2"; HI="$3"
 
+if [ ! -f "$MANIFEST" ]; then
+    echo "status=unavailable reason=manifest-missing path=$MANIFEST" >&2
+    exit 3
+fi
 if [ ! -x "$CHECKER" ]; then
     echo "status=unavailable reason=checker-missing path=$CHECKER" >&2
     exit 3
@@ -27,13 +35,37 @@ if [ ! -f "$PRODUCER" ]; then
     exit 3
 fi
 
+EXPECTED_PROD=$(awk '$1=="sqrt_rat_producer" {print $NF}' "$MANIFEST")
+EXPECTED_CHK=$(awk '$1=="checker" {print $NF}' "$MANIFEST")
+if [ -z "$EXPECTED_PROD" ] || [ -z "$EXPECTED_CHK" ]; then
+    echo "status=unavailable reason=manifest-incomplete detail=\"missing sqrt_rat_producer or checker pin\"" >&2
+    exit 3
+fi
+
+PROD_PRE=$(shasum -a 256 "$PRODUCER" | awk '{print $1}')
+CHK_PRE=$(shasum -a 256 "$CHECKER" | awk '{print $1}')
+if [ "$PROD_PRE" != "$EXPECTED_PROD" ]; then
+    echo "status=refused reason=producer-identity detail=\"$PROD_PRE != pinned $EXPECTED_PROD\"" >&2
+    exit 1
+fi
+if [ "$CHK_PRE" != "$EXPECTED_CHK" ]; then
+    echo "status=refused reason=checker-identity detail=\"$CHK_PRE != pinned $EXPECTED_CHK\"" >&2
+    exit 1
+fi
+
 TMPD=$(mktemp -d)
 trap 'rm -rf "$TMPD"' EXIT
 CERT="$TMPD/sqrt.cert"
 
-if ! python3 "$PRODUCER" emit --expression "$EXPR" --lower "$LO" --upper "$HI" > "$CERT" 2>&1; then
+if ! python3 -I -S -B "$PRODUCER" emit --expression "$EXPR" --lower "$LO" --upper "$HI" > "$CERT" 2>&1; then
     err=$(cat "$CERT" 2>/dev/null | head -1 || true)
     echo "status=refused reason=producer-refused detail=\"${err#REFUSE }\"" >&2
+    exit 1
+fi
+
+PROD_POST=$(shasum -a 256 "$PRODUCER" | awk '{print $1}')
+if [ "$PROD_POST" != "$PROD_PRE" ]; then
+    echo "status=refused reason=producer-toctou detail=\"producer bytes changed across call\"" >&2
     exit 1
 fi
 
@@ -41,9 +73,16 @@ OUT=$("$CHECKER" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" 2>&1) || {
     echo "status=refused reason=checker-rejected detail=\"$OUT\"" >&2
     exit 1
 }
+
+CHK_POST=$(shasum -a 256 "$CHECKER" | awk '{print $1}')
+if [ "$CHK_POST" != "$CHK_PRE" ]; then
+    echo "status=refused reason=checker-toctou detail=\"checker bytes changed across call\"" >&2
+    exit 1
+fi
+
 echo "status=formal-bounded"
 echo "cert-status=bounded"
 echo "assurance=proof-carrying-certificate(checker-accepted;sqrtRat-Runs-derivation;NO-libm-TCB)"
 echo "checker.ACCEPT=$OUT"
-echo "checker.sha256=$(shasum -a 256 "$CHECKER" | awk '{print $1}')"
-echo "producer.sha256=$(python3 "$PRODUCER" sha256)"
+echo "checker.sha256=$CHK_PRE"
+echo "producer.sha256=$PROD_PRE"

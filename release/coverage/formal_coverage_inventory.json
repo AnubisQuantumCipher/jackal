@@ -497,7 +497,7 @@
       "notes": "",
       "operator": "sqrt",
       "parser_admission": true,
-      "plugin_tool": "jackal_range_bound",
+      "plugin_tool": "jackal_sqrt_rat_bound",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [
         "sqrtRat"
@@ -523,7 +523,7 @@
       "notes": "",
       "operator": "exp",
       "parser_admission": true,
-      "plugin_tool": "jackal_range_bound",
+      "plugin_tool": "jackal_exp_rat_bound",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [
         "expRat"
@@ -1121,6 +1121,65 @@
       "tests": [
         "plugin_smoke.py",
         "package_smoke.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "sqrt_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(sqrt_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of sqrt(x) via the standalone Python producer + pinned checker; NO libm on the proof-decision path.  Admits ONLY the exact form 'sqrt(x)' on a canonical rational interval.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/sqrt_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sqrt_rat_producer and checker; payload is `variant=sqrt_rat` (NOT a jackal-formal-receipt-v1 envelope yet)",
+      "operator": "jackal_sqrt_rat_bound",
+      "parser_admission": "sqrt(x) only",
+      "plugin_tool": "jackal_sqrt_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "sqrtRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py::S14",
+        "package_smoke.py::sqrt-rat-release-cli",
+        "package_smoke.py::plugin-sqrt-rat",
+        "formal_sqrt_rat_release_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "exp_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(exp_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of exp(x) on [lo, hi] with lo >= 0 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (uses exact rational Taylor + certified remainder).  Admits ONLY the exact form 'exp(x)' on a canonical rational interval.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/exp_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as exp_rat_producer and checker; positive-argument branch only; payload is `variant=exp_rat` (NOT a jackal-formal-receipt-v1 envelope yet)",
+      "operator": "jackal_exp_rat_bound",
+      "parser_admission": "exp(x) only, lo >= 0",
+      "plugin_tool": "jackal_exp_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "expRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py::S15",
+        "plugin_smoke.py::S16",
+        "package_smoke.py::exp-rat-release-cli",
+        "package_smoke.py::plugin-exp-rat",
+        "formal_exp_rat_release_test.py"
       ],
       "verdict": "FORMAL"
     },

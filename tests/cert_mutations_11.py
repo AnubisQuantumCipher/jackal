@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.3.0 eleven-category A→B→A mutation harness.
+"""JACKAL v1.4.1 eleven-category A→B→A mutation harness.
 
 Extends the v1.0.4 two-mutation ABA (`tests/cert_aba_mutations.py`) to the
 full trust-boundary matrix defined by the mission brief (§9, the eleven

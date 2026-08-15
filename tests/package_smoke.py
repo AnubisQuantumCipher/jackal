@@ -48,6 +48,8 @@ def main() -> int:
     os.chmod(pkg / "jackal-native", 0o755)
     os.chmod(pkg / "jackal_cert_check", 0o755)
     os.chmod(pkg / "jackal_gaussian_check", 0o755)
+    os.chmod(pkg / "jackal-sqrt-rat-release", 0o755)
+    os.chmod(pkg / "jackal-exp-rat-release", 0o755)
 
     eval_id = sha(pkg / "jackal-native")
     chk_id = sha(pkg / "jackal_cert_check")
@@ -204,6 +206,54 @@ def main() -> int:
     if pc.returncode != 0 or '"status": "formal-bounded"' not in pc.stdout:
         fail(f"packaged plugin formal call failed: {pc.stdout}{pc.stderr}")
     results.append(("plugin-fresh-extraction", "formal-bounded", pc.stdout, pc.stderr))
+
+    # v1.4.x fragment-extension CLIs must work in the packaged, fresh-extracted
+    # layout — regressions here would be silent otherwise. The plugin variants
+    # exercise the same producer + checker pins via the plugin surface.
+    sqrt_cli = run([str(pkg / "jackal-sqrt-rat-release"), "sqrt(x)", "2", "3"],
+                    cwd=pkg)
+    if sqrt_cli.returncode != 0 or "status=formal-bounded" not in sqrt_cli.stdout:
+        fail(f"packaged jackal-sqrt-rat-release refused: "
+             f"{sqrt_cli.stdout}{sqrt_cli.stderr}")
+    results.append(("sqrt-rat-release-cli", "formal-bounded",
+                     sqrt_cli.stdout, sqrt_cli.stderr))
+
+    exp_cli = run([str(pkg / "jackal-exp-rat-release"), "exp(x)", "0", "1"],
+                   cwd=pkg)
+    if exp_cli.returncode != 0 or "status=formal-bounded" not in exp_cli.stdout:
+        fail(f"packaged jackal-exp-rat-release refused: "
+             f"{exp_cli.stdout}{exp_cli.stderr}")
+    results.append(("exp-rat-release-cli", "formal-bounded",
+                     exp_cli.stdout, exp_cli.stderr))
+
+    # Negative-lower must refuse fail-closed on the packaged exp wrapper.
+    exp_neg = run([str(pkg / "jackal-exp-rat-release"), "exp(x)", "-1", "1"],
+                   cwd=pkg)
+    if exp_neg.returncode == 0:
+        fail(f"packaged exp wrapper accepted negative lower: {exp_neg.stdout}")
+    results.append(("exp-rat-release-cli-refuse-neg", "refused",
+                     exp_neg.stdout, exp_neg.stderr))
+
+    # Plugin variants must round-trip through the packaged bundle too — this
+    # catches the class of drift where the packaged MANIFEST omits producer
+    # labels the plugin depends on (fixed in v1.4.1a).
+    plugin_sqrt = run([str(plugin), "call", "jackal_sqrt_rat_bound",
+                        '{"expression":"sqrt(x)","input_lo":"2","input_hi":"3"}'],
+                       cwd=pkg)
+    if plugin_sqrt.returncode != 0 or '"status": "formal-bounded"' not in plugin_sqrt.stdout:
+        fail(f"packaged plugin jackal_sqrt_rat_bound failed: "
+             f"{plugin_sqrt.stdout}{plugin_sqrt.stderr}")
+    results.append(("plugin-sqrt-rat", "formal-bounded",
+                     plugin_sqrt.stdout, plugin_sqrt.stderr))
+
+    plugin_exp = run([str(plugin), "call", "jackal_exp_rat_bound",
+                       '{"expression":"exp(x)","input_lo":"0","input_hi":"1"}'],
+                      cwd=pkg)
+    if plugin_exp.returncode != 0 or '"status": "formal-bounded"' not in plugin_exp.stdout:
+        fail(f"packaged plugin jackal_exp_rat_bound failed: "
+             f"{plugin_exp.stdout}{plugin_exp.stderr}")
+    results.append(("plugin-exp-rat", "formal-bounded",
+                     plugin_exp.stdout, plugin_exp.stderr))
 
     shutil.rmtree(tmp, ignore_errors=True)
     for name, verdict, _, _ in results:

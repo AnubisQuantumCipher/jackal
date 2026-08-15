@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""JACKAL v1.2.0 formal-bounded receipt — schema, emitter, and outer digest.
+"""JACKAL v1.3.0 formal-bounded receipt — schema, emitter, and outer digest.
 
 A "formal receipt" carries EVERY field a downstream reverifier needs to
 mechanically re-establish the release verdict without trusting anything
 except:
 
-  * the exact pinned checker executable identity (hash-pinned in the receipt);
-  * the Lean kernel that compiled it (theorem id + axioms recorded);
-  * the canonical rational codec (part of the checker binary).
+  * caller-supplied pins for the checker, producer/evaluator, proof identity,
+    coverage inventory, release epoch, and exact request;
+  * the Lean/kernel/compiler/OS/CPU TCB explicitly retained as assumptions;
+  * the canonical rational codec compiled into the checker binary.
 
 In particular the receipt embeds the certificate BYTES base64-encoded, so
 the independent verifier (`tools/receipt_verify.py`) can rehydrate them to
@@ -20,7 +21,7 @@ bytes, on this machine, at verify time.
 Schema fields (all mandatory; missing/null on a formal receipt = refuse):
 
   schema                   fixed string "jackal-formal-receipt-v1"
-  release_epoch            release version tag ("v1.2.0", …)
+  release_epoch            release version tag ("v1.3.0", …)
   emitted_at_unix          integer wall-clock seconds — informational
   request                  { command, expression, input_lo, input_hi,
                              canonical_lo, canonical_hi,
@@ -32,10 +33,12 @@ Schema fields (all mandatory; missing/null on a formal receipt = refuse):
                              bytes_b64, sha256 }
   identities               { evaluator_sha256, checker_sha256,
                              plugin_sha256|null, source_anb_sha256|null }
-  theorem                  { id: "cert_check_sound",
+  theorem                  { id: "request_bound_certified_release",
                              lean_kernel_axioms: [...] }
+  proof_identity           exact proof-source/toolchain/build binding
   fragment                 { admitted_operators, expression_operators,
-                             coverage_row_ids, unsupported_refused }
+                             coverage_row_ids, coverage_inventory_sha256,
+                             unsupported_refused }
   checker                  { verdict: "ACCEPT",
                              reverify_required: true }
   assumptions              [str, ...]    — model + toolchain TCB
@@ -43,29 +46,111 @@ Schema fields (all mandatory; missing/null on a formal receipt = refuse):
   receipt_digest_sha256    hex; SHA-256 of the canonical JSON of every
                            field EXCEPT this one (sort_keys, separators).
 
-`receipt_digest_sha256` is the outer canonical fingerprint referenced by
-the user request (§7).  It is a fingerprint over the receipt fields; it is
-NOT a proof by itself and NOT a substitute for re-running the checker.
+`receipt_digest_sha256` is an integrity fingerprint over the receipt fields.
+It is NOT a proof, a signature, freshness evidence, or a substitute for
+re-running the checker against caller-authorized external context.
 """
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
+import os
+import stat
+import tempfile
 import time
 from fractions import Fraction
+from pathlib import Path
 from typing import Any, Iterable
 
 SCHEMA = "jackal-formal-receipt-v1"
-THEOREM_ID = "cert_check_sound"
+THEOREM_ID = "request_bound_certified_release"
 GAUSSIAN_THEOREM_ID = "gaussian_integral_check_sound"
+
+
+def require_fresh_output(path: str | Path) -> Path:
+    """Resolve a caller output name without following its final component.
+
+    Formal-release output is write-once: an existing file, directory, or
+    symlink is never removed or overwritten.  The parent must already exist.
+    """
+    destination = Path(os.path.abspath(os.path.expanduser(os.fspath(path))))
+    if os.path.lexists(destination):
+        raise FileExistsError(os.fspath(destination))
+    if not destination.parent.is_dir():
+        raise FileNotFoundError(os.fspath(destination.parent))
+    return destination
+
+
+def _unlink_same_inode(path: Path, identity: os.stat_result) -> None:
+    """Best-effort cleanup without deleting a path that was swapped in."""
+    try:
+        observed = os.lstat(path)
+        if (observed.st_dev, observed.st_ino) == (identity.st_dev, identity.st_ino):
+            os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def write_new_file_atomic(path: str | Path, data: bytes, mode: int = 0o600) -> Path:
+    """Publish complete bytes atomically at a fresh path, never overwriting.
+
+    Bytes are fsynced in a same-directory temporary file, then published with
+    a hard-link operation that fails if the destination appeared concurrently.
+    """
+    destination = require_fresh_output(path)
+    fd, temporary_raw = tempfile.mkstemp(
+        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+    )
+    temporary = Path(temporary_raw)
+    temporary_identity: os.stat_result | None = None
+    destination_identity: os.stat_result | None = None
+    try:
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, "wb") as handle:
+            fd = -1
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary_identity = os.lstat(temporary)
+        if not stat.S_ISREG(temporary_identity.st_mode):
+            raise OSError("temporary receipt is not a regular file")
+        os.link(temporary, destination, follow_symlinks=False)
+        destination_identity = os.lstat(destination)
+        if (destination_identity.st_dev, destination_identity.st_ino) != \
+                (temporary_identity.st_dev, temporary_identity.st_ino):
+            raise OSError("published receipt inode mismatch")
+        _unlink_same_inode(temporary, temporary_identity)
+        directory_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        return destination
+    except Exception:
+        if fd >= 0:
+            os.close(fd)
+        if temporary_identity is None:
+            try:
+                temporary_identity = os.lstat(temporary)
+            except FileNotFoundError:
+                temporary_identity = None
+        if temporary_identity is not None:
+            _unlink_same_inode(temporary, temporary_identity)
+        if destination_identity is not None:
+            _unlink_same_inode(destination, destination_identity)
+        raise
+
+
 LEAN_KERNEL_AXIOMS = ["Classical.choice", "Quot.sound", "propext"]
 MODEL_ASSUMPTIONS = [
-    "IEEE-754 correctly rounded basic float ops (+, -, *, /)",
-    "libm calls within 2 ulp on the const_rounded lane (ModelTCB.const on pi/e/tau)",
-    "Lean 4 kernel + Mathlib toolchain that compiled jackal_cert_check",
-    "Canonical rational codec (Lean/Mathlib Rat) as reduced-lowest-terms num/den",
-    "The pinned evaluator and checker binaries executed as their hashes describe",
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "Formal range admission refuses every node with a nontrivial LibmModel obligation; ConstTCB remains an explicit declared-value premise for pi/e/tau",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned evaluator and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
 ]
 NON_CLAIMS = [
     "NOT universal correctness across all operators or expressions",
@@ -76,6 +161,7 @@ NON_CLAIMS = [
     "Source-to-native refinement (verified compilation of the Anubis lane) remains OPEN",
     "bound_step release composition (adaptive integration) remains OPEN",
     "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
 ]
 
 GAUSSIAN_ASSUMPTIONS = [
@@ -83,6 +169,8 @@ GAUSSIAN_ASSUMPTIONS = [
     "Mathlib's proved Gaussian integral and pi bounds used by gaussian_integral_check_sound",
     "Canonical exact-rational codec and decimal parser compiled into jackal_gaussian_check",
     "The pinned certificate producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
 ]
 GAUSSIAN_NON_CLAIMS = [
     "NOT universal correctness across all expressions or integration algorithms",
@@ -92,6 +180,13 @@ GAUSSIAN_NON_CLAIMS = [
     "SHA-256 identifies bytes; it does NOT authenticate an author",
     "The artifact is unsigned and has not received an independent external proof audit",
 ]
+
+PROOF_IDENTITY_BINDING_KEYS = {
+    "schema", "file_sha256", "identity_digest_sha256",
+    "source_closure_sha256", "checker_sha256", "lean_commit",
+    "lean_executable_sha256", "mathlib_commit",
+    "build_attestation_digest_sha256", "soundness_theorem", "authenticated",
+}
 
 
 def canonical_json_bytes(obj: Any) -> bytes:
@@ -104,6 +199,65 @@ def canonical_json_bytes(obj: Any) -> bytes:
 
 def sha256_hex(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
+
+
+def load_proof_identity_binding(path: str | Path) -> dict[str, Any]:
+    """Load and self-check one deterministic proof/build identity record.
+
+    This is a byte/digest binding, not authentication.  The independent
+    receipt verifier repeats these checks against a caller-supplied record.
+    """
+    identity_path = Path(path)
+    raw = identity_path.read_bytes()
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate proof identity key: {key}")
+            result[key] = value
+        return result
+    record = json.loads(raw, object_pairs_hook=reject_duplicates)
+    if not isinstance(record, dict):
+        raise ValueError("proof identity must be an object")
+    required = {
+        "schema", "identity_digest_sha256", "checker", "fragment",
+        "source_closure", "toolchain", "build_attestation",
+    }
+    if not required.issubset(record):
+        raise ValueError(f"proof identity missing fields: {sorted(required - set(record))}")
+    body = {key: value for key, value in record.items()
+            if key != "identity_digest_sha256"}
+    observed_identity = sha256_hex(canonical_json_bytes(body))
+    if record["identity_digest_sha256"] != observed_identity:
+        raise ValueError("proof identity self-digest mismatch")
+    attestation = record["build_attestation"]
+    if not isinstance(attestation, dict):
+        raise ValueError("proof build attestation must be an object")
+    attestation_body = {key: value for key, value in attestation.items()
+                        if key != "attestation_digest_sha256"}
+    observed_attestation = sha256_hex(canonical_json_bytes(attestation_body))
+    if attestation.get("attestation_digest_sha256") != observed_attestation:
+        raise ValueError("proof build-attestation self-digest mismatch")
+    authenticated = attestation.get("authentication", {}).get("authenticated")
+    if authenticated is not False:
+        raise ValueError("unsigned proof identity must record authenticated=false")
+    binding = {
+        "schema": record["schema"],
+        "file_sha256": sha256_hex(raw),
+        "identity_digest_sha256": record["identity_digest_sha256"],
+        "source_closure_sha256": record["source_closure"]["aggregate_sha256"],
+        "checker_sha256": record["checker"]["sha256"],
+        "lean_commit": record["toolchain"]["lean"]["commit"],
+        "lean_executable_sha256":
+            attestation["compiler_observed_for_build_platform"]["executable_sha256"],
+        "mathlib_commit": record["toolchain"]["mathlib_commit"],
+        "build_attestation_digest_sha256": attestation["attestation_digest_sha256"],
+        "soundness_theorem": record["fragment"]["soundness_theorem"],
+        "authenticated": False,
+    }
+    if set(binding) != PROOF_IDENTITY_BINDING_KEYS:
+        raise ValueError("internal proof identity binding schema mismatch")
+    return binding
 
 
 def canonical_rat(tok: str) -> str:
@@ -195,7 +349,10 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
     Header rows are `<key> <value>` up to the first `node …` or `end` row.
     """
     hdr: dict[str, str] = {}
-    text = cert_bytes.decode("utf-8", errors="replace")
+    try:
+        text = cert_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"certificate is not UTF-8: {exc}") from exc
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
@@ -207,6 +364,8 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
             continue
         parts = line.split(" ", 1)
         if len(parts) == 2:
+            if parts[0] in hdr:
+                raise ValueError(f"duplicate certificate header: {parts[0]}")
             hdr[parts[0]] = parts[1]
     return hdr
 
@@ -216,7 +375,9 @@ def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosu
                          source_anb_sha256: str | None, plugin_sha256: str | None,
                          admitted_operators: Iterable[str], coverage_row_ids: Iterable[str],
                          unsupported_refused: Iterable[str], canonical_lo: str, canonical_hi: str,
-                         request_commitment_b64: str, cert_status: str = "bounded",
+                         request_commitment_b64: str, coverage_inventory_sha256: str,
+                         proof_identity: dict[str, Any],
+                         cert_status: str = "bounded",
                          emitted_at_unix: int | None = None) -> dict[str, Any]:
     """Assemble a formal-bounded receipt and compute its outer digest.
 
@@ -266,10 +427,12 @@ def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosu
             "id": THEOREM_ID,
             "lean_kernel_axioms": sorted(set(LEAN_KERNEL_AXIOMS)),
         },
+        "proof_identity": proof_identity,
         "fragment": {
             "admitted_operators": admitted,
             "expression_operators": sorted(expr_ops),
             "coverage_row_ids": sorted(set(coverage_row_ids)),
+            "coverage_inventory_sha256": coverage_inventory_sha256,
             "unsupported_refused": refused,
         },
         "checker": {
@@ -289,6 +452,8 @@ def build_gaussian_formal_receipt(*, release_epoch: str, request: dict[str, str]
                                   canonical_lo: str, canonical_hi: str,
                                   canonical_tolerance: str,
                                   request_commitment_b64: str,
+                                  coverage_inventory_sha256: str,
+                                  proof_identity: dict[str, Any],
                                   plugin_sha256: str | None = None,
                                   emitted_at_unix: int | None = None) -> dict[str, Any]:
     """Assemble the theorem-backed Gaussian variant of jackal-formal-receipt-v1."""
@@ -333,10 +498,12 @@ def build_gaussian_formal_receipt(*, release_epoch: str, request: dict[str, str]
             "id": GAUSSIAN_THEOREM_ID,
             "lean_kernel_axioms": sorted(set(LEAN_KERNEL_AXIOMS)),
         },
+        "proof_identity": proof_identity,
         "fragment": {
             "admitted_operators": ["exp", "mul", "neg", "pow2", "sub"],
             "expression_operators": ["exp", "mul", "neg", "pow2", "sub"],
             "coverage_row_ids": ["gaussian-exp-square-integral-v1"],
+            "coverage_inventory_sha256": coverage_inventory_sha256,
             "unsupported_refused": ["all expressions outside gaussian-exp-square-v1"],
         },
         "checker": {"verdict": "ACCEPT", "reverify_required": True},

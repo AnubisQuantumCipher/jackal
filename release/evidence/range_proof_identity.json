@@ -1,0 +1,511 @@
+{
+  "build_attestation": {
+    "attestation_digest_sha256": "5112888df95cd0ceb8c18fc328ab1a0c0c032d0a19004f6cb7a4c0e8eaaf603f",
+    "authentication": {
+      "authenticated": false,
+      "scheme": "none",
+      "statement": "This deterministic record binds observed checker bytes to named inputs. It is not a signature and does not authenticate the builder or artifact."
+    },
+    "build_command": [
+      "lake",
+      "build",
+      "jackal_cert_check"
+    ],
+    "checker": {
+      "bytes": 137936736,
+      "path": "proofs/lean/.lake/build/bin/jackal_cert_check",
+      "sha256": "2e2b82d85fab1c5351d2d1ce1c8d591fb12249f2575c791eb94b9546224d6011",
+      "target": "jackal_cert_check"
+    },
+    "claim_boundary": "This is reproducibility/build-provenance evidence, not a proof of compiler, linker, operating-system, hardware, or supply-chain correctness.",
+    "compiler_observed_for_build_platform": {
+      "build": "Release",
+      "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "executable_bytes": 49968,
+      "executable_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "target": "arm64-apple-darwin24.6.0",
+      "version": "4.32.0"
+    },
+    "inputs": {
+      "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
+      "source_closure_sha256": "05743660a863a1ef5a9c62caec7c732027a04327eb3ac835f5df4d990cb0695c",
+      "toolchain_configuration": [
+        {
+          "path": "proofs/lean/lakefile.toml",
+          "sha256": "120154bcb1b2a72e2f69ebd8390a5ef5882ccb13f901675555236b235476fc8a"
+        },
+        {
+          "path": "proofs/lean/lake-manifest.json",
+          "sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4"
+        },
+        {
+          "path": "proofs/lean/lean-toolchain",
+          "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e"
+        }
+      ]
+    },
+    "kind": "unsigned-local-build-binding-v1",
+    "working_directory": "proofs/lean"
+  },
+  "checker": {
+    "bytes": 137936736,
+    "path": "proofs/lean/.lake/build/bin/jackal_cert_check",
+    "sha256": "2e2b82d85fab1c5351d2d1ce1c8d591fb12249f2575c791eb94b9546224d6011",
+    "target": "jackal_cert_check"
+  },
+  "fragment": {
+    "assurance": "formal-bounded",
+    "certificate_magic": "jackal-eval-cert v2",
+    "checker_boolean_definition": "JackalIv.Cert.checkCert",
+    "checker_entrypoint_definition": "runRequestBound",
+    "checker_executable": "jackal_cert_check",
+    "family": "range-request-bound-v1",
+    "lane": "range",
+    "parser_definition": "JackalIv.Cert.parseCert",
+    "premises_not_discharged_by_checker": [
+      "ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+      "input interval ordering ((input_lo : ℚ) : ℝ) ≤ (input_hi : ℚ) : ℝ"
+    ],
+    "request_matcher_definition": "JackalIv.Cert.requestMatches",
+    "runtime_alternate_implementation_boundary": "request acceptance uses no implemented_by definition; two exact dump-only implemented_by attributes elsewhere in the imported closure are pinned",
+    "soundness_theorem": "JackalIv.Cert.request_bound_certified_release",
+    "theorem_premises": [
+      "requestMatches command rawExpr rawLo rawHi hdr nodes = true (runtime checked)",
+      "checkCert hdr nodes = true (runtime checked)",
+      "ModelTCB hdr nodes",
+      "((hdr.input_lo : ℚ) : ℝ) ≤ ((hdr.input_hi : ℚ) : ℝ)"
+    ]
+  },
+  "generator": {
+    "path": "release/tools/gaussian_proof_identity.py",
+    "sha256": "d6142c21aeb27fb1f7a215b7d2c8629316ebd17740875ffd7593a09efdf69847"
+  },
+  "identity_digest_sha256": "2303f86a87b31b5f7ca5cdc9d25a1d6362acfc1fa8769dd60fe7dcd73e7faa7d",
+  "proof": {
+    "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
+    "axiom_policy": {
+      "allowed_exactly": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "forbidden": [
+        "sorryAx",
+        "any additional axiom"
+      ]
+    },
+    "theorems": [
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Cert.request_bound_certified_release"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Cert.requestMatches_true"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Cert.lowerRaw_toExpr"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Cert.rawExprOf_toExpr"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Cert.cert_check_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.parse_lower_encloses"
+      }
+    ]
+  },
+  "schema": "jackal-range-proof-identity-v1",
+  "source_closure": {
+    "aggregate_sha256": "05743660a863a1ef5a9c62caec7c732027a04327eb3ac835f5df4d990cb0695c",
+    "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
+    "external_imports": [
+      "Mathlib"
+    ],
+    "files": [
+      {
+        "bytes": 11165,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Arith",
+        "path": "proofs/lean/JackalIv/Arith.lean",
+        "sha256": "2bc091be9dd47acae8d4b8af7b272827a3cea7b5ec08773566ad8fe40a12bf83"
+      },
+      {
+        "bytes": 22383,
+        "imports": [
+          "JackalIv.CertTypes"
+        ],
+        "module": "JackalIv.CertCheck",
+        "path": "proofs/lean/JackalIv/CertCheck.lean",
+        "sha256": "f4cc32b7c8e7faa11df8d8be174eaddd924dd23d2e239b45edebab4ce1e03184"
+      },
+      {
+        "bytes": 3753,
+        "imports": [
+          "JackalIv.CertRequest"
+        ],
+        "module": "JackalIv.CertCheckMain",
+        "path": "proofs/lean/JackalIv/CertCheckMain.lean",
+        "sha256": "433ef0b15add892020e57932fad5c0b9c376273b132bb94bb293d262ca2a7a8e"
+      },
+      {
+        "bytes": 54198,
+        "imports": [
+          "JackalIv.CertCheck"
+        ],
+        "module": "JackalIv.CertCodec",
+        "path": "proofs/lean/JackalIv/CertCodec.lean",
+        "sha256": "b1fd421e58112e05437f7bd085d079e57b288e326bc817b13460e044be959f1f"
+      },
+      {
+        "bytes": 26714,
+        "imports": [
+          "JackalIv.CertCodec",
+          "JackalIv.CertSound",
+          "JackalIv.Correspondence"
+        ],
+        "module": "JackalIv.CertRequest",
+        "path": "proofs/lean/JackalIv/CertRequest.lean",
+        "sha256": "c9d75ae454e0b5b432f76ce19290fc57e93c102de3015fa990dec1103275254b"
+      },
+      {
+        "bytes": 46014,
+        "imports": [
+          "JackalIv.CertCheck",
+          "JackalIv.Embed"
+        ],
+        "module": "JackalIv.CertSound",
+        "path": "proofs/lean/JackalIv/CertSound.lean",
+        "sha256": "e33dba8883c66e8c4ab1e8e3f410c5abcc24070a020a2706de333c62d84aec63"
+      },
+      {
+        "bytes": 15588,
+        "imports": [
+          "JackalIv.Syntax"
+        ],
+        "module": "JackalIv.CertTypes",
+        "path": "proofs/lean/JackalIv/CertTypes.lean",
+        "sha256": "432cfbfce919ca4e8dfaacf53d03ef5d0a8ff9a4f95f9821ed3679e9478360d7"
+      },
+      {
+        "bytes": 6139,
+        "imports": [
+          "JackalIv.Parser",
+          "JackalIv.Lower",
+          "JackalIv.Dump",
+          "JackalIv.Embed"
+        ],
+        "module": "JackalIv.Correspondence",
+        "path": "proofs/lean/JackalIv/Correspondence.lean",
+        "sha256": "2b4acd4c904c8069f65a230eabf5bd1cacc0c73d077df650bbf12a24c12b18f3"
+      },
+      {
+        "bytes": 12026,
+        "imports": [
+          "JackalIv.Parser"
+        ],
+        "module": "JackalIv.Dump",
+        "path": "proofs/lean/JackalIv/Dump.lean",
+        "sha256": "3baba94104288e5783c763723f9582a25db40131849a41e743669cfac8445495"
+      },
+      {
+        "bytes": 26883,
+        "imports": [
+          "JackalIv.Syntax"
+        ],
+        "module": "JackalIv.Embed",
+        "path": "proofs/lean/JackalIv/Embed.lean",
+        "sha256": "87103e956e1fcc0a387548ec77aa221a58f36d03c2b17cec4cd66753e83dcfe0"
+      },
+      {
+        "bytes": 17004,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad",
+          "JackalIv.Arith",
+          "JackalIv.Monotone",
+          "JackalIv.Pow"
+        ],
+        "module": "JackalIv.Exact",
+        "path": "proofs/lean/JackalIv/Exact.lean",
+        "sha256": "a4c0f493b0d69b1a9756205d7b61f5852bde225a5fe532140ec178b97576ce28"
+      },
+      {
+        "bytes": 17818,
+        "imports": [
+          "JackalIv.Syntax"
+        ],
+        "module": "JackalIv.Lower",
+        "path": "proofs/lean/JackalIv/Lower.lean",
+        "sha256": "32d7f453bee0ddc1999b2693f8bb9bdb9706976172e29a120e23aa118409d9f2"
+      },
+      {
+        "bytes": 3704,
+        "imports": [
+          "Mathlib"
+        ],
+        "module": "JackalIv.Model",
+        "path": "proofs/lean/JackalIv/Model.lean",
+        "sha256": "81b13207259c86ccd816cf3d93dd70f11cc042722f2b42320b61ec7a301cb306"
+      },
+      {
+        "bytes": 6837,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Monotone",
+        "path": "proofs/lean/JackalIv/Monotone.lean",
+        "sha256": "87f262d6f0fb7d60b7ea1fdc716c95625c6131830aee0e2d5a45d62397533a8e"
+      },
+      {
+        "bytes": 4695,
+        "imports": [
+          "JackalIv.Model"
+        ],
+        "module": "JackalIv.Pad",
+        "path": "proofs/lean/JackalIv/Pad.lean",
+        "sha256": "82cce18646e2522695fec7c68796f9a60a85abc20b6bfe1c45dac8070578c5d1"
+      },
+      {
+        "bytes": 23310,
+        "imports": [
+          "JackalIv.Syntax"
+        ],
+        "module": "JackalIv.Parser",
+        "path": "proofs/lean/JackalIv/Parser.lean",
+        "sha256": "fe5d803c7af09e36d1543517921af618351390f49ebbb46f0ecc1f79b2a86cc3"
+      },
+      {
+        "bytes": 11388,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad",
+          "JackalIv.Arith"
+        ],
+        "module": "JackalIv.Pow",
+        "path": "proofs/lean/JackalIv/Pow.lean",
+        "sha256": "0d80581069c3934274ca4992c6c07867e10821c8fedc43ec6c6fedd6e0971332"
+      },
+      {
+        "bytes": 17044,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad",
+          "JackalIv.Arith",
+          "JackalIv.Monotone",
+          "JackalIv.Exact",
+          "JackalIv.Pow",
+          "JackalIv.Trig"
+        ],
+        "module": "JackalIv.Syntax",
+        "path": "proofs/lean/JackalIv/Syntax.lean",
+        "sha256": "552bf222b26a615b779a5f0c8abf44beb258609551b158ee3141729dedcf7651"
+      },
+      {
+        "bytes": 24529,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Trig",
+        "path": "proofs/lean/JackalIv/Trig.lean",
+        "sha256": "c65e6db19679c0081d833d4a15cf9d46b4f73e395ed7564505fc0c2e586078d4"
+      }
+    ],
+    "local_construct_policy": {
+      "allowed_exact_source_lines": [
+        {
+          "construct": "implemented_by",
+          "path": "proofs/lean/JackalIv/Correspondence.lean",
+          "source_lines": [
+            "@[implemented_by Dump.parseSexpImpl]",
+            "@[implemented_by Dump.lowerSexpImpl]"
+          ]
+        }
+      ],
+      "forbidden_by_default": [
+        "admit",
+        "axiom_declaration",
+        "extern",
+        "implemented_by",
+        "native_decide",
+        "partial",
+        "sorry",
+        "unsafe"
+      ]
+    },
+    "root_modules": [
+      "JackalIv.CertCheckMain"
+    ]
+  },
+  "toolchain": {
+    "configuration_files": [
+      {
+        "path": "proofs/lean/lakefile.toml",
+        "sha256": "120154bcb1b2a72e2f69ebd8390a5ef5882ccb13f901675555236b235476fc8a"
+      },
+      {
+        "path": "proofs/lean/lake-manifest.json",
+        "sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4"
+      },
+      {
+        "path": "proofs/lean/lean-toolchain",
+        "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e"
+      }
+    ],
+    "lake_version": "Lake version 5.0.0-src+8c9756b (Lean version 4.32.0)",
+    "lean": {
+      "build": "Release",
+      "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "version": "4.32.0"
+    },
+    "lean_toolchain": "leanprover/lean4:v4.32.0",
+    "manifest_packages": [
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "v4.32.0",
+        "manifest_file": "lake-manifest.json",
+        "name": "Cli",
+        "revision": "88679d088c9720c27ebdf2ba4dafe17341747f94",
+        "scope": "leanprover",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover/lean4-cli"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "LeanSearchClient",
+        "revision": "c5d5b8fe6e5158def25cd28eb94e4141ad97c843",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/LeanSearchClient"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "master",
+        "manifest_file": "lake-manifest.json",
+        "name": "Qq",
+        "revision": "38d591e778f100aec9762bb582f9c7f55f50e9dc",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/quote4"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "master",
+        "manifest_file": "lake-manifest.json",
+        "name": "aesop",
+        "revision": "a7dbf0c63b694e47f425f3dcddbc0e178bb432d3",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/aesop"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "batteries",
+        "revision": "023ce7d62a0531e22a5331e20b587817a80d49ff",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/batteries"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "importGraph",
+        "revision": "7e9612bf0b9ee66db3cb5b9988a35afc706f5a12",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/import-graph"
+      },
+      {
+        "config_file": "lakefile.lean",
+        "inherited": false,
+        "input_revision": "v4.32.0",
+        "manifest_file": "lake-manifest.json",
+        "name": "mathlib",
+        "revision": "81a5d257c8e410db227a6665ed08f64fea08e997",
+        "scope": "",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/mathlib4"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "plausible",
+        "revision": "e12c1910fe855cbfc38803cd4e55543906d5fa62",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/plausible"
+      },
+      {
+        "config_file": "lakefile.lean",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "proofwidgets",
+        "revision": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/ProofWidgets4"
+      }
+    ],
+    "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
+    "package_checkout_policy": "Every git package checkout is clean and its HEAD equals its full lake-manifest revision during generation and verification."
+  }
+}

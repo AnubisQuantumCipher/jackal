@@ -36,6 +36,7 @@ else:
     INVENTORY = _HERE / "formal_coverage_inventory.json"
 
 FORMAL_STATUSES = {"formal-exact", "formal-bounded"}
+INVENTORY_FIELDS = {"schema", "formal_fragment", "refused_from_formal", "rows"}
 
 
 class StatusRefusal(Exception):
@@ -45,13 +46,40 @@ class StatusRefusal(Exception):
         self.detail = detail
 
 
+def _reject_duplicate_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
 def load_inventory(path: Path | None = None, verify_integrity: bool = True) -> dict:
     p = path or INVENTORY
-    doc = json.loads(p.read_text())
+    try:
+        doc = json.loads(
+            p.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_json_constant,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise StatusRefusal("inventory-unreadable", str(exc)) from exc
+    if not isinstance(doc, dict) or set(doc) != INVENTORY_FIELDS:
+        keys = sorted(doc) if isinstance(doc, dict) else type(doc).__name__
+        raise StatusRefusal("inventory-fields", str(keys))
     if doc.get("schema") != "jackal-coverage-inventory-v1":
         raise StatusRefusal("inventory-schema", doc.get("schema", "?"))
+    if not isinstance(doc.get("rows"), list) or not doc["rows"]:
+        raise StatusRefusal("inventory-rows", "empty/malformed")
     by_op: dict[str, dict] = {}
     for r in doc["rows"]:
+        if not isinstance(r, dict) or not isinstance(r.get("operator"), str):
+            raise StatusRefusal("inventory-row", str(r))
         key = r["operator"]
         if key in by_op:
             raise StatusRefusal("inventory-duplicate-row", key)
@@ -68,7 +96,8 @@ def load_inventory(path: Path | None = None, verify_integrity: bool = True) -> d
         # SHA256SUMS verified on extraction, so recompute is skipped and the
         # hash seal is the integrity control. This is the honest split, stated
         # in the release non-claims.
-        sys.path.insert(0, str(_HERE))
+        if "coverage_inventory" not in sys.modules:
+            sys.path.insert(0, str(_HERE))
         ci = None
         try:
             import coverage_inventory as ci
@@ -135,6 +164,9 @@ def derive_status(*, operator: str, requested: str, checker_accepted: bool,
     # a weaker lane may NEVER be upgraded to formal here.
     if requested in FORMAL_STATUSES:  # unreachable, defensive
         raise StatusRefusal("weak-upgrade", operator)
+    if requested != row["allowed_status"]:
+        raise StatusRefusal("status-mismatch",
+                            f"requested {requested} != allowed {row['allowed_status']}")
     return requested
 
 
@@ -161,7 +193,7 @@ def _selftest() -> int:
             n_ok += ok; n_bad += (not ok)
 
     base = dict(checker_accepted=True, certificate_sha256="a" * 64,
-                theorem_id="cert_check_sound", request_bound=True)
+                theorem_id="request_bound_certified_release", request_bound=True)
     expect_ok(operator="add", requested="formal-bounded", **base)
     expect_ok(operator="sin", requested="formal-bounded", **base)
     expect_refuse("not-in-formal-fragment", operator="sqrt", requested="formal-bounded", **base)
@@ -176,6 +208,7 @@ def _selftest() -> int:
                   **{**base, "request_bound": False})
     # weaker lanes keep their class, never upgraded
     expect_ok(operator="eval", requested="estimated", **base)
+    expect_refuse("status-mismatch", operator="eval", requested="exact", **base)
     print(f"selftest ok={n_ok} bad={n_bad}")
     return 0 if n_bad == 0 else 1
 

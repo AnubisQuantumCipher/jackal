@@ -1,0 +1,38 @@
+#!/bin/sh
+# Fail-closed root wrapper for theorem-backed Gaussian integration.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+MANIFEST="$ROOT/release/MANIFEST.sha256"
+PRODUCER="$ROOT/tools/gaussian_certificate.py"
+CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
+
+if [ "$#" -lt 5 ] || [ "$#" -gt 6 ]; then
+  echo "usage: jackal-gaussian-release '<canonical exp(-A*(x-mu)^2)>' <lower> <upper> <tolerance> <formal-receipt.json> [timeout-seconds]" >&2
+  exit 64
+fi
+if [ ! -f "$MANIFEST" ]; then
+  echo "formal-release-refused:manifest-missing" >&2
+  exit 101
+fi
+EXPECTED_PRODUCER=$(awk '$1=="gaussian-producer" {print $3}' "$MANIFEST")
+EXPECTED_CHECKER=$(awk '$1=="gaussian-checker" {print $3}' "$MANIFEST")
+EXPECTED_INVENTORY=$(awk '$1=="coverage-inventory" {print $3}' "$MANIFEST")
+EXPECTED_PROOF_FILE=$(awk '$1=="gaussian-proof-identity" {print $3}' "$MANIFEST")
+EXPECTED_PROOF_DIGEST=$(awk '$1=="gaussian-proof-digest" {print $2}' "$MANIFEST")
+if [ -z "$EXPECTED_PRODUCER" ] || [ -z "$EXPECTED_CHECKER" ] || \
+   [ -z "$EXPECTED_INVENTORY" ] || [ -z "$EXPECTED_PROOF_FILE" ] || \
+   [ -z "$EXPECTED_PROOF_DIGEST" ]; then
+  echo "formal-release-refused:manifest-incomplete" >&2
+  exit 101
+fi
+TIMEOUT=${6:-180}
+exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" gaussian \
+  --expression "$1" --lower "$2" --upper "$3" --tolerance "$4" \
+  --producer "$PRODUCER" --checker "$CHECKER" \
+  --expected-producer "$EXPECTED_PRODUCER" --expected-checker "$EXPECTED_CHECKER" \
+  --inventory "$ROOT/release/coverage/formal_coverage_inventory.json" \
+  --expected-inventory "$EXPECTED_INVENTORY" \
+  --proof-identity "$ROOT/release/evidence/gaussian_proof_identity.json" \
+  --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
+  --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
+  --receipt "$5" --release-epoch v1.3.0 --timeout "$TIMEOUT"

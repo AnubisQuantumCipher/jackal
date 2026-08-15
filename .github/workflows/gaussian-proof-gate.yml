@@ -1,0 +1,37 @@
+name: Formal proof identity gate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lean-proof-and-axioms:
+    name: Gaussian/range source closures and axiom audits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install pinned Lean toolchain and build formal checkers
+        uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1
+        with:
+          lake-package-directory: proofs/lean
+          auto-config: false
+          build: true
+          build-args: jackal_gaussian_check jackal_cert_check
+          test: false
+
+      - name: Verify proof identities and exact theorem axiom sets
+        run: |
+          python3 release/tools/gaussian_proof_identity.py check --lane gaussian --proof-only
+          python3 release/tools/gaussian_proof_identity.py check --lane range --proof-only
+
+      # The committed checker hashes are for the recorded macOS/arm64 builds.
+      # A release seal must additionally run the full, platform-matching gate:
+      # python3 release/tools/gaussian_proof_identity.py check --lane gaussian
+      # python3 release/tools/gaussian_proof_identity.py check --lane range

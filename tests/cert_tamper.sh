@@ -21,7 +21,8 @@ export JACKAL_OUT=/tmp/jcert-tamper-build
 
 gate() {  # emit a cert for x^2+1 over [1,2] and report ACCEPT/REJECT
     if "$ROOT/jackal" range-bound-cert "x^2+1" 1 2 > /tmp/tamper_cert.txt 2>/tmp/tamper.err; then
-        if "$CHECKER" /tmp/tamper_cert.txt >/dev/null 2>&1; then echo ACCEPT; else echo REJECT; fi
+        if "$CHECKER" /tmp/tamper_cert.txt range-bound-cert "x^2+1" 1 2 \
+            >/dev/null 2>&1; then echo ACCEPT; else echo REJECT; fi
     else
         echo ENGINE_REFUSE
     fi

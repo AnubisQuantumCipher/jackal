@@ -18,7 +18,7 @@ def main() -> int:
     for r in mut["rows"]:
         if r["operator"] == "eval":
             r["verdict"] = "FORMAL"; r["allowed_status"] = "formal-bounded"
-            r["soundness_theorem"] = "cert_check_sound"
+            r["soundness_theorem"] = "request_bound_certified_release"
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(mut, f); p = f.name
     try:

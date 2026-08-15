@@ -30,19 +30,22 @@ import stat
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 # Load-bearing shared canonicalization used by BOTH this validator and the
 # independent receipt verifier / Hermes plugin.  Import order picks the repo
 # layout (tools/…) first, then the shipped-package layout (sibling).
 _HERE = os.path.dirname(os.path.abspath(__file__))
-for _cand in (os.path.join(_HERE, "..", "tools"), _HERE):
-    if os.path.exists(os.path.join(_cand, "formal_receipt.py")):
-        sys.path.insert(0, _cand)
-        break
+if "formal_receipt" not in sys.modules:
+    for _cand in (os.path.join(_HERE, "..", "tools"), _HERE):
+        if os.path.exists(os.path.join(_cand, "formal_receipt.py")):
+            sys.path.insert(0, _cand)
+            break
 from formal_receipt import (  # noqa: E402
     canonical_rat as _shared_canonical_rat,
     request_commitment_b64 as _shared_request_commitment_b64,
-    build_formal_receipt, dump_receipt,
+    build_formal_receipt, dump_receipt, load_proof_identity_binding,
+    require_fresh_output, write_new_file_atomic,
 )
 
 SCHEMA_MAGIC = "jackal-eval-cert v2"
@@ -164,7 +167,7 @@ def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: st
                      workdir: str | None = None, receipt_path: str | None = None,
                      formal_receipt_path: str | None = None,
                      plugin_sha256: str | None = None,
-                     release_epoch: str = "v1.2.0",
+                     release_epoch: str = "v1.3.0",
                      post_check_mutate=None) -> dict:
     """Run the full bound release pipeline. Returns a receipt dict on success;
     raises ReleaseRefusal (stable class) on any failure. `post_check_mutate` is
@@ -179,13 +182,22 @@ def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: st
     `identities.plugin_sha256` is populated from `plugin_sha256` when the
     caller is the Hermes plugin (else `null`).
     """
-    # Gate 11 (pre): destroy any stale success receipt before we begin.  The
-    # `os.remove` line is the single-line target of ABA mutation M10 (stale-
-    # success reuse); disabling that line MUST cause the poison factory to
-    # find the pre-existing receipt file still on disk after the run fails.
-    for stale in (receipt_path, formal_receipt_path):
-        if stale and os.path.exists(stale):
-            os.remove(stale)  # GATE-M10-stale-cleanup
+    # Gate 11 (pre): release output is write-once.  Never remove or overwrite a
+    # caller path—even on failure—because it may alias a manifest, checker, or
+    # unrelated user file.  Atomic publication below independently repeats the
+    # no-clobber guarantee to close the check/create race.
+    output_paths: dict[str, Path] = {}
+    for label, raw in (("receipt", receipt_path),
+                       ("formal-receipt", formal_receipt_path)):
+        if raw:
+            try:
+                output_paths[label] = require_fresh_output(raw)
+            except FileExistsError as exc:
+                raise ReleaseRefusal("receipt-output-exists", str(exc)) from exc
+            except OSError as exc:
+                raise ReleaseRefusal("receipt-output-path", str(exc)) from exc
+    if len(set(output_paths.values())) != len(output_paths):
+        raise ReleaseRefusal("receipt-output-alias", "receipt outputs must differ")
 
     # Gate 5/6 (pre): resolve + hash the exact executables we will invoke.
     eval_real = _resolve_executable(evaluator, "evaluator")
@@ -229,16 +241,34 @@ def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: st
         eval_real=eval_real, eval_id_pre=eval_id_pre,
         chk_real=chk_real, chk_id_pre=chk_id_pre, req_commit=req_commit,
         post_check_mutate=post_check_mutate)
-    if receipt_path:
-        with open(receipt_path, "w") as f:
-            json.dump(receipt, f, sort_keys=True, indent=2)
-    if formal_receipt_path:
-        with open(cert_path, "rb") as f:
-            cert_bytes = f.read()
-        _emit_formal_receipt(
-            formal_receipt_path, receipt=receipt, cert_bytes=cert_bytes,
-            expr=expr, lo=lo, hi=hi, plugin_sha256=plugin_sha256,
-            release_epoch=release_epoch)
+    created: list[tuple[Path, os.stat_result]] = []
+    try:
+        if receipt_path:
+            basic_bytes = (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8")
+            created_path = write_new_file_atomic(output_paths["receipt"], basic_bytes)
+            created.append((created_path, os.lstat(created_path)))
+        if formal_receipt_path:
+            with open(cert_path, "rb") as f:
+                cert_bytes = f.read()
+            created_path = _emit_formal_receipt(
+                output_paths["formal-receipt"], receipt=receipt,
+                cert_bytes=cert_bytes, expr=expr, lo=lo, hi=hi,
+                plugin_sha256=plugin_sha256, release_epoch=release_epoch)
+            created.append((created_path, os.lstat(created_path)))
+    except Exception as exc:
+        for created_path, identity in reversed(created):
+            try:
+                observed = os.lstat(created_path)
+                if (observed.st_dev, observed.st_ino) == \
+                        (identity.st_dev, identity.st_ino):
+                    os.unlink(created_path)
+            except FileNotFoundError:
+                pass
+        if isinstance(exc, ReleaseRefusal):
+            raise
+        if isinstance(exc, FileExistsError):
+            raise ReleaseRefusal("receipt-output-exists", str(exc)) from exc
+        raise ReleaseRefusal("receipt-output-create", str(exc)) from exc
     return receipt
 
 
@@ -265,12 +295,36 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
     if hdr["exe"] != eval_id_pre:
         raise ReleaseRefusal("evaluator-cert-identity", f"cert exe {hdr['exe']!r} != invoked {eval_id_pre}")
 
-    # Gate 1/7: the proved checker adjudicates the EXACT cert bytes on disk.
-    cproc = subprocess.run([chk_real, cert_path], stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE, text=True, timeout=3600)
-    if cproc.returncode != 0 or cproc.stdout.strip() != "ACCEPT":
+    # Gate 1/7: the proved checker adjudicates the EXACT cert bytes on disk in
+    # request-bound mode.  Since the §487-parserdiff audit the ACCEPT line
+    # carries the checker's AUTHORITATIVE `output <lo> <hi>` echo (the root
+    # enclosure `structuralOk` binds and `request_bound_certified_release`
+    # encloses).  The release gate requires:
+    #   (a) exit 0 AND the exact ACCEPT prefix;
+    #   (b) a well-formed two-token rational echo;
+    #   (c) echo == the independently parsed header output (parser-differential
+    #       divergence between Lean's and Python's view is a REFUSAL, never a
+    #       "pick one").
+    cproc = subprocess.run(
+        [chk_real, cert_path, COMMAND_ID, expr, canonical_rat(lo), canonical_rat(hi)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3600,
+    )
+    expected_accept_prefix = (
+        "ACCEPT request-bound theorem=request_bound_certified_release "
+        "command=range-bound-cert output "
+    )
+    accept_line = cproc.stdout.strip()
+    if cproc.returncode != 0 or not accept_line.startswith(expected_accept_prefix):
         raise ReleaseRefusal("checker-rejected",
-                             (cproc.stderr.strip() or cproc.stdout.strip())[:200])
+                             (cproc.stderr.strip() or accept_line)[:200])
+    echo_tokens = accept_line[len(expected_accept_prefix):].split(" ")
+    if len(echo_tokens) != 2:
+        raise ReleaseRefusal("checker-echo-malformed", accept_line[:200])
+    echo_lo, echo_hi = echo_tokens
+    if echo_lo != hdr["output_lo"] or echo_hi != hdr["output_hi"]:
+        raise ReleaseRefusal("checker-echo-divergence",
+                             f"checker attested [{echo_lo},{echo_hi}] != header "
+                             f"[{hdr['output_lo']},{hdr['output_hi']}]")
 
     # EXPLICIT test seam (TOCTOU control only): swap the artifact AFTER the
     # checker accepted bytes A, BEFORE the stability gate. Production never
@@ -293,8 +347,9 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
     # otherwise the release refuses formal status rather than overclaiming.
     ops = _operators_in_sexp(hdr["expr"])
     _here = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, _here)                                   # package: sibling
-    sys.path.insert(0, os.path.join(_here, "..", "tools"))      # repo: tools/
+    if "formal_status_gate" not in sys.modules:
+        sys.path.insert(0, _here)                               # package: sibling
+        sys.path.insert(0, os.path.join(_here, "..", "tools"))  # repo: tools/
     import formal_status_gate as fsg
     try:
         inv = fsg.load_inventory()
@@ -304,7 +359,8 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
             raise ReleaseRefusal("not-formal-fragment", f"operators outside formal fragment: {nonformal}")
         for op in sorted(ops):
             fsg.derive_status(operator=op, requested="formal-bounded", checker_accepted=True,
-                              certificate_sha256=cert_hash_pre, theorem_id="cert_check_sound",
+                              certificate_sha256=cert_hash_pre,
+                              theorem_id="request_bound_certified_release",
                               request_bound=True, inv=inv)
         status = "formal-bounded"
     except fsg.StatusRefusal as r:
@@ -328,10 +384,10 @@ def bind_and_check(*, cert_path: str, expr: str, lo: str, hi: str,
 
 
 
-def _emit_formal_receipt(path: str, *, receipt: dict, cert_bytes: bytes,
+def _emit_formal_receipt(path: str | Path, *, receipt: dict, cert_bytes: bytes,
                          expr: str, lo: str, hi: str,
                          plugin_sha256: str | None,
-                         release_epoch: str) -> None:
+                         release_epoch: str) -> Path:
     """Emit the canonical `jackal-formal-receipt-v1` JSON receipt (§7).
 
     Populates `identities.source_anb_sha256` from the repo's `jackal_calc.anb`
@@ -352,17 +408,37 @@ def _emit_formal_receipt(path: str, *, receipt: dict, cert_bytes: bytes,
     # `coverage_row_ids` = the operators the accepted cert actually used.
     # `unsupported_refused` = the fragment-adjacent operators that fail closed.
     coverage = sorted(receipt["operators"])
-    admitted: list[str] = coverage[:]  # sensible fallback for the shipped-pkg no-inventory path
-    refused: list[str] = []
+    admitted: list[str]
+    refused: list[str]
+    coverage_inventory_sha256: str
     try:
-        sys.path.insert(0, os.path.join(_here, "..", "tools"))
-        sys.path.insert(0, _here)
+        if "formal_status_gate" not in sys.modules:
+            sys.path.insert(0, os.path.join(_here, "..", "tools"))
+            sys.path.insert(0, _here)
         import formal_status_gate as fsg  # noqa: E402
         inv = fsg.load_inventory(verify_integrity=False)
         admitted = sorted(fsg.formal_operators(inv))
         refused = sorted(op for op, r in inv["by_op"].items() if r["verdict"] == "REFUSED")
-    except Exception:  # noqa: BLE001
-        pass
+        coverage_inventory_sha256 = sha256_file(str(fsg.INVENTORY))
+    except Exception as exc:  # noqa: BLE001
+        raise ReleaseRefusal("receipt-inventory", str(exc)) from exc
+    proof_candidates = [
+        os.path.join(_here, "..", "release", "evidence", "range_proof_identity.json"),
+        os.path.join(_here, "range_proof_identity.json"),
+    ]
+    proof_path = next((candidate for candidate in proof_candidates
+                       if os.path.isfile(candidate)), None)
+    if proof_path is None:
+        raise ReleaseRefusal("receipt-proof-identity", "range proof identity missing")
+    try:
+        proof_identity = load_proof_identity_binding(proof_path)
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ReleaseRefusal("receipt-proof-identity", str(exc)) from exc
+    if proof_identity["checker_sha256"] != receipt["checker_sha256"]:
+        raise ReleaseRefusal("receipt-proof-checker", "range proof/checker identity mismatch")
+    if proof_identity["soundness_theorem"] != \
+            "JackalIv.Cert.request_bound_certified_release":
+        raise ReleaseRefusal("receipt-proof-theorem", proof_identity["soundness_theorem"])
     formal_receipt = build_formal_receipt(
         release_epoch=release_epoch,
         request={"command": COMMAND_ID, "expression": expr,
@@ -379,10 +455,13 @@ def _emit_formal_receipt(path: str, *, receipt: dict, cert_bytes: bytes,
         canonical_lo=canonical_rat(lo),
         canonical_hi=canonical_rat(hi),
         request_commitment_b64=receipt["request_commitment"],
+        coverage_inventory_sha256=coverage_inventory_sha256,
+        proof_identity=proof_identity,
         cert_status=receipt["cert_status"],
     )
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(dump_receipt(formal_receipt))
+    return write_new_file_atomic(
+        path, (dump_receipt(formal_receipt) + "\n").encode("utf-8")
+    )
 
 def validate_cert_file(*, cert_path: str, expr: str, lo: str, hi: str,
                        evaluator: str, checker: str,
@@ -423,12 +502,34 @@ def _cli() -> int:
                     help="emit jackal-formal-receipt-v1 JSON (embedded cert; §7)")
     ap.add_argument("--plugin-sha256", default=None,
                     help="pin the Hermes plugin binary hash into the formal receipt")
-    ap.add_argument("--release-epoch", default="v1.2.0",
+    ap.add_argument("--release-epoch", default="v1.3.0",
                     help="release epoch label recorded in the formal receipt")
+    ap.add_argument("--expected-source", default=None,
+                    help="caller-pinned jackal_calc.anb SHA-256")
+    ap.add_argument("--inventory", default=None,
+                    help="caller-pinned coverage inventory JSON")
+    ap.add_argument("--expected-inventory", default=None,
+                    help="caller-pinned coverage inventory SHA-256")
+    ap.add_argument("--proof-identity", default=None,
+                    help="caller-pinned range proof identity JSON")
+    ap.add_argument("--expected-proof-identity-file", default=None,
+                    help="caller-pinned proof identity file SHA-256")
+    ap.add_argument("--expected-proof-identity-digest", default=None,
+                    help="caller-pinned internal proof identity digest")
     ap.add_argument("--cert", default=None,
                     help="validate an EXISTING cert file (no emission); for controls")
     args = ap.parse_args()
+    created_outputs: list[tuple[Path, os.stat_result]] = []
     try:
+        if args.cert is None and args.formal_receipt is None:
+            raise ReleaseRefusal(
+                "formal-receipt-required",
+                "release mode must emit and independently reverify a receipt",
+            )
+        if args.cert is None and not (sys.flags.isolated and sys.flags.no_site):
+            raise ReleaseRefusal(
+                "python-not-isolated", "invoke jackal-cert-release"
+            )
         if args.cert is not None:
             receipt = validate_cert_file(
                 cert_path=args.cert, expr=args.expr, lo=args.lo, hi=args.hi,
@@ -445,10 +546,73 @@ def _cli() -> int:
                 formal_receipt_path=args.formal_receipt,
                 plugin_sha256=args.plugin_sha256,
                 release_epoch=args.release_epoch)
-    except ReleaseRefusal as r:
+            for raw in (args.receipt, args.formal_receipt):
+                if raw:
+                    created_path = Path(os.path.abspath(os.path.expanduser(raw)))
+                    created_outputs.append((created_path, os.lstat(created_path)))
+            if args.formal_receipt is not None:
+                required_reverify = {
+                    "expected-source": args.expected_source,
+                    "inventory": args.inventory,
+                    "expected-inventory": args.expected_inventory,
+                    "proof-identity": args.proof_identity,
+                    "expected-proof-identity-file": args.expected_proof_identity_file,
+                    "expected-proof-identity-digest": args.expected_proof_identity_digest,
+                }
+                missing = sorted(k for k, v in required_reverify.items() if not v)
+                if missing:
+                    raise ReleaseRefusal("receipt-reverify-context", str(missing))
+                import receipt_verify as vr  # noqa: E402
+                try:
+                    formal_doc = vr._strict_json_bytes(  # noqa: SLF001
+                        Path(args.formal_receipt).read_bytes()
+                    )
+                    rerun = vr.verify_receipt(
+                        receipt=formal_doc,
+                        checker=args.checker,
+                        expected_evaluator=args.expected_evaluator,
+                        expected_checker=args.expected_checker,
+                        inventory_path=Path(args.inventory),
+                        expected_inventory_sha256=args.expected_inventory,
+                        proof_identity_path=Path(args.proof_identity),
+                        expected_proof_identity_file=args.expected_proof_identity_file,
+                        expected_proof_identity_digest=args.expected_proof_identity_digest,
+                        expected_plugin=args.plugin_sha256,
+                        expected_source=args.expected_source,
+                        expected_release_epoch=args.release_epoch,
+                        expected_request={
+                            "command": COMMAND_ID,
+                            "expression": args.expr,
+                            "input_lo": args.lo,
+                            "input_hi": args.hi,
+                        },
+                    )
+                except (OSError, UnicodeDecodeError, ValueError,
+                        vr.ReceiptRefusal) as exc:
+                    if isinstance(exc, vr.ReceiptRefusal):
+                        detail = f"{exc.cls}: {exc.detail}"
+                    else:
+                        detail = str(exc)
+                    raise ReleaseRefusal("receipt-reverify", detail) from exc
+                if rerun.get("verdict") != "ACCEPT":
+                    raise ReleaseRefusal("receipt-reverify", str(rerun.get("verdict")))
+    except (ReleaseRefusal, OSError) as exc:
+        for created_path, identity in reversed(created_outputs):
+            try:
+                observed = os.lstat(created_path)
+                if (observed.st_dev, observed.st_ino) == \
+                        (identity.st_dev, identity.st_ino):
+                    os.unlink(created_path)  # GATE-M10-owned-output-cleanup
+            except FileNotFoundError:
+                pass
+        r = (exc if isinstance(exc, ReleaseRefusal)
+             else ReleaseRefusal("receipt-output-lifecycle", str(exc)))
         print(f"status=refused reason={r.cls} detail=\"{r.detail}\"", file=sys.stderr)
         return 1
-    print(f"status={receipt['status']}")
+    if args.cert is not None:
+        print("status=diagnostic-checker-accepted")
+    else:
+        print(f"status={receipt['status']}")
     print(f"cert-status={receipt['cert_status']}")
     print(f"certified-enclosure=[{receipt['certified_enclosure'][0]},{receipt['certified_enclosure'][1]}]")
     print(f"input=[{receipt['input'][0]},{receipt['input'][1]}]")
@@ -457,6 +621,8 @@ def _cli() -> int:
     print(f"checker.sha256={receipt['checker_sha256']}")
     print(f"certificate.sha256={receipt['certificate_sha256']}")
     print(f"request.commitment={receipt['request_commitment']}")
+    if args.formal_receipt is not None:
+        print("receipt.reverified=true")
     return 0
 
 

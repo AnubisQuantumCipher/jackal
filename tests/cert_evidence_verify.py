@@ -108,18 +108,33 @@ def main() -> int:
         if not r["failed_as_intended"]:
             fail(f"{r['id']}: control did not fail as intended")
 
-    # ---- positive corpus ----
+    # ---- positive corpus (P* rows) + policy-refusal locks (R* rows) ----
     pos = load_jsonl_strict(POS)
     pids = [r["id"] for r in pos]
     if len(pids) != len(set(pids)):
         fail("duplicate positive IDs")
+    n_positive = n_refusal = 0
     for r in pos:
-        if r.get("verdict") != "formal-bounded":
-            fail(f"{r['id']}: positive case not formal-bounded (got {r.get('verdict')!r})")
         if r.get("evaluator_sha256") != ev_id or r.get("checker_sha256") != ck_id:
             fail(f"{r['id']}: positive subject identity mismatch")
+        if str(r.get("id", "")).startswith("R"):
+            # Policy-excluded constructor rows (§487-const audit): MUST refuse.
+            n_refusal += 1
+            if r.get("verdict") != "refused":
+                fail(f"{r['id']}: policy-exclusion case did not refuse "
+                     f"(got {r.get('verdict')!r})")
+            if not r.get("refusal_class"):
+                fail(f"{r['id']}: refusal row missing refusal_class")
+            continue
+        n_positive += 1
+        if r.get("verdict") != "formal-bounded":
+            fail(f"{r['id']}: positive case not formal-bounded (got {r.get('verdict')!r})")
         if not r.get("certificate_sha256"):
             fail(f"{r['id']}: missing certificate digest")
+    if n_positive == 0:
+        fail("positive corpus is vacuous (zero P rows)")
+    if n_refusal == 0:
+        fail("policy-refusal locks missing (zero R rows — §487-const audit)")
 
     # ---- A→B→A ----
     if not ABA.exists():

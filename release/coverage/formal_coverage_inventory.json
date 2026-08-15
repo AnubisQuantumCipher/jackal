@@ -3,7 +3,6 @@
     "abs",
     "add",
     "ceil",
-    "const",
     "cos",
     "div",
     "floor",
@@ -25,6 +24,7 @@
     "atan",
     "atan2",
     "cbrt",
+    "const",
     "exp",
     "hypot",
     "ln",
@@ -56,7 +56,7 @@
       "runs_constructors": [
         "num_exact"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -82,33 +82,7 @@
       "runs_constructors": [
         "var"
       ],
-      "soundness_theorem": "cert_check_sound",
-      "tests": [
-        "cert_positive_corpus.py",
-        "cert_controls.py"
-      ],
-      "verdict": "FORMAL"
-    },
-    {
-      "allowed_status": "formal-bounded",
-      "canonical_lowering": "simplify_bound",
-      "certificate_op": [
-        "const_rounded"
-      ],
-      "checker_decode": "CertCodec.parseCert",
-      "checker_rule": "CertCheck.checkNode",
-      "evaluator_path": "range-bound-cert (exact-rational interval)",
-      "kind": "operator",
-      "libm_assumption": "ModelTCB.const (within delta0)",
-      "notes": "",
-      "operator": "const",
-      "parser_admission": true,
-      "plugin_tool": "jackal_range_bound",
-      "requested_assurance": "formal-bounded",
-      "runs_constructors": [
-        "const_rounded"
-      ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -134,7 +108,7 @@
       "runs_constructors": [
         "neg"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -160,7 +134,7 @@
       "runs_constructors": [
         "add"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -186,7 +160,7 @@
       "runs_constructors": [
         "sub"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -212,7 +186,7 @@
       "runs_constructors": [
         "mul"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -238,7 +212,7 @@
       "runs_constructors": [
         "div"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -268,7 +242,7 @@
         "powEvenPos",
         "powOddPos"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -294,7 +268,7 @@
       "runs_constructors": [
         "sin"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -320,7 +294,7 @@
       "runs_constructors": [
         "cos"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -346,7 +320,7 @@
       "runs_constructors": [
         "abs"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -372,7 +346,7 @@
       "runs_constructors": [
         "floor"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -398,7 +372,7 @@
       "runs_constructors": [
         "ceil"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -424,7 +398,7 @@
       "runs_constructors": [
         "round"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -450,7 +424,7 @@
       "runs_constructors": [
         "trunc"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -476,7 +450,7 @@
       "runs_constructors": [
         "min"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -502,7 +476,7 @@
       "runs_constructors": [
         "max"
       ],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "cert_positive_corpus.py",
         "cert_controls.py"
@@ -825,6 +799,27 @@
       "verdict": "REFUSED"
     },
     {
+      "allowed_status": "refused",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "kind": "operator",
+      "libm_assumption": "libm<=2ulp (not mechanized)",
+      "notes": "outside the formal fragment; refuses formal status",
+      "operator": "const",
+      "parser_admission": true,
+      "plugin_tool": "jackal_range_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "cert_controls.py::C24-C26"
+      ],
+      "verdict": "REFUSED"
+    },
+    {
       "allowed_status": "estimated",
       "canonical_lowering": "n/a",
       "certificate_op": [],
@@ -911,6 +906,50 @@
         "test_calculator.py"
       ],
       "verdict": "WEAK"
+    },
+    {
+      "allowed_status": "bounded",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "certified interval enclosure, CONDITIONAL on the stated f64/libm model; implementation campaign-tested, NOT mechanized",
+      "evaluator_path": "integrate-bound",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "integrate-bound",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "bounded",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "certified range enclosure, CONDITIONAL on the stated f64/libm model; implementation campaign-tested, NOT mechanized",
+      "evaluator_path": "range-bound",
+      "kind": "lane",
+      "libm_assumption": "n/a",
+      "notes": "weaker lane; must never inherit formal-* language",
+      "operator": "range-bound",
+      "parser_admission": true,
+      "plugin_tool": "various",
+      "requested_assurance": "bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "test_calculator.py"
+      ],
+      "verdict": "CONDITIONAL"
     },
     {
       "allowed_status": "estimated",
@@ -1015,14 +1054,15 @@
       "notes": "zero-libm; generic exp range checking remains refused",
       "operator": "gaussian-exp-square-integral-v1",
       "parser_admission": "Lean canonical certificate codec + decimal source binding",
-      "plugin_tool": "jackal_integrate (assurance=formal-bounded)",
+      "plugin_tool": "jackal_gaussian_integral",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [],
       "soundness_theorem": "gaussian_integral_check_sound",
       "tests": [
         "formal_gaussian_checker_test.py",
         "formal_gaussian_mutations.py",
-        "formal_gaussian_receipt_test.py"
+        "formal_gaussian_receipt_test.py",
+        "plugin_smoke.py"
       ],
       "verdict": "FORMAL"
     },
@@ -1042,10 +1082,35 @@
       "plugin_tool": "jackal_range_bound",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "plugin_smoke.py",
         "cert_mutations_11.py::M11"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "GaussianCert.parseDecimalCanon",
+      "certificate_op": [
+        "gaussian-total-minus-tails-v1"
+      ],
+      "checker_decode": "GaussianCert.parseCert",
+      "checker_rule": "GaussianCert.checkCert",
+      "description": "Hermes plugin tool: emit and independently reverify a zero-libm Gaussian formal receipt",
+      "evaluator_path": "plugin/hermes/server.py -> gaussian_release.release -> receipt_verify.verify_receipt -> jackal_gaussian_check",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "plugin runs the pinned checker during release and reruns it from the carried receipt before returning",
+      "operator": "jackal_gaussian_integral",
+      "parser_admission": "canonical gaussian-exp-square-v1 only",
+      "plugin_tool": "jackal_gaussian_integral",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "gaussian_integral_check_sound",
+      "tests": [
+        "plugin_smoke.py",
+        "package_smoke.py"
       ],
       "verdict": "FORMAL"
     },
@@ -1054,21 +1119,46 @@
       "canonical_lowering": "n/a",
       "certificate_op": [],
       "checker_decode": "CertCodec.parseCert",
-      "checker_rule": "CertCheck.checkNode",
-      "description": "Hermes plugin tool: re-run the pinned checker over an embedded certificate",
-      "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_cert_check",
-      "kind": "plugin-tool",
+      "checker_rule": "CertCheck request-bound release rule",
+      "description": "Hermes plugin tool mode: bind an external range request and re-run the pinned range checker",
+      "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_cert_check request-bound mode",
+      "kind": "plugin-tool-mode",
       "libm_assumption": "as per operator rows",
-      "notes": "verifier re-runs jackal_cert_check on embedded certificate bytes; outer digest alone is NOT sufficient",
-      "operator": "jackal_verify_receipt",
+      "notes": "external expected request and epoch are mandatory; outer digest alone is NOT sufficient",
+      "operator": "jackal_verify_receipt:range",
       "parser_admission": true,
       "plugin_tool": "jackal_verify_receipt",
       "requested_assurance": "verified",
       "runs_constructors": [],
-      "soundness_theorem": "cert_check_sound",
+      "soundness_theorem": "request_bound_certified_release",
       "tests": [
         "plugin_smoke.py",
         "cert_mutations_11.py::M2/M3/M4/M7/M9"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "verified",
+      "canonical_lowering": "GaussianCert.parseDecimalCanon",
+      "certificate_op": [
+        "gaussian-total-minus-tails-v1"
+      ],
+      "checker_decode": "GaussianCert.parseCert",
+      "checker_rule": "GaussianCert.checkCert",
+      "description": "Hermes plugin tool mode: bind an external Gaussian request and re-run the pinned Gaussian checker",
+      "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_gaussian_check",
+      "kind": "plugin-tool-mode",
+      "libm_assumption": "none",
+      "notes": "external expected request, tolerance, and epoch are mandatory; outer digest alone is NOT sufficient",
+      "operator": "jackal_verify_receipt:gaussian",
+      "parser_admission": "canonical gaussian-exp-square-v1 only",
+      "plugin_tool": "jackal_verify_receipt",
+      "requested_assurance": "verified",
+      "runs_constructors": [],
+      "soundness_theorem": "gaussian_integral_check_sound",
+      "tests": [
+        "formal_gaussian_receipt_test.py",
+        "plugin_smoke.py"
       ],
       "verdict": "FORMAL"
     }

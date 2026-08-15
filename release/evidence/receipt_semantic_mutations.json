@@ -1,0 +1,151 @@
+{
+  "baseline_gaussian": "ACCEPT",
+  "baseline_range": "ACCEPT",
+  "mutations": [
+    {
+      "expected": "release-epoch",
+      "id": "forged-release-epoch",
+      "observed": "release-epoch",
+      "ok": true
+    },
+    {
+      "expected": "receipt-assumptions",
+      "id": "assumptions-removed",
+      "observed": "receipt-assumptions",
+      "ok": true
+    },
+    {
+      "expected": "receipt-non-claims",
+      "id": "non-claims-replaced",
+      "observed": "receipt-non-claims",
+      "ok": true
+    },
+    {
+      "expected": "receipt-checker-policy",
+      "id": "checker-policy-forged",
+      "observed": "receipt-checker-policy",
+      "ok": true
+    },
+    {
+      "expected": "result-cert-status",
+      "id": "cert-status-forged",
+      "observed": "result-cert-status",
+      "ok": true
+    },
+    {
+      "expected": "producer-identity",
+      "id": "duplicated-producer-identity-forged",
+      "observed": "producer-identity",
+      "ok": true
+    },
+    {
+      "expected": "coverage-inventory-identity",
+      "id": "coverage-identity-forged",
+      "observed": "coverage-inventory-identity",
+      "ok": true
+    },
+    {
+      "expected": "proof-identity-mismatch",
+      "id": "proof-identity-forged",
+      "observed": "proof-identity-mismatch",
+      "ok": true
+    },
+    {
+      "expected": "coverage-inventory-expected",
+      "id": "wrong-external-inventory-pin",
+      "observed": "coverage-inventory-expected",
+      "ok": true
+    },
+    {
+      "expected": "proof-identity-file",
+      "id": "wrong-external-proof-file-pin",
+      "observed": "proof-identity-file",
+      "ok": true
+    },
+    {
+      "expected": "proof-identity-digest",
+      "id": "wrong-external-proof-digest-pin",
+      "observed": "proof-identity-digest",
+      "ok": true
+    },
+    {
+      "expected": "source-identity",
+      "id": "range-source-identity-forged",
+      "observed": "source-identity",
+      "ok": true
+    },
+    {
+      "expected": "evaluator-vs-certificate",
+      "id": "coordinated-range-evaluator-relabel",
+      "observed": "evaluator-vs-certificate",
+      "ok": true
+    },
+    {
+      "expected": "node-op-outside-release-fragment",
+      "id": "range-policy-negative-power-node",
+      "observed": "node-op-outside-release-fragment",
+      "ok": true
+    },
+    {
+      "expected": "release-epoch",
+      "id": "stale-expected-epoch",
+      "observed": "release-epoch",
+      "ok": true
+    },
+    {
+      "expected": "receipt-emitted-at",
+      "id": "boolean-timestamp",
+      "observed": "receipt-emitted-at",
+      "ok": true
+    },
+    {
+      "expected": "result-enclosure-canonical",
+      "id": "noncanonical-result-token",
+      "observed": "result-enclosure-canonical",
+      "ok": true
+    },
+    {
+      "expected": "receipt-fields",
+      "id": "extra-top-level-field",
+      "observed": "receipt-fields",
+      "ok": true
+    },
+    {
+      "expected": "expected-request-mismatch",
+      "id": "whole-receipt-substitution",
+      "observed": "expected-request-mismatch",
+      "ok": true
+    },
+    {
+      "expected": "checker-rejected-on-rerun",
+      "id": "coordinated-range-expression-relabel",
+      "observed": "checker-rejected-on-rerun",
+      "ok": true
+    },
+    {
+      "expected": "request-vs-range-cert",
+      "id": "coordinated-range-limit-relabel",
+      "observed": "request-vs-range-cert",
+      "ok": true
+    },
+    {
+      "expected": "request-command",
+      "id": "coordinated-operation-relabel",
+      "observed": "request-command",
+      "ok": true
+    },
+    {
+      "expected": "cert-illegal-line-boundary",
+      "id": "audit-lock-u2028-line-boundary-injection",
+      "observed": "cert-illegal-line-boundary",
+      "ok": true
+    },
+    {
+      "expected": "node-op-outside-release-fragment",
+      "id": "audit-lock-const-rounded-node-refused",
+      "observed": "node-op-outside-release-fragment",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-receipt-semantic-mutations-v1"
+}

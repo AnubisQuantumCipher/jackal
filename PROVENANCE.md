@@ -8,7 +8,151 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.2.0 — 2026-08-15 (current) — formal receipts + Hermes plugin + 11-category ABA
+## Seal v1.3.0 — 2026-08-15 (current) — zero-libm formal Gaussian + audit-closed release
+
+Adds one distinct proof-carrying integration family (`exp(-A*(x-mu)^2)` with
+canonical nonnegative rational tokens, checker-verified `A=scale^2`, positive
+rational scale, transformed domain `[-6, 6]`) without relabeling the existing
+floating-point/libm `integrate-bound` lane, closes two audit-reproduced
+release-path defects, and expands the Hermes plugin surface from three tools
+to ten (formal + weaker-lane, honest status passthrough).
+
+### Audit scars closed at this epoch (2026-08-15 adversarial audit)
+
+A 22-agent adversarial audit (5 reviewers → 5 skeptics → synthesizer) run
+against a mid-flight v1.3.0 candidate reproduced two genuine false-accept
+holes firsthand. Both were the exact shape of failure this project exists to
+prevent — "verifier says X, checker proved something else". They are recorded
+here as scars, not silently rewritten:
+
+* **§487-parserdiff (CRITICAL, closed).** The independent receipt verifier
+  reported its enclosure from its own `str.splitlines()` re-parse of the
+  certificate header. A `U+2028` (LINE SEPARATOR) injected into the
+  unconstrained `exe` header line made Python break lines where Lean's
+  `splitOn '\n'` did not, so the Python-reported interval could be disjoint
+  from what the checker actually attested. Root cause: the `ACCEPT` line
+  did not echo the checker's validated interval, so there was nothing
+  authoritative to reconcile against. **Closed by:** (a) the compiled
+  checker now prints its `output <lo> <hi>` echo directly in the request-
+  bound ACCEPT line (`CertCheckMain.lean` ratToStr echo); (b) the
+  independent verifier binds its accepted enclosure to that echo, and its
+  header parser fail-closes on ANY Lean/Python line-boundary divergence byte
+  (CR, VT, FF, FS/GS/RS, NEL, U+2028, U+2029). Regression lock:
+  `audit-lock-u2028-line-boundary-injection` in `tests/receipt_semantic_mutations.py`.
+
+* **§487-const audit (HIGH, closed).** The Lean allowlist
+  `CertRequest.releaseNodeOp` accepted `const_rounded`, but the node's
+  `value/fl_lo` fields are bound only by the undischarged `ConstTCB`
+  premise (not ℚ-decidable). A crafted `const_rounded name="pi" value=0`
+  node could therefore earn `request_bound_certified_release` ACCEPT while
+  π ≈ 3.14159 lay outside the certified `[0,0]`. **Closed by:** dropping
+  `const_rounded` from `releaseNodeOp` (mirroring the already-excluded
+  `num_rounded`), with the Lean lock
+  `requestRejects_const_rounded_node : requestMatches … [const_rounded …] = false`
+  discharged by `decide`. Propagated through the coverage inventory (`const`
+  → `REFUSED`), the positive corpus (`P19-const-pi` → `R01-const-pi-excluded`
+  refusal lock plus `R02-const-e-excluded` / `R03-const-tau-excluded`), the
+  Python release-fragment mirror in `receipt_verify._RANGE_RELEASE_NODE_OPS`,
+  and the release wrapper. Regression lock:
+  `audit-lock-const-rounded-node-refused` in
+  `tests/receipt_semantic_mutations.py`.
+
+The `formal-bounded` fragment therefore SHRINKS from v1.1.0's 18 operators
+to v1.3.0's 17 operators: **num, var, neg, add, sub, mul, div, integer pow
+(n≥0), sin, cos, abs, floor, ceil, round, trunc, min, max**. Named constants
+`pi`/`e`/`tau` remain available in weaker lanes at their honest epistemic
+class, but the formal release path now refuses them (three layers: Lean
+`releaseNodeOp` refusal, Python fragment-mirror refusal, formal-status gate
+refusal). Nothing else in the fragment changed at this epoch.
+
+### Source / checker identities (audit-closed, final)
+
+- `jackal_calc.anb` SHA-256: `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40`
+- `jackal-native` SHA-256: `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c`
+- range checker `jackal_cert_check` SHA-256: `2e2b82d85fab1c5351d2d1ce1c8d591fb12249f2575c791eb94b9546224d6011`
+  (rebuilt post-audit: adds the ACCEPT-echo of `output <lo> <hi>` closing
+  §487-parserdiff, and drops `const_rounded` from `releaseNodeOp` closing
+  §487-const; supersedes the mid-flight `082176bf…` and the earlier v1.2.0
+  `2186b43f…`)
+- range proof-identity file `release/evidence/range_proof_identity.json`
+  SHA-256: `48f6359bbdbc7918a7ed90a78e1a5ccadc00b71e68dfd3c497ebde642243a2bf`
+  (internal digest `2303f86a87b31b5f7ca5cdc9d25a1d6362acfc1fa8769dd60fe7dcd73e7faa7d`,
+  regenerated post-audit against the new range checker; `axiomAudit` PASS
+  on `[propext, Classical.choice, Quot.sound]` only)
+- Gaussian producer `tools/gaussian_certificate.py` SHA-256:
+  `20c24622b786940a8e82198f2364fb7593e761902fa0736289b179642f1e4306`
+- Gaussian checker `jackal_gaussian_check` SHA-256:
+  `11c741f04b811aa8621db4da5c5dc05e292ead8c0e6a854739f6068757470612`
+- Gaussian proof-identity file `release/evidence/gaussian_proof_identity.json`
+  SHA-256: `dea12a25529eb2b7f2817bcd499b9e7a1c8a9a9a6cd8bf821cf1d947e4465cfc`
+  (internal digest `7fbb0d585aa11d059d710bbe0bdac2337a8da49746e65e27316a95d774a2a606`)
+- coverage inventory SHA-256: `214269507f23ef0cdeaec1839ffd4c0d59f36838a816a816c64c81f9e552d706`
+  (const moved FORMAL → REFUSED, `integrate-bound` and `range-bound`
+  registered as CONDITIONAL, seven weaker-lane plugin-tool rows added)
+- Hermes plugin bundle `plugin_hermes` SHA-256:
+  `26c70c280f7b2a9a5aa6d65fd5d9d2f3c6c23652d92bb4366e4267d0ba65a451`
+  (10 tools: `jackal_range_bound`, `jackal_gaussian_integral`,
+  `jackal_verify_receipt`, and the seven weaker-lane adapters `jackal_exact`,
+  `jackal_evaluate`, `jackal_diff`, `jackal_integrate`,
+  `jackal_integrate_adaptive`, `jackal_integrate_bound`, `jackal_solve`; the
+  weaker lanes return their honest inventory-derived status class and
+  `formal: false` — status inflation is structurally impossible)
+- v1.3.0 package tarball SHA-256:
+  `19612a847b8182a268338f2c8947d8a932a2b939946ef2ad1aa48c747544c03d`
+  (79,270,340 bytes, byte-reproducible: two consecutive builds with no
+  intervening test run produce this exact hash; the tarball serializes a
+  sorted ustar stream with fixed ownership/timestamps and gzip mtime=0)
+- Lean flagship theorem axioms (all three):
+  `gaussian_integral_check_sound` = `request_bound_certified_release`
+  = `cert_check_sound` = `[Classical.choice, Quot.sound, propext]`
+- compiler pin: `anubis-a733565f237d`
+  (SHA-256 `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`)
+
+### Gate receipts on the exact final bytes (2026-08-15)
+
+| Gate | Observed result |
+|---|---|
+| `lake build` (17,350 jobs) + explicit axiom audit | PASS; no `sorry`; standard three axioms only on every flagship theorem |
+| Range proof-identity + checker build binding (`release/tools/gaussian_proof_identity.py check --lane range`) | PASS |
+| Gaussian proof-identity + checker build binding (`... check --lane gaussian`) | PASS |
+| Gaussian emitter tracer | PASS on exact `A=10^10` challenge |
+| Gaussian checker mutations | 16/16 rejected |
+| Formal receipt round-trip (both lanes) | PASS; both independent verifiers re-run the pinned checkers and ACCEPT |
+| Positive corpus (`cert_positive_corpus.py`) | 20/20 formal-bounded + 3/3 policy-excluded const cases REFUSED |
+| Negative controls (`cert_controls.py`), normal + `-O` | 30/30 refused at intended layer, both runs |
+| Evidence non-vacuity (`cert_evidence_verify.py`) | PASS: 20 positive rows + 3 policy-refusal rows + 30 neg controls + M1/M2 ABA |
+| Fail-closed sweep (`fail_closed_sweep.py`) | 21/21 wrapper/plugin/verifier poisons refused; never a `formal-*` leak |
+| Semantic-mutation harness (`receipt_semantic_mutations.py`) | 24/24 coordinated mutations refused (includes both §487 audit locks) |
+| Bundle-identity gates (`plugin_bundle_identity_test.py`) normal + `-O` | PASS: post-start manifest swap, runtime swap, missing runtime, unlisted shadow — all refused |
+| Output-path safety (`output_path_safety_test.py`) | PASS: write-once-atomic; six cases |
+| Plugin smoke (`plugin_smoke.py`) | PASS on 33 rows across S1..S13 including the new S12/S13 weak-lane honesty gates |
+| Eleven-category A→B→A (`cert_mutations_11.py`) | 11/11 — each governing gate disabled-in-source admits its poison, exact pre-mutation bytes restored hash-verified before A(post) |
+| Formal-status mutation | forged FORMAL row rejected as `inventory-integrity` |
+| Exact hard-Gaussian challenge enclosure | width `100387/10^24` (~`1.00387e-19`) ≤ `10^-12` tolerance |
+| Unsupported `exp(x)` under `jackal_range_bound` / `jackal_gaussian_integral` | refused; no conditional-bounded fallback |
+| Fresh-extraction package smoke (`package_smoke.py`) | 9/9 — range + Gaussian formal receipts reverified; missing/tampered artifacts refused; plugin fresh-extraction ACCEPT |
+| Deterministic package build | two consecutive rebuilds identical: `19612a847b8182a268338f2c8947d8a932a2b939946ef2ad1aa48c747544c03d` |
+| `release/verify_evidence.py` | PASS — every embedded identity re-verifies against live artifacts, Gaussian record's coverage-inventory sha refreshed to `21426950…` post-audit |
+
+**Claim boundary (v1.3.0).** For every request accepted by the declared range
+or Gaussian fragment, checker acceptance implies the stated exact result or
+enclosure under each receipt's recorded TCB. Universal correctness for
+arbitrary expressions is NOT claimed and NOT achievable for a general
+calculator — unsupported strong requests refuse with a stable class rather
+than silently downgrading to an estimate. The formal fragment is deliberately
+narrow: `sqrt`, `exp`, `ln`, `tan`, `atan`, `asin`, `acos`, `log10`, `log2`,
+`hypot`, `atan2`, `cbrt`, general/negative powers, `mod`, and (as of the
+§487-const audit) named constants `pi`/`e`/`tau` all fail closed on the
+formal path. Rational and big-integer lanes are computationally exact but not
+yet covered by the Lean certificate chain; source-to-native correctness,
+evaluator-to-certificate faithfulness, and adaptive integration composition
+are explicitly not fully mechanized (see `proofs/lean/JackalIv/Ledger.lean`
+for the residuals). SHA-256 identifies bytes but does not authenticate
+authorship; the macOS package remains unsigned/ad-hoc pending an active Apple
+Developer identity, and independent external adversarial evaluation remains
+pending.
+
+## Seal v1.2.0 — 2026-08-15 (predecessor) — formal receipts + Hermes plugin + 11-category ABA
 
 Extends the sealed v1.1.1 evaluator, proved checker, theorem set, coverage
 inventory, and certificate schema with three new load-bearing surfaces —

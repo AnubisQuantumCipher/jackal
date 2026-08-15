@@ -12,8 +12,8 @@
 {"exit": 1, "formal_leak": false, "id": "plugin-divzero", "ok": true, "reason": "evaluator-refused", "surface": "plugin"}
 {"exit": 1, "formal_leak": false, "id": "plugin-neg-power", "ok": true, "reason": "evaluator-refused", "surface": "plugin"}
 {"exit": 1, "formal_leak": false, "id": "plugin-hi-lt-lo", "ok": true, "reason": "evaluator-refused", "surface": "plugin"}
-{"exit": 1, "formal_leak": false, "id": "verifier-request-expression", "ok": true, "reason": "request-commitment-outer", "surface": "verifier"}
-{"exit": 1, "formal_leak": false, "id": "verifier-request-input-hi", "ok": true, "reason": "request-canonical-hi", "surface": "verifier"}
+{"exit": 1, "formal_leak": false, "id": "verifier-request-expression", "ok": true, "reason": "expected-request-mismatch", "surface": "verifier"}
+{"exit": 1, "formal_leak": false, "id": "verifier-request-input-hi", "ok": true, "reason": "expected-request-mismatch", "surface": "verifier"}
 {"exit": 1, "formal_leak": false, "id": "verifier-result-enclosure-hi", "ok": true, "reason": "enclosure-hi-mismatch", "surface": "verifier"}
 {"exit": 1, "formal_leak": false, "id": "verifier-identity-evaluator", "ok": true, "reason": "evaluator-identity", "surface": "verifier"}
 {"exit": 1, "formal_leak": false, "id": "verifier-theorem-id", "ok": true, "reason": "theorem-id", "surface": "verifier"}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.2.0 executed negative-control roster.
+"""JACKAL v1.3.0 executed negative-control roster.
 
 Every mandatory control is exercised against a REAL trust boundary — the
 Anubis evaluator (`range-bound-cert`), the Lean-proved checker

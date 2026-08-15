@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.2.0 Hermes plugin end-to-end smoke.
+"""JACKAL v1.3.0 Hermes plugin end-to-end smoke.
 
 Fresh-session run against the shipped `plugin/hermes/jackal_hermes`
 binary and its pinned bundle hash.  Verifies:
@@ -42,6 +42,24 @@ sys.path.insert(0, str(ROOT / "plugin" / "hermes"))
 sys.path.insert(0, str(ROOT / "tools"))
 from bundle_hash import compute_bundle_hash, load_pinned_bundle_hash_any  # noqa: E402
 from formal_receipt import recompute_receipt_digest  # noqa: E402
+
+RANGE_EXPR = "sin(x)+x^2"
+RANGE_CONTEXT = {
+    "expected_release_epoch": "v1.3.0",
+    "expected_command": "range-bound-cert",
+    "expected_expression": RANGE_EXPR,
+    "expected_input_lo": "0",
+    "expected_input_hi": "1",
+}
+GAUSSIAN_EXPR = "exp(-10000000000*(x-0.5000123456789)^2)"
+GAUSSIAN_CONTEXT = {
+    "expected_release_epoch": "v1.3.0",
+    "expected_command": "integrate",
+    "expected_expression": GAUSSIAN_EXPR,
+    "expected_input_lo": "0",
+    "expected_input_hi": "1",
+    "expected_tolerance": "1/1000000000000",
+}
 
 
 def _sha256_str(b: bytes) -> str:
@@ -111,7 +129,7 @@ def s2_selftest() -> bool:
 
 def s3_formal_bounded_receipt() -> dict | None:
     code, obj = _call("jackal_range_bound",
-                      {"expression": "sin(x)+x^2", "input_lo": "0", "input_hi": "1"})
+                      {"expression": RANGE_EXPR, "input_lo": "0", "input_hi": "1"})
     ok = code == 0 and obj.get("status") == "formal-bounded"
     plugin_pin = _pinned_bundle_hash()
     plugin_bound = ok and obj["receipt"]["identities"]["plugin_sha256"] == plugin_pin
@@ -151,7 +169,7 @@ def s4_refuse_outside_fragment() -> bool:
 
 
 def s5_verify_round_trip(receipt: dict) -> bool:
-    code, obj = _call("jackal_verify_receipt", {"receipt": receipt})
+    code, obj = _call("jackal_verify_receipt", {"receipt": receipt, **RANGE_CONTEXT})
     ok = code == 0 and obj.get("status") == "verified" and obj.get("verdict") == "ACCEPT"
     record("S5-verify-round-trip", ok,
            f"status={obj.get('status')} verdict={obj.get('verdict')}")
@@ -162,7 +180,7 @@ def s6_reject_plugin_identity_swap(receipt: dict) -> bool:
     r = copy.deepcopy(receipt)
     r["identities"]["plugin_sha256"] = "0" * 64
     r["receipt_digest_sha256"] = recompute_receipt_digest(r)
-    code, obj = _call("jackal_verify_receipt", {"receipt": r})
+    code, obj = _call("jackal_verify_receipt", {"receipt": r, **RANGE_CONTEXT})
     ok = code != 0 and obj.get("status") == "refused" and obj.get("reason") == "plugin-identity"
     record("S6-plugin-identity-swap-refuses", ok,
            f"status={obj.get('status')} reason={obj.get('reason')}")
@@ -173,7 +191,7 @@ def s7_reject_enclosure_tamper(receipt: dict) -> bool:
     r = copy.deepcopy(receipt)
     r["result"]["enclosure_hi"] = "1000000"
     r["receipt_digest_sha256"] = recompute_receipt_digest(r)
-    code, obj = _call("jackal_verify_receipt", {"receipt": r})
+    code, obj = _call("jackal_verify_receipt", {"receipt": r, **RANGE_CONTEXT})
     ok = code != 0 and obj.get("status") == "refused" and obj.get("reason") in {
         "enclosure-hi-mismatch", "enclosure-lo-mismatch"}
     record("S7-enclosure-tamper-refuses", ok,
@@ -191,15 +209,131 @@ def s8_stdio_transport() -> bool:
     ]
     replies = _stdio(requests)
     idx = {r.get("id"): r for r in replies}
-    ok_list = (isinstance(idx.get("L"), dict)
-               and isinstance(idx["L"].get("result"), dict)
-               and len(idx["L"]["result"].get("tools") or []) == 2)
+    listed = [t.get("name") for t in (idx.get("L", {}).get("result", {}).get("tools") or [])]
+    expected_tools = {
+        "jackal_range_bound", "jackal_gaussian_integral", "jackal_verify_receipt",
+        "jackal_exact", "jackal_evaluate", "jackal_diff", "jackal_integrate",
+        "jackal_integrate_adaptive", "jackal_integrate_bound", "jackal_solve",
+    }
+    ok_list = set(listed) == expected_tools and len(listed) == len(expected_tools)
     ok_ok = idx.get("OK", {}).get("result", {}).get("status") == "formal-bounded"
     ok_no = idx.get("NO", {}).get("result", {}).get("status") == "refused"
     ok = ok_list and ok_ok and ok_no
     record("S8-stdio-transport", ok,
            f"list={ok_list} ok={ok_ok} refuse={ok_no}")
     return ok
+
+
+def s9_gaussian_emit_and_reverify() -> dict | None:
+    request = {
+        "expression": GAUSSIAN_EXPR,
+        "input_lo": "0",
+        "input_hi": "1",
+        "tolerance": "1/1000000000000",
+    }
+    code, obj = _call("jackal_gaussian_integral", request)
+    emitted = (code == 0 and obj.get("status") == "formal-bounded"
+               and obj.get("checker_rerun") == "ACCEPT")
+    receipt = obj.get("receipt") if emitted else None
+    if not isinstance(receipt, dict):
+        record("S9-gaussian-emit-rerun", False, f"status={obj.get('status')}")
+        return None
+    verify_code, verified = _call(
+        "jackal_verify_receipt", {"receipt": receipt, **GAUSSIAN_CONTEXT}
+    )
+    ok = (verify_code == 0 and verified.get("status") == "verified"
+          and verified.get("verdict") == "ACCEPT")
+    record("S9-gaussian-emit-rerun", ok,
+           f"emit={obj.get('checker_rerun')} verify={verified.get('status')}")
+    return receipt if ok else None
+
+
+def s10_gaussian_unsupported_refuses() -> bool:
+    code, obj = _call("jackal_gaussian_integral", {
+        "expression": "exp(x)", "input_lo": "0", "input_hi": "1",
+        "tolerance": "1/1000000000000",
+    })
+    ok = code != 0 and obj.get("status") == "refused"
+    record("S10-gaussian-unsupported-refuses", ok,
+           f"status={obj.get('status')} reason={obj.get('reason')}")
+    return ok
+
+
+def s11_external_context_substitution_refuses(receipt: dict) -> bool:
+    wrong = dict(RANGE_CONTEXT)
+    wrong["expected_expression"] = "0"
+    code, obj = _call("jackal_verify_receipt", {"receipt": receipt, **wrong})
+    ok = (code != 0 and obj.get("status") == "refused"
+          and obj.get("reason") == "expected-request-mismatch")
+    record("S11-external-context-substitution-refuses", ok,
+           f"status={obj.get('status')} reason={obj.get('reason')}")
+    return ok
+
+
+def s12_weak_lanes_honest() -> bool:
+    """Every weaker-lane tool returns its inventory-derived class VERBATIM,
+    reports formal=False, and NEVER prints a formal-* status."""
+    cases = [
+        ("jackal_exact", {"expression": "0.1+0.2"}, "exact",
+         lambda d: d["fields"].get("exact") == "3/10"),
+        ("jackal_evaluate", {"expression": "2+3*sin(pi/6)^2"}, "estimated",
+         lambda d: d["engine_output"].strip() == "2.75"),
+        ("jackal_diff", {"expression": "x^2*sin(x)"}, "checked",
+         lambda d: "not-proof-of-identity" in d["fields"].get("assurance", "")),
+        ("jackal_integrate",
+         {"expression": "sin(x)", "input_lo": "0", "input_hi": "1", "panels": "200"},
+         "estimated",
+         lambda d: "estimate-not-bound" in d["fields"].get("assurance", "")),
+        ("jackal_integrate_adaptive",
+         {"expression": "exp(0-x^2)", "input_lo": "0", "input_hi": "1",
+          "tolerance": "1e-9"},
+         "estimated",
+         lambda d: "refuses-when-unconverged" in d["fields"].get("assurance", "")),
+        ("jackal_integrate_bound",
+         {"expression": "exp(0-1000000*(x-0.1225)^2)", "input_lo": "0",
+          "input_hi": "1", "tolerance": "1e-9"},
+         "bounded",
+         lambda d: "implementation-tested-not-mechanized" in d["fields"].get("assurance", "")),
+        ("jackal_solve",
+         {"expression": "x^2-2", "input_lo": "1", "input_hi": "2"},
+         "estimated",
+         lambda d: "estimate-not-bound" in d["fields"].get("assurance", "")),
+    ]
+    all_ok = True
+    for tool, params, expected_status, extra_check in cases:
+        code, obj = _call(tool, params)
+        status = obj.get("status")
+        formal_leak = isinstance(status, str) and status.startswith("formal")
+        ok = (code == 0 and status == expected_status and not formal_leak
+              and obj.get("formal") is False and extra_check(obj))
+        record(f"S12-weak:{tool}", ok,
+               f"status={status} formal={obj.get('formal')}")
+        all_ok = all_ok and ok
+    return all_ok
+
+
+def s13_weak_lane_refusals() -> bool:
+    """Weak lanes refuse with the engine's NAMED reason — never a silent 0 or
+    a stronger relabel."""
+    cases = [
+        ("jackal_exact", {"expression": "sqrt(2)"}, "fail closed"),
+        ("jackal_solve", {"expression": "x^2+1", "input_lo": "1", "input_hi": "2"},
+         ""),  # no sign change — engine refuses; named reason varies
+        ("jackal_integrate_bound",
+         {"expression": "tan(x)", "input_lo": "0", "input_hi": "2",
+          "tolerance": "1e-6"}, ""),  # pole inside → certification refusal
+    ]
+    all_ok = True
+    for tool, params, needle in cases:
+        code, obj = _call(tool, params)
+        refused = obj.get("status") == "refused" and code != 0
+        named = (needle in obj.get("detail", "")) if needle else bool(obj.get("reason"))
+        ok = refused and named
+        record(f"S13-weak-refuse:{tool}", ok,
+               f"status={obj.get('status')} reason={obj.get('reason','')} "
+               f"detail={obj.get('detail','')[:60]}")
+        all_ok = all_ok and ok
+    return all_ok
 
 
 def main() -> int:
@@ -222,6 +356,16 @@ def main() -> int:
         record("S7-enclosure-tamper-refuses", False, "no receipt")
         results.extend([False, False, False])
     results.append(s8_stdio_transport())
+    gaussian_receipt = s9_gaussian_emit_and_reverify()
+    results.append(gaussian_receipt is not None)
+    results.append(s10_gaussian_unsupported_refuses())
+    if receipt is not None:
+        results.append(s11_external_context_substitution_refuses(receipt))
+    else:
+        record("S11-external-context-substitution-refuses", False, "no receipt")
+        results.append(False)
+    results.append(s12_weak_lanes_honest())
+    results.append(s13_weak_lane_refusals())
 
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     EVIDENCE.write_text("\n".join(json.dumps(r, sort_keys=True) for r in ROWS) + "\n")
@@ -230,7 +374,7 @@ def main() -> int:
         print("VERDICT: FAIL — a plugin smoke case did not meet its gate", file=sys.stderr)
         return 1
     print("VERDICT: PASS — plugin bundle pinned, fragment enforced, verify round-tripped,"
-          " tamper refused, stdio transport correct")
+          " tamper refused, stdio transport correct, weak lanes honest")
     return 0
 
 

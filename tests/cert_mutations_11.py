@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.2.0 eleven-category A→B→A mutation harness.
+"""JACKAL v1.3.0 eleven-category A→B→A mutation harness.
 
 Extends the v1.0.4 two-mutation ABA (`tests/cert_aba_mutations.py`) to the
 full trust-boundary matrix defined by the mission brief (§9, the eleven
@@ -14,16 +14,18 @@ mutation categories):
   M7  checker binary substituted                             → receipt verifier
   M8  evaluator binary substituted                           → validator
   M9  outer digest recomputed after semantic tampering       → receipt verifier
-  M10 stale success reused after checker failure             → validator
+  M10 stale success reused against a different request       → receipt verifier
   M11 public plugin binary replaced                          → plugin startup
 
-Every mutation is a SINGLE-LINE swap: the raise on line L is replaced with
-`pass  # ABA-Mn-mutation` at the same indentation, so the mutated source is
-guaranteed to compile.  For each row:
+Each mutation disables the named source gate with a same-indentation
+`pass  # ABA-Mn-mutation`.  (M10 note: the writer never deletes pre-existing
+outputs — `require_fresh_output` refuses them — so stale-success reuse is
+defeated at verify time by the expected-request binding, which M10 attacks.)
+For each row:
 
   A(pre)   the poison REFUSES for its named reason at its named layer;
-  B        the SAME poison is admitted after the single-line raise is
-           disabled (still-compiling, still-runnable);
+  B        the SAME poison is either admitted after the gate is disabled, or
+           (M5) remains refused by the independent Lean request matcher;
   A(post)  the EXACT pre-mutation bytes are restored (hash-verified),
            pyc caches purged, the poison refuses again for the same reason.
 
@@ -46,8 +48,10 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "tests" / "release_validate.py"
 VERIFIER = ROOT / "tools" / "receipt_verify.py"
+VERIFIER_CLI = ROOT / "jackal-receipt-verify"
 GATE = ROOT / "tools" / "formal_status_gate.py"
 PLUGIN_SERVER = ROOT / "plugin" / "hermes" / "server.py"
+PLUGIN_LAUNCHER = ROOT / "plugin" / "hermes" / "jackal_hermes"
 PLUGIN_BUNDLE = ROOT / "plugin" / "hermes" / "bundle_hash.py"
 INVENTORY = ROOT / "release" / "coverage" / "formal_coverage_inventory.json"
 MANIFEST = ROOT / "release" / "MANIFEST.sha256"
@@ -85,6 +89,11 @@ def _manifest_ids() -> tuple[str, str, str]:
 
 
 EVAL_ID, CHK_ID, PLUGIN_ID = _manifest_ids()
+SOURCE_ID = sha_file(ROOT / "jackal_calc.anb")
+RANGE_PROOF = ROOT / "release" / "evidence" / "range_proof_identity.json"
+RANGE_PROOF_FILE_ID = sha_file(RANGE_PROOF)
+RANGE_PROOF_DIGEST = json.loads(RANGE_PROOF.read_text())["identity_digest_sha256"]
+INVENTORY_ID = sha_file(INVENTORY)
 
 _BASE_EXPR = "x^2+1"
 _BASE_LO = "1"
@@ -111,7 +120,7 @@ def _fresh_formal_receipt(expr: str = _BASE_EXPR, lo: str = _BASE_LO, hi: str = 
             expected_evaluator=EVAL_ID, expected_checker=CHK_ID,
             formal_receipt_path=p,
             plugin_sha256=plugin_sha256 or PLUGIN_ID,
-            release_epoch="v1.2.0")
+            release_epoch="v1.3.0")
         return json.loads(Path(p).read_text())
 
 
@@ -149,15 +158,25 @@ def _run_verifier_on_receipt(receipt: dict, checker: Path | None = None,
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(receipt, f, sort_keys=True, indent=2)
         rp = f.name
-    argv = [sys.executable, str(VERIFIER),
+    argv = [str(VERIFIER_CLI),
             "--receipt", rp,
             "--checker", str(checker or CHECKER),
             "--expected-evaluator", expected_eval or EVAL_ID,
-            "--expected-checker", expected_chk or CHK_ID]
+            "--expected-checker", expected_chk or CHK_ID,
+            "--expected-release-epoch", "v1.3.0",
+            "--expected-command", "range-bound-cert",
+            "--expected-expression", _BASE_EXPR,
+            "--expected-input-lo", _BASE_LO,
+            "--expected-input-hi", _BASE_HI,
+            "--proof-identity", str(ROOT / "release" / "evidence" /
+                                     "range_proof_identity.json"),
+            "--expected-proof-identity-file", RANGE_PROOF_FILE_ID,
+            "--expected-proof-identity-digest", RANGE_PROOF_DIGEST,
+            "--expected-inventory", INVENTORY_ID]
     if inventory is not None:
         argv += ["--inventory", str(inventory)]
-    if expected_plugin is not None:
-        argv += ["--expected-plugin", expected_plugin]
+    argv += ["--expected-source", SOURCE_ID,
+             "--expected-plugin", expected_plugin or PLUGIN_ID]
     try:
         cp = subprocess.run(argv, capture_output=True, text=True, timeout=3600)
     finally:
@@ -171,7 +190,7 @@ def _run_verifier_on_receipt(receipt: dict, checker: Path | None = None,
 
 def _run_plugin_call(tool: str, params: dict) -> tuple[int, str, str, dict]:
     cp = subprocess.run(
-        [sys.executable, str(PLUGIN_SERVER), "call", tool, json.dumps(params)],
+        [str(PLUGIN_LAUNCHER), "call", tool, json.dumps(params)],
         capture_output=True, text=True, timeout=3600)
     reason = ""
     obj: dict = {}
@@ -260,7 +279,9 @@ class Mutation:
                  pre_hooks: list[Callable[[], None]] | None = None,
                  cleanup: Callable[[], None] | None = None,
                  also_flip: list[tuple[Path, str, str]] | None = None,
-                 flip_shape: str | None = "raise ") -> None:
+                 flip_shape: str | None = "raise ",
+                 b_policy: str = "admit",
+                 expected_b_reason: str = "") -> None:
         self.tag = tag
         self.gate_desc = gate_desc
         self.target = target
@@ -273,11 +294,14 @@ class Mutation:
         self.cleanup = cleanup
         self.also_flip = also_flip or []  # optional additional (path, needle, marker) sites to flip in tandem
         self.flip_shape = flip_shape
+        self.b_policy = b_policy
+        self.expected_b_reason = expected_b_reason
 
     def run(self) -> dict[str, Any]:
         row: dict[str, Any] = {
             "gate": self.tag, "description": self.gate_desc,
             "target_file": str(self.target.relative_to(ROOT)),
+            "B_policy": self.b_policy,
         }
         row["source_hash_pre"] = sha_file(self.target)
         for hook in self.pre_hooks:
@@ -308,8 +332,15 @@ class Mutation:
                 row["B_reason"] = "module import failed after mutation"
             else:
                 code_b, reason_b, _layer_b = self.poison()
-                row["B"] = ("red-for-intended-reason" if code_b == 0
-                            else "INVALID-still-refused")
+                if self.b_policy == "admit":
+                    row["B"] = ("red-for-intended-reason" if code_b == 0
+                                else "INVALID-still-refused")
+                else:
+                    row["B"] = (
+                        "red-by-independent-gate"
+                        if code_b != 0 and reason_b == self.expected_b_reason
+                        else "INVALID-independent-gate"
+                    )
                 row["B_exit"] = code_b
                 row["B_reason"] = reason_b
         except RuntimeError as e:
@@ -317,9 +348,9 @@ class Mutation:
             row["B_exit"] = -1
             row["B_reason"] = str(e)
         finally:
-            _restore(self.target, orig)
-            for p, ob in secondary_orig:
+            for p, ob in reversed(secondary_orig):
                 _restore(p, ob)
+            _restore(self.target, orig)
             row["source_hash_post"] = sha_file(self.target)
             row["restore_hash_verified"] = row["source_hash_post"] == row["source_hash_pre"]
 
@@ -384,6 +415,8 @@ def _make_M2() -> Mutation:
     # (comparing declared vs cert-sexp-derived) is what refuses.
     r["fragment"]["expression_operators"] = sorted(
         set(r["fragment"]["expression_operators"]) | {"sin"})
+    r["fragment"]["coverage_row_ids"] = sorted(
+        set(r["fragment"]["coverage_row_ids"]) | {"sin"})
     r["receipt_digest_sha256"] = recompute_receipt_digest(r)
     return Mutation(
         tag="M2-canonical-ast-changed",
@@ -465,6 +498,8 @@ def _make_M5() -> Mutation:
         poison=lambda: _run_validator_on_cert(forged, _BASE_EXPR, fake_lo, fake_hi),
         expected_reason="request-input",
         module_check=("release_validate", VALIDATOR.parent),
+        b_policy="independent-refusal",
+        expected_b_reason="checker-rejected",
     )
 
 
@@ -487,7 +522,7 @@ def _make_M6() -> Mutation:
             if r["operator"] == "exp":
                 r["verdict"] = "FORMAL"
                 r["allowed_status"] = "formal-bounded"
-                r["soundness_theorem"] = "cert_check_sound"
+                r["soundness_theorem"] = "request_bound_certified_release"
                 r["runs_constructors"] = ["exp"]
                 break
         INVENTORY.write_bytes(json.dumps(doc, sort_keys=True, indent=2).encode("utf-8"))
@@ -509,11 +544,25 @@ def _make_M6() -> Mutation:
 
 
 def _make_M7() -> Mutation:
-    """M7 — checker binary substituted."""
+    """M7 — checker binary substituted.
+
+    The bogus checker emits a BYTE-PERFECT request-bound ACCEPT line —
+    including the authoritative `output <lo> <hi>` echo matching this exact
+    receipt — so every downstream protocol gate (ACCEPT-prefix, echo shape,
+    echo-vs-header agreement) passes.  The ONLY gate standing between the
+    substituted binary and acceptance is the binary-hash identity check;
+    disabling that single raise admits the poison, proving it load-bearing.
+    """
     r = _fresh_formal_receipt()
     tmpdir = Path(tempfile.mkdtemp(prefix="mut11-bogus-chk-"))
     bogus = tmpdir / "jackal_cert_check"
-    bogus.write_text("#!/bin/sh\necho ACCEPT\n")
+    echo_lo = r["result"]["enclosure_lo"]
+    echo_hi = r["result"]["enclosure_hi"]
+    bogus.write_text(
+        "#!/bin/sh\n"
+        "echo 'ACCEPT request-bound theorem=request_bound_certified_release "
+        f"command=range-bound-cert output {echo_lo} {echo_hi}'\n"
+    )
     bogus.chmod(0o755)
     return Mutation(
         tag="M7-checker-substituted",
@@ -568,58 +617,40 @@ def _make_M9() -> Mutation:
 
 
 def _make_M10() -> Mutation:
-    """M10 — stale success reused after checker failure.
+    """M10 — stale success reused against a different request.
 
-    Write a valid receipt to disk, then invoke a NEW request whose evaluator
-    would refuse.  The stale-cleanup gate (an ``os.remove(stale)`` line
-    tagged ``GATE-M10-stale-cleanup`` in the validator) deletes any prior
-    receipt BEFORE running, so a subsequent read finds no receipt.
-    Disabling that single line makes the stale receipt survive the failed
-    re-run.  Poison verdict:
+    The current writer NEVER deletes or overwrites a pre-existing receipt
+    (``require_fresh_output`` refuses ``receipt-output-exists`` and never
+    follows symlinks — see tests/output_path_safety_test.py).  Reuse is
+    therefore defeated at VERIFY time: the verifier requires the caller's
+    exact expected request, so a genuine prior success receipt for a
+    DIFFERENT request must refuse.  This mutation proves that gate is
+    load-bearing:
 
-      A(pre)  the stale file is DELETED by the cleanup, so after the
-              evaluator refuses no receipt is available for reuse
-              → poison REJECTED (exit != 0, reason=cleaned-gone).
-      B       cleanup disabled → the stale file SURVIVES the failed run,
-              admitting a stale-success reuse pattern (exit 0).
-      A(post) cleanup restored → file deleted again → poison REJECTED.
+      A(pre)  a genuine receipt for x^2+1 over [1,3] is verified against
+              the expected request [1,2] → REFUSED
+              (reason=expected-request-mismatch).
+      B       the ``expected-request-mismatch`` raise is disabled → the
+              stale receipt is receipt-internally consistent (it IS a real
+              success), so verification ACCEPTS it for the wrong request
+              → poison ADMITTED (exit 0).
+      A(post) gate restored (hash-verified) → refuses again.
     """
-    stale_path = Path(tempfile.mkstemp(prefix="mut11-stale-", suffix=".json")[1])
-    valid = _fresh_formal_receipt()
-
-    def _seed_stale() -> None:
-        stale_path.write_text(json.dumps(valid, sort_keys=True, indent=2))
+    stale = _fresh_formal_receipt(hi="3")  # genuine success for [1,3]
 
     def apply_poison() -> tuple[int, str, str]:
-        _seed_stale()
-        subprocess.run(
-            [sys.executable, str(VALIDATOR),
-             "--expr", "exp(x)", "--lo", "0", "--hi", "1",
-             "--evaluator", str(EVALUATOR), "--checker", str(CHECKER),
-             "--expected-evaluator", EVAL_ID, "--expected-checker", CHK_ID,
-             "--formal-receipt", str(stale_path)],
-            capture_output=True, text=True, timeout=3600)
-        # A downstream reader would call `Path(stale_path).read_text()` and
-        # get either the OLD success receipt (poison ADMITTED) or nothing.
-        if stale_path.exists() and stale_path.stat().st_size > 0:
-            return 0, "stale-receipt-survived", "validator"
-        return 1, "stale-cleaned", "validator"
-
-    def cleanup() -> None:
-        if stale_path.exists():
-            stale_path.unlink()
+        # Verify the [1,3] receipt against the expected [1,2] request.
+        return _run_verifier_on_receipt(stale)
 
     return Mutation(
         tag="M10-stale-success-reuse",
-        gate_desc="any pre-existing formal-receipt file MUST be deleted before a new run",
-        target=VALIDATOR,
-        needle='os.remove(stale)  # GATE-M10-stale-cleanup',
+        gate_desc="a prior success receipt MUST NOT verify against a different expected request",
+        target=VERIFIER,
+        needle='raise ReceiptRefusal("expected-request-mismatch"',
         marker="M10",
         poison=apply_poison,
-        expected_reason="stale-cleaned",
-        module_check=("release_validate", VALIDATOR.parent),
-        cleanup=cleanup,
-        flip_shape=None,   # os.remove is not a raise
+        expected_reason="expected-request-mismatch",
+        module_check=("receipt_verify", VERIFIER.parent),
     )
 
 
@@ -635,7 +666,7 @@ def _make_M11() -> Mutation:
     for M11: the essence of "public plugin binary replaced" is any
     modification of any file in ``bundle_files``.
     """
-    launcher = PLUGIN_SERVER.parent / "jackal_hermes"
+    launcher = PLUGIN_LAUNCHER
     original = launcher.read_bytes()
 
     def apply_poison() -> tuple[int, str, str]:
@@ -656,7 +687,7 @@ def _make_M11() -> Mutation:
         marker="M11",
         poison=apply_poison,
         expected_reason="plugin-bundle-mismatch",
-        module_check=("server", PLUGIN_SERVER.parent),
+        module_check=None,
     )
 
 
@@ -670,7 +701,8 @@ def main() -> int:
         m = maker()
         row = m.run()
         rows.append(row)
-        ok = (row["A_pre"] == "pass" and row["B"] == "red-for-intended-reason"
+        ok = (row["A_pre"] == "pass" and row["B"] in {
+                  "red-for-intended-reason", "red-by-independent-gate"}
               and row["A_post"] == "pass" and row["restore_hash_verified"])
         print(f"{row['gate']:40s} A_pre={row['A_pre']}({row['A_pre_reason']}) "
               f"B={row['B']} A_post={row['A_post']} restore={row['restore_hash_verified']} "
@@ -679,7 +711,7 @@ def main() -> int:
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "harness": "cert_mutations_11.py",
-        "release_epoch": "v1.2.0",
+        "release_epoch": "v1.3.0",
         "evaluator_sha256": EVAL_ID,
         "checker_sha256": CHK_ID,
         "plugin_hermes_sha256": PLUGIN_ID,
@@ -689,14 +721,15 @@ def main() -> int:
     print(f"evidence={EVIDENCE} sha256={sha(EVIDENCE.read_bytes())}")
 
     ok_all = all(
-        r["A_pre"] == "pass" and r["B"] == "red-for-intended-reason"
+        r["A_pre"] == "pass" and r["B"] in {
+            "red-for-intended-reason", "red-by-independent-gate"}
         and r["A_post"] == "pass" and r["restore_hash_verified"]
         for r in rows)
     if not ok_all:
         print("VERDICT: FAIL — a mutation did not show the required A→B→A transitions",
               file=sys.stderr)
         return 1
-    print(f"VERDICT: PASS — {len(rows)}/{len(rows)} semantic mutations RED-on-disable, restored by hash")
+    print(f"VERDICT: PASS — {len(rows)}/{len(rows)} semantic mutations admitted or independently refused on disable, restored by hash")
     return 0
 
 

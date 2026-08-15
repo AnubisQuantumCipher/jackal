@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.2.0 fail-closed sweep.
+"""JACKAL v1.3.0 fail-closed sweep.
 
 Confirms every load-bearing surface — the release wrapper, the Hermes plugin,
 and the independent receipt verifier — refuses with a stable class for every
@@ -54,9 +54,15 @@ def _pinned() -> tuple[str, str]:
 
 
 EV, CK = _pinned()
-PLUGIN = ROOT / "plugin" / "hermes" / "server.py"
+PLUGIN = ROOT / "plugin" / "hermes" / "jackal_hermes"
 WRAPPER = ROOT / "jackal-cert-release"
 CHECKER = ROOT / "proofs" / "lean" / ".lake" / "build" / "bin" / "jackal_cert_check"
+SOURCE_ID = hashlib.sha256((ROOT / "jackal_calc.anb").read_bytes()).hexdigest()
+RANGE_PROOF = ROOT / "release" / "evidence" / "range_proof_identity.json"
+RANGE_PROOF_FILE_ID = hashlib.sha256(RANGE_PROOF.read_bytes()).hexdigest()
+RANGE_PROOF_DIGEST = json.loads(RANGE_PROOF.read_text())["identity_digest_sha256"]
+INVENTORY_ID = hashlib.sha256((ROOT / "release" / "coverage" /
+                               "formal_coverage_inventory.json").read_bytes()).hexdigest()
 
 
 WRAPPER_CASES = [
@@ -88,20 +94,22 @@ def _run(argv: list[str]) -> tuple[int, str, str]:
 
 def sweep_wrapper() -> list[dict]:
     rows = []
-    for tag, expr, lo, hi in WRAPPER_CASES:
-        code, out, err = _run([str(WRAPPER), expr, lo, hi])
-        formal_leak = "formal-" in out
-        reason = _classify_stderr_stdout(err, out)
-        ok = code != 0 and not formal_leak
-        rows.append({"surface": "wrapper", "id": tag, "exit": code,
-                     "reason": reason, "formal_leak": formal_leak, "ok": ok})
+    with tempfile.TemporaryDirectory(prefix="jackal-refusal-sweep-") as td:
+        for tag, expr, lo, hi in WRAPPER_CASES:
+            receipt = Path(td) / f"{tag}.json"
+            code, out, err = _run([str(WRAPPER), expr, lo, hi, str(receipt)])
+            formal_leak = "formal-" in out
+            reason = _classify_stderr_stdout(err, out)
+            ok = code != 0 and not formal_leak and not receipt.exists()
+            rows.append({"surface": "wrapper", "id": tag, "exit": code,
+                         "reason": reason, "formal_leak": formal_leak, "ok": ok})
     return rows
 
 
 def sweep_plugin() -> list[dict]:
     rows = []
     for tag, expr, lo, hi in WRAPPER_CASES:
-        code, out, err = _run([sys.executable, str(PLUGIN), "call", "jackal_range_bound",
+        code, out, err = _run([str(PLUGIN), "call", "jackal_range_bound",
                                 json.dumps({"expression": expr, "input_lo": lo, "input_hi": hi})])
         try:
             obj = json.loads(out)
@@ -121,7 +129,7 @@ def _fresh_receipt() -> dict:
         rv.validate_release(expr="x^2+1", lo="1", hi="2",
                             evaluator="jackal-native", checker=str(CHECKER),
                             expected_evaluator=EV, expected_checker=CK,
-                            formal_receipt_path=p, release_epoch="v1.2.0")
+                            formal_receipt_path=p, release_epoch="v1.3.0")
         return json.loads(Path(p).read_text())
 
 
@@ -130,11 +138,25 @@ def _run_verifier(receipt: dict, extra: list[str] | None = None) -> tuple[int, s
         json.dump(receipt, f)
         p = f.name
     try:
-        code, out, err = _run([sys.executable, str(ROOT / "tools" / "receipt_verify.py"),
+        code, out, err = _run([str(ROOT / "jackal-receipt-verify"),
                                 "--receipt", p,
                                 "--checker", str(CHECKER),
                                 "--expected-evaluator", EV,
-                                "--expected-checker", CK] + (extra or []))
+                                "--expected-checker", CK,
+                                "--expected-source", SOURCE_ID,
+                                "--expected-release-epoch", "v1.3.0",
+                                "--expected-command", "range-bound-cert",
+                                "--expected-expression", "x^2+1",
+                                "--expected-input-lo", "1",
+                                "--expected-input-hi", "2",
+                                "--proof-identity", str(ROOT / "release" / "evidence" /
+                                                         "range_proof_identity.json"),
+                                "--expected-proof-identity-file", RANGE_PROOF_FILE_ID,
+                                "--expected-proof-identity-digest", RANGE_PROOF_DIGEST,
+                                "--expected-inventory", INVENTORY_ID,
+                                "--inventory", str(ROOT / "release" / "coverage" /
+                                                    "formal_coverage_inventory.json")] +
+                               (extra or []))
     finally:
         os.unlink(p)
     return code, _classify_stderr_stdout(err, out)

@@ -1,6 +1,6 @@
-{"id": "S1-bundle-hash-pin-matches", "note": "computed=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf pinned=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf", "ok": true}
-{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf\nplugin_hermes.pinned_sha256=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf\nplugin_her", "ok": true}
-{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf", "ok": true}
+{"id": "S1-bundle-hash-pin-matches", "note": "computed=26c70c280f7b2a9a5aa6d65fd5d9d2f3c6c23652d92bb4366e4267d0ba65a451 pinned=26c70c280f7b2a9a5aa6d65fd5d9d2f3c6c23652d92bb4366e4267d0ba65a451", "ok": true}
+{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=26c70c280f7b2a9a5aa6d65fd5d9d2f3c6c23652d92bb4366e4267d0ba65a451\nplugin_hermes.pinned_sha256=26c70c280f7b2a9a5aa6d65fd5d9d2f3c6c23652d92bb4366e4267d0ba65a451\nplugin_her", "ok": true}
+{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=26c70c280f7b2a9a5aa6d65fd5d9d2f3c6c23652d92bb4366e4267d0ba65a451", "ok": true}
 {"id": "S4-refuse:'exp(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
 {"id": "S4-refuse:'sqrt(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
 {"id": "S4-refuse:'ln(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
@@ -18,3 +18,16 @@
 {"id": "S6-plugin-identity-swap-refuses", "note": "status=refused reason=plugin-identity", "ok": true}
 {"id": "S7-enclosure-tamper-refuses", "note": "status=refused reason=enclosure-hi-mismatch", "ok": true}
 {"id": "S8-stdio-transport", "note": "list=True ok=True refuse=True", "ok": true}
+{"id": "S9-gaussian-emit-rerun", "note": "emit=ACCEPT verify=verified", "ok": true}
+{"id": "S10-gaussian-unsupported-refuses", "note": "status=refused reason=producer-refused", "ok": true}
+{"id": "S11-external-context-substitution-refuses", "note": "status=refused reason=expected-request-mismatch", "ok": true}
+{"id": "S12-weak:jackal_exact", "note": "status=exact formal=False", "ok": true}
+{"id": "S12-weak:jackal_evaluate", "note": "status=estimated formal=False", "ok": true}
+{"id": "S12-weak:jackal_diff", "note": "status=checked formal=False", "ok": true}
+{"id": "S12-weak:jackal_integrate", "note": "status=estimated formal=False", "ok": true}
+{"id": "S12-weak:jackal_integrate_adaptive", "note": "status=estimated formal=False", "ok": true}
+{"id": "S12-weak:jackal_integrate_bound", "note": "status=bounded formal=False", "ok": true}
+{"id": "S12-weak:jackal_solve", "note": "status=estimated formal=False", "ok": true}
+{"id": "S13-weak-refuse:jackal_exact", "note": "status=refused reason=evaluator-refused detail=rat: exact mode supports integers, decimals, + - * / ^ with ", "ok": true}
+{"id": "S13-weak-refuse:jackal_solve", "note": "status=refused reason=evaluator-refused detail=solve requires a sign change on [lo, hi]; fail closed rather", "ok": true}
+{"id": "S13-weak-refuse:jackal_integrate_bound", "note": "status=refused reason=evaluator-refused detail=integrate-bound: subdivision budget (60000 subintervals) exh", "ok": true}

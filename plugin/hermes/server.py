@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""JACKAL Hermes plugin — proof-carrying range-bound tool server.
+"""JACKAL Hermes plugin — proof-carrying range and Gaussian tool server.
 
-Exposes exactly two tools (see `tools.json`):
+Exposes exactly three tools (see `tools.json`):
 
   * `jackal_range_bound`      emit a `jackal-formal-receipt-v1` receipt
+  * `jackal_gaussian_integral` emit a zero-libm Gaussian formal receipt
   * `jackal_verify_receipt`   re-run the pinned Lean-proved checker
 
 The plugin does NOT ship a new checker or a new evaluator.  It is a
@@ -26,16 +27,28 @@ all hold):
       bundle hash is bound into `identities.plugin_sha256`.
 
 `jackal_verify_receipt` runs the independent verifier
-(`tools/receipt_verify.py`) end-to-end, re-executing the pinned checker
+      (`tools/receipt_verify.py`) end-to-end, re-executing the matching pinned checker
 over the embedded certificate bytes — recomputing the outer receipt
 digest alone is NOT sufficient.
 """
 from __future__ import annotations
 
+import sys
+
+if not (sys.flags.isolated and sys.flags.no_site):
+    print(
+        "status=refused reason=python-not-isolated "
+        "detail='invoke plugin/hermes/jackal_hermes'",
+        file=sys.stderr,
+    )
+    raise SystemExit(126)
+
 import argparse
+import hashlib
 import json
 import os
-import sys
+import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -46,10 +59,9 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 # `<root>/release`, `<root>/tools`, `<root>/tests` (repo) or as siblings of the
 # plugin dir (shipped package).
 from bundle_hash import (  # noqa: E402
-    PLUGIN_DIR as _PDIR,
     compute_bundle_hash,
     find_repo_root,
-    load_pinned_bundle_hash_any,
+    resolve_runtime_files,
 )
 
 ROOT = find_repo_root()
@@ -82,6 +94,14 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "proofs/lean/.lake/build/bin/jackal_cert_check",
             ROOT / "jackal_cert_check",
         ]),
+        ("gaussian_producer", [
+            ROOT / "tools/gaussian_certificate.py",
+            ROOT / "gaussian_certificate.py",
+        ]),
+        ("gaussian_checker", [
+            ROOT / "proofs/lean/.lake/build/bin/jackal_gaussian_check",
+            ROOT / "jackal_gaussian_check",
+        ]),
         ("validator", [
             ROOT / "tests/release_validate.py",
             ROOT / "release_validate.py",
@@ -98,6 +118,14 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "release/coverage/formal_coverage_inventory.json",
             ROOT / "formal_coverage_inventory.json",
         ]),
+        ("range_proof_identity", [
+            ROOT / "release/evidence/range_proof_identity.json",
+            ROOT / "range_proof_identity.json",
+        ]),
+        ("gaussian_proof_identity", [
+            ROOT / "release/evidence/gaussian_proof_identity.json",
+            ROOT / "gaussian_proof_identity.json",
+        ]),
     ):
         for c in cands:
             if c.exists():
@@ -110,20 +138,58 @@ def _shipped_layout() -> dict[str, Path]:
 
 LAYOUT = _shipped_layout()
 
-# Import the shared validator / formal_receipt / receipt_verify by path so both
-# layouts work without a package install.
-for _cand in (ROOT / "tests", ROOT / "tools", ROOT):
-    if str(_cand) not in sys.path and _cand.exists():
-        sys.path.insert(0, str(_cand))
+# ``isolated_entry.py`` must preload exact source bytes.  Never fall back to
+# import-path discovery: that would let an unlisted sibling or .pyc shadow a
+# bundle-hashed runtime module.
+_RUNTIME_FILES = resolve_runtime_files()
+_EXPECTED_MODULE_PATHS = {
+    "release_validate": _RUNTIME_FILES["runtime/release_validate.py"],
+    "receipt_verify": _RUNTIME_FILES["runtime/receipt_verify.py"],
+    "formal_status_gate": _RUNTIME_FILES["runtime/formal_status_gate.py"],
+    "gaussian_release": _RUNTIME_FILES["runtime/gaussian_release.py"],
+    "formal_receipt": _RUNTIME_FILES["runtime/formal_receipt.py"],
+}
+for _module_name, _expected_path in _EXPECTED_MODULE_PATHS.items():
+    _module = sys.modules.get(_module_name)
+    if _module is None or Path(getattr(_module, "__file__", "")).resolve() != \
+            _expected_path.resolve():
+        raise SystemExit(
+            f"plugin-isolated-module-missing: {_module_name} expected {_expected_path}"
+        )
 
 import release_validate as rv  # noqa: E402
 import receipt_verify as vr  # noqa: E402
 import formal_status_gate as fsg  # noqa: E402
+import gaussian_release as gr  # noqa: E402
 from formal_receipt import _operators_in_sexp as sexp_ops  # noqa: E402
 
 
+def _manifest_rows(raw: bytes) -> dict[str, str]:
+    """Parse and freeze the manifest labels used as this process's pin root."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"plugin-manifest-not-utf8: {exc}") from exc
+    rows: dict[str, str] = {}
+    for number, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            raise SystemExit(f"plugin-manifest-row: line {number}")
+        label, value = parts[0], parts[-1]
+        if label in rows:
+            raise SystemExit(f"plugin-manifest-duplicate: {label}")
+        rows[label] = value
+    return rows
+
+
+_MANIFEST_BYTES = LAYOUT["manifest"].read_bytes()
+_MANIFEST_SHA256 = hashlib.sha256(_MANIFEST_BYTES).hexdigest()
+_MANIFEST_ROWS = _manifest_rows(_MANIFEST_BYTES)
 PLUGIN_HASH = compute_bundle_hash()
-PLUGIN_HASH_PINNED = load_pinned_bundle_hash_any(ROOT)
+PLUGIN_HASH_PINNED = _MANIFEST_ROWS.get("plugin_hermes")
 
 
 class PluginRefusal(Exception):
@@ -131,6 +197,41 @@ class PluginRefusal(Exception):
         super().__init__(f"{reason}: {detail}")
         self.reason = reason
         self.detail = detail
+
+
+def _manifest_alias(labels: set[str], description: str) -> str:
+    present = [(label, _MANIFEST_ROWS[label]) for label in sorted(labels)
+               if label in _MANIFEST_ROWS]
+    if len(present) != 1:
+        raise PluginRefusal(
+            "plugin-manifest-incomplete",
+            f"{description}: expected exactly one of {sorted(labels)}, got {present}",
+        )
+    value = present[0][1]
+    if not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise PluginRefusal("plugin-manifest-hash", description)
+    return value
+
+
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _strict_json_loads(raw: str | bytes) -> Any:
+    return json.loads(
+        raw,
+        object_pairs_hook=_reject_duplicate_pairs,
+        parse_constant=_reject_json_constant,
+    )
 
 
 def _startup_gate() -> None:
@@ -142,22 +243,64 @@ def _startup_gate() -> None:
     """
     if PLUGIN_HASH_PINNED is None:
         raise PluginRefusal("plugin-manifest-missing", "no `plugin_hermes` row in release/MANIFEST.sha256")
-    if PLUGIN_HASH != PLUGIN_HASH_PINNED:
-        raise PluginRefusal("plugin-bundle-mismatch", f"computed {PLUGIN_HASH} != pinned {PLUGIN_HASH_PINNED}")
+    try:
+        current_manifest_sha = hashlib.sha256(LAYOUT["manifest"].read_bytes()).hexdigest()
+        current_bundle_hash = compute_bundle_hash()
+    except (OSError, SystemExit) as exc:
+        raise PluginRefusal("plugin-runtime-unreadable", str(exc)) from exc
+    if current_manifest_sha != _MANIFEST_SHA256:
+        raise PluginRefusal(
+            "plugin-manifest-changed",
+            f"current {current_manifest_sha} != startup {_MANIFEST_SHA256}",
+        )
+    if current_bundle_hash != PLUGIN_HASH or current_bundle_hash != PLUGIN_HASH_PINNED:
+        raise PluginRefusal("plugin-bundle-mismatch", f"current {current_bundle_hash} startup {PLUGIN_HASH} pinned {PLUGIN_HASH_PINNED}")
 
 
 def _load_pinned_ids() -> tuple[str, str]:
     """Read pinned evaluator/checker sha256 from MANIFEST.sha256."""
-    ev = ck = ""
-    for ln in LAYOUT["manifest"].read_text().splitlines():
-        parts = ln.split()
-        if len(parts) >= 3 and parts[0] == "evaluator":
-            ev = parts[-1]
-        elif len(parts) >= 3 and parts[0] == "checker":
-            ck = parts[-1]
-    if not ev or not ck:
-        raise PluginRefusal("plugin-manifest-incomplete", str(LAYOUT["manifest"]))
-    return ev, ck
+    return (
+        _manifest_alias({"evaluator"}, "evaluator"),
+        _manifest_alias({"checker"}, "checker"),
+    )
+
+
+def _load_pinned_gaussian_ids() -> tuple[str, str]:
+    """Read the pinned Gaussian producer/checker identities.
+
+    The repository manifest uses hyphenated labels while the standalone
+    package manifest uses underscore labels; both spellings are intentional
+    public formats and must resolve to the same exact bytes.
+    """
+    return (
+        _manifest_alias(
+            {"gaussian-producer", "gaussian_producer"}, "Gaussian producer"
+        ),
+        _manifest_alias(
+            {"gaussian-checker", "gaussian_checker"}, "Gaussian checker"
+        ),
+    )
+
+
+def _load_pinned_source_id() -> str:
+    """Read the exact Anubis source identity bound into range receipts."""
+    return _manifest_alias({"source"}, "source")
+
+
+def _load_pinned_inventory_id() -> str:
+    return _manifest_alias(
+        {"coverage-inventory", "coverage_inventory"}, "coverage inventory"
+    )
+
+
+def _load_pinned_proof_ids(lane: str) -> tuple[str, str]:
+    """Read exact proof-identity file and internal-digest pins."""
+    file_labels = {f"{lane}-proof-identity", f"{lane}_proof_identity"}
+    digest_labels = {f"{lane}-proof-digest", f"{lane}_proof_digest"}
+    return (
+        _manifest_alias(file_labels, f"{lane} proof identity"),
+        _manifest_alias(digest_labels, f"{lane} proof digest"),
+    )
 
 
 def _admitted_operators() -> set[str]:
@@ -170,13 +313,23 @@ def _refuse(reason: str, detail: str = "") -> dict[str, Any]:
     return {"status": "refused", "reason": reason, "detail": detail}
 
 
-def _validate_args(args: dict[str, Any], keys: list[str]) -> None:
+def _validate_args(args: dict[str, Any], keys: list[str],
+                   *, object_keys: list[str] | None = None) -> None:
     if not isinstance(args, dict):
         raise PluginRefusal("plugin-args-schema", "arguments must be an object")
+    objects = object_keys or []
+    expected = set(keys) | set(objects)
+    if set(args) != expected:
+        raise PluginRefusal(
+            "plugin-args-schema", f"missing/extra fields: {sorted(set(args) ^ expected)}"
+        )
     for k in keys:
         v = args.get(k)
         if not isinstance(v, str) or not v:
             raise PluginRefusal("plugin-args-schema", f"missing/invalid field: {k!r}")
+    for k in objects:
+        if not isinstance(args.get(k), dict):
+            raise PluginRefusal("plugin-args-schema", f"missing/invalid object: {k!r}")
 
 
 def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
@@ -197,6 +350,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
     lo = args["input_lo"]
     hi = args["input_hi"]
     ev_expected, ck_expected = _load_pinned_ids()
+    proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("range")
 
     with tempfile.TemporaryDirectory(prefix="jackal-plugin-") as td:
         formal_path = os.path.join(td, "receipt.json")
@@ -209,13 +363,35 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_checker=ck_expected,
                 formal_receipt_path=formal_path,
                 plugin_sha256=PLUGIN_HASH,
-                release_epoch="v1.2.0",
+                release_epoch="v1.3.0",
+            )
+            receipt = _strict_json_loads(Path(formal_path).read_bytes())
+            rerun = vr.verify_receipt(
+                receipt=receipt,
+                checker=str(LAYOUT["checker"]),
+                expected_evaluator=ev_expected,
+                expected_checker=ck_expected,
+                inventory_path=LAYOUT["inventory"],
+                expected_inventory_sha256=_load_pinned_inventory_id(),
+                proof_identity_path=LAYOUT["range_proof_identity"],
+                expected_proof_identity_file=proof_file_expected,
+                expected_proof_identity_digest=proof_digest_expected,
+                expected_plugin=PLUGIN_HASH,
+                expected_source=_load_pinned_source_id(),
+                expected_release_epoch="v1.3.0",
+                expected_request={
+                    "command": "range-bound-cert",
+                    "expression": expr,
+                    "input_lo": lo,
+                    "input_hi": hi,
+                },
             )
         except rv.ReleaseRefusal as r:
             # Map the validator's stable class through unchanged.  The plugin
             # never converts a bounded failure into a bounded fallback.
             return _refuse(r.cls, r.detail)
-        receipt = json.loads(Path(formal_path).read_text())
+        except vr.ReceiptRefusal as r:
+            return _refuse(r.cls, r.detail)
 
     # P1 (post-hoc): every operator in the emitted certificate must be in
     # the live FORMAL fragment.  The validator already enforces this via the
@@ -229,7 +405,74 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
     if receipt["identities"].get("plugin_sha256") != PLUGIN_HASH:
         return _refuse("plugin-identity-unbound",
                        f"receipt plugin={receipt['identities'].get('plugin_sha256')} != {PLUGIN_HASH}")
-    return {"status": "formal-bounded", "receipt": receipt}
+    if rerun.get("verdict") != "ACCEPT":
+        return _refuse("plugin-checker-rerun", str(rerun.get("verdict")))
+    return {"status": "formal-bounded", "checker_rerun": "ACCEPT", "receipt": receipt}
+
+
+def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
+    """Release one theorem-covered Gaussian integral or refuse.
+
+    The producer is untrusted.  ``gaussian_release.release`` first requires
+    the independently compiled Gaussian checker to accept the exact
+    certificate.  Before the receipt leaves the plugin, this adapter then
+    invokes ``receipt_verify.verify_receipt`` which rehydrates the carried
+    certificate and runs that pinned checker again.  No other expression is
+    routed to a weaker integration lane.
+    """
+    _validate_args(args, ["expression", "input_lo", "input_hi", "tolerance"])
+    producer_expected, checker_expected = _load_pinned_gaussian_ids()
+    proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("gaussian")
+
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-gaussian-") as td:
+        receipt_path = Path(td) / "receipt.json"
+        ns = argparse.Namespace(
+            expression=args["expression"],
+            lower=args["input_lo"],
+            upper=args["input_hi"],
+            tolerance=args["tolerance"],
+            producer=str(LAYOUT["gaussian_producer"]),
+            checker=str(LAYOUT["gaussian_checker"]),
+            expected_producer=producer_expected,
+            expected_checker=checker_expected,
+            receipt=str(receipt_path),
+            plugin_sha256=PLUGIN_HASH,
+            release_epoch="v1.3.0",
+            timeout=60,
+        )
+        try:
+            gr.release(ns)
+            receipt = _strict_json_loads(receipt_path.read_bytes())
+            rerun = vr.verify_receipt(
+                receipt=receipt,
+                checker=str(LAYOUT["gaussian_checker"]),
+                expected_evaluator=producer_expected,
+                expected_checker=checker_expected,
+                inventory_path=LAYOUT["inventory"],
+                expected_inventory_sha256=_load_pinned_inventory_id(),
+                proof_identity_path=LAYOUT["gaussian_proof_identity"],
+                expected_proof_identity_file=proof_file_expected,
+                expected_proof_identity_digest=proof_digest_expected,
+                expected_plugin=PLUGIN_HASH,
+                expected_release_epoch="v1.3.0",
+                expected_request={
+                    "command": "integrate",
+                    "expression": args["expression"],
+                    "input_lo": args["input_lo"],
+                    "input_hi": args["input_hi"],
+                    "tolerance": args["tolerance"],
+                },
+            )
+        except gr.Refusal as r:
+            return _refuse(r.cls, r.detail)
+        except vr.ReceiptRefusal as r:
+            return _refuse(r.cls, r.detail)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return _refuse("plugin-gaussian-runtime", f"{type(exc).__name__}: {exc}")
+
+    if rerun.get("verdict") != "ACCEPT":
+        return _refuse("plugin-checker-rerun", str(rerun.get("verdict")))
+    return {"status": "formal-bounded", "checker_rerun": "ACCEPT", "receipt": receipt}
 
 
 def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
@@ -246,34 +489,234 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
     receipt = args.get("receipt")
     if not isinstance(receipt, dict):
         return _refuse("plugin-args-schema", "receipt must be an object")
-    ev_expected, ck_expected = _load_pinned_ids()
+    cert_schema = receipt.get("certificate", {}).get("schema")
+    if cert_schema == "jackal-gaussian-integral-cert v1":
+        string_keys = [
+            "expected_release_epoch", "expected_command", "expected_expression",
+            "expected_input_lo", "expected_input_hi", "expected_tolerance",
+        ]
+    elif cert_schema == "jackal-eval-cert v2":
+        string_keys = [
+            "expected_release_epoch", "expected_command", "expected_expression",
+            "expected_input_lo", "expected_input_hi",
+        ]
+    else:
+        return _refuse("cert-schema", str(cert_schema))
+    try:
+        _validate_args(args, string_keys, object_keys=["receipt"])
+    except PluginRefusal as refusal:
+        return _refuse(refusal.reason, refusal.detail)
+    if cert_schema == "jackal-gaussian-integral-cert v1":
+        ev_expected, ck_expected = _load_pinned_gaussian_ids()
+        checker = LAYOUT["gaussian_checker"]
+        proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("gaussian")
+        expected_request = {
+            "command": args["expected_command"],
+            "expression": args["expected_expression"],
+            "input_lo": args["expected_input_lo"],
+            "input_hi": args["expected_input_hi"],
+            "tolerance": args["expected_tolerance"],
+        }
+    else:
+        ev_expected, ck_expected = _load_pinned_ids()
+        checker = LAYOUT["checker"]
+        proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("range")
+        expected_request = {
+            "command": args["expected_command"],
+            "expression": args["expected_expression"],
+            "input_lo": args["expected_input_lo"],
+            "input_hi": args["expected_input_hi"],
+        }
     try:
         result = vr.verify_receipt(
             receipt=receipt,
-            checker=str(LAYOUT["checker"]),
+            checker=str(checker),
             expected_evaluator=ev_expected,
             expected_checker=ck_expected,
             inventory_path=LAYOUT["inventory"],
+            expected_inventory_sha256=_load_pinned_inventory_id(),
+            proof_identity_path=(
+                LAYOUT["gaussian_proof_identity"]
+                if cert_schema == "jackal-gaussian-integral-cert v1"
+                else LAYOUT["range_proof_identity"]
+            ),
+            expected_proof_identity_file=proof_file_expected,
+            expected_proof_identity_digest=proof_digest_expected,
             expected_plugin=PLUGIN_HASH,
+            expected_source=(None if cert_schema == "jackal-gaussian-integral-cert v1"
+                             else _load_pinned_source_id()),
+            expected_release_epoch=args["expected_release_epoch"],
+            expected_request=expected_request,
         )
     except vr.ReceiptRefusal as r:
         return _refuse(r.cls, r.detail)
     return {"status": "verified", **result}
 
 
+# -- weaker-lane adapters (non-formal; status passthrough, never inflated) ----
+#
+# Each adapter invokes the PINNED evaluator binary directly (identity hashed
+# before and after, exactly like the release gate) and returns the engine's
+# verbatim output plus a machine-readable epistemic class.  The class is
+# derived from the COVERAGE INVENTORY row for the lane — never hardcoded to a
+# stronger value, never `formal-*`.  If the engine's own printed `status=`
+# disagrees with the inventory row, the adapter REFUSES rather than pick one
+# (`plugin-lane-status-divergence`).  These lanes carry NO certificate and NO
+# theorem: their receipts are honest evidence of what was computed and by
+# which exact binary, not proofs.
+
+_WEAK_LANE_TOOLS: dict[str, dict[str, Any]] = {
+    "jackal_exact": {
+        "lane": "rat",
+        "args": ["expression"],
+        "argv": lambda a: ["rat", a["expression"]],
+    },
+    "jackal_evaluate": {
+        "lane": "eval",
+        "args": ["expression"],
+        "argv": lambda a: ["eval", a["expression"]],
+    },
+    "jackal_diff": {
+        "lane": "diff",
+        "args": ["expression"],
+        "argv": lambda a: ["diff", a["expression"]],
+    },
+    "jackal_integrate": {
+        "lane": "integrate",
+        "args": ["expression", "input_lo", "input_hi", "panels"],
+        "argv": lambda a: ["integrate", a["expression"], a["input_lo"],
+                            a["input_hi"], a["panels"]],
+    },
+    "jackal_integrate_adaptive": {
+        "lane": "integrate-adaptive",
+        "args": ["expression", "input_lo", "input_hi", "tolerance"],
+        "argv": lambda a: ["integrate-adaptive", a["expression"], a["input_lo"],
+                            a["input_hi"], a["tolerance"]],
+    },
+    "jackal_integrate_bound": {
+        "lane": "integrate-bound",
+        "args": ["expression", "input_lo", "input_hi", "tolerance"],
+        "argv": lambda a: ["integrate-bound", a["expression"], a["input_lo"],
+                            a["input_hi"], a["tolerance"]],
+    },
+    "jackal_solve": {
+        "lane": "solve",
+        "args": ["expression", "input_lo", "input_hi"],
+        "argv": lambda a: ["solve", a["expression"], a["input_lo"], a["input_hi"]],
+    },
+}
+
+# Epistemic classes a weaker lane may legitimately print.  `formal-*` is
+# structurally impossible here: it is not in this set, and the inventory rows
+# for these lanes never carry it.
+_WEAK_ALLOWED_STATUSES = {"exact", "checked", "estimated", "bounded", "model-based"}
+
+
+def _lane_inventory_row(lane: str) -> dict[str, Any]:
+    inv = fsg.load_inventory(verify_integrity=False)
+    row = inv["by_op"].get(lane)
+    if row is None:
+        raise PluginRefusal("plugin-lane-unregistered",
+                            f"no coverage-inventory row for lane {lane!r}")
+    return row
+
+
+def _parse_engine_fields(stdout_text: str) -> dict[str, str]:
+    """Collect `key=value` tokens from the engine's metadata lines."""
+    fields: dict[str, str] = {}
+    for line in stdout_text.splitlines():
+        for token in line.split():
+            if "=" in token:
+                key, _, value = token.partition("=")
+                if key and key not in fields:
+                    fields[key] = value
+    return fields
+
+
+def _run_pinned_evaluator(argv: list[str]) -> tuple[str, str]:
+    """Invoke the pinned evaluator with identity hashed pre/post (TOCTOU)."""
+    expected, _ = _load_pinned_ids()
+    eval_path = str(LAYOUT["evaluator"])
+    pre = hashlib.sha256(Path(eval_path).read_bytes()).hexdigest()
+    if pre != expected:
+        raise PluginRefusal("evaluator-identity", f"{pre} != pinned {expected}")
+    proc = subprocess.run([eval_path, *argv], capture_output=True, text=True,
+                          timeout=600)
+    post = hashlib.sha256(Path(eval_path).read_bytes()).hexdigest()
+    if post != pre:
+        raise PluginRefusal("evaluator-toctou", "evaluator bytes changed across call")
+    if proc.returncode != 0:
+        raw_detail = (proc.stderr.strip() or proc.stdout.strip())
+        # The engine's named refusal reason is the `ANUBIS_PANIC: <reason>`
+        # line; the surrounding Rust panic preamble/backtrace hint is noise.
+        detail = next(
+            (ln.split("ANUBIS_PANIC: ", 1)[1]
+             for ln in raw_detail.splitlines() if "ANUBIS_PANIC: " in ln),
+            raw_detail.split("\n")[0],
+        )[:300]
+        raise PluginRefusal("evaluator-refused", detail)
+    return proc.stdout, pre
+
+
+def _make_weak_tool(tool_name: str, spec: dict[str, Any]):
+    lane = spec["lane"]
+
+    def tool(args: dict[str, Any]) -> dict[str, Any]:
+        _validate_args(args, list(spec["args"]))
+        row = _lane_inventory_row(lane)
+        allowed = row["allowed_status"]
+        if allowed not in _WEAK_ALLOWED_STATUSES:
+            raise PluginRefusal("plugin-lane-status",
+                                f"inventory row {lane!r} allows {allowed!r} which is "
+                                "outside the weaker-lane class set")
+        stdout_text, evaluator_sha = _run_pinned_evaluator(spec["argv"](args))
+        fields = _parse_engine_fields(stdout_text)
+        printed = fields.get("status")
+        if printed is not None and printed != allowed:
+            # The engine's own printed class must equal the registry row —
+            # divergence is refused, never resolved by picking the stronger.
+            raise PluginRefusal(
+                "plugin-lane-status-divergence",
+                f"engine printed status={printed!r} but inventory row {lane!r} "
+                f"allows {allowed!r}")
+        return {
+            "status": allowed,
+            "lane": lane,
+            "formal": False,
+            "engine_output": stdout_text.rstrip("\n"),
+            "fields": fields,
+            "assurance": fields.get("assurance", row.get("description", "")),
+            "identities": {"evaluator_sha256": evaluator_sha},
+            "non_claims": [
+                "NOT formal-bounded: this lane carries no Lean-checked certificate",
+                "The epistemic class above is the STRONGEST claim this result supports",
+                row.get("description", ""),
+            ],
+        }
+
+    tool.__name__ = f"tool_{tool_name}"
+    return tool
+
+
 TOOLS = {
     "jackal_range_bound":     tool_range_bound,
+    "jackal_gaussian_integral": tool_gaussian_integral,
     "jackal_verify_receipt":  tool_verify_receipt,
 }
+for _tool_name, _spec in _WEAK_LANE_TOOLS.items():
+    TOOLS[_tool_name] = _make_weak_tool(_tool_name, _spec)
 
 
 def _dispatch(method: str, params: Any) -> dict[str, Any]:
-    if method not in TOOLS:
-        return _refuse("plugin-unknown-tool", method)
-    if not isinstance(params, dict):
-        return _refuse("plugin-args-schema", "params must be an object")
     try:
-        return TOOLS[method](params)
+        _startup_gate()
+        if method not in TOOLS:
+            return _refuse("plugin-unknown-tool", method)
+        if not isinstance(params, dict):
+            return _refuse("plugin-args-schema", "params must be an object")
+        result = TOOLS[method](params)
+        _startup_gate()
+        return result
     except PluginRefusal as p:
         return _refuse(p.reason, p.detail)
     except Exception as e:  # noqa: BLE001
@@ -302,7 +745,7 @@ def _serve_stdio() -> int:
         list_tools()                       -> tool manifest
         <tool-name>(<args-object>)          -> tool result
     """
-    tools_manifest = json.loads((PLUGIN_DIR / "tools.json").read_text())
+    tools_manifest = _strict_json_loads((PLUGIN_DIR / "tools.json").read_bytes())
     try:
         _startup_gate()
     except PluginRefusal as p:
@@ -313,8 +756,10 @@ def _serve_stdio() -> int:
         if not raw:
             continue
         try:
-            req = json.loads(raw)
-        except json.JSONDecodeError as e:
+            req = _strict_json_loads(raw)
+            if not isinstance(req, dict):
+                raise ValueError("request must be an object")
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
             sys.stdout.write(_rpc_err(None, -32700, f"parse error: {e}") + "\n")
             sys.stdout.flush()
             continue
@@ -337,14 +782,18 @@ def _serve_call(tool: str, arg_json: str) -> int:
                                      "detail": p.detail}, sort_keys=True) + "\n")
         return 1
     try:
-        params = json.loads(arg_json)
-    except json.JSONDecodeError as e:
+        params = _strict_json_loads(arg_json)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
         sys.stdout.write(json.dumps({"status": "refused", "reason": "plugin-args-schema",
                                      "detail": f"parse error: {e}"}, sort_keys=True) + "\n")
         return 1
     result = _dispatch(tool, params)
     sys.stdout.write(json.dumps(result, sort_keys=True, indent=2) + "\n")
-    return 0 if result.get("status") in {"formal-bounded", "verified"} else 1
+    return 0 if result.get("status") in {
+        "formal-bounded", "verified",
+        # Weaker-lane classes: success at their honest epistemic level.
+        "exact", "checked", "estimated", "bounded", "model-based",
+    } else 1
 
 
 def _serve_http(port: int, host: str) -> int:
@@ -357,7 +806,7 @@ def _serve_http(port: int, host: str) -> int:
         sys.stderr.write(f"startup-refuse {p.reason}: {p.detail}\n")
         return 1
 
-    tools_manifest = json.loads((PLUGIN_DIR / "tools.json").read_text())
+    tools_manifest = _strict_json_loads((PLUGIN_DIR / "tools.json").read_bytes())
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):  # silence access log
@@ -382,11 +831,18 @@ def _serve_http(port: int, host: str) -> int:
                 self._send_json(404, {"status": "refused", "reason": "plugin-http-notfound"})
                 return
             tool = self.path[len("/tools/"):]
-            n = int(self.headers.get("Content-Length", "0") or 0)
+            try:
+                n = int(self.headers.get("Content-Length", "0") or 0)
+            except ValueError:
+                self._send_json(400, {"status": "refused", "reason": "plugin-http-length"})
+                return
+            if n < 0 or n > 4 * 1024 * 1024:
+                self._send_json(413, {"status": "refused", "reason": "plugin-http-length"})
+                return
             body = self.rfile.read(n) if n else b"{}"
             try:
-                params = json.loads(body or b"{}")
-            except json.JSONDecodeError as e:
+                params = _strict_json_loads(body or b"{}")
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
                 self._send_json(400, {"status": "refused", "reason": "plugin-args-schema",
                                       "detail": f"parse error: {e}"})
                 return
@@ -416,11 +872,18 @@ def main(argv: list[str]) -> int:
     if ns.cmd == "http":
         return _serve_http(ns.port, ns.host)
     if ns.cmd == "selftest":
+        try:
+            _startup_gate()
+        except PluginRefusal as p:
+            print(f"plugin_hermes.selftest=refused reason={p.reason} detail={p.detail}")
+            return 1
         print(f"plugin_hermes.bundle_sha256={PLUGIN_HASH}")
         print(f"plugin_hermes.pinned_sha256={PLUGIN_HASH_PINNED or '<none>'}")
         print(f"plugin_hermes.identity_match={'true' if PLUGIN_HASH == PLUGIN_HASH_PINNED else 'false'}")
         print(f"evaluator={LAYOUT['evaluator']}")
         print(f"checker={LAYOUT['checker']}")
+        print(f"gaussian_producer={LAYOUT['gaussian_producer']}")
+        print(f"gaussian_checker={LAYOUT['gaussian_checker']}")
         return 0
     return 2
 

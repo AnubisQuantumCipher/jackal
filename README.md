@@ -1,7 +1,8 @@
 # JACKAL CALC — CLAIM-AWARE STEM ENGINE
 
 JACKAL is a deterministic, offline STEM calculator with one unusual property: **every answer
-tells you what kind of answer it is** — `exact`, `bounded` (a certified interval enclosure),
+tells you what kind of answer it is** — `exact`, `bounded` (a conditional interval enclosure),
+`formal-bounded` (a proved-checker-accepted enclosure),
 `checked`, `estimated`, or `model-based` — and what it would take to trust it. When JACKAL
 cannot stand behind a number, it refuses with a named reason instead of printing something
 plausible.
@@ -45,18 +46,19 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
 - **Determinism** — identical input, byte-identical output; claim cards carry SHA-256 fingerprints.
 - **Exactness flags** — `rat` and `big-*` results are exact; `approx=` is labeled IEEE f64;
   the single most common downstream error is a model treating a truncated decimal as exact.
-- **A three-tier assurance ladder for numerical integration** —
+- **A four-tier assurance ladder for numerical integration** —
   `integrate` prints a Richardson *estimate* tagged `assurance=estimate-not-bound(grid-limited)`
   (heuristic; a feature narrower than the grid can evade both grids — verified: a width~0.0007
   Gaussian peak on a 100-panel grid underestimated its own error ~256×);
   `integrate-adaptive` prints a *local estimate with refusal semantics* (it refuses rather than
   print unearned confidence, but agreement is still not a bound);
-  `integrate-bound` prints a **certified enclosure** — an interval-arithmetic bound that cannot
-  be evaded by off-grid structure, conditional only on the stated f64 rounding model (see
-  "Certified enclosures" below). Bisection ships residuals; symbolic derivatives ship their own
+  `integrate-bound` prints a **conditional enclosure** under the stated f64/libm model;
+  `jackal-gaussian-release` adds a distinct **zero-libm formal enclosure** for checker-accepted
+  canonical `exp(-A*(x-mu)^2)` requests and refuses every unsupported formal request without
+  downgrade (see "Formal Gaussian integration" below). Bisection ships residuals; symbolic derivatives ship their own
   numeric verification line. Only the `rat`/`big-*` lanes are exact.
 - **Machine-readable epistemic classes** — metadata-bearing lanes print `status=` as the first
-  field: `exact` (rat), `bounded` (integrate-bound, range-bound), `checked` (diff),
+  field: `exact` (rat), `bounded` (integrate-bound), `formal-bounded` (proved range/Gaussian release wrappers), `checked` (diff),
   `estimated` (integrate, integrate-adaptive, derivative, solve, integrate-x2, derivative-x3),
   `model-based` (claim-card). `jackal maturity` prints the full graded command inventory —
   every lane's class, oracle, evidence, and known residual — so strong evidence in one lane
@@ -89,7 +91,7 @@ sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub re
 (Apple Silicon macOS), verify the release checksums and pinned identities, or build from
 source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Formal-release path (v1.2.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
+**Formal-release paths (v1.3.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
 emits `status=formal-bounded` **only** when the shared
 release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
@@ -98,31 +100,51 @@ evaluator and `jackal_cert_check` checker executable identities (pinned in
 status escalation. Any break refuses with a stable class — never a bounded fallback. Checker
 *soundness* (an accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.2.0" for the receipts and preserved predecessor scars.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.3.0" for the receipts and preserved predecessor scars.
+
+The separate `jackal-gaussian-release "exp(-A*(x-mu)^2)" <lo> <hi> <tolerance> <formal-receipt.json>`
+path admits only canonical nonnegative rational tokens, a checker-verified positive rational
+`scale` with `scale^2=A`, and a transformed interval containing `[-6,6]`. Its untrusted producer
+emits exact-rational witness bytes; `jackal_gaussian_check` parses and recomputes them. The Lean
+theorem `gaussian_integral_check_sound` proves that checker acceptance binds the source tokens and
+encloses the requested real integral. It uses Mathlib's Gaussian-integral and pi-bound theorems,
+a proved `exp(-36)` tail bound, and no platform `exp`/libm result. Unsupported formal integration
+requests refuse with no fallback to `integrate-bound`.
 
 **Formal receipt + Hermes plugin.** When the optional fourth path is supplied,
 the wrapper emits a canonical `jackal-formal-receipt-v1` JSON receipt with
 the certificate **embedded** (base64) and every field a downstream reverifier
-needs: exact canonical request, exact enclosure, evaluator/checker/plugin
-identities, theorem id `cert_check_sound`, Lean kernel axiom list, admitted
+needs: exact canonical request (including integration tolerance), exact enclosure,
+producer/evaluator/checker/plugin identities, matching theorem id (`cert_check_sound` or
+`gaussian_integral_check_sound`), Lean kernel axiom list, admitted
 operator set, coverage-row ids, assumptions, non-claims, and an outer
 `receipt_digest_sha256`. The independent verifier `tools/receipt_verify.py`
-re-hydrates the embedded certificate and **re-runs the pinned Lean-proved
+re-hydrates the embedded certificate and **re-runs the matching pinned Lean-proved
 checker on this machine** — recomputing the outer digest alone is not
-sufficient. A Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) exposes
-two tools — `jackal_range_bound` and `jackal_verify_receipt` — that thread every
+sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The v1.2.0 eleven-category A→B→A
-mutation harness (`tests/cert_mutations_11.py`) proves that every trust-boundary
-gate — request/AST/enclosure/certificate/limits/formal-status/checker/
-evaluator/outer-digest/stale-success/plugin-bundle — is load-bearing: for each
-category the mutation harness disables one governing gate (still-compiling),
-the poison is admitted only under that disablement, and the exact pre-mutation
-bytes are restored hash-verified before A(post). See `release/evidence/` for
-the durable transcripts (`positive_corpus.jsonl`, `negative_controls.jsonl`,
-`plugin_smoke.jsonl`, `mutations_11.json`, `fail_closed_sweep.jsonl`, and
-`aba_mutations.json`).
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes ten tools —
+three formal (`jackal_range_bound`, `jackal_gaussian_integral`,
+`jackal_verify_receipt`) plus seven weaker-lane adapters (`jackal_exact`,
+`jackal_evaluate`, `jackal_diff`, `jackal_integrate`, `jackal_integrate_adaptive`,
+`jackal_integrate_bound`, `jackal_solve`) that thread through the pinned
+evaluator with identity checks and return the engine's honest inventory-derived
+epistemic class (`exact`/`checked`/`estimated`/`bounded`/`model-based`) with
+`formal: false` — status inflation is structurally impossible.
+
+The v1.3.0 eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
+plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,
+24/24 including the two §487 audit locks for U+2028 parser-differential
+injection and `const_rounded` release-fragment admission) prove that every
+trust-boundary gate — request/AST/enclosure/certificate/limits/formal-status/
+checker/evaluator/outer-digest/stale-success/plugin-bundle — is load-bearing:
+the mutation harness disables one governing gate (still-compiling), the poison
+is admitted only under that disablement, and the exact pre-mutation bytes are
+restored hash-verified before A(post). See `release/evidence/` for the durable
+transcripts (`positive_corpus.jsonl`, `negative_controls.jsonl`,
+`plugin_smoke.jsonl`, `mutations_11.json`, `receipt_semantic_mutations.json`,
+`fail_closed_sweep.jsonl`, `gaussian_formal_v130.json`, and `aba_mutations.json`).
 
 ## Build from source
 
@@ -285,8 +307,10 @@ How it works, and exactly what it claims:
   certified release* — verified by a positive corpus, 24 negative controls (each failing for its
   intended semantic reason, `tests/cert_controls.py`), and an A→B→A tamper where a deliberately
   non-enclosing emitter is rejected then restored by hash (`tests/cert_tamper.sh`). The certified
-  fragment is the exact-ℚ operators + `sin`/`cos` + named constants; true-transcendentals fail
-  closed. What is *not* proven is enumerated in
+  fragment is the exact-ℚ operators + `sin`/`cos`; true-transcendentals AND named constants
+  (`pi`/`e`/`tau`) fail closed (const excluded 2026-08-15, §487-const audit — their value is
+  bound only by the undischarged `ConstTCB` premise, not ℚ-decidable). What is *not* proven is
+  enumerated in
   [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm meeting its
   2-ulp model; the still-fail-closed operators; the bigint/rational lanes (checked in-language by
   the Anubis SMT checker, outside this Lean scope); that the Anubis emitter faithfully produces
@@ -400,7 +424,7 @@ register model; the `big-` lane is the exact model.
 | Trust and metrology | `claim-card self-test maturity measure-mul uncertain-ohm kinetic-sensitivity` |
 | Expression engine | `eval integrate integrate-adaptive derivative solve` |
 | Certified enclosures | `integrate-bound range-bound` (proven interval bounds, refuse-on-doubt) |
-| Proof-carrying | `range-bound-cert` (emits a Lean-checker-verifiable enclosure certificate) |
+| Proof-carrying | `range-bound-cert` plus release wrappers `jackal-cert-release` and `jackal-gaussian-release` (matching Lean checker required) |
 | Provenance | `parse-dump lower-dump` (canonical s-expr of the parse/lowering — drives the Lean parser-correspondence gate) |
 | Symbolic | `diff` (self-verifying d/dx) |
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |

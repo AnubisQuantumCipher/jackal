@@ -10,6 +10,7 @@ checker hashes. Load-bearing checks raise; no assert.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -52,6 +53,13 @@ def main() -> int:
     chk_id = sha(pkg / "jackal_cert_check")
     gaussian_producer_id = sha(pkg / "gaussian_certificate.py")
     gaussian_checker_id = sha(pkg / "jackal_gaussian_check")
+    source_id = sha(pkg / "jackal_calc.anb")
+    range_proof_file_id = sha(pkg / "range_proof_identity.json")
+    gaussian_proof_file_id = sha(pkg / "gaussian_proof_identity.json")
+    range_proof_digest = json.loads(
+        (pkg / "range_proof_identity.json").read_text())["identity_digest_sha256"]
+    gaussian_proof_digest = json.loads(
+        (pkg / "gaussian_proof_identity.json").read_text())["identity_digest_sha256"]
 
     # SHA256SUMS integrity over the fresh extraction.
     c = run(["shasum", "-a", "256", "-c", "SHA256SUMS"], cwd=pkg)
@@ -79,11 +87,21 @@ def main() -> int:
         fail("released output does not identify exact packaged evaluator/checker hashes")
     if not receipt_path.is_file():
         fail("valid release did not emit the requested formal receipt")
-    verified = run([sys.executable, str(pkg / "receipt_verify.py"),
+    verified = run([str(pkg / "jackal-receipt-verify"),
                     "--receipt", str(receipt_path),
                     "--checker", str(pkg / "jackal_cert_check"),
                     "--expected-evaluator", eval_id,
                     "--expected-checker", chk_id,
+                    "--expected-source", source_id,
+                    "--expected-release-epoch", "v1.3.0",
+                    "--expected-command", "range-bound-cert",
+                    "--expected-expression", "x^2+1",
+                    "--expected-input-lo", "1",
+                    "--expected-input-hi", "2",
+                    "--proof-identity", str(pkg / "range_proof_identity.json"),
+                    "--expected-proof-identity-file", range_proof_file_id,
+                    "--expected-proof-identity-digest", range_proof_digest,
+                    "--expected-inventory", sha(pkg / "formal_coverage_inventory.json"),
                     "--inventory", str(pkg / "formal_coverage_inventory.json")])
     if verified.returncode != 0 or "status=verified verdict=ACCEPT" not in verified.stdout:
         fail(f"standalone receipt verifier did not accept: {verified.stdout}{verified.stderr}")
@@ -99,11 +117,21 @@ def main() -> int:
     if gaussian_producer_id not in gaussian.stdout or gaussian_checker_id not in gaussian.stdout:
         fail("Gaussian release omitted exact producer/checker identities")
     gaussian_verified = run([
-        sys.executable, str(pkg / "receipt_verify.py"),
+        str(pkg / "jackal-receipt-verify"),
         "--receipt", str(gaussian_receipt),
         "--checker", str(pkg / "jackal_gaussian_check"),
         "--expected-evaluator", gaussian_producer_id,
         "--expected-checker", gaussian_checker_id,
+        "--expected-release-epoch", "v1.3.0",
+        "--expected-command", "integrate",
+        "--expected-expression", "exp(-10000000000*(x-0.5000123456789)^2)",
+        "--expected-input-lo", "0",
+        "--expected-input-hi", "1",
+        "--expected-tolerance", "1/1000000000000",
+        "--proof-identity", str(pkg / "gaussian_proof_identity.json"),
+        "--expected-proof-identity-file", gaussian_proof_file_id,
+        "--expected-proof-identity-digest", gaussian_proof_digest,
+        "--expected-inventory", sha(pkg / "formal_coverage_inventory.json"),
         "--inventory", str(pkg / "formal_coverage_inventory.json"),
     ])
     if gaussian_verified.returncode != 0 or "receipt_valid=true" not in gaussian_verified.stdout:
@@ -119,8 +147,10 @@ def main() -> int:
     results.append(("gaussian-unsupported", "refused", unsupported_gaussian.stdout,
                     unsupported_gaussian.stderr))
 
-    smoke("unsupported-op", ["sqrt(x)", "1", "2"], False)
-    smoke("invalid-domain", ["1/x", "-1", "1"], False)
+    smoke("unsupported-op", ["sqrt(x)", "1", "2",
+                              str(pkg / "unsupported-must-not-exist.json")], False)
+    smoke("invalid-domain", ["1/x", "-1", "1",
+                              str(pkg / "domain-must-not-exist.json")], False)
 
     # forged request: tamper the wrapper is not allowed; instead validate a cert
     # for a different request via the packaged validator directly.
@@ -144,7 +174,8 @@ def main() -> int:
 
     # missing checker
     (pkg / "jackal_cert_check").rename(pkg / "jackal_cert_check.bak")
-    mc = run([str(rel), "x^2+1", "1", "2"], cwd=pkg)
+    mc = run([str(rel), "x^2+1", "1", "2",
+              str(pkg / "missing-checker-must-not-exist.json")], cwd=pkg)
     if mc.returncode == 0:
         fail("missing checker released bounded")
     (pkg / "jackal_cert_check.bak").rename(pkg / "jackal_cert_check")
@@ -154,7 +185,8 @@ def main() -> int:
     man = pkg / "MANIFEST.sha256"
     orig = man.read_text()
     man.write_text(orig.replace(eval_id, "d" * 64))
-    mt = run([str(rel), "x^2+1", "1", "2"], cwd=pkg)
+    mt = run([str(rel), "x^2+1", "1", "2",
+              str(pkg / "manifest-tamper-must-not-exist.json")], cwd=pkg)
     if mt.returncode == 0:
         fail("manifest tamper released bounded")
     man.write_text(orig)

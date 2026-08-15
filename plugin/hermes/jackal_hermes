@@ -9,4 +9,12 @@
 #     jackal_hermes selftest                  bundle-hash + pin diagnostic
 set -eu
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec python3 "$DIR/server.py" "$@"
+if [ -f "$DIR/../../tools/isolated_entry.py" ]; then
+    ENTRY="$DIR/../../tools/isolated_entry.py"
+elif [ -f "$DIR/../../isolated_entry.py" ]; then
+    ENTRY="$DIR/../../isolated_entry.py"
+else
+    echo "status=refused reason=isolated-runtime-missing" >&2
+    exit 126
+fi
+exec python3 -I -S -B "$ENTRY" plugin "$@"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# JACKAL v1.2.0 fail-closed formal-release gate.
+# JACKAL v1.3.0 fail-closed formal-release gate.
 #
 # Emits `status=formal-bounded` ONLY when the shared release validator confirms
 # the whole bound chain:
@@ -12,7 +12,7 @@
 # (NOT the `jackal` launcher, whose hash is not the engine's — v1.0.3
 # Counterexample C). Identities are pinned, not self-referential.
 #
-# Usage: jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]
+# Usage: jackal-cert-release "<expr in x>" <lo> <hi> <formal-receipt.json>
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -20,8 +20,8 @@ EVALUATOR="$ROOT/jackal-native"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 MANIFEST="$ROOT/release/MANIFEST.sha256"
 
-if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
-    echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi> [formal-receipt.json]" >&2
+if [ "$#" -ne 4 ]; then
+    echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi> <formal-receipt.json>" >&2
     exit 2
 fi
 EXPR="$1"; LO="$2"; HI="$3"
@@ -32,21 +32,25 @@ if [ ! -f "$MANIFEST" ]; then
 fi
 EXPECTED_EVAL=$(awk '/^evaluator /{print $3}' "$MANIFEST")
 EXPECTED_CHK=$(awk '/^checker /{print $3}' "$MANIFEST")
-if [ -z "$EXPECTED_EVAL" ] || [ -z "$EXPECTED_CHK" ]; then
+EXPECTED_SOURCE=$(awk '/^source /{print $3}' "$MANIFEST")
+EXPECTED_INVENTORY=$(awk '/^coverage-inventory /{print $3}' "$MANIFEST")
+EXPECTED_PROOF_FILE=$(awk '/^range-proof-identity /{print $3}' "$MANIFEST")
+EXPECTED_PROOF_DIGEST=$(awk '/^range-proof-digest /{print $2}' "$MANIFEST")
+if [ -z "$EXPECTED_EVAL" ] || [ -z "$EXPECTED_CHK" ] || \
+   [ -z "$EXPECTED_SOURCE" ] || [ -z "$EXPECTED_INVENTORY" ] || \
+   [ -z "$EXPECTED_PROOF_FILE" ] || [ -z "$EXPECTED_PROOF_DIGEST" ]; then
     echo "status=unavailable reason=manifest-incomplete" >&2
     exit 3
 fi
 
-if [ "$#" -eq 4 ]; then
-    exec python3 "$ROOT/tests/release_validate.py" \
-        --expr "$EXPR" --lo "$LO" --hi "$HI" \
-        --evaluator "$EVALUATOR" --checker "$CHECKER" \
-        --expected-evaluator "$EXPECTED_EVAL" --expected-checker "$EXPECTED_CHK" \
-        --release-epoch v1.2.0 --formal-receipt "$4"
-fi
-
-exec python3 "$ROOT/tests/release_validate.py" \
+exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" range \
     --expr "$EXPR" --lo "$LO" --hi "$HI" \
     --evaluator "$EVALUATOR" --checker "$CHECKER" \
     --expected-evaluator "$EXPECTED_EVAL" --expected-checker "$EXPECTED_CHK" \
-    --release-epoch v1.2.0
+    --expected-source "$EXPECTED_SOURCE" \
+    --inventory "$ROOT/release/coverage/formal_coverage_inventory.json" \
+    --expected-inventory "$EXPECTED_INVENTORY" \
+    --proof-identity "$ROOT/release/evidence/range_proof_identity.json" \
+    --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
+    --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
+    --release-epoch v1.3.0 --formal-receipt "$4"

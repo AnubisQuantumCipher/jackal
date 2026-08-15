@@ -1,14 +1,73 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.2.0",
-  "description": "JACKAL formal-bounded range enclosures + independent receipt verification.",
+  "version": "v1.3.0",
+  "description": "JACKAL verified computation kernel: formal-bounded range/Gaussian enclosures, independent receipt verification, and honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates.",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
     "jackal_hermes",
     "tools.json"
   ],
+  "bundle_identity_schema": "jackal-hermes-runtime-bundle-v2",
+  "runtime_files": {
+    "plugin/bundle_hash.py": [
+      "bundle_hash.py"
+    ],
+    "plugin/jackal_hermes": [
+      "jackal_hermes"
+    ],
+    "plugin/server.py": [
+      "server.py"
+    ],
+    "plugin/tools.json": [
+      "tools.json"
+    ],
+    "runtime/coverage_inventory.py": [
+      "../../tools/coverage_inventory.py",
+      "../../coverage_inventory.py"
+    ],
+    "runtime/formal_coverage_inventory.json": [
+      "../../release/coverage/formal_coverage_inventory.json",
+      "../../formal_coverage_inventory.json"
+    ],
+    "runtime/range_proof_identity.json": [
+      "../../release/evidence/range_proof_identity.json",
+      "../../range_proof_identity.json"
+    ],
+    "runtime/gaussian_proof_identity.json": [
+      "../../release/evidence/gaussian_proof_identity.json",
+      "../../gaussian_proof_identity.json"
+    ],
+    "runtime/formal_receipt.py": [
+      "../../tools/formal_receipt.py",
+      "../../formal_receipt.py"
+    ],
+    "runtime/formal_status_gate.py": [
+      "../../tools/formal_status_gate.py",
+      "../../formal_status_gate.py"
+    ],
+    "runtime/gaussian_certificate.py": [
+      "../../tools/gaussian_certificate.py",
+      "../../gaussian_certificate.py"
+    ],
+    "runtime/gaussian_release.py": [
+      "../../tools/gaussian_release.py",
+      "../../gaussian_release.py"
+    ],
+    "runtime/isolated_entry.py": [
+      "../../tools/isolated_entry.py",
+      "../../isolated_entry.py"
+    ],
+    "runtime/receipt_verify.py": [
+      "../../tools/receipt_verify.py",
+      "../../receipt_verify.py"
+    ],
+    "runtime/release_validate.py": [
+      "../../tests/release_validate.py",
+      "../../release_validate.py"
+    ]
+  },
   "tools": [
     {
       "name": "jackal_range_bound",
@@ -29,11 +88,44 @@
       }
     },
     {
+      "name": "jackal_gaussian_integral",
+      "description": "Emit a zero-libm formal-bounded Gaussian integral receipt, rerun the pinned checker, or refuse without downgrade.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Exact canonical exp(-A*(x-mu)^2) expression; all other expressions refuse."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Integration lower bound as a canonical rational."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Integration upper bound as a canonical rational."},
+        "tolerance":  {"type": "string", "required": true,
+                       "help": "Maximum enclosure width as a positive canonical rational."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "checker_rerun": "ACCEPT on success",
+        "receipt": "jackal-formal-receipt-v1 object on success",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
       "name": "jackal_verify_receipt",
-      "description": "Re-run the pinned Lean-proved checker over an embedded certificate.",
+      "description": "Re-run the matching pinned Lean-proved range or Gaussian checker over an embedded certificate.",
       "arguments": {
         "receipt": {"type": "object", "required": true,
-                    "help": "A jackal-formal-receipt-v1 JSON document."}
+                    "help": "A jackal-formal-receipt-v1 JSON document."},
+        "expected_release_epoch": {"type": "string", "required": true,
+                    "help": "Caller-authorized release epoch, not copied from the receipt."},
+        "expected_command": {"type": "string", "required": true,
+                    "help": "Caller-authorized operation: range-bound-cert or integrate."},
+        "expected_expression": {"type": "string", "required": true,
+                    "help": "Exact raw expression supplied by the caller."},
+        "expected_input_lo": {"type": "string", "required": true,
+                    "help": "Exact raw lower-bound token supplied by the caller."},
+        "expected_input_hi": {"type": "string", "required": true,
+                    "help": "Exact raw upper-bound token supplied by the caller."},
+        "expected_tolerance": {"type": "string", "required": false,
+                    "help": "Exact raw tolerance token; required for Gaussian receipts and forbidden for range receipts."}
       },
       "returns": {
         "status": "verified | refused",
@@ -44,6 +136,100 @@
         "evaluator_sha256": "pinned evaluator binary hash",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_exact",
+      "description": "Exact big-rational arithmetic (status=exact). NOT formal: computationally exact, outside the Lean certificate chain.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Integers, decimals, + - * / ^ (integer exponents), parentheses. Everything else refuses."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "parsed engine key=value map (exact=, approx=, parsed=)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_evaluate",
+      "description": "IEEE f64 expression evaluation (status=estimated). A plain number, honestly labeled: no bound, no proof.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Full expression grammar incl. transcendental functions and constants."}
+      },
+      "returns": {
+        "status": "estimated | refused",
+        "engine_output": "verbatim engine stdout (the f64 value)"
+      }
+    },
+    {
+      "name": "jackal_diff",
+      "description": "Symbolic d/dx with numeric self-verification (status=checked). Sampled agreement is a check, not a proof of identity.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Expression in x; non-differentiable functions fail closed."}
+      },
+      "returns": {
+        "status": "checked | refused",
+        "fields": "check=, points=, max-rel-dev=, assurance=",
+        "engine_output": "derivative line + status line, verbatim"
+      }
+    },
+    {
+      "name": "jackal_integrate",
+      "description": "Fixed-grid Simpson + Richardson error estimate (status=estimated). Grid-limited: NOT a bound.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Integrand in x."},
+        "input_lo":   {"type": "string", "required": true, "help": "Lower limit."},
+        "input_hi":   {"type": "string", "required": true, "help": "Upper limit."},
+        "panels":     {"type": "string", "required": true, "help": "Panel count (e.g. '200')."}
+      },
+      "returns": {
+        "status": "estimated | refused",
+        "fields": "integral=, richardson-error-estimate=, assurance="
+      }
+    },
+    {
+      "name": "jackal_integrate_adaptive",
+      "description": "Adaptive Simpson with refusal semantics (status=estimated). Refuses when unconverged; agreement is still not a bound.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Integrand in x."},
+        "input_lo":   {"type": "string", "required": true, "help": "Lower limit."},
+        "input_hi":   {"type": "string", "required": true, "help": "Upper limit."},
+        "tolerance":  {"type": "string", "required": true, "help": "Local tolerance (e.g. '1e-9')."}
+      },
+      "returns": {
+        "status": "estimated | refused",
+        "fields": "integral=, achieved-error-estimate=, assurance="
+      }
+    },
+    {
+      "name": "jackal_integrate_bound",
+      "description": "Certified interval enclosure of an integral (status=bounded). CONDITIONAL on the stated f64/libm rounding model; implementation campaign-tested, NOT mechanized. Never labeled formal.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Integrand in x."},
+        "input_lo":   {"type": "string", "required": true, "help": "Lower limit."},
+        "input_hi":   {"type": "string", "required": true, "help": "Upper limit."},
+        "tolerance":  {"type": "string", "required": true, "help": "Max enclosure width (e.g. '1e-6')."}
+      },
+      "returns": {
+        "status": "bounded | refused",
+        "fields": "integral-enclosure=, width=, assurance=certified-bound(...)"
+      }
+    },
+    {
+      "name": "jackal_solve",
+      "description": "Bisection root with residual + first-order conditioning diagnostics (status=estimated).",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "f(x) whose root is sought."},
+        "input_lo":   {"type": "string", "required": true, "help": "Bracket lower bound (sign change required)."},
+        "input_hi":   {"type": "string", "required": true, "help": "Bracket upper bound."}
+      },
+      "returns": {
+        "status": "estimated | refused",
+        "fields": "root=, residual=, condition-amplification=, root-error-estimate=, assurance="
       }
     }
   ]

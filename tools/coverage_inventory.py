@@ -30,6 +30,8 @@ ENGINE = ROOT / "jackal_calc.anb"
 GAUSSIAN_PROOF = ROOT / "proofs/lean/JackalIv/GaussianCert.lean"
 GAUSSIAN_CHECKER = ROOT / "proofs/lean/JackalIv/GaussianCertMain.lean"
 GAUSSIAN_PRODUCER = ROOT / "tools/gaussian_certificate.py"
+GAUSSIAN_PLUGIN = ROOT / "plugin/hermes/server.py"
+GAUSSIAN_PLUGIN_MANIFEST = ROOT / "plugin/hermes/tools.json"
 OUT = ROOT / "release/coverage/formal_coverage_inventory.json"
 
 SCHEMA_VERSION = "jackal-coverage-inventory-v1"
@@ -40,7 +42,6 @@ SCHEMA_VERSION = "jackal-coverage-inventory-v1"
 FORMAL = {
     "num":   ["num_exact"],
     "var":   ["var"],
-    "const": ["const_rounded"],           # TCB: within delta0 of the real constant
     "neg":   ["neg"],
     "add":   ["add"],
     "sub":   ["sub"],
@@ -57,12 +58,18 @@ FORMAL = {
     "min":   ["min"],
     "max":   ["max"],
 }
-LIBM_CONST_TCB = {"const"}  # carries a declared-value ModelTCB obligation
+LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const obligation
 
-# Refused-from-formal (fail closed in range-bound-cert): true transcendentals,
-# general/negative powers, modulo. Present in weaker lanes only.
+# Refused-from-formal (fail closed in range-bound-cert / request-bound checker):
+# true transcendentals, general/negative powers, modulo — and `const`
+# (pi/e/tau): a `const_rounded` node's value is bound only by the undischarged
+# `ConstTCB` premise (not ℚ-decidable), so the request-bound release checker
+# refuses it (§487-const audit, 2026-08-15; Lean lock
+# `requestRejects_const_rounded_node`). Constants remain available in weaker
+# lanes at their honest epistemic class.
 REFUSED_FORMAL = ["sqrt", "exp", "ln", "tan", "cbrt", "atan", "asin", "acos",
-                  "log10", "log2", "hypot", "atan2", "pow_neg", "pow_general", "mod"]
+                  "log10", "log2", "hypot", "atan2", "pow_neg", "pow_general",
+                  "mod", "const"]
 
 # Weaker (non-formal) lanes that must keep their epistemic class.
 WEAK_LANES = [
@@ -70,6 +77,12 @@ WEAK_LANES = [
     ("diff",       "symbolic differentiation, numerically checked", "checked"),
     ("integrate",  "fixed-grid Simpson + Richardson estimate", "estimated"),
     ("integrate-adaptive", "adaptive Simpson estimate, refuse-on-unconverged", "estimated"),
+    ("integrate-bound",
+     "certified interval enclosure, CONDITIONAL on the stated f64/libm model; "
+     "implementation campaign-tested, NOT mechanized", "bounded"),
+    ("range-bound",
+     "certified range enclosure, CONDITIONAL on the stated f64/libm model; "
+     "implementation campaign-tested, NOT mechanized", "bounded"),
     ("solve",      "bisection root with conditioning diagnostic", "estimated"),
     ("rat",        "exact rational arithmetic (not yet checker-covered)", "exact"),
     ("big-*",      "exact big-integer arithmetic (not yet checker-covered)", "exact"),
@@ -106,7 +119,7 @@ def build_rows() -> list[dict]:
             "certificate_op": ctors,
             "checker_decode": "CertCodec.parseCert",
             "checker_rule": "CertCheck.checkNode",
-            "soundness_theorem": "cert_check_sound",
+            "soundness_theorem": "request_bound_certified_release",
             "runs_constructors": ctors,
             "libm_assumption": ("ModelTCB.const (within delta0)" if op in LIBM_CONST_TCB else "none"),
             "plugin_tool": "jackal_range_bound",
@@ -140,7 +153,7 @@ def build_rows() -> list[dict]:
             "libm_assumption": "n/a", "plugin_tool": "various",
             "requested_assurance": status, "allowed_status": status,
             "tests": ["test_calculator.py"],
-            "verdict": "WEAK" if status != "exact" else "CONDITIONAL",
+            "verdict": "CONDITIONAL" if status in ("exact", "bounded") else "WEAK",
             "notes": "weaker lane; must never inherit formal-* language",
         })
     gaussian_wired = (
@@ -149,6 +162,10 @@ def build_rows() -> list[dict]:
         and GAUSSIAN_CHECKER.exists()
         and "checkCert cert" in GAUSSIAN_CHECKER.read_text()
         and GAUSSIAN_PRODUCER.exists()
+        and GAUSSIAN_PLUGIN.exists()
+        and "def tool_gaussian_integral" in GAUSSIAN_PLUGIN.read_text()
+        and GAUSSIAN_PLUGIN_MANIFEST.exists()
+        and '"jackal_gaussian_integral"' in GAUSSIAN_PLUGIN_MANIFEST.read_text()
     )
     rows.append({
         "kind": "operation-family", "operator": "gaussian-exp-square-integral-v1",
@@ -162,11 +179,11 @@ def build_rows() -> list[dict]:
         "soundness_theorem": "gaussian_integral_check_sound",
         "runs_constructors": [],
         "libm_assumption": "none",
-        "plugin_tool": "jackal_integrate (assurance=formal-bounded)",
+        "plugin_tool": "jackal_gaussian_integral",
         "requested_assurance": "formal-bounded",
         "allowed_status": "formal-bounded",
         "tests": ["formal_gaussian_checker_test.py", "formal_gaussian_mutations.py",
-                  "formal_gaussian_receipt_test.py"],
+                  "formal_gaussian_receipt_test.py", "plugin_smoke.py"],
         "verdict": "FORMAL" if gaussian_wired else "UNWIRED",
         "notes": ("zero-libm; generic exp range checking remains refused"
                   if gaussian_wired else "proof/checker/producer chain incomplete"),
@@ -183,7 +200,7 @@ def build_rows() -> list[dict]:
         "evaluator_path": "plugin/hermes/server.py -> release_validate.validate_release -> jackal-native range-bound-cert",
         "certificate_op": [], "checker_decode": "CertCodec.parseCert",
         "checker_rule": "CertCheck.checkNode",
-        "soundness_theorem": "cert_check_sound",
+        "soundness_theorem": "request_bound_certified_release",
         "runs_constructors": [],
         "libm_assumption": "as per operator rows",
         "plugin_tool": "jackal_range_bound",
@@ -194,13 +211,32 @@ def build_rows() -> list[dict]:
         "notes": "plugin bundle hash is pinned in release/MANIFEST.sha256 as plugin_hermes",
     })
     rows.append({
-        "kind": "plugin-tool", "operator": "jackal_verify_receipt",
-        "description": "Hermes plugin tool: re-run the pinned checker over an embedded certificate",
+        "kind": "plugin-tool", "operator": "jackal_gaussian_integral",
+        "description": "Hermes plugin tool: emit and independently reverify a zero-libm Gaussian formal receipt",
+        "parser_admission": "canonical gaussian-exp-square-v1 only",
+        "canonical_lowering": "GaussianCert.parseDecimalCanon",
+        "evaluator_path": "plugin/hermes/server.py -> gaussian_release.release -> receipt_verify.verify_receipt -> jackal_gaussian_check",
+        "certificate_op": ["gaussian-total-minus-tails-v1"],
+        "checker_decode": "GaussianCert.parseCert",
+        "checker_rule": "GaussianCert.checkCert",
+        "soundness_theorem": "gaussian_integral_check_sound",
+        "runs_constructors": [],
+        "libm_assumption": "none",
+        "plugin_tool": "jackal_gaussian_integral",
+        "requested_assurance": "formal-bounded",
+        "allowed_status": "formal-bounded",
+        "tests": ["plugin_smoke.py", "package_smoke.py"],
+        "verdict": "FORMAL" if gaussian_wired else "UNWIRED",
+        "notes": "plugin runs the pinned checker during release and reruns it from the carried receipt before returning",
+    })
+    rows.append({
+        "kind": "plugin-tool-mode", "operator": "jackal_verify_receipt:range",
+        "description": "Hermes plugin tool mode: bind an external range request and re-run the pinned range checker",
         "parser_admission": True, "canonical_lowering": "n/a",
-        "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_cert_check",
+        "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_cert_check request-bound mode",
         "certificate_op": [], "checker_decode": "CertCodec.parseCert",
-        "checker_rule": "CertCheck.checkNode",
-        "soundness_theorem": "cert_check_sound",
+        "checker_rule": "CertCheck request-bound release rule",
+        "soundness_theorem": "request_bound_certified_release",
         "runs_constructors": [],
         "libm_assumption": "as per operator rows",
         "plugin_tool": "jackal_verify_receipt",
@@ -208,7 +244,26 @@ def build_rows() -> list[dict]:
         "allowed_status": "verified",
         "tests": ["plugin_smoke.py", "cert_mutations_11.py::M2/M3/M4/M7/M9"],
         "verdict": "FORMAL",
-        "notes": "verifier re-runs jackal_cert_check on embedded certificate bytes; outer digest alone is NOT sufficient",
+        "notes": "external expected request and epoch are mandatory; outer digest alone is NOT sufficient",
+    })
+    rows.append({
+        "kind": "plugin-tool-mode", "operator": "jackal_verify_receipt:gaussian",
+        "description": "Hermes plugin tool mode: bind an external Gaussian request and re-run the pinned Gaussian checker",
+        "parser_admission": "canonical gaussian-exp-square-v1 only",
+        "canonical_lowering": "GaussianCert.parseDecimalCanon",
+        "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_gaussian_check",
+        "certificate_op": ["gaussian-total-minus-tails-v1"],
+        "checker_decode": "GaussianCert.parseCert",
+        "checker_rule": "GaussianCert.checkCert",
+        "soundness_theorem": "gaussian_integral_check_sound",
+        "runs_constructors": [],
+        "libm_assumption": "none",
+        "plugin_tool": "jackal_verify_receipt",
+        "requested_assurance": "verified",
+        "allowed_status": "verified",
+        "tests": ["formal_gaussian_receipt_test.py", "plugin_smoke.py"],
+        "verdict": "FORMAL" if gaussian_wired else "UNWIRED",
+        "notes": "external expected request, tolerance, and epoch are mandatory; outer digest alone is NOT sufficient",
     })
     return rows
 

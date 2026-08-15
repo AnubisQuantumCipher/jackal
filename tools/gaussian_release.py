@@ -19,8 +19,12 @@ from formal_receipt import (
     canonical_json_bytes,
     canonical_rat,
     gaussian_request_commitment_b64,
+    load_proof_identity_binding,
+    require_fresh_output,
+    write_new_file_atomic,
 )
-from formal_status_gate import StatusRefusal, derive_status, load_inventory
+from formal_status_gate import INVENTORY, StatusRefusal, derive_status, load_inventory
+import receipt_verify as vr
 
 
 class Refusal(Exception):
@@ -82,9 +86,12 @@ def parse_certificate(raw: bytes) -> dict[str, str]:
 
 
 def release(args: argparse.Namespace) -> dict[str, Any]:
-    receipt_path = Path(args.receipt).expanduser().resolve()
-    if receipt_path.exists():
-        receipt_path.unlink()
+    try:
+        receipt_path = require_fresh_output(args.receipt)
+    except FileExistsError as exc:
+        raise Refusal("receipt-output-exists", str(exc)) from exc
+    except OSError as exc:
+        raise Refusal("receipt-output-path", str(exc)) from exc
 
     producer = resolve_file(args.producer)
     checker = resolve_file(args.checker, executable=True)
@@ -167,16 +174,21 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
         checked = subprocess.run(
             [str(checker), str(cert_path)], capture_output=True, timeout=args.timeout
         )
-    if checked.returncode != 0 or not checked.stdout.startswith(
-        b"ACCEPT theorem=gaussian_integral_check_sound family=gaussian-exp-square-v1"
-    ):
+    expected_accept = (
+        b"ACCEPT theorem=gaussian_integral_check_sound "
+        b"family=gaussian-exp-square-v1\n"
+    )
+    if checked.returncode != 0 or checked.stdout != expected_accept or checked.stderr:
         detail = checked.stderr.decode("utf-8", errors="replace").strip()
+        if not detail:
+            detail = checked.stdout.decode("utf-8", errors="replace").strip()
         raise Refusal("checker-rejected", detail)
 
     if sha256_file(producer) != producer_pre or sha256_file(checker) != checker_pre:
         raise Refusal("artifact-toctou", "producer or checker changed during release")
 
     try:
+        inventory = load_inventory()
         status = derive_status(
             operator="gaussian-exp-square-integral-v1",
             requested="formal-bounded",
@@ -184,7 +196,7 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
             certificate_sha256=hashlib.sha256(cert_bytes).hexdigest(),
             theorem_id="gaussian_integral_check_sound",
             request_bound=True,
-            inv=load_inventory(),
+            inv=inventory,
         )
     except StatusRefusal as exc:
         raise Refusal("formal-status-refused", f"{exc.cls}: {exc.detail}") from exc
@@ -194,14 +206,32 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
     commitment = gaussian_request_commitment_b64(
         "integrate", args.expression, canonical_lo, canonical_hi, canonical_tolerance
     )
+    here = Path(__file__).resolve().parent
+    proof_candidates = [
+        here.parent / "release" / "evidence" / "gaussian_proof_identity.json",
+        here / "gaussian_proof_identity.json",
+    ]
+    proof_path = next((candidate for candidate in proof_candidates
+                       if candidate.is_file()), None)
+    if proof_path is None:
+        raise Refusal("proof-identity", "Gaussian proof identity missing")
+    try:
+        proof_identity = load_proof_identity_binding(proof_path)
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise Refusal("proof-identity", str(exc)) from exc
+    if proof_identity["checker_sha256"] != checker_pre:
+        raise Refusal("proof-checker-identity", "Gaussian proof/checker mismatch")
+    if proof_identity["soundness_theorem"] != \
+            "JackalIv.GaussianCert.gaussian_integral_check_sound":
+        raise Refusal("proof-theorem-identity", proof_identity["soundness_theorem"])
     receipt = build_gaussian_formal_receipt(
         release_epoch=args.release_epoch,
         request={
             "command": "integrate",
             "expression": args.expression,
-            "input_lo": canonical_lo,
-            "input_hi": canonical_hi,
-            "tolerance": canonical_tolerance,
+            "input_lo": args.lower,
+            "input_hi": args.upper,
+            "tolerance": args.tolerance,
         },
         enclosure=(output_lo, output_hi),
         cert_bytes=cert_bytes,
@@ -211,13 +241,16 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
         canonical_hi=canonical_hi,
         canonical_tolerance=canonical_tolerance,
         request_commitment_b64=commitment,
+        coverage_inventory_sha256=sha256_file(INVENTORY),
+        proof_identity=proof_identity,
         plugin_sha256=args.plugin_sha256,
     )
-    receipt_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = receipt_path.with_name(receipt_path.name + ".tmp")
-    temporary.write_bytes(canonical_json_bytes(receipt) + b"\n")
-    temporary.chmod(0o600)
-    os.replace(temporary, receipt_path)
+    try:
+        write_new_file_atomic(receipt_path, canonical_json_bytes(receipt) + b"\n")
+    except FileExistsError as exc:
+        raise Refusal("receipt-output-exists", str(exc)) from exc
+    except OSError as exc:
+        raise Refusal("receipt-output-create", str(exc)) from exc
     return receipt
 
 
@@ -232,6 +265,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-producer", required=True)
     result.add_argument("--expected-checker", required=True)
     result.add_argument("--receipt", required=True)
+    result.add_argument("--inventory", required=True)
+    result.add_argument("--expected-inventory", required=True)
+    result.add_argument("--proof-identity", required=True)
+    result.add_argument("--expected-proof-identity-file", required=True)
+    result.add_argument("--expected-proof-identity-digest", required=True)
     result.add_argument("--plugin-sha256")
     result.add_argument("--release-epoch", default="v1.3.0")
     result.add_argument("--timeout", type=int, default=60)
@@ -239,15 +277,54 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    if not (sys.flags.isolated and sys.flags.no_site):
+        print(
+            "status=refused class=python-not-isolated "
+            "detail=invoke-jackal-gaussian-release",
+            file=sys.stderr,
+        )
+        return 126
     args = parser().parse_args()
+    created_receipt: tuple[Path, os.stat_result] | None = None
     try:
         receipt = release(args)
-    except (Refusal, subprocess.TimeoutExpired, OSError) as exc:
-        try:
-            Path(args.receipt).expanduser().resolve().unlink(missing_ok=True)
-        except OSError:
-            pass
+        created_path = Path(os.path.abspath(os.path.expanduser(args.receipt)))
+        created_receipt = (created_path, os.lstat(created_path))
+        rerun = vr.verify_receipt(
+            receipt=receipt,
+            checker=args.checker,
+            expected_evaluator=args.expected_producer,
+            expected_checker=args.expected_checker,
+            inventory_path=Path(args.inventory),
+            expected_inventory_sha256=args.expected_inventory,
+            proof_identity_path=Path(args.proof_identity),
+            expected_proof_identity_file=args.expected_proof_identity_file,
+            expected_proof_identity_digest=args.expected_proof_identity_digest,
+            expected_plugin=args.plugin_sha256,
+            expected_release_epoch=args.release_epoch,
+            expected_request={
+                "command": "integrate",
+                "expression": args.expression,
+                "input_lo": args.lower,
+                "input_hi": args.upper,
+                "tolerance": args.tolerance,
+            },
+        )
+        if rerun.get("verdict") != "ACCEPT":
+            raise Refusal("receipt-reverify", str(rerun.get("verdict")))
+    except (Refusal, vr.ReceiptRefusal, subprocess.TimeoutExpired, OSError) as exc:
+        if created_receipt is not None:
+            created_path, identity = created_receipt
+            try:
+                observed = os.lstat(created_path)
+                if (observed.st_dev, observed.st_ino) == \
+                        (identity.st_dev, identity.st_ino):
+                    os.unlink(created_path)
+            except FileNotFoundError:
+                pass
         if isinstance(exc, Refusal):
+            print(f"status=refused class={exc.cls} detail={exc.detail}", file=sys.stderr)
+        elif isinstance(exc, vr.ReceiptRefusal):
             print(f"status=refused class={exc.cls} detail={exc.detail}", file=sys.stderr)
         else:
             print(f"status=refused class=runtime detail={exc}", file=sys.stderr)
@@ -259,6 +336,7 @@ def main() -> int:
         "theorem=gaussian_integral_check_sound "
         f"producer_sha256={receipt['identities']['producer_sha256']} "
         f"checker_sha256={receipt['identities']['checker_sha256']} "
+        "receipt_reverified=true "
         f"receipt={args.receipt}"
     )
     return 0

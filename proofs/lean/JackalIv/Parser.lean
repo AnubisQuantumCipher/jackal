@@ -230,6 +230,48 @@ def numTextToRat (t : String) : ℚ :=
 /-- Real value of a verbatim number token (noncomputable cast from `ℚ`). -/
 noncomputable def strToReal (t : String) : ℝ := ((numTextToRat t : ℚ) : ℝ)
 
+/-! ### Computable exact parser tree
+
+`Expr.num` stores a real number, so the semantic `parse` result cannot itself
+be executed.  `RawExpr` is the exact, real-free parser result: every numeric
+node carries both the verbatim token and its exact rational meaning.  The
+recursive-descent parser below constructs this type, and the historical
+semantic `parse` is its map through `RawExpr.toExpr`.  Thus executable clients
+can use `parseRaw` without a second parser or an `@[implemented_by]` mirror,
+while proofs continue to reason about the canonical `Expr`.
+-/
+
+/-- Exact, decidable parser tree used by request-bound checkers. -/
+inductive RawExpr : Type
+  | num (value : ℚ) (text : String)
+  | var (name : String)
+  | constant (name : String)
+  | neg (u : RawExpr)
+  | add (l r : RawExpr)
+  | sub (l r : RawExpr)
+  | mul (l r : RawExpr)
+  | div (l r : RawExpr)
+  | mod (l r : RawExpr)
+  | pow (base exponent : RawExpr)
+  | call1 (name : String) (u : RawExpr)
+  | call2 (name : String) (u v : RawExpr)
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Embed the exact parser tree into the canonical real-valued syntax. -/
+noncomputable def RawExpr.toExpr : RawExpr → Expr
+  | .num q t => .num (↑q) t
+  | .var n => .var n
+  | .constant n => .constant n
+  | .neg u => .neg u.toExpr
+  | .add l r => .add l.toExpr r.toExpr
+  | .sub l r => .sub l.toExpr r.toExpr
+  | .mul l r => .mul l.toExpr r.toExpr
+  | .div l r => .div l.toExpr r.toExpr
+  | .mod l r => .mod l.toExpr r.toExpr
+  | .pow b e => .pow b.toExpr e.toExpr
+  | .call1 n u => .call1 n u.toExpr
+  | .call2 n u v => .call2 n u.toExpr v.toExpr
+
 /-! ### Recursive-descent parser (fuel-structural, mutual)
 
 Each function decreases on `fuel`; every recursive call passes the predecessor,
@@ -238,7 +280,7 @@ thread the remaining token list and return `Option (Expr × List Token)` (or, fo
 `args`, `Option (List Expr × List Token)`). -/
 mutual
   /-- `expr := term (('+'|'-') term)*` -/
-  noncomputable def parseExpr (fuel : Nat) (ts : List Token) : Option (Expr × List Token) :=
+  def parseExpr (fuel : Nat) (ts : List Token) : Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -247,8 +289,8 @@ mutual
       | some (e, rest) => parseExprTail f e rest
 
   /-- Left-associative `('+'|'-') term` tail loop for `expr`. -/
-  noncomputable def parseExprTail (fuel : Nat) (acc : Expr) (ts : List Token) :
-      Option (Expr × List Token) :=
+  def parseExprTail (fuel : Nat) (acc : RawExpr) (ts : List Token) :
+      Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -256,15 +298,15 @@ mutual
       | Token.tplus :: rest =>
         match parseTerm f rest with
         | none => none
-        | some (e2, rest2) => parseExprTail f (Expr.add acc e2) rest2
+        | some (e2, rest2) => parseExprTail f (RawExpr.add acc e2) rest2
       | Token.tminus :: rest =>
         match parseTerm f rest with
         | none => none
-        | some (e2, rest2) => parseExprTail f (Expr.sub acc e2) rest2
+        | some (e2, rest2) => parseExprTail f (RawExpr.sub acc e2) rest2
       | _ => some (acc, ts)
 
   /-- `term := unary (('*'|'/'|'%') unary)*` -/
-  noncomputable def parseTerm (fuel : Nat) (ts : List Token) : Option (Expr × List Token) :=
+  def parseTerm (fuel : Nat) (ts : List Token) : Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -273,8 +315,8 @@ mutual
       | some (e, rest) => parseTermTail f e rest
 
   /-- Left-associative `('*'|'/'|'%') unary` tail loop for `term`. -/
-  noncomputable def parseTermTail (fuel : Nat) (acc : Expr) (ts : List Token) :
-      Option (Expr × List Token) :=
+  def parseTermTail (fuel : Nat) (acc : RawExpr) (ts : List Token) :
+      Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -282,19 +324,19 @@ mutual
       | Token.tstar :: rest =>
         match parseUnary f rest with
         | none => none
-        | some (e2, rest2) => parseTermTail f (Expr.mul acc e2) rest2
+        | some (e2, rest2) => parseTermTail f (RawExpr.mul acc e2) rest2
       | Token.tslash :: rest =>
         match parseUnary f rest with
         | none => none
-        | some (e2, rest2) => parseTermTail f (Expr.div acc e2) rest2
+        | some (e2, rest2) => parseTermTail f (RawExpr.div acc e2) rest2
       | Token.tpercent :: rest =>
         match parseUnary f rest with
         | none => none
-        | some (e2, rest2) => parseTermTail f (Expr.mod acc e2) rest2
+        | some (e2, rest2) => parseTermTail f (RawExpr.mod acc e2) rest2
       | _ => some (acc, ts)
 
   /-- `unary := '-' unary | power` (prefix minus is right-recursive). -/
-  noncomputable def parseUnary (fuel : Nat) (ts : List Token) : Option (Expr × List Token) :=
+  def parseUnary (fuel : Nat) (ts : List Token) : Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -302,12 +344,12 @@ mutual
       | Token.tminus :: rest =>
         match parseUnary f rest with
         | none => none
-        | some (e, rest2) => some (Expr.neg e, rest2)
+        | some (e, rest2) => some (RawExpr.neg e, rest2)
       | _ => parsePower f ts
 
   /-- `power := atom ('^' unary)?` — exactly one optional `^`, RHS parsed as
   `unary`, giving right-associativity and a unary-in-exponent. -/
-  noncomputable def parsePower (fuel : Nat) (ts : List Token) : Option (Expr × List Token) :=
+  def parsePower (fuel : Nat) (ts : List Token) : Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -318,17 +360,17 @@ mutual
         | Token.tcaret :: rest2 =>
           match parseUnary f rest2 with
           | none => none
-          | some (ex, rest3) => some (Expr.pow base ex, rest3)
+          | some (ex, rest3) => some (RawExpr.pow base ex, rest3)
         | _ => some (base, rest)
 
   /-- `atom := num | '(' expr ')' | ident '(' args ')' | ident`.  Enforces the
   known-function check and arity, and constant-vs-var classification. -/
-  noncomputable def parseAtom (fuel : Nat) (ts : List Token) : Option (Expr × List Token) :=
+  def parseAtom (fuel : Nat) (ts : List Token) : Option (RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
       match ts with
-      | Token.tnum t :: rest => some (Expr.num (strToReal t) t, rest)
+      | Token.tnum t :: rest => some (RawExpr.num (numTextToRat t) t, rest)
       | Token.tlparen :: rest =>
         match parseExpr f rest with
         | none => none
@@ -346,22 +388,22 @@ mutual
             | Token.trparen :: rest4 =>
               if isUnaryFn name then
                 match args with
-                | [a] => some (Expr.call1 name a, rest4)
+                | [a] => some (RawExpr.call1 name a, rest4)
                 | _ => none                                  -- arity mismatch
               else if isBinaryFn name then
                 match args with
-                | [a, b] => some (Expr.call2 name a b, rest4)
+                | [a, b] => some (RawExpr.call2 name a b, rest4)
                 | _ => none                                  -- arity mismatch
               else none                                      -- unknown function
             | _ => none
         | _ =>
-          if isConstName name then some (Expr.constant name, rest)
-          else some (Expr.var name, rest)
+          if isConstName name then some (RawExpr.constant name, rest)
+          else some (RawExpr.var name, rest)
       | _ => none
 
   /-- `args := (expr (',' expr)*)?` — empty when the next token is `)`. -/
-  noncomputable def parseArgs (fuel : Nat) (ts : List Token) :
-      Option (List Expr × List Token) :=
+  def parseArgs (fuel : Nat) (ts : List Token) :
+      Option (List RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -373,8 +415,8 @@ mutual
         | some (e, rest) => parseArgsTail f [e] rest
 
   /-- `(',' expr)*` tail loop for `args`. -/
-  noncomputable def parseArgsTail (fuel : Nat) (acc : List Expr) (ts : List Token) :
-      Option (List Expr × List Token) :=
+  def parseArgsTail (fuel : Nat) (acc : List RawExpr) (ts : List Token) :
+      Option (List RawExpr × List Token) :=
     match fuel with
     | 0 => none
     | f + 1 =>
@@ -386,10 +428,10 @@ mutual
       | _ => some (acc, ts)
 end
 
-/-- Parse a source string to the canonical `Expr`.  Succeeds only when the
-whole token stream (up to the synthetic `tend`) is consumed by a single
-`expr`. -/
-noncomputable def parse (s : String) : Option Expr :=
+/-- Parse a source string to the computable exact-rational tree.  Succeeds only
+when the whole token stream (up to the synthetic `tend`) is consumed by a
+single expression. -/
+def parseRaw (s : String) : Option RawExpr :=
   match tokenize s with
   | none => none
   | some ts =>
@@ -399,6 +441,11 @@ noncomputable def parse (s : String) : Option Expr :=
       match rest with
       | [Token.tend] => some e
       | _ => none
+
+/-- Semantic parser used by the proof development.  It is definitionally the
+computable exact parse mapped into the canonical real-valued syntax. -/
+noncomputable def parse (s : String) : Option Expr :=
+  (parseRaw s).map RawExpr.toExpr
 
 /-! ### Engine s-expr serializer (mirror of `ast_sexp`, byte-for-byte)
 

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Isolated entry point for independent formal-receipt reverification.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" verify "$@"

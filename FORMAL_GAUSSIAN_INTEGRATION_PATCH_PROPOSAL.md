@@ -1,6 +1,6 @@
 # Trust-surface patch proposal: proof-carrying Gaussian integration
 
-Status: **PROPOSED — NOT AUTHORIZED, NOT AN ACCEPT CONDITION**
+Status: **AUTHORIZED 2026-08-15 — implementation in progress; not sealed until all gates pass**
 
 ## Finding
 
@@ -46,26 +46,25 @@ for `A=s^2`, `s>0`.
 
 Do not use platform `exp` or the existing `LibmModel` on the formal lane. For rational `z >= 0`, check exact rational partial sums
 
-`S_n(z) = sum_{k=0}^n z^k/k!`.
+`S_n(z) = sum_{k=0}^{n-1} z^k/k!`.
 
 Use the machine-proved inequalities:
 
 - `S_n(z) <= exp(z)`;
-- when `z/(n+2) < 1`,
-  `exp(z) <= S_n(z) + (z^(n+1)/(n+1)!)/(1-z/(n+2))`;
+- when `z/(n+1) <= 1/2`,
+  `exp(z) <= S_n(z) + 2*z^n/n!` (the real specialization of
+  Mathlib's proved `Complex.exp_bound'`);
 - reciprocation gives a rational enclosure of `exp(-z)`.
 
 Every arithmetic operation in this checker path is exact integer/rational arithmetic.
 
-### Central integral
+### Full Gaussian integral and finite-domain subtraction
 
-For a checker-validated rational `T`, even cell count `N`, and series degree `n`, partition `[-T,T]` exactly. On every cell, compute exact rational enclosures for:
+The accepted implementation uses Mathlib's proved identity
 
-- `f(c) = exp(-c^2)`;
-- `f''(c) = (4c^2-2) exp(-c^2)`;
-- `f''''([l,r]) = (16t^4-48t^2+12) exp(-t^2)`.
+`integral_R exp(-t^2) dt = sqrt(pi)`
 
-Apply the existing machine-proved Taylor-4 midpoint theorem with exact midpoint and exact rational interval arithmetic, then prove the contiguous-cell sum encloses the central integral.
+instead of a larger Taylor-cell certificate. The checker binds compact exact-rational lower and upper bounds for `sqrt(pi)`; Lean proves those bounds from Mathlib's rational `pi` bounds. The finite requested interval is enclosed by subtracting two proved tails from the full integral for the lower bound and using the full integral for the upper bound. This is a proof-mechanism refinement, not a broader acceptance condition: the grammar, exact-square scale, covered-domain requirement, zero-libm policy, and fail-closed behavior are unchanged.
 
 ### Tails
 
@@ -112,10 +111,10 @@ All other integration operator/family rows remain `REFUSED` for `formal-bounded`
 
 ## Required RED controls before production code
 
-1. The exact `A=10^10` challenge requests `formal-bounded` and currently fails because the assurance/family is absent.
+1. The exact `A=10^10` challenge requests `formal-bounded`; the initial tracer test failed before the family existed and now passes only through the pinned checker.
 2. A forged `formal-bounded` integration receipt with recomputed outer digest is rejected.
 3. A Gaussian certificate with one changed bound is rejected.
-4. Swapped bounds, changed tolerance, changed `mu`, changed `A`, changed `N/n/T`, wrong checker, wrong theorem, wrong coverage row, trailing bytes, and noncanonical rationals are rejected.
+4. Swapped bounds, changed tolerance, changed `mu`, changed `A`, changed `n/T/pi bounds`, wrong checker, wrong theorem, wrong coverage row, trailing bytes, and noncanonical rationals are rejected.
 5. `exp(x)`, a non-square `A`, a domain not covering the certified core, and a non-Gaussian integrand refuse without bounded fallback.
 6. Empty/zero-work certificates and stale-success artifacts fail.
 
@@ -139,11 +138,11 @@ Checkpoint commits/pushes are non-final. Tags/releases/install promotion occur o
 
 ## Feasibility probe (not proof)
 
-A disposable exact-`Fraction` prototype using `T=6`, `N=256`, and exponential degree `n=96` completed in about 2.7 seconds and produced predicted transformed enclosure width
+A checker-matched exact-`Fraction` producer using `T=6`, exponential degree `n=96`, proved rational `sqrt(pi)` bounds, and the full-minus-tails theorem produces width
 
-`1.09834396752066856092305197501e-13`
+`100387/1000000000000000000000000` (about `1.00387e-19`)
 
-for `s=100000` (`A=10^10`), below the requested `10^-12`. This only falsifies the concern that the proposed exact certificate is computationally impractical; it is not release evidence and does not establish the theorem.
+for `s=100000` (`A=10^10`), below the requested `10^-12`. The numerical width is feasibility evidence; formal soundness comes only from `gaussian_integral_check_sound` and authoritative checker rerun.
 
 ## Resulting honest claim
 

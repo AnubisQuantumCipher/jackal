@@ -58,6 +58,7 @@ from typing import Any, Iterable
 
 SCHEMA = "jackal-formal-receipt-v1"
 THEOREM_ID = "cert_check_sound"
+GAUSSIAN_THEOREM_ID = "gaussian_integral_check_sound"
 LEAN_KERNEL_AXIOMS = ["Classical.choice", "Quot.sound", "propext"]
 MODEL_ASSUMPTIONS = [
     "IEEE-754 correctly rounded basic float ops (+, -, *, /)",
@@ -75,6 +76,21 @@ NON_CLAIMS = [
     "Source-to-native refinement (verified compilation of the Anubis lane) remains OPEN",
     "bound_step release composition (adaptive integration) remains OPEN",
     "SHA-256 identifies bytes; it does NOT authenticate an author",
+]
+
+GAUSSIAN_ASSUMPTIONS = [
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_gaussian_check",
+    "Mathlib's proved Gaussian integral and pi bounds used by gaussian_integral_check_sound",
+    "Canonical exact-rational codec and decimal parser compiled into jackal_gaussian_check",
+    "The pinned certificate producer and checker bytes executed as their hashes describe",
+]
+GAUSSIAN_NON_CLAIMS = [
+    "NOT universal correctness across all expressions or integration algorithms",
+    "Only canonical exp(-A*(x-mu)^2) with positive exact-rational-square A and checker-covered domain is admitted",
+    "Unsupported formal expressions and insufficient requested tolerances FAIL CLOSED",
+    "The Python certificate producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
 ]
 
 
@@ -141,6 +157,17 @@ def request_commitment_b64(cmd: str, expr: str, lo: str, hi: str) -> str:
     return base64.b64encode(hexd.encode()).decode()
 
 
+def gaussian_request_commitment_b64(cmd: str, expr: str, lo: str, hi: str,
+                                    tolerance: str) -> str:
+    """Injective commitment for formal integration requests, including tolerance."""
+    def framed(part: str) -> bytes:
+        raw = part.encode("utf-8")
+        return str(len(raw)).encode() + b":" + raw
+    framing = (b"jackal-req-v3-gaussian\x00" + framed(cmd) + b"|" + framed(expr)
+               + b"|" + framed(lo) + b"|" + framed(hi) + b"|" + framed(tolerance))
+    return base64.b64encode(hashlib.sha256(framing).hexdigest().encode()).decode()
+
+
 def _operators_in_sexp(sexp: str) -> set[str]:
     """Recover the operator/leaf tags emitted by the engine's `ast_sexp`.
 
@@ -175,7 +202,7 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
             continue
         if line.startswith("node ") or line == "end":
             break
-        if line == "jackal-eval-cert v2":
+        if line in {"jackal-eval-cert v2", "jackal-gaussian-integral-cert v1"}:
             hdr["schema"] = line
             continue
         parts = line.split(" ", 1)
@@ -251,6 +278,70 @@ def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosu
         },
         "assumptions": list(MODEL_ASSUMPTIONS),
         "non_claims": list(NON_CLAIMS),
+    }
+    receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
+    return receipt
+
+
+def build_gaussian_formal_receipt(*, release_epoch: str, request: dict[str, str],
+                                  enclosure: tuple[str, str], cert_bytes: bytes,
+                                  producer_sha256: str, checker_sha256: str,
+                                  canonical_lo: str, canonical_hi: str,
+                                  canonical_tolerance: str,
+                                  request_commitment_b64: str,
+                                  plugin_sha256: str | None = None,
+                                  emitted_at_unix: int | None = None) -> dict[str, Any]:
+    """Assemble the theorem-backed Gaussian variant of jackal-formal-receipt-v1."""
+    hdr = _parse_cert_header(cert_bytes)
+    receipt: dict[str, Any] = {
+        "schema": SCHEMA,
+        "release_epoch": release_epoch,
+        "emitted_at_unix": int(emitted_at_unix if emitted_at_unix is not None else time.time()),
+        "request": {
+            "command": request["command"],
+            "expression": request["expression"],
+            "input_lo": request["input_lo"],
+            "input_hi": request["input_hi"],
+            "tolerance": request["tolerance"],
+            "canonical_lo": canonical_lo,
+            "canonical_hi": canonical_hi,
+            "canonical_tolerance": canonical_tolerance,
+            "request_commitment_scheme": "jackal-req-v3-gaussian",
+            "request_commitment_b64": request_commitment_b64,
+        },
+        "result": {
+            "status": "formal-bounded",
+            "enclosure_lo": enclosure[0],
+            "enclosure_hi": enclosure[1],
+            "cert_status": "gaussian-formal-bounded",
+        },
+        "certificate": {
+            "schema": hdr.get("schema", ""),
+            "family": hdr.get("family", ""),
+            "method": hdr.get("method", ""),
+            "bytes_b64": base64.b64encode(cert_bytes).decode("ascii"),
+            "sha256": sha256_hex(cert_bytes),
+        },
+        "identities": {
+            "evaluator_sha256": producer_sha256,
+            "producer_sha256": producer_sha256,
+            "checker_sha256": checker_sha256,
+            "plugin_sha256": plugin_sha256,
+            "source_anb_sha256": None,
+        },
+        "theorem": {
+            "id": GAUSSIAN_THEOREM_ID,
+            "lean_kernel_axioms": sorted(set(LEAN_KERNEL_AXIOMS)),
+        },
+        "fragment": {
+            "admitted_operators": ["exp", "mul", "neg", "pow2", "sub"],
+            "expression_operators": ["exp", "mul", "neg", "pow2", "sub"],
+            "coverage_row_ids": ["gaussian-exp-square-integral-v1"],
+            "unsupported_refused": ["all expressions outside gaussian-exp-square-v1"],
+        },
+        "checker": {"verdict": "ACCEPT", "reverify_required": True},
+        "assumptions": list(GAUSSIAN_ASSUMPTIONS),
+        "non_claims": list(GAUSSIAN_NON_CLAIMS),
     }
     receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
     return receipt

@@ -18,15 +18,12 @@ from typing import Iterable, Tuple
 
 SCHEMA = "jackal-gaussian-integral-cert v1"
 FAMILY = "gaussian-exp-square-v1"
+METHOD = "gaussian-total-minus-tails-v1"
 CORE = Fraction(6)
-CELLS = 256
 EXP_DEGREE = 96
 OUTPUT_DECIMALS = 24
-# Keep the producer/checker's intermediate rational state bounded without
-# weakening containment: every cell is rounded outward to this exact decimal
-# grid before accumulation.  The total added width is at most
-# 2*CELLS*10^-INTERNAL_DECIMALS, far below the admitted tolerances.
-INTERNAL_DECIMALS = 30
+SQRT_PI_LO = Fraction(177245385090551, 100000000000000)
+SQRT_PI_HI = Fraction(22155673136319, 12500000000000)
 
 _CANON_RAT = re.compile(r"^(-?(?:0|[1-9][0-9]*))(?:/([2-9][0-9]*|1[0-9]+))?$")
 _CANON_DEC = r"(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?"
@@ -86,66 +83,15 @@ def exp_neg_bounds(z: Fraction, degree: int = EXP_DEGREE) -> Tuple[Fraction, Fra
         raise Refusal("internal exp certificate argument must be nonnegative")
     term = Fraction(1)
     partial = term
-    for k in range(1, degree + 1):
+    # S_degree contains terms 0 .. degree-1, matching Finset.range degree
+    # in the independently compiled Lean checker.
+    for k in range(1, degree):
         term *= z / k
         partial += term
-    ratio = z / (degree + 2)
-    if ratio >= 1:
+    if z / (degree + 1) > Fraction(1, 2):
         raise Refusal("exp certificate degree is insufficient for its argument")
-    next_term = term * z / (degree + 1)
-    remainder = next_term / (1 - ratio)
+    remainder = 2 * z ** degree / math.factorial(degree)
     return 1 / (partial + remainder), 1 / partial
-
-
-def interval_mul(left: Tuple[Fraction, Fraction], right: Tuple[Fraction, Fraction]) -> Tuple[Fraction, Fraction]:
-    products = (
-        left[0] * right[0],
-        left[0] * right[1],
-        left[1] * right[0],
-        left[1] * right[1],
-    )
-    return min(products), max(products)
-
-
-def fourth_polynomial_range(q_lo: Fraction, q_hi: Fraction) -> Tuple[Fraction, Fraction]:
-    """Exact range of 16*q^2 - 48*q + 12 on q_lo <= q <= q_hi."""
-    def polynomial(q: Fraction) -> Fraction:
-        return 16 * q * q - 48 * q + 12
-
-    endpoints = (polynomial(q_lo), polynomial(q_hi))
-    lower = Fraction(-24) if q_lo <= Fraction(3, 2) <= q_hi else min(endpoints)
-    return lower, max(endpoints)
-
-
-def central_enclosure() -> Tuple[Fraction, Fraction]:
-    """Taylor-4 candidate enclosure of integral_-6^6 exp(-t^2) dt."""
-    width = 2 * CORE / CELLS
-    lower = Fraction(0)
-    upper = Fraction(0)
-    for index in range(CELLS):
-        left = -CORE + index * width
-        right = left + width
-        midpoint = (left + right) / 2
-
-        f_mid = exp_neg_bounds(midpoint * midpoint)
-        p2_mid = 4 * midpoint * midpoint - 2
-        f2_mid = interval_mul((p2_mid, p2_mid), f_mid)
-
-        if left <= 0 <= right:
-            q_lo = Fraction(0)
-        else:
-            q_lo = min(left * left, right * right)
-        q_hi = max(left * left, right * right)
-        exp_cell = (exp_neg_bounds(q_hi)[0], exp_neg_bounds(q_lo)[1])
-        f4_cell = interval_mul(fourth_polynomial_range(q_lo, q_hi), exp_cell)
-
-        second_weight = width ** 3 / 24
-        fourth_weight = width ** 5 / 1920
-        cell_lo = width * f_mid[0] + second_weight * f2_mid[0] + fourth_weight * f4_cell[0]
-        cell_hi = width * f_mid[1] + second_weight * f2_mid[1] + fourth_weight * f4_cell[1]
-        lower += outward_decimal(cell_lo, INTERNAL_DECIMALS, upper=False)
-        upper += outward_decimal(cell_hi, INTERNAL_DECIMALS, upper=True)
-    return lower, upper
 
 
 def outward_decimal(value: Fraction, digits: int, upper: bool) -> Fraction:
@@ -159,11 +105,10 @@ def outward_decimal(value: Fraction, digits: int, upper: bool) -> Fraction:
 
 
 def gaussian_enclosure(scale: Fraction) -> Tuple[Fraction, Fraction]:
-    center_lo, center_hi = central_enclosure()
     # Two infinite tails: 2 * exp(-T^2)/(2T) = exp(-T^2)/T.
     tails_hi = exp_neg_bounds(CORE * CORE)[1] / CORE
-    exact_lo = center_lo / scale
-    exact_hi = (center_hi + tails_hi) / scale
+    exact_lo = (SQRT_PI_LO - tails_hi) / scale
+    exact_hi = SQRT_PI_HI / scale
     return (
         outward_decimal(exact_lo, OUTPUT_DECIMALS, upper=False),
         outward_decimal(exact_hi, OUTPUT_DECIMALS, upper=True),
@@ -207,9 +152,11 @@ def emit_certificate(expression: str, lower_text: str, upper_text: str, toleranc
         f"A-token {a_text}",
         f"mu-token {mu_text}",
         f"scale {rat_text(scale)}",
+        f"method {METHOD}",
         f"core {rat_text(CORE)}",
-        f"cells {CELLS}",
         f"degree {EXP_DEGREE}",
+        f"sqrt-pi-lower {rat_text(SQRT_PI_LO)}",
+        f"sqrt-pi-upper {rat_text(SQRT_PI_HI)}",
         f"output {rat_text(output_lo)} {rat_text(output_hi)}",
         "end",
     )

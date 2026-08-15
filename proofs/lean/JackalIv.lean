@@ -20,4 +20,7 @@ import JackalIv.CertTypes
 import JackalIv.CertCheck
 import JackalIv.CertSound
 import JackalIv.CertCodec
+import JackalIv.Gaussian
+import JackalIv.GaussianIntegral
+import JackalIv.GaussianCert
 import JackalIv.Ledger

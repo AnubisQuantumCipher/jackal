@@ -16,3 +16,7 @@ root = "JackalIv.ParseDumpMain"
 [[lean_exe]]
 name = "jackal_cert_check"
 root = "JackalIv.CertCheckMain"
+
+[[lean_exe]]
+name = "jackal_gaussian_check"
+root = "JackalIv.GaussianCertMain"

@@ -1002,6 +1002,32 @@
     },
     {
       "allowed_status": "formal-bounded",
+      "canonical_lowering": "GaussianCert.parseDecimalCanon",
+      "certificate_op": [
+        "gaussian-total-minus-tails-v1"
+      ],
+      "checker_decode": "GaussianCert.parseCert",
+      "checker_rule": "GaussianCert.checkCert",
+      "description": "Canonical exp(-A*(x-mu)^2) integration with exact-square rational A",
+      "evaluator_path": "untrusted gaussian_certificate.py -> jackal_gaussian_check",
+      "kind": "operation-family",
+      "libm_assumption": "none",
+      "notes": "zero-libm; generic exp range checking remains refused",
+      "operator": "gaussian-exp-square-integral-v1",
+      "parser_admission": "Lean canonical certificate codec + decimal source binding",
+      "plugin_tool": "jackal_integrate (assurance=formal-bounded)",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [],
+      "soundness_theorem": "gaussian_integral_check_sound",
+      "tests": [
+        "formal_gaussian_checker_test.py",
+        "formal_gaussian_mutations.py",
+        "formal_gaussian_receipt_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
       "canonical_lowering": "simplify_bound",
       "certificate_op": [],
       "checker_decode": "CertCodec.parseCert",

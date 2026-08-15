@@ -27,6 +27,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EMBED = ROOT / "proofs/lean/JackalIv/Embed.lean"
 ENGINE = ROOT / "jackal_calc.anb"
+GAUSSIAN_PROOF = ROOT / "proofs/lean/JackalIv/GaussianCert.lean"
+GAUSSIAN_CHECKER = ROOT / "proofs/lean/JackalIv/GaussianCertMain.lean"
+GAUSSIAN_PRODUCER = ROOT / "tools/gaussian_certificate.py"
 OUT = ROOT / "release/coverage/formal_coverage_inventory.json"
 
 SCHEMA_VERSION = "jackal-coverage-inventory-v1"
@@ -140,6 +143,34 @@ def build_rows() -> list[dict]:
             "verdict": "WEAK" if status != "exact" else "CONDITIONAL",
             "notes": "weaker lane; must never inherit formal-* language",
         })
+    gaussian_wired = (
+        GAUSSIAN_PROOF.exists()
+        and "theorem gaussian_integral_check_sound" in GAUSSIAN_PROOF.read_text()
+        and GAUSSIAN_CHECKER.exists()
+        and "checkCert cert" in GAUSSIAN_CHECKER.read_text()
+        and GAUSSIAN_PRODUCER.exists()
+    )
+    rows.append({
+        "kind": "operation-family", "operator": "gaussian-exp-square-integral-v1",
+        "description": "Canonical exp(-A*(x-mu)^2) integration with exact-square rational A",
+        "parser_admission": "Lean canonical certificate codec + decimal source binding",
+        "canonical_lowering": "GaussianCert.parseDecimalCanon",
+        "evaluator_path": "untrusted gaussian_certificate.py -> jackal_gaussian_check",
+        "certificate_op": ["gaussian-total-minus-tails-v1"],
+        "checker_decode": "GaussianCert.parseCert",
+        "checker_rule": "GaussianCert.checkCert",
+        "soundness_theorem": "gaussian_integral_check_sound",
+        "runs_constructors": [],
+        "libm_assumption": "none",
+        "plugin_tool": "jackal_integrate (assurance=formal-bounded)",
+        "requested_assurance": "formal-bounded",
+        "allowed_status": "formal-bounded",
+        "tests": ["formal_gaussian_checker_test.py", "formal_gaussian_mutations.py",
+                  "formal_gaussian_receipt_test.py"],
+        "verdict": "FORMAL" if gaussian_wired else "UNWIRED",
+        "notes": ("zero-libm; generic exp range checking remains refused"
+                  if gaussian_wired else "proof/checker/producer chain incomplete"),
+    })
     # Plugin-binding rows: the Hermes plugin threads every call through the
     # shared validator and re-runs the pinned checker on receipt verification.
     # These rows document the plugin surface itself, distinct from operator

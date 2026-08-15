@@ -69,12 +69,13 @@ def load_inventory(path: Path | None = None, verify_integrity: bool = True) -> d
         # hash seal is the integrity control. This is the honest split, stated
         # in the release non-claims.
         sys.path.insert(0, str(_HERE))
+        ci = None
         try:
             import coverage_inventory as ci
             live_ok = ci.EMBED.exists() and ci.ENGINE.exists()
         except Exception:  # noqa: BLE001
             live_ok = False
-        if live_ok:
+        if live_ok and ci is not None:
             recomputed = {r["operator"] for r in ci.build_rows() if r["verdict"] == "FORMAL"}
             claimed = {op for op, r in by_op.items() if r["verdict"] == "FORMAL"}
             if claimed != recomputed:

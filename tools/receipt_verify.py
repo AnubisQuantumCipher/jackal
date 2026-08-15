@@ -57,14 +57,17 @@ from typing import Any
 try:  # pragma: no cover — sibling import in repo/CI mode
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from formal_receipt import (  # noqa: F401
-        SCHEMA, THEOREM_ID, LEAN_KERNEL_AXIOMS, MODEL_ASSUMPTIONS, NON_CLAIMS,
+        SCHEMA, THEOREM_ID, GAUSSIAN_THEOREM_ID, LEAN_KERNEL_AXIOMS,
+        MODEL_ASSUMPTIONS, NON_CLAIMS,
         recompute_receipt_digest, canonical_json_bytes, sha256_hex,
         canonical_rat as _shared_canonical_rat,
         request_commitment_b64 as _shared_request_commitment_b64,
+        gaussian_request_commitment_b64 as _shared_gaussian_request_commitment_b64,
     )
 except Exception:  # pragma: no cover — defensive fallback
     SCHEMA = "jackal-formal-receipt-v1"
     THEOREM_ID = "cert_check_sound"
+    GAUSSIAN_THEOREM_ID = "gaussian_integral_check_sound"
     LEAN_KERNEL_AXIOMS = ["Classical.choice", "Quot.sound", "propext"]
     MODEL_ASSUMPTIONS: list[str] = []
     NON_CLAIMS: list[str] = []
@@ -79,9 +82,21 @@ except Exception:  # pragma: no cover — defensive fallback
         body = {k: v for k, v in receipt.items() if k != "receipt_digest_sha256"}
         return sha256_hex(canonical_json_bytes(body))
 
+    def _shared_gaussian_request_commitment_b64(cmd: str, expr: str,
+                                                lo: str, hi: str,
+                                                tolerance: str) -> str:
+        def framed(part: str) -> bytes:
+            raw = part.encode("utf-8")
+            return str(len(raw)).encode() + b":" + raw
+        framing = (b"jackal-req-v3-gaussian\x00" + framed(cmd) + b"|"
+                   + framed(expr) + b"|" + framed(lo) + b"|" + framed(hi)
+                   + b"|" + framed(tolerance))
+        return base64.b64encode(hashlib.sha256(framing).hexdigest().encode()).decode()
+
 
 MODEL_CONST = "jackal-iv-model-v1"
 CERT_SCHEMA = "jackal-eval-cert v2"
+GAUSSIAN_CERT_SCHEMA = "jackal-gaussian-integral-cert v1"
 
 
 class ReceiptRefusal(Exception):
@@ -122,6 +137,11 @@ def _request_commitment_b64(command: str, expression: str, lo: str, hi: str) -> 
     return _shared_request_commitment_b64(command, expression, lo, hi)
 
 
+def _gaussian_request_commitment_b64(command: str, expression: str, lo: str,
+                                     hi: str, tolerance: str) -> str:
+    return _shared_gaussian_request_commitment_b64(command, expression, lo, hi, tolerance)
+
+
 def _valid_hex(s: str) -> bool:
     return bool(re.fullmatch(r"[0-9a-f]{64}", s or ""))
 
@@ -150,7 +170,7 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
             continue
         if line.startswith("node ") or line == "end":
             break
-        if line == CERT_SCHEMA:
+        if line in {CERT_SCHEMA, GAUSSIAN_CERT_SCHEMA}:
             hdr["schema"] = line
             continue
         parts = line.split(" ", 1)
@@ -166,26 +186,38 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
 
     Returns a diagnostic dict on success; raises ReceiptRefusal otherwise.
     """
-    # R1 — schema / theorem
+    # R1 — schema / theorem; the certificate schema selects the proved theorem.
     if receipt.get("schema") != SCHEMA:
         raise ReceiptRefusal("receipt-schema", str(receipt.get("schema")))
+    cert = receipt.get("certificate", {})
+    cert_schema = cert.get("schema")
+    if cert_schema not in {CERT_SCHEMA, GAUSSIAN_CERT_SCHEMA}:
+        raise ReceiptRefusal("cert-schema", str(cert_schema))
+    is_gaussian = cert_schema == GAUSSIAN_CERT_SCHEMA
+    expected_theorem = GAUSSIAN_THEOREM_ID if is_gaussian else THEOREM_ID
     thm = receipt.get("theorem", {})
-    if thm.get("id") != THEOREM_ID:
+    if thm.get("id") != expected_theorem:
         raise ReceiptRefusal("theorem-id", str(thm.get("id")))
     lka = sorted(set(thm.get("lean_kernel_axioms") or []))
     if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
         raise ReceiptRefusal("theorem-axioms", str(lka))
 
-    # R10 — model pin
-    cert = receipt.get("certificate", {})
-    if cert.get("model_const_version") != MODEL_CONST:
+    # R10 — the range checker has a model pin; Gaussian is zero-libm and binds
+    # its exact method/family instead.
+    if not is_gaussian and cert.get("model_const_version") != MODEL_CONST:
         raise ReceiptRefusal("model-const-version", str(cert.get("model_const_version")))
-    if cert.get("schema") != CERT_SCHEMA:
-        raise ReceiptRefusal("cert-schema", str(cert.get("schema")))
+    if is_gaussian:
+        if cert.get("family") != "gaussian-exp-square-v1":
+            raise ReceiptRefusal("gaussian-family", str(cert.get("family")))
+        if cert.get("method") != "gaussian-total-minus-tails-v1":
+            raise ReceiptRefusal("gaussian-method", str(cert.get("method")))
 
     req = receipt.get("request", {})
-    for key in ("command", "expression", "input_lo", "input_hi", "canonical_lo",
-                "canonical_hi", "request_commitment_b64"):
+    required_request = ["command", "expression", "input_lo", "input_hi", "canonical_lo",
+                        "canonical_hi", "request_commitment_b64"]
+    if is_gaussian:
+        required_request += ["tolerance", "canonical_tolerance", "request_commitment_scheme"]
+    for key in required_request:
         if not isinstance(req.get(key), str) or not req[key]:
             raise ReceiptRefusal("request-field-missing", key)
 
@@ -196,11 +228,21 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     if _canonical_rat(req["input_hi"]) != req["canonical_hi"]:
         raise ReceiptRefusal("request-canonical-hi",
                              f"{_canonical_rat(req['input_hi'])} != {req['canonical_hi']}")
+    if is_gaussian and _canonical_rat(req["tolerance"]) != req["canonical_tolerance"]:
+        raise ReceiptRefusal("request-canonical-tolerance",
+                             f"{_canonical_rat(req['tolerance'])} != {req['canonical_tolerance']}")
 
     # R2 — recomputed request commitment must equal both the embedded certificate's
     # `source` header AND the receipt's own `request_commitment_b64` field.
-    recomputed = _request_commitment_b64(
-        req["command"], req["expression"], req["input_lo"], req["input_hi"])
+    if is_gaussian:
+        if req["request_commitment_scheme"] != "jackal-req-v3-gaussian":
+            raise ReceiptRefusal("request-commitment-scheme", req["request_commitment_scheme"])
+        recomputed = _gaussian_request_commitment_b64(
+            req["command"], req["expression"], req["input_lo"], req["input_hi"],
+            req["tolerance"])
+    else:
+        recomputed = _request_commitment_b64(
+            req["command"], req["expression"], req["input_lo"], req["input_hi"])
     if recomputed != req["request_commitment_b64"]:
         raise ReceiptRefusal("request-commitment-outer",
                              f"recomputed {recomputed} != receipt {req['request_commitment_b64']}")
@@ -215,10 +257,29 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
         raise ReceiptRefusal("cert-sha256",
                              f"recomputed {computed} != receipt {cert.get('sha256')}")
 
-    # R2 (cont.) — cert `source` header must equal the receipt's recomputed commitment
+    # R2 (cont.) — bind the exact request to the certificate.  The general
+    # range certificate carries a source commitment; the Gaussian checker
+    # directly parses and checks all canonical request fields.
     hdr = _parse_cert_header(cert_bytes)
-    if hdr.get("source") != recomputed:
-        raise ReceiptRefusal("request-commitment-cert", f"cert source {hdr.get('source')} != recomputed {recomputed}")
+    if hdr.get("schema") != cert_schema:
+        raise ReceiptRefusal("cert-schema-bytes", str(hdr.get("schema")))
+    if is_gaussian:
+        cert_bindings = {
+            "operation": req["command"],
+            "expression": req["expression"],
+            "lower": req["canonical_lo"],
+            "upper": req["canonical_hi"],
+            "tolerance": req["canonical_tolerance"],
+            "family": "gaussian-exp-square-v1",
+            "method": "gaussian-total-minus-tails-v1",
+        }
+        for key, expected in cert_bindings.items():
+            if hdr.get(key) != expected:
+                raise ReceiptRefusal("request-vs-gaussian-cert",
+                                     f"{key}: {hdr.get(key)!r} != {expected!r}")
+    elif hdr.get("source") != recomputed:
+        raise ReceiptRefusal("request-commitment-cert",
+                             f"cert source {hdr.get('source')} != recomputed {recomputed}")
 
     # R5 — identities in the receipt vs the caller's expected pin
     ids = receipt.get("identities", {})
@@ -261,7 +322,11 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
             os.close(fd)
         cproc = subprocess.run([chk_real, cert_path], capture_output=True,
                                text=True, timeout=3600)
-        if cproc.returncode != 0 or cproc.stdout.strip() != "ACCEPT":
+        expected_accept = (
+            "ACCEPT theorem=gaussian_integral_check_sound family=gaussian-exp-square-v1"
+            if is_gaussian else "ACCEPT"
+        )
+        if cproc.returncode != 0 or cproc.stdout.strip() != expected_accept:
             raise ReceiptRefusal("checker-rejected-on-rerun",
                                  (cproc.stderr.strip() or cproc.stdout.strip())[:200])
         chk_post = _sha256_file(chk_real)
@@ -277,9 +342,10 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     stray = sorted(expr_ops - admitted)
     if stray:
         raise ReceiptRefusal("operator-outside-fragment", str(stray))
-    # Re-derive from the cert sexp to catch a receipt whose declared
-    # operators disagree with the certificate it embeds.
-    rederived = _operators_in_sexp(hdr.get("expr", ""))
+    # Re-derive from the certificate.  The Gaussian grammar is checked inside
+    # Lean and has a fixed operator set; general range certificates expose sexp.
+    rederived = ({"exp", "mul", "neg", "pow2", "sub"} if is_gaussian
+                 else _operators_in_sexp(hdr.get("expr", "")))
     if rederived != expr_ops:
         raise ReceiptRefusal("operators-vs-certificate", f"receipt {sorted(expr_ops)} != cert-derived {sorted(rederived)}")
 
@@ -287,14 +353,18 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     if inventory_path is not None:
         doc = json.loads(Path(inventory_path).read_text())
         rows = {r["operator"]: r for r in doc.get("rows", [])}
-        for op in sorted(expr_ops):
-            row = rows.get(op)
+        coverage_keys = (frag.get("coverage_row_ids") if is_gaussian else sorted(expr_ops))
+        if not coverage_keys:
+            raise ReceiptRefusal("coverage-row-missing", "empty coverage row set")
+        for key in coverage_keys:
+            row = rows.get(key)
             if row is None:
-                raise ReceiptRefusal("coverage-row-missing", op)
+                raise ReceiptRefusal("coverage-row-missing", key)
             if row.get("verdict") != "FORMAL":
-                raise ReceiptRefusal("coverage-row-not-formal", op)
-            if row.get("soundness_theorem") != THEOREM_ID:
-                raise ReceiptRefusal("coverage-row-theorem-mismatch", f"{op}:{row.get('soundness_theorem')}")
+                raise ReceiptRefusal("coverage-row-not-formal", key)
+            if row.get("soundness_theorem") != expected_theorem:
+                raise ReceiptRefusal("coverage-row-theorem-mismatch",
+                                     f"{key}:{row.get('soundness_theorem')}")
 
     # Result-status must be exactly formal-bounded (no silent downgrade).
     res = receipt.get("result", {})
@@ -356,6 +426,8 @@ def _cli() -> int:
         print(f"status=refused reason={exc.cls} detail=\"{exc.detail}\"", file=sys.stderr)
         return 1
     print(f"status=verified verdict={r['verdict']}")
+    print("receipt_valid=true")
+    print("checker_verdict=ACCEPT")
     print(f"receipt.digest={r['receipt_digest_sha256']}")
     print(f"certificate.sha256={r['certificate_sha256']}")
     print(f"checker.sha256={r['checker_sha256']}")

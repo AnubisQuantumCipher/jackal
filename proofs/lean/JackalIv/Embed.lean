@@ -229,6 +229,18 @@ inductive Runs : Expr → ℝ × ℝ → ℝ × ℝ → Prop
       (ha : Approx δlib σ0 fl_lo (Real.arctan (padLo (min (min q1 q2) (min q3 q4)))))
       (hb : Approx δlib σ0 fl_hi (Real.arctan (padHi (max (max q1 q2) (max q3 q4))))) :
       Runs (.call2 "atan2" e₁ e₂) (a, b) (padLo fl_lo, padHi fl_hi)
+  /-- Pure-ℚ `sqrt` bound (no libm, no `Approx δlib`).  The checker only
+  needs to verify `0 ≤ loQ`, `0 ≤ hiQ`, `loQ^2 ≤ input.lo`, and
+  `input.hi ≤ hiQ^2`.  Sound by monotonicity of `Real.sqrt` on
+  `[0, ∞)`: for any `x ∈ [l, u]`, `loQ = Real.sqrt (loQ^2) ≤ Real.sqrt l
+  ≤ Real.sqrt x ≤ Real.sqrt u ≤ Real.sqrt (hiQ^2) = hiQ`.  §487-fragment
+  extension 2026-08-15 — expands the release fragment beyond libm-backed
+  transcendentals without any additional `ModelTCB`. -/
+  | sqrtRat {e : Expr} {a b l u : ℝ} {loQ hiQ : ℚ}
+      (hr : Runs e (a, b) (l, u))
+      (hlnn : 0 ≤ loQ) (hunn : 0 ≤ hiQ)
+      (hlb : ((loQ : ℚ) : ℝ) ^ 2 ≤ l) (hub : u ≤ ((hiQ : ℚ) : ℝ) ^ 2) :
+      Runs (.call1 "sqrt" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
 
 /-! ### The composition theorem -/
 
@@ -372,6 +384,23 @@ theorem runs_sound {e : Expr} {p q : ℝ × ℝ} (hrun : Runs e p q) :
     · simp only [call1Dom_sqrt]; exact le_trans hguard hm.1
     · simp only [sem, call1Sem_sqrt, Set.mem_Icc]
       exact ⟨max_le h.1 (Real.sqrt_nonneg _), h.2⟩
+  | @sqrtRat e a b l u loQ hiQ hr hlnn hunn hlb hub ih =>
+    intro hab x hx
+    obtain ⟨hd, hm⟩ := ih hab x hx
+    have hloR : (0 : ℝ) ≤ ((loQ : ℚ) : ℝ) := by exact_mod_cast hlnn
+    have hhiR : (0 : ℝ) ≤ ((hiQ : ℚ) : ℝ) := by exact_mod_cast hunn
+    have hxnn : (0 : ℝ) ≤ sem e x :=
+      le_trans (le_trans (sq_nonneg _) hlb) hm.1
+    refine ⟨⟨hd, ?_⟩, ?_⟩
+    · simp only [call1Dom_sqrt]; exact hxnn
+    · simp only [sem, call1Sem_sqrt, Set.mem_Icc]
+      refine ⟨?_, ?_⟩
+      · have h1 : Real.sqrt (((loQ : ℚ) : ℝ) ^ 2) ≤ Real.sqrt (sem e x) :=
+          Real.sqrt_le_sqrt (le_trans hlb hm.1)
+        rwa [Real.sqrt_sq hloR] at h1
+      · have h2 : Real.sqrt (sem e x) ≤ Real.sqrt (((hiQ : ℚ) : ℝ) ^ 2) :=
+          Real.sqrt_le_sqrt (le_trans hm.2 hub)
+        rwa [Real.sqrt_sq hhiR] at h2
   | exp hr hlo hhi ih =>
     intro hab x hx
     obtain ⟨hd, hm⟩ := ih hab x hx

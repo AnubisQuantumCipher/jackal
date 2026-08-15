@@ -1,0 +1,17 @@
+{
+  "kind": "direct-checker-proof-of-mechanism",
+  "cmd_1": "./jackal-native range-bound-cert x^2 0 1",
+  "cert_sha256": "26ba72b5bcee65cad92a0bca04f5adac6f9f7d821679a292e050b813a2448d5b",
+  "cert_head": [
+    "jackal-eval-cert v2",
+    "model jackal-iv-model-v1",
+    "exe ",
+    "status bounded",
+    "expr (pow (var x) (num 2))"
+  ],
+  "cmd_2": "proofs/lean/.lake/build/bin/jackal_cert_check <cert>",
+  "checker_rc": 0,
+  "checker_stdout": "DIAGNOSTIC CERT-ONLY ACCEPT (NOT RELEASE-BOUND)",
+  "checker_stderr": "",
+  "note": "The pinned Lean-checker binary ACCEPTs a range-bound cert straight from the pinned evaluator, independent of the plugin bundle. This confirms the verifier stack is functional at the identities recorded in MANIFEST.sha256."
+}

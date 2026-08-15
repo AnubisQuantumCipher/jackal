@@ -8,7 +8,142 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.3.0 — 2026-08-15 (current) — zero-libm formal Gaussian + audit-closed release
+## Seal v1.4.0 — 2026-08-15 (current) — pure-ℚ sqrt fragment extension + in-session eval harness
+
+Extends the sealed v1.3.0 range/Gaussian identities with the first
+non-arithmetic operator promoted into the release fragment without any libm
+TCB, and ships an in-session empirical evaluation harness measuring how much
+the verified-computation kernel reduces confidently-wrong numerical claims
+from an LLM vs. calculator vs. Python vs. no tool.
+
+### `sqrt_rat` — first libm-free transcendental (§487 fragment extension)
+
+`sqrt` is now in the release fragment (v1.3.0's 17 → v1.4.0's 18 operators).
+The extension carries NO new TCB:
+
+* **Constructor** (`Embed.lean` `Runs.sqrtRat`): parametric in `loQ hiQ : ℚ`
+  with four proof obligations — `0 ≤ loQ`, `0 ≤ hiQ`, `loQ² ≤ input.lo`,
+  `input.hi ≤ hiQ²`.  Sound by `Real.sqrt` monotonicity on `[0, ∞)`:
+  `loQ = Real.sqrt(loQ²) ≤ Real.sqrt(input.lo) ≤ Real.sqrt(x) ≤
+  Real.sqrt(input.hi) ≤ Real.sqrt(hiQ²) = hiQ`.  Zero libm, zero pad,
+  zero delta.
+* **Checker arm** (`CertCheck.lean` `sqrt_rat`): four `decide`
+  inequalities over ℚ.  Kernel-reducible.  Fail-closed.
+* **Bridge** (`CertSound.lean`): `runs_of_check` case discharges to
+  `Runs.sqrtRat`; axiom footprint unchanged (three standard Lean axioms
+  on every flagship theorem).
+* **Codec** (`CertCodec.opFields`) + **buildExpr/buildRawExpr**
+  (`CertTypes.lean` / `CertRequest.lean`): `sqrt_rat` renders to
+  `(call sqrt …)` and lowers to `.call1 "sqrt"`.  The strategy annotation
+  lives on the certificate node, not on the reconstructed expression.
+* **Release allowlist** (`CertRequest.releaseNodeOp`): `sqrt_rat` added;
+  Lean lock `releaseNodeOp_accepts_formal_inventory` includes it and
+  discharges by `decide`.
+* **Producer** (`tools/sqrt_rat_producer.py`): untrusted; uses
+  `decimal.sqrt` at 40+ digits for the seed, then integer-adjusts in ℚ
+  until `loQ² ≤ a` and `b ≤ hiQ²` exactly.  Only `sqrt(x)` on rational
+  `[lo, hi]` admitted; every other form REFUSES.
+* **Release wrapper** (`jackal-sqrt-rat-release`): fail-closed CLI that
+  glues producer → checker into one call, returning `formal-bounded`
+  with the checker's `output <lo> <hi>` echo or a stable refusal class.
+* **Python mirror** (`receipt_verify._RANGE_RELEASE_NODE_OPS`):
+  `sqrt_rat → sqrt` — Python and Lean views of the release fragment stay
+  identical.
+* **Regression** (`tests/formal_sqrt_rat_release_test.py`): 7 cases
+  cover perfect-square bracket, irrational bracket, `lo=0` boundary,
+  reversed-limits refusal, non-sqrt refusal, cert-bytes tamper refusal,
+  and expression-relabel refusal.
+
+Concrete hard example: `sqrt(x)` on `[2, 3]` releases
+`[353553390593273762200422181/250000000000000000000000000,
+17320508075688772935274463420000000000001/10000000000000000000000000000000000000000]`
+— exact rationals of length ≈ 40 digits enclosing `√2` and `√3`, verified
+by the pinned Lean-proved checker under `request_bound_certified_release`
+with zero libm on the proof-decision path.
+
+### Fragment extension roadmap (deferred, honest)
+
+`exp`, `ln`, `atan`, `sqrt(non-rational-bracket)` remain FAIL-CLOSED on
+the formal path.  The mathematical infrastructure for their rational-Taylor
+extension is already in `Gaussian.lean` (`expPartial`, `expRemainder`,
+`real_exp_between`, `expNegQ_encloses`), but per-operator lift-into-`Runs`
+plumbing (constructor + soundness + checkNode arm + codec + release
+allowlist + producer + bridge + regression) is roughly a day of Lean +
+Python work each and was not attempted in the v1.4.0 session.  `sqrt_rat`
+is the proof-of-concept that the extension pattern is real and tractable
+with no TCB expansion.
+
+### In-session empirical evaluation harness (`evals/`)
+
+A real, running eval harness (built and executed in the same session) —
+seeded 10-category corpus × 5 tool conditions (model-only, model+dc,
+model+python, model+jackal, model+jackal-verified) × 200 problems per
+category = 10,000 observations against a real Claude model, judged by
+deterministic ground-truth checks.  Report at `evals/report.md`,
+per-row observations at `release/evidence/eval_v1/results.jsonl`.
+**Scope-honest caveats** in the report: single model family (no
+cross-model column since only Claude is accessible in this session);
+one machine; one session; N=200 per category is a lower bound of what
+the mission brief called for.  Every number is derived from an actual
+API call or tool invocation.
+
+### Source / checker identities (audit-closed, final)
+
+- `jackal_calc.anb` SHA-256: `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40`
+- `jackal-native` SHA-256: `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c`
+- range checker `jackal_cert_check` SHA-256:
+  `e750ff75d7cdd10311305e87819aa0d4c4ef705a0ef86682abc75a7a03979aae`
+  (rebuilt at v1.4.0: adds `sqrt_rat` `Runs` constructor + checkNode arm +
+  releaseNodeOp entry; supersedes v1.3.0's `2e2b82d8…`)
+- range proof-identity file SHA-256: `b75ac9f9c4bdc84920ad7d69542a58b19469dede33e2df16e4d771ddcb9586a2`
+  (internal digest `1d1e40af5f14b3b7d0196d52c71d2fe43ac64139100600f86ac1bdd088f8d482`)
+- Gaussian producer + checker unchanged from v1.3.0
+- coverage inventory SHA-256:
+  `102a4e40d864ba6c05e2961a273487554c1e4b61d4827a34cde6dd7952a6005b`
+  (adds `sqrt` FORMAL row; removes `sqrt` from REFUSED_FORMAL)
+- sqrt_rat producer `tools/sqrt_rat_producer.py` SHA-256:
+  `4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926`
+- Hermes plugin bundle: `afb9373756bcb52ddad327d7a343cdc037a0ea0f2c0fa1ca24315c9393448bd2`
+- v1.4.0 package tarball SHA-256:
+  `7f39cac8016bec1691480b17498d2e5326665b5607a829d640d315d841e863ca`
+  (79,275,370 bytes; deterministic across consecutive rebuilds)
+- Lean flagship theorem axioms (all): `[Classical.choice, Quot.sound, propext]`
+
+### Gate receipts on the exact final bytes
+
+| Gate | Result |
+|---|---|
+| `lake build` (17,343 jobs) + axiom audit | PASS; three standard axioms only |
+| Range proof-identity + checker build binding | PASS |
+| Gaussian proof-identity + checker build binding | PASS |
+| `sqrt_rat` end-to-end (`tests/formal_sqrt_rat_release_test.py`) | 7/7 (perfect square, irrational bracket, lo=0, reversed limits, non-sqrt, cert tamper, relabel) |
+| Gaussian emitter/checker/mutations/receipt | PASS |
+| formal-status gate + selftest | PASS (sqrt now granted formal-bounded; exp remains not-in-formal-fragment) |
+| Positive corpus | 20/20 formal-bounded + 3/3 policy-refusal |
+| Controls normal + `-O` | 30/30 refused at intended layer |
+| Evidence non-vacuity | PASS |
+| Fail-closed sweep | 21/21 |
+| Semantic mutations | 24/24 |
+| Bundle identity normal + `-O` | PASS |
+| Plugin smoke | S1..S13 PASS |
+| A→B→A 11-category | 11/11 |
+| Package smoke (fresh extraction) | 9/9 |
+| Deterministic build | two consecutive rebuilds `7f39cac8…` identical |
+| verify_evidence | PASS |
+
+**Claim boundary (v1.4.0).** For every request accepted by the declared
+range fragment (now including `sqrt(x)` on any canonical rational
+interval) or Gaussian fragment, checker acceptance implies the stated
+enclosure under each receipt's recorded TCB.  Universal correctness for
+arbitrary expressions remains NOT claimed and NOT achievable for a
+general calculator.  `exp`, `ln`, `tan`, `atan`, `asin`, `acos`, `cbrt`,
+`log10`, `log2`, `hypot`, `atan2`, general/negative powers, `%`, and
+named constants continue to FAIL CLOSED on the formal path.  The
+in-session eval harness measures within-Claude tool-condition deltas;
+cross-model comparison remains out of scope (single API family
+available).  Independent external adversarial evaluation remains pending.
+
+## Seal v1.3.0 — 2026-08-15 (predecessor) — zero-libm formal Gaussian + audit-closed release
 
 Adds one distinct proof-carrying integration family (`exp(-A*(x-mu)^2)` with
 canonical nonnegative rational tokens, checker-verified `A=scale^2`, positive

@@ -129,6 +129,10 @@ def sexpBuild : Nat → List Node → Nat → Option String
           (sexpBuild fuel nodes c0).map (fun s => "(pow " ++ s ++ " (neg (num " ++ nd.name ++ ")))")
       | "powNegOdd",  [c0] =>
           (sexpBuild fuel nodes c0).map (fun s => "(pow " ++ s ++ " (neg (num " ++ nd.name ++ ")))")
+      -- sqrt_rat prints as `(call sqrt …)` — the strategy annotation lives on
+      -- the certificate node type, not in the reconstructed expression sexp.
+      | "sqrt_rat", [c0] =>
+          (sexpBuild fuel nodes c0).map (fun s => "(call sqrt " ++ s ++ ")")
       | "add", [c0, c1] =>
           match sexpBuild fuel nodes c0, sexpBuild fuel nodes c1 with
           | some a, some b => some ("(add " ++ a ++ " " ++ b ++ ")") | _, _ => none
@@ -400,6 +404,16 @@ def checkNode (hdr : Header) (nodes : List Node) (nd : Node) : Bool :=
       match childOut nodes c0, childOut nodes c1 with
       | some (xl, _), some _ => decide (0 < xl) && eqQ nd.out_lo nd.El && eqQ nd.out_hi nd.Eu
       | _, _ => false
+  -- Pure-ℚ sqrt (no libm TCB): `Runs.sqrtRat`, §487 fragment extension.
+  -- Placed LAST (just before the wildcard) so the checkNode split cases align
+  -- with CertSound's bullet order.  The checked cert node's `out_lo`/`out_hi`
+  -- ARE the emitter's proposed `loQ`/`hiQ`.
+  | "sqrt_rat", [c0] =>
+      match childOut nodes c0 with
+      | some (l, u) =>
+          decide (0 ≤ nd.out_lo) && decide (0 ≤ nd.out_hi) &&
+          decide (nd.out_lo ^ 2 ≤ l) && decide (u ≤ nd.out_hi ^ 2)
+      | none => false
   -- fail closed
   | _, _ => false
 

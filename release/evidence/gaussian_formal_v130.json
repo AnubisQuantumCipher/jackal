@@ -16,7 +16,7 @@
   "family": "gaussian-exp-square-integral-v1",
   "identities": {
     "checker_sha256": "11c741f04b811aa8621db4da5c5dc05e292ead8c0e6a854739f6068757470612",
-    "coverage_inventory_sha256": "214269507f23ef0cdeaec1839ffd4c0d59f36838a816a816c64c81f9e552d706",
+    "coverage_inventory_sha256": "102a4e40d864ba6c05e2961a273487554c1e4b61d4827a34cde6dd7952a6005b",
     "producer_sha256": "20c24622b786940a8e82198f2364fb7593e761902fa0736289b179642f1e4306"
   },
   "non_claims": [

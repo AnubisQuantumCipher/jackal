@@ -14,6 +14,7 @@
     "pow",
     "round",
     "sin",
+    "sqrt",
     "sub",
     "trunc",
     "var"
@@ -33,7 +34,6 @@
     "mod",
     "pow_general",
     "pow_neg",
-    "sqrt",
     "tan"
   ],
   "rows": [
@@ -484,25 +484,30 @@
       "verdict": "FORMAL"
     },
     {
-      "allowed_status": "refused",
+      "allowed_status": "formal-bounded",
       "canonical_lowering": "simplify_bound",
-      "certificate_op": [],
-      "checker_decode": "n/a",
-      "checker_rule": "n/a",
-      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "certificate_op": [
+        "sqrtRat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
       "kind": "operator",
-      "libm_assumption": "libm<=2ulp (not mechanized)",
-      "notes": "outside the formal fragment; refuses formal status",
+      "libm_assumption": "none",
+      "notes": "",
       "operator": "sqrt",
       "parser_admission": true,
       "plugin_tool": "jackal_range_bound",
       "requested_assurance": "formal-bounded",
-      "runs_constructors": [],
-      "soundness_theorem": "n/a",
-      "tests": [
-        "cert_controls.py::C24-C26"
+      "runs_constructors": [
+        "sqrtRat"
       ],
-      "verdict": "REFUSED"
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
     },
     {
       "allowed_status": "refused",

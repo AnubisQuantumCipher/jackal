@@ -91,7 +91,7 @@ sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub re
 (Apple Silicon macOS), verify the release checksums and pinned identities, or build from
 source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Formal-release paths (v1.3.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
+**Formal-release paths (v1.4.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
 emits `status=formal-bounded` **only** when the shared
 release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
@@ -100,8 +100,15 @@ evaluator and `jackal_cert_check` checker executable identities (pinned in
 status escalation. Any break refuses with a stable class — never a bounded fallback. Checker
 *soundness* (an accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.3.0" for the receipts and preserved predecessor scars.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.4.0" for the receipts and preserved predecessor scars.
 
+
+`jackal-sqrt-rat-release "sqrt(x)" <lo> <hi>` releases a pure-ℚ enclosure of
+`sqrt(x)` on `[lo, hi]` via the v1.4.0 fragment extension.  The producer
+(`tools/sqrt_rat_producer.py`) is untrusted; the compiled Lean-proved
+`jackal_cert_check` validates a rational Newton square bracket
+(`loQ² ≤ input.lo` and `input.hi ≤ hiQ²`) with **no libm on the
+proof-decision path**.  Every other expression refuses without downgrade.
 The separate `jackal-gaussian-release "exp(-A*(x-mu)^2)" <lo> <hi> <tolerance> <formal-receipt.json>`
 path admits only canonical nonnegative rational tokens, a checker-verified positive rational
 `scale` with `scale^2=A`, and a transformed interval containing `[-6,6]`. Its untrusted producer
@@ -133,7 +140,7 @@ evaluator with identity checks and return the engine's honest inventory-derived
 epistemic class (`exact`/`checked`/`estimated`/`bounded`/`model-based`) with
 `formal: false` — status inflation is structurally impossible.
 
-The v1.3.0 eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
+The v1.4.0 eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
 plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,
 24/24 including the two §487 audit locks for U+2028 parser-differential
 injection and `const_rounded` release-fragment admission) prove that every
@@ -307,7 +314,8 @@ How it works, and exactly what it claims:
   certified release* — verified by a positive corpus, 24 negative controls (each failing for its
   intended semantic reason, `tests/cert_controls.py`), and an A→B→A tamper where a deliberately
   non-enclosing emitter is rejected then restored by hash (`tests/cert_tamper.sh`). The certified
-  fragment is the exact-ℚ operators + `sin`/`cos`; true-transcendentals AND named constants
+  fragment is the exact-ℚ operators + `sin`/`cos` + **`sqrt` (v1.4.0, via `sqrt_rat`:
+  pure-ℚ Newton square bracket, NO libm TCB)**; true-transcendentals AND named constants
   (`pi`/`e`/`tau`) fail closed (const excluded 2026-08-15, §487-const audit — their value is
   bound only by the undischarged `ConstTCB` premise, not ℚ-decidable). What is *not* proven is
   enumerated in

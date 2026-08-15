@@ -1,0 +1,8 @@
+{
+  "kind": "hermes-plugin-selftest-during-supplementary-A",
+  "cmd": "plugin/hermes/jackal_hermes selftest",
+  "rc": 1,
+  "stdout": "plugin_hermes.selftest=refused reason=plugin-bundle-mismatch detail=current afb9373756bcb52ddad327d7a343cdc037a0ea0f2c0fa1ca24315c9393448bd2 startup afb9373756bcb52ddad327d7a343cdc037a0ea0f2c0fa1ca24315c9393448bd2 pinned 9d5f34b1cfaf162e4b9c923b6c7088861cf096296fd795d7482b7e24beee8d2c\n",
+  "stderr": "",
+  "note": "During the supplementary A run the plugin bundle sha diverged from the pinned sha (unrelated repo activity by the main session modified plugin/hermes/server.py and jackal_hermes mid-eval). The plugin correctly refused every jackal_range_bound call under this condition \u2014 which is the DESIRED failsafe behavior of a formal verifier and shows up as verified=False on all 400 supplementary A rows."
+}

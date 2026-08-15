@@ -1,0 +1,49 @@
+#!/bin/sh
+# JACKAL v1.4.0 sqrt_rat fail-closed release wrapper.
+#
+# Admits ONLY `sqrt(x)` on a canonical rational interval [lo, hi] and emits
+# a request-bound release ACCEPT from the pinned Lean-proved checker.
+# Every other expression refuses without downgrade.
+#
+# Usage: jackal-sqrt-rat-release "sqrt(x)" <lo> <hi>
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PRODUCER="$ROOT/tools/sqrt_rat_producer.py"
+CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
+
+if [ "$#" -ne 3 ]; then
+    echo "usage: jackal-sqrt-rat-release \"sqrt(x)\" <lo> <hi>" >&2
+    exit 2
+fi
+EXPR="$1"; LO="$2"; HI="$3"
+
+if [ ! -x "$CHECKER" ]; then
+    echo "status=unavailable reason=checker-missing path=$CHECKER" >&2
+    exit 3
+fi
+if [ ! -f "$PRODUCER" ]; then
+    echo "status=unavailable reason=producer-missing path=$PRODUCER" >&2
+    exit 3
+fi
+
+TMPD=$(mktemp -d)
+trap 'rm -rf "$TMPD"' EXIT
+CERT="$TMPD/sqrt.cert"
+
+if ! python3 "$PRODUCER" emit --expression "$EXPR" --lower "$LO" --upper "$HI" > "$CERT" 2>&1; then
+    err=$(cat "$CERT" 2>/dev/null | head -1 || true)
+    echo "status=refused reason=producer-refused detail=\"${err#REFUSE }\"" >&2
+    exit 1
+fi
+
+OUT=$("$CHECKER" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" 2>&1) || {
+    echo "status=refused reason=checker-rejected detail=\"$OUT\"" >&2
+    exit 1
+}
+echo "status=formal-bounded"
+echo "cert-status=bounded"
+echo "assurance=proof-carrying-certificate(checker-accepted;sqrtRat-Runs-derivation;NO-libm-TCB)"
+echo "checker.ACCEPT=$OUT"
+echo "checker.sha256=$(shasum -a 256 "$CHECKER" | awk '{print $1}')"
+echo "producer.sha256=$(python3 "$PRODUCER" sha256)"

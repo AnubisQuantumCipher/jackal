@@ -148,6 +148,10 @@ def buildExpr : Nat → List Node → Nat → Option Expr
       | "powOddPos",  [c0] => (buildExpr fuel nodes c0).map (fun e => .pow e (.num (↑nd.n) nd.name))
       | "powNegEven", [c0] => (buildExpr fuel nodes c0).map (fun e => .pow e (.neg (.num (↑nd.n) nd.name)))
       | "powNegOdd",  [c0] => (buildExpr fuel nodes c0).map (fun e => .pow e (.neg (.num (↑nd.n) nd.name)))
+      -- sqrt_rat is a CHECKER-STRATEGY variant of sqrt (pure-ℚ, no libm TCB):
+      -- the underlying expression is still `sqrt(x)`; the alternate op name only
+      -- tells the checker which arm to use.
+      | "sqrt_rat", [c0] => (buildExpr fuel nodes c0).map (.call1 "sqrt" ·)
       -- binary structural
       | "add", [c0, c1] =>
           match buildExpr fuel nodes c0, buildExpr fuel nodes c1 with

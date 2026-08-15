@@ -187,6 +187,10 @@ _RANGE_RELEASE_NODE_OPS: dict[str, set[str]] = {
     # so the Lean `releaseNodeOp` refuses it and this mirror MUST refuse too
     # (`node-op-outside-release-fragment`), keeping Python and Lean views of
     # the release fragment identical.  `num_rounded` likewise absent.
+    # sqrt_rat (§487 fragment extension, v1.4.0): pure-ℚ sqrt via rational
+    # square bracket.  The Lean `releaseNodeOp` allowlist accepts this and
+    # `Runs.sqrtRat` is checker-sound with no libm TCB.
+    "sqrt_rat": {"sqrt"},
     "neg": {"neg"},
     "add": {"add"},
     "sub": {"sub"},

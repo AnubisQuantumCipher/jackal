@@ -57,6 +57,9 @@ FORMAL = {
     "trunc": ["trunc"],
     "min":   ["min"],
     "max":   ["max"],
+    # sqrt via pure-ℚ Newton bracket (§487 fragment extension, v1.4.0).
+    # NO libm TCB — the checker validates rational inequalities only.
+    "sqrt":  ["sqrtRat"],
 }
 LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const obligation
 
@@ -67,7 +70,7 @@ LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const oblig
 # refuses it (§487-const audit, 2026-08-15; Lean lock
 # `requestRejects_const_rounded_node`). Constants remain available in weaker
 # lanes at their honest epistemic class.
-REFUSED_FORMAL = ["sqrt", "exp", "ln", "tan", "cbrt", "atan", "asin", "acos",
+REFUSED_FORMAL = ["exp", "ln", "tan", "cbrt", "atan", "asin", "acos",
                   "log10", "log2", "hypot", "atan2", "pow_neg", "pow_general",
                   "mod", "const"]
 

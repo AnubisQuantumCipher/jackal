@@ -766,6 +766,24 @@ theorem runs_of_check (hdr : Header) (nodes : List Node)
       rw [show (↑nd.out_lo:ℝ) = ↑nd.El by rw [eqQ_eq hlo],
           show (↑nd.out_hi:ℝ) = ↑nd.Eu by rw [eqQ_eq hhi]]
       exact Runs.powGeneral hr1 hr2 hxl hln hmul hexpst
+    · -- sqrt_rat  (pure ℚ; no libm TCB, §487-fragment extension).
+      have hop : nd.op = "sqrt_rat" := by assumption
+      simp only [*] at hb
+      rw [Option.map_eq_some_iff] at hb
+      obtain ⟨a, hba, rfl⟩ := hb
+      obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
+      simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
+      obtain ⟨⟨⟨hlnn, hunn⟩, hlb⟩, hub⟩ := hcheck
+      have hr := ih _ ndc0 a hf0 hba
+      have hlnnQ : (0 : ℚ) ≤ nd.out_lo := of_decide_eq_true hlnn
+      have hunnQ : (0 : ℚ) ≤ nd.out_hi := of_decide_eq_true hunn
+      have hlbQ : nd.out_lo ^ 2 ≤ ndc0.out_lo := of_decide_eq_true hlb
+      have hubQ : ndc0.out_hi ≤ nd.out_hi ^ 2 := of_decide_eq_true hub
+      have hlbR : ((nd.out_lo : ℚ) : ℝ) ^ 2 ≤ ((ndc0.out_lo : ℚ) : ℝ) := by
+        exact_mod_cast hlbQ
+      have hubR : ((ndc0.out_hi : ℚ) : ℝ) ≤ ((nd.out_hi : ℚ) : ℝ) ^ 2 := by
+        exact_mod_cast hubQ
+      exact Runs.sqrtRat hr hlnnQ hunnQ hlbR hubR
 
 /-! ### Structural extraction and the headline theorems
 

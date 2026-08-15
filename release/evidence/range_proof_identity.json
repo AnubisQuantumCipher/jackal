@@ -1,6 +1,6 @@
 {
   "build_attestation": {
-    "attestation_digest_sha256": "5112888df95cd0ceb8c18fc328ab1a0c0c032d0a19004f6cb7a4c0e8eaaf603f",
+    "attestation_digest_sha256": "86dbd05ede84dd422ba68ed0e58d9f44f75784174aee1ad81ee6ba3b447f72dd",
     "authentication": {
       "authenticated": false,
       "scheme": "none",
@@ -12,9 +12,9 @@
       "jackal_cert_check"
     ],
     "checker": {
-      "bytes": 137936736,
+      "bytes": 137937120,
       "path": "proofs/lean/.lake/build/bin/jackal_cert_check",
-      "sha256": "2e2b82d85fab1c5351d2d1ce1c8d591fb12249f2575c791eb94b9546224d6011",
+      "sha256": "e750ff75d7cdd10311305e87819aa0d4c4ef705a0ef86682abc75a7a03979aae",
       "target": "jackal_cert_check"
     },
     "claim_boundary": "This is reproducibility/build-provenance evidence, not a proof of compiler, linker, operating-system, hardware, or supply-chain correctness.",
@@ -29,7 +29,7 @@
     "inputs": {
       "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
       "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
-      "source_closure_sha256": "05743660a863a1ef5a9c62caec7c732027a04327eb3ac835f5df4d990cb0695c",
+      "source_closure_sha256": "b8c617adf3401da21b806a0d744b60e501510ae183baea7bc3f9fa8548aaf547",
       "toolchain_configuration": [
         {
           "path": "proofs/lean/lakefile.toml",
@@ -49,9 +49,9 @@
     "working_directory": "proofs/lean"
   },
   "checker": {
-    "bytes": 137936736,
+    "bytes": 137937120,
     "path": "proofs/lean/.lake/build/bin/jackal_cert_check",
-    "sha256": "2e2b82d85fab1c5351d2d1ce1c8d591fb12249f2575c791eb94b9546224d6011",
+    "sha256": "e750ff75d7cdd10311305e87819aa0d4c4ef705a0ef86682abc75a7a03979aae",
     "target": "jackal_cert_check"
   },
   "fragment": {
@@ -81,7 +81,7 @@
     "path": "release/tools/gaussian_proof_identity.py",
     "sha256": "d6142c21aeb27fb1f7a215b7d2c8629316ebd17740875ffd7593a09efdf69847"
   },
-  "identity_digest_sha256": "2303f86a87b31b5f7ca5cdc9d25a1d6362acfc1fa8769dd60fe7dcd73e7faa7d",
+  "identity_digest_sha256": "1d1e40af5f14b3b7d0196d52c71d2fe43ac64139100600f86ac1bdd088f8d482",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {
@@ -148,7 +148,7 @@
   },
   "schema": "jackal-range-proof-identity-v1",
   "source_closure": {
-    "aggregate_sha256": "05743660a863a1ef5a9c62caec7c732027a04327eb3ac835f5df4d990cb0695c",
+    "aggregate_sha256": "b8c617adf3401da21b806a0d744b60e501510ae183baea7bc3f9fa8548aaf547",
     "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
     "external_imports": [
       "Mathlib"
@@ -165,13 +165,13 @@
         "sha256": "2bc091be9dd47acae8d4b8af7b272827a3cea7b5ec08773566ad8fe40a12bf83"
       },
       {
-        "bytes": 22383,
+        "bytes": 23169,
         "imports": [
           "JackalIv.CertTypes"
         ],
         "module": "JackalIv.CertCheck",
         "path": "proofs/lean/JackalIv/CertCheck.lean",
-        "sha256": "f4cc32b7c8e7faa11df8d8be174eaddd924dd23d2e239b45edebab4ce1e03184"
+        "sha256": "55eee9c42ba9fa4c4d7bbd6edfbaa28e6fb1a9c1f610ff321bb4f69b3f432807"
       },
       {
         "bytes": 3753,
@@ -183,16 +183,16 @@
         "sha256": "433ef0b15add892020e57932fad5c0b9c376273b132bb94bb293d262ca2a7a8e"
       },
       {
-        "bytes": 54198,
+        "bytes": 54239,
         "imports": [
           "JackalIv.CertCheck"
         ],
         "module": "JackalIv.CertCodec",
         "path": "proofs/lean/JackalIv/CertCodec.lean",
-        "sha256": "b1fd421e58112e05437f7bd085d079e57b288e326bc817b13460e044be959f1f"
+        "sha256": "941e39cede43e927f37b6311c9e83611fadfe0836c31e5c15a03f94c6853ffcc"
       },
       {
-        "bytes": 26714,
+        "bytes": 27147,
         "imports": [
           "JackalIv.CertCodec",
           "JackalIv.CertSound",
@@ -200,26 +200,26 @@
         ],
         "module": "JackalIv.CertRequest",
         "path": "proofs/lean/JackalIv/CertRequest.lean",
-        "sha256": "c9d75ae454e0b5b432f76ce19290fc57e93c102de3015fa990dec1103275254b"
+        "sha256": "8e8f831e71d437cd75126ca3115e6a637761d806ffc5dd68acfd534cc15901f3"
       },
       {
-        "bytes": 46014,
+        "bytes": 47033,
         "imports": [
           "JackalIv.CertCheck",
           "JackalIv.Embed"
         ],
         "module": "JackalIv.CertSound",
         "path": "proofs/lean/JackalIv/CertSound.lean",
-        "sha256": "e33dba8883c66e8c4ab1e8e3f410c5abcc24070a020a2706de333c62d84aec63"
+        "sha256": "f45373f3e50a1e8733d98209ff8919572d69c4141a7e07d39c4ebe5ec05f9865"
       },
       {
-        "bytes": 15588,
+        "bytes": 15873,
         "imports": [
           "JackalIv.Syntax"
         ],
         "module": "JackalIv.CertTypes",
         "path": "proofs/lean/JackalIv/CertTypes.lean",
-        "sha256": "432cfbfce919ca4e8dfaacf53d03ef5d0a8ff9a4f95f9821ed3679e9478360d7"
+        "sha256": "aae82c02a08a3c108a598ee33976fb535aafdcf89e967c6b84d0cdd28fc55454"
       },
       {
         "bytes": 6139,
@@ -243,13 +243,13 @@
         "sha256": "3baba94104288e5783c763723f9582a25db40131849a41e743669cfac8445495"
       },
       {
-        "bytes": 26883,
+        "bytes": 28530,
         "imports": [
           "JackalIv.Syntax"
         ],
         "module": "JackalIv.Embed",
         "path": "proofs/lean/JackalIv/Embed.lean",
-        "sha256": "87103e956e1fcc0a387548ec77aa221a58f36d03c2b17cec4cd66753e83dcfe0"
+        "sha256": "2dcec618e0f1eb99e6bafbada7e43e299bd9dadf3ce59d3338f15aa208b17ef5"
       },
       {
         "bytes": 17004,

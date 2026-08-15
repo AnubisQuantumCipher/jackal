@@ -34,6 +34,8 @@ EXPECTED_LOGICAL_NAMES = {
     "runtime/isolated_entry.py",
     "runtime/receipt_verify.py",
     "runtime/release_validate.py",
+    "runtime/sqrt_rat_producer.py",
+    "runtime/exp_rat_producer.py",
 }
 
 
@@ -53,6 +55,8 @@ PACKAGE_DESTINATIONS = {
     "runtime/isolated_entry.py": "isolated_entry.py",
     "runtime/receipt_verify.py": "receipt_verify.py",
     "runtime/release_validate.py": "release_validate.py",
+    "runtime/sqrt_rat_producer.py": "sqrt_rat_producer.py",
+    "runtime/exp_rat_producer.py": "exp_rat_producer.py",
 }
 
 

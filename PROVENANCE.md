@@ -8,7 +8,120 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.4.1 — 2026-08-15 (current) — pure-ℚ exp fragment extension + CI reproducibility fix
+## Seal v1.4.1a — 2026-08-15 (current) — outer-seal drift closed
+
+A candid third-party audit against the v1.4.1 push flagged five outer-seal
+drifts where the plugin/wrapper/documentation surface had NOT caught up to
+the v1.4.1 core:
+
+1. `jackal-cert-release` still declared `# JACKAL v1.3.0` and passed
+   `--release-epoch v1.3.0`.
+2. `plugin/hermes/tools.json` still declared `"version": "v1.3.0"` even
+   though the tools array had grown from 3 → 10.
+3. `plugin/hermes/README.md` still claimed "exactly three tools",
+   contradicting `tools.json`.
+4. `tests/plugin_smoke.py` still declared v1.3.0 in its docstring and
+   the `RANGE_CONTEXT` / `GAUSSIAN_CONTEXT` `expected_release_epoch`, and
+   `S4` expected `sqrt(x)` to be refused by *every* plugin lane — while
+   the coverage inventory had it promoted to FORMAL in v1.4.0 (the
+   real gap was that the plugin exposed NO tool routing to `sqrt_rat`
+   or `exp_rat`).
+5. `evals/report.md` pinned identities were the v1.3.0 execution-moment
+   snapshot but were labeled "release/MANIFEST.sha256" without a
+   qualifier, giving the impression the report referenced the current
+   manifest (it did not — a mid-run `plugin-bundle-mismatch` event is
+   also documented in the same report).
+
+All five closed in one commit:
+
+**Plugin surface expanded from 10 → 12 tools.** Two new formal tools
+expose the pure-ℚ fragment extensions the standalone CLI wrappers
+already ship:
+
+* `jackal_sqrt_rat_bound` routes through `tools/sqrt_rat_producer.py`
+  + the pinned `jackal_cert_check`, TOCTOU-stable identities pre/post,
+  and returns `variant=sqrt_rat`, the exact rational enclosure endpoints,
+  the certificate bytes (base64) with SHA-256, and the pinned
+  producer/checker/plugin identities.  Refusal classes:
+  `plugin-fragment` (non-sqrt expression), `producer-refused` (negative
+  lower), `producer-identity` / `producer-toctou` /
+  `checker-identity` / `checker-toctou` (identity or byte drift).
+* `jackal_exp_rat_bound` is the analogous adapter for
+  `tools/exp_rat_producer.py` (positive-argument branch only).
+
+Both variants return a `variant`-marked payload rather than the
+`jackal-formal-receipt-v1` envelope; `jackal_verify_receipt` does NOT
+currently accept variant payloads — the receipt-verify round-trip is a
+documented follow-up.  Downstream can still independently re-run the
+pinned checker on the embedded `certificate_b64` bytes today.
+
+**Runtime bundle contract.** The two producer files were added to
+`plugin/hermes/tools.json` `runtime_files` (17 files total), so
+`plugin/hermes/bundle_hash.py` covers them.  The `plugin_hermes` pin in
+`release/MANIFEST.sha256` moved to
+`c613df4731bf8abe9ff4eed476e278921562c317a6bff80defe601b82cf6b1c9`.
+
+**Wrapper + smoke bumped to v1.4.1.**
+
+* `jackal-cert-release` header + `--release-epoch v1.4.1`.
+* `jackal-gaussian-release` `--release-epoch v1.4.1`.
+* `plugin/hermes/server.py` docstring + all four hardcoded `v1.3.0`
+  release_epoch strings (in `tool_range_bound` and
+  `tool_gaussian_integral`) → `v1.4.1`.
+* `tests/plugin_smoke.py` docstring + both context epochs;
+  `S8-stdio-transport` `expected_tools` set expanded to 12;
+  added **S14** (`jackal_sqrt_rat_bound` accepts on `[2, 3]` with the
+  exact rational enclosure of √2/√3), **S15**
+  (`jackal_exp_rat_bound` accepts on `[0, 1]` with the exact enclosure
+  `[1, 979/360]` of e), **S16** (four refusal classes on
+  non-admitted expressions and negative lowers).
+* `tests/plugin_bundle_identity_test.py` `EXPECTED_LOGICAL_NAMES` +
+  `PACKAGE_DESTINATIONS` grew from 15 → 17.
+* `evals/report.md` "Pinned identities" now explicitly labels the
+  v1.3.0 execution-moment snapshot AND cross-references the current
+  v1.4.1 pins per field.
+
+**No new axioms.** The Lean surface is unchanged from v1.4.1 core;
+every flagship theorem's axiom set remains
+`[Classical.choice, Quot.sound, propext]`.  The two new plugin tools
+call the SAME `jackal_cert_check` on the SAME certificate bytes the
+standalone CLI wrappers already validate.
+
+### Frozen v1.4.1a identities
+
+```
+jackal-native                     820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c
+jackal_cert_check                 b567b8a94ce7acd49ecaa807d86a5bb66d695fb0ce4fea2eb84f0073425984d7  (unchanged)
+jackal_gaussian_check             42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77  (unchanged)
+range_proof_identity              82376d501264a2aabe1cdce6a373f9c53f2bedf262a25494253131835d8bb2ae  (unchanged)
+gaussian_proof_identity           22c59e60b66a7fc6ef232e01fe64967285d36bb65e92847f9b42af721b36a54e  (unchanged)
+coverage_inventory                113828ebe3aad96a8e70b753abc54699d936b4ccd645d224a5fa88be9a01a0ab  (unchanged)
+sqrt_rat_producer                 4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926  (unchanged)
+exp_rat_producer                  ccbc48633bd3980613413399d552321eaa67b15bd101643e53b0dd5f10a37918  (unchanged)
+plugin_hermes                     c613df4731bf8abe9ff4eed476e278921562c317a6bff80defe601b82cf6b1c9  (v1.4.1: fa9976d6… -> c613df47…)
+package tarball                   f6984fe4ec0df2ce813a2424b4081b35714157ab194943237d2c7bd3b234f456
+                                  (79,278,885 bytes; byte-reproducible across two rebuilds)
+```
+
+### Gate receipts on the v1.4.1a final bytes (14/14)
+
+Lake build 8682 jobs · Range + Gaussian proof identity · Positive corpus 20/20 ·
+Negative controls 30/30 · A→B→A 2-mutation 2/2 · 11-category mutations 11/11 ·
+Formal-status gate 11/11 · sqrt_rat 7/7 · exp_rat 8/8 · output_path_safety 6/6 ·
+receipt_semantic_mutations 24/24 · Gaussian receipt + mutations · Package
+deterministic + fresh-extraction smoke.  Plugin smoke S1..S16 with the two new
+formal-lane accept cases green and the four new refusal classes checked
+(`plugin-fragment`, `producer-refused` on each of `sqrt_rat` and `exp_rat`).
+
+**What this seal does NOT do.** It does NOT teach
+`jackal_verify_receipt` to accept the `variant=sqrt_rat` / `variant=exp_rat`
+payloads — that requires extending `jackal-formal-receipt-v1` (or
+introducing a variant envelope) and re-doing the receipt-semantic
+mutation harness against it.  That work is scoped for a future patch
+release; today the two new tools remain a proof-carrying release *from*
+the plugin, not yet a round-trippable receipt *through* the plugin.
+
+## Seal v1.4.1 — 2026-08-15 (predecessor) — pure-ℚ exp fragment extension + CI reproducibility fix
 
 Extends v1.4.0's `sqrt_rat` fragment with the first libm-free
 transcendental beyond `sqrt`, `exp` on `[lo, hi]` with `lo >= 0`, and

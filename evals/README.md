@@ -1,4 +1,4 @@
-# evals/ — JACKAL v1.3.0 empirical evaluation harness (eval_v1)
+# evals/ — JACKAL v1.4.x empirical evaluation harness (eval_v1)
 
 ## Dry-run output
 

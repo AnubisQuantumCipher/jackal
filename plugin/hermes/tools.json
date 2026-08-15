@@ -1,7 +1,7 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.3.0",
+  "version": "v1.4.1",
   "description": "JACKAL verified computation kernel: formal-bounded range/Gaussian enclosures, independent receipt verification, and honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates.",
   "bundle_files": [
     "server.py",
@@ -66,6 +66,15 @@
     "runtime/release_validate.py": [
       "../../tests/release_validate.py",
       "../../release_validate.py"
+    ]
+    ,
+    "runtime/sqrt_rat_producer.py": [
+      "../../tools/sqrt_rat_producer.py",
+      "../../sqrt_rat_producer.py"
+    ],
+    "runtime/exp_rat_producer.py": [
+      "../../tools/exp_rat_producer.py",
+      "../../exp_rat_producer.py"
     ]
   },
   "tools": [
@@ -134,6 +143,56 @@
         "certificate_sha256": "recomputed certificate SHA-256",
         "checker_sha256": "pinned checker binary hash",
         "evaluator_sha256": "pinned evaluator binary hash",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_sqrt_rat_bound",
+      "description": "Emit a formal-bounded pure-Q sqrt(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'sqrt(x)' on a canonical rational interval; every other expression refuses without downgrade. v1.4.0 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal 'sqrt(x)' after whitespace normalization."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational (e.g. '2', '1/4'); must be >= 0."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo)."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "sqrt_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing sqrt(x) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.4.1",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_exp_rat_bound",
+      "description": "Emit a formal-bounded pure-Q exp(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'exp(x)' on a canonical rational interval [lo, hi] with lo >= 0 (positive-argument branch); every other expression refuses without downgrade. v1.4.1 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal 'exp(x)' after whitespace normalization."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational; must be >= 0."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo); the producer picks a Taylor degree with 2*hi <= n+1."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "exp_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing exp(x) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.4.1",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }

@@ -229,12 +229,12 @@
       "description": "plugin bundle hash MUST equal pinned plugin_hermes value at startup",
       "gate": "M11-plugin-binary-replaced",
       "restore_hash_verified": true,
-      "source_hash_mutated": "fa5d2f427a4fe16bd5754002b1333af37b5b82900a63bccce851b93bb21e8210",
-      "source_hash_post": "9c63ea2d27f88bc2bf8873e71cbf3ccb4827418272b0c1560de2018b445dd2b8",
-      "source_hash_pre": "9c63ea2d27f88bc2bf8873e71cbf3ccb4827418272b0c1560de2018b445dd2b8",
+      "source_hash_mutated": "63de595ca9fcb8cf348af2f5c7e9cda8bf25c7a234b6511c3527c1ec69958d13",
+      "source_hash_post": "d67b2fb591fed853168a42abdf7622fe66200276f9bbfdc1bdacabfef2c6638b",
+      "source_hash_pre": "d67b2fb591fed853168a42abdf7622fe66200276f9bbfdc1bdacabfef2c6638b",
       "target_file": "plugin/hermes/server.py"
     }
   ],
-  "plugin_hermes_sha256": "fa9976d6e5387870eb9cfdf89d7bb42bdb162d5c9ee993616c84ef9ce866b4fb",
+  "plugin_hermes_sha256": "c613df4731bf8abe9ff4eed476e278921562c317a6bff80defe601b82cf6b1c9",
   "release_epoch": "v1.3.0"
 }

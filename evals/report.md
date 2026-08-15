@@ -11,20 +11,31 @@
 - One machine (Apple M4 Max, darwin 25.6.0), one session, one process pool.
 - Every number below is derived from a real tool call. STUB rows (marked `[stub]`) had no live Claude call for that condition, but their tool outputs (dc / python / jackal / hermes) are real. Model_only under stub is a fail-closed row.
 
-## Pinned identities (release/MANIFEST.sha256)
+## Pinned identities (as of 2026-08-15T15:12:53Z — the exact bytes this harness ran against)
 
-- `evaluator` = `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c`
-- `checker` = `e750ff75d7cdd10311305e87819aa0d4c4ef705a0ef86682abc75a7a03979aae`
-- `gaussian-producer` = `20c24622b786940a8e82198f2364fb7593e761902fa0736289b179642f1e4306`
-- `gaussian-checker` = `11c741f04b811aa8621db4da5c5dc05e292ead8c0e6a854739f6068757470612`
-- `range-proof-identity` = `b75ac9f9c4bdc84920ad7d69542a58b19469dede33e2df16e4d771ddcb9586a2`
-- `range-proof-digest` = `1d1e40af5f14b3b7d0196d52c71d2fe43ac64139100600f86ac1bdd088f8d482`
-- `gaussian-proof-identity` = `dea12a25529eb2b7f2817bcd499b9e7a1c8a9a9a6cd8bf821cf1d947e4465cfc`
-- `gaussian-proof-digest` = `7fbb0d585aa11d059d710bbe0bdac2337a8da49746e65e27316a95d774a2a606`
-- `coverage-inventory` = `102a4e40d864ba6c05e2961a273487554c1e4b61d4827a34cde6dd7952a6005b`
-- `source` = `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40`
-- `compiler_pin` = `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`
-- `plugin_hermes` = `9d5f34b1cfaf162e4b9c923b6c7088861cf096296fd795d7482b7e24beee8d2c`
+These are the values of `release/MANIFEST.sha256` **at the moment the
+10000-observation run executed**.  They are preserved verbatim so every
+row in `release/evidence/eval_v1/results.jsonl` is anchored to a
+specific set of executables.  The current `release/MANIFEST.sha256` on
+disk may differ if the manifest has been re-pinned since this run
+(e.g. by v1.4.1's `exp_rat` addition, which changed the `checker`,
+`gaussian-checker`, `plugin_hermes`, `range-proof-*`, `gaussian-proof-*`,
+and `coverage-inventory` pins).  The eval numbers themselves are
+unchanged; the harness is not re-runnable byte-identically against a
+later manifest without pinning back to these exact bytes.
+
+- `evaluator` = `820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c` (v1.3.0 pin; unchanged in v1.4.x — `jackal-native` engine was not modified)
+- `checker` = `e750ff75d7cdd10311305e87819aa0d4c4ef705a0ef86682abc75a7a03979aae` (v1.3.0 pin; v1.4.1 now `b567b8a94ce7...`)
+- `gaussian-producer` = `20c24622b786940a8e82198f2364fb7593e761902fa0736289b179642f1e4306` (unchanged in v1.4.x)
+- `gaussian-checker` = `11c741f04b811aa8621db4da5c5dc05e292ead8c0e6a854739f6068757470612` (v1.3.0 pin; v1.4.1 now `42d3f3e74b90...`)
+- `range-proof-identity` = `b75ac9f9c4bdc84920ad7d69542a58b19469dede33e2df16e4d771ddcb9586a2` (v1.3.0 pin; v1.4.1 now `bc4adceccaf4...`)
+- `range-proof-digest` = `1d1e40af5f14b3b7d0196d52c71d2fe43ac64139100600f86ac1bdd088f8d482` (v1.3.0 pin; v1.4.1 now `82376d501264...`)
+- `gaussian-proof-identity` = `dea12a25529eb2b7f2817bcd499b9e7a1c8a9a9a6cd8bf821cf1d947e4465cfc` (v1.3.0 pin; v1.4.1 now `94b88e846398...`)
+- `gaussian-proof-digest` = `7fbb0d585aa11d059d710bbe0bdac2337a8da49746e65e27316a95d774a2a606` (v1.3.0 pin; v1.4.1 now `22c59e60b66a...`)
+- `coverage-inventory` = `102a4e40d864ba6c05e2961a273487554c1e4b61d4827a34cde6dd7952a6005b` (v1.3.0 pin; v1.4.1 now `113828ebe3aa...` — added `exp` FORMAL row)
+- `source` = `5d43df8de01adb86bb10a0a6cea28fb79faf03cd58be51654c3fa88c653e4a40` (unchanged in v1.4.x — `jackal_calc.anb` not modified)
+- `compiler_pin` = `a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2` (unchanged)
+- `plugin_hermes` = `9d5f34b1cfaf162e4b9c923b6c7088861cf096296fd795d7482b7e24beee8d2c` (v1.3.0 pin; the harness observed a `plugin-bundle-mismatch` event mid-run — see §"Live runtime pin drift" below — and continued.  v1.4.1 now `c613df4731bf...`, adding two runtime files for the `exp_rat` producer discovery.)
 
 ## Per-condition × per-category summary
 

@@ -144,8 +144,9 @@ checker on this machine** — recomputing the outer digest alone is not
 sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The Hermes plugin exposes ten tools —
-three formal (`jackal_range_bound`, `jackal_gaussian_integral`,
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes twelve tools —
+five formal (`jackal_range_bound`, `jackal_gaussian_integral`,
+`jackal_sqrt_rat_bound` (v1.4.0), `jackal_exp_rat_bound` (v1.4.1),
 `jackal_verify_receipt`) plus seven weaker-lane adapters (`jackal_exact`,
 `jackal_evaluate`, `jackal_diff`, `jackal_integrate`, `jackal_integrate_adaptive`,
 `jackal_integrate_bound`, `jackal_solve`) that thread through the pinned

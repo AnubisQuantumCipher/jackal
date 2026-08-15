@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 """JACKAL Hermes plugin — proof-carrying range and Gaussian tool server.
 
-Exposes exactly three tools (see `tools.json`):
+Exposes twelve tools (see `tools.json`):
 
-  * `jackal_range_bound`      emit a `jackal-formal-receipt-v1` receipt
-  * `jackal_gaussian_integral` emit a zero-libm Gaussian formal receipt
-  * `jackal_verify_receipt`   re-run the pinned Lean-proved checker
+  Formal (proof-carrying, checker-attested):
+    * `jackal_range_bound`        emit a `jackal-formal-receipt-v1` receipt
+    * `jackal_gaussian_integral`  emit a zero-libm Gaussian formal receipt
+    * `jackal_sqrt_rat_bound`     pure-Q sqrt(x) enclosure via Lean-proved checker
+    * `jackal_exp_rat_bound`      pure-Q exp(x) enclosure via Lean-proved checker
+    * `jackal_verify_receipt`     re-run the pinned Lean-proved checker
+
+  Weaker-lane adapters (status passthrough, never inflated):
+    * `jackal_exact`, `jackal_evaluate`, `jackal_diff`,
+      `jackal_integrate`, `jackal_integrate_adaptive`,
+      `jackal_integrate_bound`, `jackal_solve`
 
 The plugin does NOT ship a new checker or a new evaluator.  It is a
 narrow, fail-closed adapter that binds every call through the SAME
@@ -125,6 +133,14 @@ def _shipped_layout() -> dict[str, Path]:
         ("gaussian_proof_identity", [
             ROOT / "release/evidence/gaussian_proof_identity.json",
             ROOT / "gaussian_proof_identity.json",
+        ]),
+        ("sqrt_rat_producer", [
+            ROOT / "tools/sqrt_rat_producer.py",
+            ROOT / "sqrt_rat_producer.py",
+        ]),
+        ("exp_rat_producer", [
+            ROOT / "tools/exp_rat_producer.py",
+            ROOT / "exp_rat_producer.py",
         ]),
     ):
         for c in cands:
@@ -363,7 +379,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_checker=ck_expected,
                 formal_receipt_path=formal_path,
                 plugin_sha256=PLUGIN_HASH,
-                release_epoch="v1.3.0",
+                release_epoch="v1.4.1",
             )
             receipt = _strict_json_loads(Path(formal_path).read_bytes())
             rerun = vr.verify_receipt(
@@ -378,7 +394,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
                 expected_source=_load_pinned_source_id(),
-                expected_release_epoch="v1.3.0",
+                expected_release_epoch="v1.4.1",
                 expected_request={
                     "command": "range-bound-cert",
                     "expression": expr,
@@ -437,7 +453,7 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
             expected_checker=checker_expected,
             receipt=str(receipt_path),
             plugin_sha256=PLUGIN_HASH,
-            release_epoch="v1.3.0",
+            release_epoch="v1.4.1",
             timeout=60,
         )
         try:
@@ -454,7 +470,7 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_file=proof_file_expected,
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
-                expected_release_epoch="v1.3.0",
+                expected_release_epoch="v1.4.1",
                 expected_request={
                     "command": "integrate",
                     "expression": args["expression"],
@@ -551,6 +567,166 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
     except vr.ReceiptRefusal as r:
         return _refuse(r.cls, r.detail)
     return {"status": "verified", **result}
+
+# -- pure-Q fragment adapters: sqrt_rat + exp_rat (v1.4.x fragment extensions) --
+#
+# These tools route around `jackal-native` entirely: they invoke the
+# pinned standalone Python producer (`tools/sqrt_rat_producer.py` /
+# `tools/exp_rat_producer.py`) with identity hashed pre/post, feed its
+# canonical certificate bytes to the SAME pinned `jackal_cert_check`
+# every other formal lane uses (also identity hashed pre/post), and only
+# return a `status=formal-bounded` payload when the checker prints ACCEPT.
+# Producer identity is pinned in `MANIFEST.sha256` under
+# `sqrt_rat_producer` / `exp_rat_producer`; the checker identity is the
+# same pin every other range lane uses.  Both tools admit only the exact
+# single-variable form (`sqrt(x)` / `exp(x)`); every other expression
+# refuses `producer-refused` without downgrade.  Payload includes the
+# base64 cert bytes and its SHA-256 so a downstream consumer can save
+# and independently re-check.  These are NOT yet round-trippable through
+# `jackal_verify_receipt` (they carry a `variant` marker, not the
+# canonical `jackal-formal-receipt-v1` envelope) — receipt-integration
+# is a documented follow-up (see NON-CLAIMS in the release wrapper).
+
+
+def _run_rational_producer(
+    producer_path: Path, expected_producer_sha: str,
+    expr: str, lo: str, hi: str,
+) -> bytes:
+    """Invoke a pure-Q producer with TOCTOU-stable identity + fail-closed refusal."""
+    pre = hashlib.sha256(producer_path.read_bytes()).hexdigest()
+    if pre != expected_producer_sha:
+        raise PluginRefusal(
+            "producer-identity", f"{producer_path.name}: {pre} != pinned {expected_producer_sha}"
+        )
+    proc = subprocess.run(
+        [sys.executable, "-I", "-S", "-B", str(producer_path), "emit",
+         "--expression", expr, "--lower", lo, "--upper", hi],
+        capture_output=True, timeout=60,
+    )
+    post = hashlib.sha256(producer_path.read_bytes()).hexdigest()
+    if post != pre:
+        raise PluginRefusal("producer-toctou", f"{producer_path.name} bytes changed across call")
+    if proc.returncode != 0:
+        raw = (proc.stderr.decode("utf-8", "replace").strip()
+               or proc.stdout.decode("utf-8", "replace").strip())
+        # Strip the producer's own `REFUSE ` prefix so the plugin surface
+        # sees a clean detail line and downstream selects a stable class.
+        detail = raw.split("\n")[0].removeprefix("REFUSE ")[:300]
+        raise PluginRefusal("producer-refused", detail)
+    return proc.stdout
+
+
+def _run_checker_on_cert_bytes(
+    cert_bytes: bytes, command: str, expr: str, lo: str, hi: str,
+    expected_checker_sha: str,
+) -> tuple[str, str]:
+    """Feed a producer cert to the pinned `jackal_cert_check` with request framing."""
+    checker_path = LAYOUT["checker"]
+    pre = hashlib.sha256(checker_path.read_bytes()).hexdigest()
+    if pre != expected_checker_sha:
+        raise PluginRefusal("checker-identity", f"{pre} != pinned {expected_checker_sha}")
+    with tempfile.NamedTemporaryFile("wb", suffix=".cert", delete=False) as f:
+        f.write(cert_bytes)
+        cert_path = f.name
+    try:
+        proc = subprocess.run(
+            [str(checker_path), cert_path, command, expr, lo, hi],
+            capture_output=True, text=True, timeout=60,
+        )
+    finally:
+        try:
+            os.unlink(cert_path)
+        except OSError:
+            pass
+    post = hashlib.sha256(checker_path.read_bytes()).hexdigest()
+    if post != pre:
+        raise PluginRefusal("checker-toctou", "checker bytes changed across call")
+    if proc.returncode != 0:
+        detail = ((proc.stdout + proc.stderr).strip().split("\n")[0])[:300]
+        raise PluginRefusal("checker-rejected", detail)
+    if "ACCEPT" not in proc.stdout:
+        raise PluginRefusal("checker-no-accept", proc.stdout.strip()[:300])
+    return proc.stdout.strip(), pre
+
+
+def _parse_cert_enclosure(cert_bytes: bytes) -> tuple[str, str]:
+    """Extract the `output <lo> <hi>` header field from a canonical cert."""
+    text = cert_bytes.decode("utf-8", "replace")
+    m = re.search(r"(?m)^output\s+(\S+)\s+(\S+)\s*$", text)
+    if not m:
+        raise PluginRefusal("plugin-cert-shape", "no `output` line in emitted cert")
+    return m.group(1), m.group(2)
+
+
+def _rational_bound_result(
+    *, variant: str, admitted_expr: str, producer_key: str,
+    producer_manifest_label: str, expr: str, lo: str, hi: str,
+) -> dict[str, Any]:
+    """Common body for jackal_sqrt_rat_bound / jackal_exp_rat_bound."""
+    import base64
+    if expr.replace(" ", "") != admitted_expr:
+        raise PluginRefusal(
+            "plugin-fragment",
+            f"{variant} admits ONLY `{admitted_expr}`; got {expr!r}",
+        )
+    expected_producer = _manifest_alias({producer_manifest_label}, producer_manifest_label)
+    _, expected_checker = _load_pinned_ids()
+    producer_path = LAYOUT[producer_key]
+    cert_bytes = _run_rational_producer(producer_path, expected_producer, expr, lo, hi)
+    encl_lo, encl_hi = _parse_cert_enclosure(cert_bytes)
+    checker_out, checker_sha = _run_checker_on_cert_bytes(
+        cert_bytes, "range-bound-cert", expr, lo, hi, expected_checker,
+    )
+    return {
+        "status": "formal-bounded",
+        "variant": variant,
+        "expression": expr,
+        "input_lo": lo,
+        "input_hi": hi,
+        "enclosure": [encl_lo, encl_hi],
+        "certificate_b64": base64.b64encode(cert_bytes).decode("ascii"),
+        "certificate_sha256": hashlib.sha256(cert_bytes).hexdigest(),
+        "checker_verdict": "ACCEPT",
+        "checker_output": checker_out,
+        "identities": {
+            "producer_sha256": expected_producer,
+            "checker_sha256": checker_sha,
+            "plugin_sha256": PLUGIN_HASH,
+        },
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.4.1",
+        "non_claims": [
+            f"NOT universal correctness: this tool admits ONLY `{admitted_expr}`",
+            "Checker verdict ACCEPT + certificate together imply Real enclosure under "
+            "[propext, Classical.choice, Quot.sound]",
+            "This payload is a variant response and NOT yet a `jackal-formal-receipt-v1` "
+            "envelope; `jackal_verify_receipt` does not currently accept variants",
+        ],
+    }
+
+
+def tool_sqrt_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q sqrt(x) enclosure or refuse (v1.4.0 fragment extension)."""
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant="sqrt_rat",
+        admitted_expr="sqrt(x)",
+        producer_key="sqrt_rat_producer",
+        producer_manifest_label="sqrt_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+    )
+
+
+def tool_exp_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q exp(x) enclosure or refuse (v1.4.1 fragment extension)."""
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant="exp_rat",
+        admitted_expr="exp(x)",
+        producer_key="exp_rat_producer",
+        producer_manifest_label="exp_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+    )
 
 
 # -- weaker-lane adapters (non-formal; status passthrough, never inflated) ----
@@ -699,9 +875,11 @@ def _make_weak_tool(tool_name: str, spec: dict[str, Any]):
 
 
 TOOLS = {
-    "jackal_range_bound":     tool_range_bound,
+    "jackal_range_bound":       tool_range_bound,
     "jackal_gaussian_integral": tool_gaussian_integral,
-    "jackal_verify_receipt":  tool_verify_receipt,
+    "jackal_sqrt_rat_bound":    tool_sqrt_rat_bound,
+    "jackal_exp_rat_bound":     tool_exp_rat_bound,
+    "jackal_verify_receipt":    tool_verify_receipt,
 }
 for _tool_name, _spec in _WEAK_LANE_TOOLS.items():
     TOOLS[_tool_name] = _make_weak_tool(_tool_name, _spec)

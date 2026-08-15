@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.3.0 Hermes plugin end-to-end smoke.
+"""JACKAL v1.4.1 Hermes plugin end-to-end smoke.
 
 Fresh-session run against the shipped `plugin/hermes/jackal_hermes`
 binary and its pinned bundle hash.  Verifies:
@@ -7,18 +7,35 @@ binary and its pinned bundle hash.  Verifies:
   S1  bundle_hash.py print equals the pinned value in release/MANIFEST.
   S2  server.py selftest reports identity_match=true.
   S3  jackal_range_bound emits a formal-bounded receipt for a case in the
-      declared fragment (sin/cos/pow/mul/add), plugin_sha256 pinned in.
-  S4  jackal_range_bound refuses for every declared out-of-fragment op
-      (exp/sqrt/ln/tan/atan/asin/acos/hypot/log10/log2/cbrt/mod/pow-neg)
-      with a stable class, NEVER a bounded fallback.
+      declared range-bound-cert fragment (sin/cos/pow/mul/add), with
+      plugin_sha256 pinned in.
+  S4  jackal_range_bound refuses for every op outside the jackal-native
+      +range-bound-cert lane (ln/tan/atan/asin/acos/hypot/log10/log2/cbrt/
+      mod/pow-neg), plus sqrt/exp which route through separate tools
+      (see S14/S15). NEVER a bounded fallback.
   S5  jackal_verify_receipt re-runs the checker and accepts a fresh S3
       receipt (round trip).
   S6  jackal_verify_receipt refuses a receipt with `plugin_sha256`
       mutated (plugin-identity binding gate).
   S7  jackal_verify_receipt refuses a receipt with the outer digest
       recomputed but the enclosure tampered (cross-check gate).
-  S8  stdio JSON-RPC transport handles list_tools + both tool calls with
-      correct id/jsonrpc/result shape and drives the same refusals.
+  S8  stdio JSON-RPC transport handles list_tools + tool calls with
+      correct id/jsonrpc/result shape (12 tools listed) and drives the
+      same refusals.
+  S9  jackal_gaussian_integral emits + reverifies a Gaussian receipt.
+  S10 jackal_gaussian_integral refuses unsupported non-canonical Gaussians.
+  S11 jackal_verify_receipt refuses an external-context substitution.
+  S12 Weaker-lane tools return inventory-derived class VERBATIM,
+      `formal: false`, and NEVER a formal-* status.
+  S13 Weaker-lane tools refuse with the engine's NAMED reason.
+  S14 jackal_sqrt_rat_bound accepts `sqrt(x)` on a canonical rational
+      interval and returns `variant=sqrt_rat` + checker ACCEPT
+      (v1.4.0 fragment extension via the pinned Python producer).
+  S15 jackal_exp_rat_bound accepts `exp(x)` on `[lo, hi]` with lo >= 0
+      and returns `variant=exp_rat` + checker ACCEPT
+      (v1.4.1 fragment extension via the pinned Python producer).
+  S16 jackal_sqrt_rat_bound / jackal_exp_rat_bound refuse non-admitted
+      expressions and negative lowers fail-closed.
 
 Writes an evidence transcript (JSONL) to `release/evidence/plugin_smoke.jsonl`.
 """
@@ -45,7 +62,7 @@ from formal_receipt import recompute_receipt_digest  # noqa: E402
 
 RANGE_EXPR = "sin(x)+x^2"
 RANGE_CONTEXT = {
-    "expected_release_epoch": "v1.3.0",
+    "expected_release_epoch": "v1.4.1",
     "expected_command": "range-bound-cert",
     "expected_expression": RANGE_EXPR,
     "expected_input_lo": "0",
@@ -53,7 +70,7 @@ RANGE_CONTEXT = {
 }
 GAUSSIAN_EXPR = "exp(-10000000000*(x-0.5000123456789)^2)"
 GAUSSIAN_CONTEXT = {
-    "expected_release_epoch": "v1.3.0",
+    "expected_release_epoch": "v1.4.1",
     "expected_command": "integrate",
     "expected_expression": GAUSSIAN_EXPR,
     "expected_input_lo": "0",
@@ -212,6 +229,7 @@ def s8_stdio_transport() -> bool:
     listed = [t.get("name") for t in (idx.get("L", {}).get("result", {}).get("tools") or [])]
     expected_tools = {
         "jackal_range_bound", "jackal_gaussian_integral", "jackal_verify_receipt",
+        "jackal_sqrt_rat_bound", "jackal_exp_rat_bound",
         "jackal_exact", "jackal_evaluate", "jackal_diff", "jackal_integrate",
         "jackal_integrate_adaptive", "jackal_integrate_bound", "jackal_solve",
     }
@@ -336,6 +354,79 @@ def s13_weak_lane_refusals() -> bool:
     return all_ok
 
 
+def _accepts_fragment(tool: str, expr: str, lo: str, hi: str,
+                       variant: str) -> bool:
+    code, obj = _call(tool, {"expression": expr, "input_lo": lo, "input_hi": hi})
+    ok = (code == 0
+          and obj.get("status") == "formal-bounded"
+          and obj.get("variant") == variant
+          and obj.get("checker_verdict") == "ACCEPT"
+          and obj.get("release_epoch") == "v1.4.1"
+          and obj.get("theorem_id") == "request_bound_certified_release"
+          and len(obj.get("enclosure") or []) == 2
+          and isinstance(obj.get("identities", {}).get("plugin_sha256"), str)
+          and isinstance(obj.get("identities", {}).get("producer_sha256"), str)
+          and isinstance(obj.get("identities", {}).get("checker_sha256"), str)
+          and isinstance(obj.get("certificate_sha256"), str)
+          and len(obj.get("certificate_sha256") or "") == 64)
+    return ok, obj
+
+
+def s14_sqrt_rat_bound() -> bool:
+    """v1.4.0 fragment extension: pure-Q sqrt(x) via the plugin."""
+    ok, obj = _accepts_fragment("jackal_sqrt_rat_bound", "sqrt(x)", "2", "3",
+                                 variant="sqrt_rat")
+    record("S14-sqrt-rat-accept",
+           ok and obj["identities"]["plugin_sha256"] == _pinned_bundle_hash(),
+           f"enclosure={obj.get('enclosure')} verdict={obj.get('checker_verdict')}")
+    return ok and obj["identities"]["plugin_sha256"] == _pinned_bundle_hash()
+
+
+def s15_exp_rat_bound() -> bool:
+    """v1.4.1 fragment extension: pure-Q exp(x) via the plugin."""
+    ok, obj = _accepts_fragment("jackal_exp_rat_bound", "exp(x)", "0", "1",
+                                 variant="exp_rat")
+    expected_enclosure = obj.get("enclosure") == ["1", "979/360"]
+    record("S15-exp-rat-accept",
+           ok and expected_enclosure and
+           obj["identities"]["plugin_sha256"] == _pinned_bundle_hash(),
+           f"enclosure={obj.get('enclosure')} verdict={obj.get('checker_verdict')}")
+    return ok and expected_enclosure and \
+        obj["identities"]["plugin_sha256"] == _pinned_bundle_hash()
+
+
+def s16_rational_bounds_refuse() -> bool:
+    """sqrt_rat / exp_rat plugin tools refuse non-admitted expressions and
+    negative lowers with a stable class — never a bounded fallback."""
+    cases = [
+        # (tool, params, expected_reason_prefix)
+        ("jackal_sqrt_rat_bound",
+         {"expression": "cos(x)", "input_lo": "0", "input_hi": "1"},
+         "plugin-fragment"),
+        ("jackal_sqrt_rat_bound",
+         {"expression": "sqrt(x)", "input_lo": "-1", "input_hi": "1"},
+         "producer-refused"),
+        ("jackal_exp_rat_bound",
+         {"expression": "sqrt(x)", "input_lo": "0", "input_hi": "1"},
+         "plugin-fragment"),
+        ("jackal_exp_rat_bound",
+         {"expression": "exp(x)", "input_lo": "-1", "input_hi": "1"},
+         "producer-refused"),
+    ]
+    all_ok = True
+    for tool, params, expected_reason in cases:
+        code, obj = _call(tool, params)
+        refused = obj.get("status") == "refused" and code != 0
+        bounded_leak = obj.get("status") == "formal-bounded"
+        reason_ok = obj.get("reason") == expected_reason
+        ok = refused and not bounded_leak and reason_ok
+        record(f"S16-refuse:{tool}:{params.get('expression')}:lo={params.get('input_lo')}",
+               ok,
+               f"status={obj.get('status')} reason={obj.get('reason')}")
+        all_ok = all_ok and ok
+    return all_ok
+
+
 def main() -> int:
     if not PLUGIN.exists():
         print(f"plugin-not-installed: {PLUGIN}", file=sys.stderr)
@@ -366,6 +457,9 @@ def main() -> int:
         results.append(False)
     results.append(s12_weak_lanes_honest())
     results.append(s13_weak_lane_refusals())
+    results.append(s14_sqrt_rat_bound())
+    results.append(s15_exp_rat_bound())
+    results.append(s16_rational_bounds_refuse())
 
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     EVIDENCE.write_text("\n".join(json.dumps(r, sort_keys=True) for r in ROWS) + "\n")

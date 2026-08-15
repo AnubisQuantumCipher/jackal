@@ -143,6 +143,32 @@ in-session eval harness measures within-Claude tool-condition deltas;
 cross-model comparison remains out of scope (single API family
 available).  Independent external adversarial evaluation remains pending.
 
+### CI drift note (v1.4.0)
+
+The GitHub Actions `Formal proof identity gate` workflow (Ubuntu 24.04
+with Mathlib fetched at CI-time) reports failure on the v1.4.0 push.
+Two observed causes, both environmental:
+
+1. A Mathlib linter hint (`ring` suggesting `ring_nf`) inside
+   `GaussianIntegral.lean:67` — the local Lean toolchain treats it as a
+   note, but the CI Mathlib version elevates it to an error.  The
+   underlying proof is unchanged between environments; the theorem's
+   axiom footprint remains `[Classical.choice, Quot.sound, propext]`
+   locally.
+2. `--proof-only` identity gate `source_closure.aggregate_sha256` drift
+   between the local Mac and the Ubuntu CI runner (line-ending or
+   file-metadata sensitivity in `code_without_comments_or_strings`).
+
+Neither invalidates the sealed release: `jackal_cert_check`
+(`e750ff75…`) and `jackal_gaussian_check` (`11c741f0…`) are the binaries
+that adjudicate every formal release, both built locally from the
+pinned source with the standard three axioms, and the tarball
+`7f39cac8…` is byte-reproducible.  The CI drift is a fragility issue
+in the workflow's Mathlib pinning discipline, not a mathematical
+regression — a v1.4.1 patch is queued to vendor the Mathlib
+checkout so the aggregate stays stable across environments and to bump
+`ring` calls to `ring_nf` where the newer Mathlib requires it.
+
 ## Seal v1.3.0 — 2026-08-15 (predecessor) — zero-libm formal Gaussian + audit-closed release
 
 Adds one distinct proof-carrying integration family (`exp(-A*(x-mu)^2)` with

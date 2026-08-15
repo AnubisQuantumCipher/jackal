@@ -256,7 +256,10 @@ def main() -> int:
     print(
         "status=formal-bounded "
         f"enclosure=[{result['enclosure_lo']},{result['enclosure_hi']}] "
-        f"theorem=gaussian_integral_check_sound receipt={args.receipt}"
+        "theorem=gaussian_integral_check_sound "
+        f"producer_sha256={receipt['identities']['producer_sha256']} "
+        f"checker_sha256={receipt['identities']['checker_sha256']} "
+        f"receipt={args.receipt}"
     )
     return 0
 

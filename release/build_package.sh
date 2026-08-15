@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the deterministic JACKAL v1.2.0 macOS arm64 release package.
+# Build the deterministic JACKAL v1.3.0 macOS arm64 release package.
 # Assembles a self-contained, fresh-extractable package: evaluator, proved
 # checker, release wrapper + shared validator, evidence, manifest, SHA256SUMS,
 # and honest non-claims. All artifact paths inside the package are relative to
@@ -7,9 +7,10 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-VER="v1.2.0"
+VER="v1.3.0"
 PKG="$ROOT/release/dist/jackal-$VER-macos-arm64"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
+GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
 
 rm -rf "$PKG"
 mkdir -p "$PKG/evidence" "$PKG/plugin/hermes"
@@ -17,7 +18,10 @@ mkdir -p "$PKG/evidence" "$PKG/plugin/hermes"
 # --- binaries + trust-boundary scripts ---
 cp "$ROOT/jackal-native" "$PKG/jackal-native"
 cp "$CHECKER" "$PKG/jackal_cert_check"
+cp "$GAUSSIAN_CHECKER" "$PKG/jackal_gaussian_check"
 cp "$ROOT/tests/release_validate.py" "$PKG/release_validate.py"
+cp "$ROOT/tools/gaussian_certificate.py" "$PKG/gaussian_certificate.py"
+cp "$ROOT/tools/gaussian_release.py" "$PKG/gaussian_release.py"
 cp "$ROOT/tools/formal_receipt.py" "$PKG/formal_receipt.py"
 cp "$ROOT/tools/receipt_verify.py" "$PKG/receipt_verify.py"
 cp "$ROOT/tools/formal_status_gate.py" "$PKG/formal_status_gate.py"
@@ -27,13 +31,14 @@ cp "$ROOT/plugin/hermes/server.py" "$PKG/plugin/hermes/server.py"
 cp "$ROOT/plugin/hermes/bundle_hash.py" "$PKG/plugin/hermes/bundle_hash.py"
 cp "$ROOT/plugin/hermes/jackal_hermes" "$PKG/plugin/hermes/jackal_hermes"
 cp "$ROOT/plugin/hermes/tools.json" "$PKG/plugin/hermes/tools.json"
-chmod +x "$PKG/jackal-native" "$PKG/jackal_cert_check"
+chmod +x "$PKG/jackal-native" "$PKG/jackal_cert_check" "$PKG/jackal_gaussian_check"
+chmod +x "$PKG/gaussian_certificate.py" "$PKG/gaussian_release.py"
 chmod +x "$PKG/plugin/hermes/jackal_hermes"
 
 # --- package-local release wrapper: all paths relative to the package root ---
 cat > "$PKG/jackal-cert-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.2.0 packaged certified-release gate (self-contained).
+# JACKAL v1.3.0 packaged certified-release gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 3 ] || [ "$#" -eq 4 ] || { echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi> [formal-receipt.json]" >&2; exit 2; }
@@ -43,14 +48,31 @@ EC=$(awk '/^checker /{print $3}' "$HERE/MANIFEST.sha256")
 if [ "$#" -eq 4 ]; then
   exec python3 "$HERE/release_validate.py" --expr "$1" --lo "$2" --hi "$3" \
     --evaluator "$HERE/jackal-native" --checker "$HERE/jackal_cert_check" \
-    --expected-evaluator "$EE" --expected-checker "$EC" --release-epoch v1.2.0 \
+    --expected-evaluator "$EE" --expected-checker "$EC" --release-epoch v1.3.0 \
     --formal-receipt "$4"
 fi
 exec python3 "$HERE/release_validate.py" --expr "$1" --lo "$2" --hi "$3" \
   --evaluator "$HERE/jackal-native" --checker "$HERE/jackal_cert_check" \
-  --expected-evaluator "$EE" --expected-checker "$EC" --release-epoch v1.2.0
+  --expected-evaluator "$EE" --expected-checker "$EC" --release-epoch v1.3.0
 WRAP
 chmod +x "$PKG/jackal-cert-release"
+
+cat > "$PKG/jackal-gaussian-release" <<'WRAP'
+#!/bin/sh
+# JACKAL v1.3.0 theorem-backed Gaussian integration gate (self-contained).
+set -eu
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+[ "$#" -eq 5 ] || { echo "usage: jackal-gaussian-release <expression> <lo> <hi> <tolerance> <receipt.json>" >&2; exit 2; }
+EP=$(awk '/^gaussian_producer /{print $3}' "$HERE/MANIFEST.sha256")
+EC=$(awk '/^gaussian_checker /{print $3}' "$HERE/MANIFEST.sha256")
+[ -n "$EP" ] && [ -n "$EC" ] || { echo "status=refused reason=manifest-incomplete" >&2; exit 3; }
+exec python3 "$HERE/gaussian_release.py" \
+  --expression "$1" --lower "$2" --upper "$3" --tolerance "$4" \
+  --producer "$HERE/gaussian_certificate.py" --checker "$HERE/jackal_gaussian_check" \
+  --expected-producer "$EP" --expected-checker "$EC" --release-epoch v1.3.0 \
+  --receipt "$5"
+WRAP
+chmod +x "$PKG/jackal-gaussian-release"
 
 # --- evidence (durable, committed copies) ---
 cp "$ROOT/release/evidence/positive_corpus.jsonl" "$PKG/evidence/"
@@ -62,6 +84,8 @@ cp "$ROOT/release/evidence/fail_closed_sweep.jsonl" "$PKG/evidence/"
 
 EVAL_ID=$(shasum -a 256 "$PKG/jackal-native" | awk '{print $1}')
 CHK_ID=$(shasum -a 256 "$PKG/jackal_cert_check" | awk '{print $1}')
+GPROD_ID=$(shasum -a 256 "$PKG/gaussian_certificate.py" | awk '{print $1}')
+GCHK_ID=$(shasum -a 256 "$PKG/jackal_gaussian_check" | awk '{print $1}')
 SRC_ID=$(shasum -a 256 "$ROOT/jackal_calc.anb" | awk '{print $1}')
 
 cat > "$PKG/MANIFEST.sha256" <<EOF
@@ -71,19 +95,25 @@ schema jackal-eval-cert-v2
 model jackal-iv-model-v1
 evaluator jackal-native $EVAL_ID
 checker jackal_cert_check $CHK_ID
+gaussian_producer gaussian_certificate.py $GPROD_ID
+gaussian_checker jackal_gaussian_check $GCHK_ID
 source jackal_calc.anb $SRC_ID
 compiler_pin anubis-a733565f237d a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2
 plugin_hermes daf4e5aa37ab40f16dcd2891aecbd4a81839e351a889323d72eb038098ed93bf
 EOF
 
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'
-JACKAL v1.2.0 — explicit non-claims
+JACKAL v1.3.0 — explicit non-claims
 - NOT universal correctness. The certified fragment is exactly:
   num, var, neg, add, sub, mul, div, integer pow (n>=0), sin, cos, abs,
   floor, ceil, round, trunc, min, max, and named constants (pi, e, tau).
-- Transcendental operators (sqrt, exp, ln, tan, cbrt, atan, asin, acos,
+- Generic transcendental range operators (sqrt, exp, ln, tan, cbrt, atan, asin, acos,
   log10, log2, hypot, atan2), non-integer / general powers, negative integer
   powers, and '%' are FAIL-CLOSED (refused), NOT covered.
+- The separate zero-libm `gaussian-exp-square-integral-v1` family formally
+  covers only canonical `exp(-A*(x-mu)^2)` when A is an exact rational square
+  and the transformed finite domain contains the proved core. Other formal
+  integration requests refuse without falling back to the conditional lane.
 - The Lean theorem proves: an accepted certificate implies a Runs derivation
   and hence a true enclosure UNDER the named ModelTCB. It does NOT prove
   source parsing, the Anubis emitter's faithfulness, native refinement,
@@ -101,15 +131,17 @@ JACKAL v1.2.0 — explicit non-claims
 EOF
 
 cat > "$PKG/README.txt" <<'EOF'
-JACKAL v1.2.0 — proof-carrying formal-receipt release (macOS arm64, public, unsigned)
+JACKAL v1.3.0 — proof-carrying formal-receipt release (macOS arm64, public, unsigned)
 
 Verify, then release a certified enclosure:
   shasum -a 256 -c SHA256SUMS         # every shipped file
   ./jackal-cert-release "x^2+1" 1 2 receipt.json
+  ./jackal-gaussian-release 'exp(-10000000000*(x-0.5000123456789)^2)' \
+    0 1 1/1000000000000 gaussian-receipt.json
   python3 receipt_verify.py --receipt receipt.json \
     --checker ./jackal_cert_check \
-    --expected-evaluator 820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c \
-    --expected-checker 2186b43f8e45b7b3e55e189d64e92f15999664f5194caed929d14b29b006f59b \
+    --expected-evaluator "$(awk '/^evaluator /{print $3}' MANIFEST.sha256)" \
+    --expected-checker "$(awk '/^checker /{print $3}' MANIFEST.sha256)" \
     --inventory ./formal_coverage_inventory.json
 
 status=formal-bounded is emitted ONLY when the shared validator confirms the exact
@@ -128,7 +160,9 @@ built-from-source jackal_calc.anb $SRC_ID
 compiler-pin anubis-a733565f237d a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2
 evaluator jackal-native $EVAL_ID
 checker jackal_cert_check $CHK_ID
-lean-theorems cert_check_sound cert_encloses certified_release
+gaussian-producer gaussian_certificate.py $GPROD_ID
+gaussian-checker jackal_gaussian_check $GCHK_ID
+lean-theorems cert_check_sound cert_encloses certified_release gaussian_integral_check_sound
 lean-axioms propext Classical.choice Quot.sound
 platform macos-arm64 public-unsigned-adhoc
 EOF

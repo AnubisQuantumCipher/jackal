@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.2.0 fresh-extraction package smoke test.
+"""JACKAL v1.3.0 fresh-extraction package smoke test.
 
 Copies the built package to a fresh temp directory with NO repository-relative
 fallback and exercises it end to end: valid release bounded; unsupported op,
@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_SRC = ROOT / "release/dist/jackal-v1.2.0-macos-arm64"
+PKG_SRC = ROOT / "release/dist/jackal-v1.3.0-macos-arm64"
 
 
 def sha(p: Path) -> str:
@@ -41,12 +41,17 @@ def main() -> int:
     pkg = tmp / "pkg"
     shutil.copytree(PKG_SRC, pkg)
     rel = pkg / "jackal-cert-release"
+    gaussian_rel = pkg / "jackal-gaussian-release"
     os.chmod(rel, 0o755)
+    os.chmod(gaussian_rel, 0o755)
     os.chmod(pkg / "jackal-native", 0o755)
     os.chmod(pkg / "jackal_cert_check", 0o755)
+    os.chmod(pkg / "jackal_gaussian_check", 0o755)
 
     eval_id = sha(pkg / "jackal-native")
     chk_id = sha(pkg / "jackal_cert_check")
+    gaussian_producer_id = sha(pkg / "gaussian_certificate.py")
+    gaussian_checker_id = sha(pkg / "jackal_gaussian_check")
 
     # SHA256SUMS integrity over the fresh extraction.
     c = run(["shasum", "-a", "256", "-c", "SHA256SUMS"], cwd=pkg)
@@ -83,6 +88,36 @@ def main() -> int:
     if verified.returncode != 0 or "status=verified verdict=ACCEPT" not in verified.stdout:
         fail(f"standalone receipt verifier did not accept: {verified.stdout}{verified.stderr}")
     results.append(("formal-receipt-reverify", "verified", verified.stdout, verified.stderr))
+
+    gaussian_receipt = pkg / "gaussian-formal-receipt.json"
+    gaussian = run([
+        str(gaussian_rel), "exp(-10000000000*(x-0.5000123456789)^2)",
+        "0", "1", "1/1000000000000", str(gaussian_receipt),
+    ], cwd=pkg)
+    if gaussian.returncode != 0 or "status=formal-bounded" not in gaussian.stdout:
+        fail(f"Gaussian formal release failed: {gaussian.stdout}{gaussian.stderr}")
+    if gaussian_producer_id not in gaussian.stdout or gaussian_checker_id not in gaussian.stdout:
+        fail("Gaussian release omitted exact producer/checker identities")
+    gaussian_verified = run([
+        sys.executable, str(pkg / "receipt_verify.py"),
+        "--receipt", str(gaussian_receipt),
+        "--checker", str(pkg / "jackal_gaussian_check"),
+        "--expected-evaluator", gaussian_producer_id,
+        "--expected-checker", gaussian_checker_id,
+        "--inventory", str(pkg / "formal_coverage_inventory.json"),
+    ])
+    if gaussian_verified.returncode != 0 or "receipt_valid=true" not in gaussian_verified.stdout:
+        fail(f"Gaussian receipt verifier refused: {gaussian_verified.stdout}{gaussian_verified.stderr}")
+    results.append(("gaussian-formal", "formal-bounded", gaussian.stdout, gaussian.stderr))
+
+    unsupported_gaussian = run([
+        str(gaussian_rel), "exp(x)", "0", "1", "1/1000000000000",
+        str(pkg / "must-not-exist.json"),
+    ], cwd=pkg)
+    if unsupported_gaussian.returncode == 0 or (pkg / "must-not-exist.json").exists():
+        fail("unsupported formal integration request did not fail closed")
+    results.append(("gaussian-unsupported", "refused", unsupported_gaussian.stdout,
+                    unsupported_gaussian.stderr))
 
     smoke("unsupported-op", ["sqrt(x)", "1", "2"], False)
     smoke("invalid-domain", ["1/x", "-1", "1"], False)

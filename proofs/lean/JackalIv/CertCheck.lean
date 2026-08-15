@@ -40,6 +40,7 @@ the kernel on exact (pad-free) certs.
 No `sorry`/`admit`/axiom/`native_decide`/`unsafe`/`@[implemented_by]`.
 -/
 import JackalIv.CertTypes
+import JackalIv.Gaussian
 
 namespace JackalIv.Cert
 
@@ -133,6 +134,10 @@ def sexpBuild : Nat → List Node → Nat → Option String
       -- the certificate node type, not in the reconstructed expression sexp.
       | "sqrt_rat", [c0] =>
           (sexpBuild fuel nodes c0).map (fun s => "(call sqrt " ++ s ++ ")")
+      -- exp_rat prints as `(call exp …)` — the strategy annotation lives on
+      -- the certificate node type, not in the reconstructed expression sexp.
+      | "exp_rat", [c0] =>
+          (sexpBuild fuel nodes c0).map (fun s => "(call exp " ++ s ++ ")")
       | "add", [c0, c1] =>
           match sexpBuild fuel nodes c0, sexpBuild fuel nodes c1 with
           | some a, some b => some ("(add " ++ a ++ " " ++ b ++ ")") | _, _ => none
@@ -413,6 +418,20 @@ def checkNode (hdr : Header) (nodes : List Node) (nd : Node) : Bool :=
       | some (l, u) =>
           decide (0 ≤ nd.out_lo) && decide (0 ≤ nd.out_hi) &&
           decide (nd.out_lo ^ 2 ≤ l) && decide (u ≤ nd.out_hi ^ 2)
+      | none => false
+  -- Pure-ℚ `exp` bound (no libm TCB): `Runs.expRat`, §487 fragment extension
+  -- v1.4.1.  Uses `nd.n` as Taylor degree and the child's rational endpoints
+  -- as the argument bracket.  Sound by monotonicity of `Real.exp` on
+  -- `[0, ∞)` combined with the Complex.exp_bound' Taylor tail (Gaussian.lean).
+  | "exp_rat", [c0] =>
+      match childOut nodes c0 with
+      | some (cLo, cHi) =>
+          decide (0 < nd.n) &&
+          decide (0 ≤ cLo) && decide (cLo ≤ cHi) &&
+          decide (2 * cHi ≤ ((nd.n : ℕ) : ℚ) + 1) &&
+          decide (nd.out_lo ≤ JackalIv.Gaussian.expPartial cLo nd.n) &&
+          decide (JackalIv.Gaussian.expPartial cHi nd.n +
+                  JackalIv.Gaussian.expRemainder cHi nd.n ≤ nd.out_hi)
       | none => false
   -- fail closed
   | _, _ => false

@@ -91,16 +91,17 @@ sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub re
 (Apple Silicon macOS), verify the release checksums and pinned identities, or build from
 source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Formal-release paths (v1.4.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
+**Formal-release paths (v1.4.1).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
 emits `status=formal-bounded` **only** when the shared
 release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
-evaluator and `jackal_cert_check` checker executable identities (pinned in
-`release/MANIFEST.sha256`, pre/post-hashed, TOCTOU-checked), the proved checker's ACCEPT, and no
-status escalation. Any break refuses with a stable class — never a bounded fallback. Checker
-*soundness* (an accepted certificate implies a true enclosure) is Lean-proved; runtime
+evaluator identity, the pinned executables, and the proved checker's `ACCEPT`, TOCTOU stability,
+and no status escalation.  Any break refuses with a stable class, never a bounded fallback.
+The bundled `plugin/hermes` adapter exposes the same release and verification
+path.  See NON-CLAIMS.txt for the exact scope.  Formal-status *soundness* (an
+accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.4.0" for the receipts and preserved predecessor scars.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.4.1" for the receipts and preserved predecessor scars.
 
 
 `jackal-sqrt-rat-release "sqrt(x)" <lo> <hi>` releases a pure-ℚ enclosure of
@@ -109,6 +110,18 @@ status escalation. Any break refuses with a stable class — never a bounded fal
 `jackal_cert_check` validates a rational Newton square bracket
 (`loQ² ≤ input.lo` and `input.hi ≤ hiQ²`) with **no libm on the
 proof-decision path**.  Every other expression refuses without downgrade.
+
+`jackal-exp-rat-release "exp(x)" <lo> <hi>` releases a pure-ℚ enclosure of
+`exp(x)` on `[lo, hi]` with `lo >= 0` via the v1.4.1 fragment extension.
+The producer (`tools/exp_rat_producer.py`) is untrusted and NEVER trusts
+`math.exp`; the compiled Lean-proved `jackal_cert_check` validates six
+rational Taylor inequalities (`0 ≤ argLoQ`, `argLoQ ≤ argHiQ`,
+`2·argHiQ ≤ n+1` degree witness, `loQ ≤ expPartial argLoQ n`,
+`expPartial argHiQ n + expRemainder argHiQ n ≤ hiQ`), with `expPartial`
+and `expRemainder` computed in ℚ.  Sound by monotonicity of `Real.exp`
+on `[0, ∞)` combined with `real_exp_between` in `Gaussian.lean` — **no
+libm on the proof-decision path**.  Every other expression refuses
+without downgrade.
 The separate `jackal-gaussian-release "exp(-A*(x-mu)^2)" <lo> <hi> <tolerance> <formal-receipt.json>`
 path admits only canonical nonnegative rational tokens, a checker-verified positive rational
 `scale` with `scale^2=A`, and a transformed interval containing `[-6,6]`. Its untrusted producer
@@ -140,7 +153,7 @@ evaluator with identity checks and return the engine's honest inventory-derived
 epistemic class (`exact`/`checked`/`estimated`/`bounded`/`model-based`) with
 `formal: false` — status inflation is structurally impossible.
 
-The v1.4.0 eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
+The v1.4.1 eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
 plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,
 24/24 including the two §487 audit locks for U+2028 parser-differential
 injection and `const_rounded` release-fragment admission) prove that every
@@ -301,10 +314,13 @@ How it works, and exactly what it claims:
   certified-lane simplifier with a proved **`lower_preserves_sem`** (lowering never changes the
   real semantics on the defined domain), and `parse_lower_denotes` / `parse_lower_encloses`
   compose them so the admitted *source string* — not just an abstract tree — is what the
-  enclosure covers. That the Lean parser matches the *shipped* parser byte-for-byte is enforced
-  by a **differential gate** (`tests/parser_differential.py`, 78 cases incl. a semantic
-  tamper test), not a theorem.
-- **Results can carry a machine-checkable proof (bridge #2).** `range-bound-cert` runs an
+  fragment is the exact-ℚ operators + `sin`/`cos` + **`sqrt` (v1.4.0, via `sqrt_rat`:
+  pure-ℚ Newton square bracket, NO libm TCB)** + **`exp` (v1.4.1, via `exp_rat`:
+  pure-ℚ Taylor partial + certified remainder on `[lo, hi]` with `lo >= 0`, NO
+  libm TCB)**; every other true-transcendental (`ln`/`tan`/`cbrt`/`atan`/`asin`/`acos`/…)
+  AND named constants (`pi`/`e`/`tau`) fail closed (const excluded 2026-08-15, §487-const
+  audit — their value is bound only by the undischarged `ConstTCB` premise, not
+  ℚ-decidable). What is *not* proven is
   exact-rational interval evaluation and emits a canonical **evaluation certificate**; the
   compiled Lean checker `jackal_cert_check` — built *directly from the proved `checkCert`*, no
   `@[implemented_by]` on the trust path — verifies it, and the theorem `cert_check_sound` proves

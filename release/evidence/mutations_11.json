@@ -1,5 +1,5 @@
 {
-  "checker_sha256": "e750ff75d7cdd10311305e87819aa0d4c4ef705a0ef86682abc75a7a03979aae",
+  "checker_sha256": "b567b8a94ce7acd49ecaa807d86a5bb66d695fb0ce4fea2eb84f0073425984d7",
   "evaluator_sha256": "820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c",
   "harness": "cert_mutations_11.py",
   "mutations": [
@@ -124,9 +124,9 @@
       "description": "coverage inventory FORMAL set MUST equal live `Runs` constructors \u2282 engine ops",
       "gate": "M6-formal-status-uncovered-op",
       "restore_hash_verified": true,
-      "source_hash_mutated": "b7e5cc15faf232abb5d8675f03a139da316cf89a9de4d374df8ad46ab04b2f38",
-      "source_hash_post": "683f1aff73b3b35dc5f607c24f59764d69243f741d4b942d0f0d8aaedad0b876",
-      "source_hash_pre": "683f1aff73b3b35dc5f607c24f59764d69243f741d4b942d0f0d8aaedad0b876",
+      "source_hash_mutated": "19402e8f5bfb152be3ce5315318057ff1a06809ded8e0dadb5e9e312cb3d00e8",
+      "source_hash_post": "9a9941bceb0644b79cfb44078090cab73903739ee19151bdabf05dba24bcd2b6",
+      "source_hash_pre": "9a9941bceb0644b79cfb44078090cab73903739ee19151bdabf05dba24bcd2b6",
       "target_file": "tools/formal_status_gate.py"
     },
     {
@@ -235,6 +235,6 @@
       "target_file": "plugin/hermes/server.py"
     }
   ],
-  "plugin_hermes_sha256": "afb9373756bcb52ddad327d7a343cdc037a0ea0f2c0fa1ca24315c9393448bd2",
+  "plugin_hermes_sha256": "fa9976d6e5387870eb9cfdf89d7bb42bdb162d5c9ee993616c84ef9ce866b4fb",
   "release_epoch": "v1.3.0"
 }

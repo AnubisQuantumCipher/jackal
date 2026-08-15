@@ -305,6 +305,8 @@ def buildRawExpr : Nat → List Node → Nat → Option RawExpr
           (buildRawExpr fuel nodes c0).map (fun e => RawExpr.pow e (RawExpr.neg (RawExpr.num (↑nd.n) nd.name)))
       -- sqrt_rat: strategy variant of sqrt, same underlying expression.
       | "sqrt_rat", [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "sqrt" ·)
+      -- exp_rat: strategy variant of exp, same underlying expression.
+      | "exp_rat", [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "exp" ·)
       | "add", [c0, c1] =>
           match buildRawExpr fuel nodes c0, buildRawExpr fuel nodes c1 with
           | some a, some b => some (RawExpr.add a b) | _, _ => none
@@ -383,6 +385,11 @@ def releaseNodeOp : String → Bool
   -- checker validates four rational inequalities, no libm TCB.  Included in
   -- the release fragment because acceptance is soundly `Real.sqrt`-monotone.
   | "sqrt_rat"      => true
+  -- Pure-ℚ exp (`Runs.expRat`, §487 fragment extension 2026-08-15 v1.4.1):
+  -- the checker validates six rational inequalities including a Taylor
+  -- partial and remainder computed in ℚ — no libm TCB.  Sound by
+  -- monotonicity of `Real.exp` on `[0, ∞)` combined with `real_exp_between`.
+  | "exp_rat"       => true
   | _                 => false
 
 /-- All certificate nodes belong to the exact released FORMAL fragment. -/
@@ -507,7 +514,7 @@ admitted by the Lean release policy. -/
 theorem releaseNodeOp_accepts_formal_inventory :
     ["num_exact", "var", "neg", "add", "sub", "mul", "div",
       "powZero", "powEvenPos", "powOddPos", "sin", "cos", "abs", "floor",
-      "ceil", "round", "trunc", "min", "max", "sqrt_rat"].all releaseNodeOp = true := by
+      "ceil", "round", "trunc", "min", "max", "sqrt_rat", "exp_rat"].all releaseNodeOp = true := by
   decide
 
 /-- Kernel-reduced refusal lock for checker-supported constructors that are

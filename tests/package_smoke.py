@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.3.0 fresh-extraction package smoke test.
+"""JACKAL v1.4.1 fresh-extraction package smoke test.
 
 Copies the built package to a fresh temp directory with NO repository-relative
 fallback and exercises it end to end: valid release bounded; unsupported op,
@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_SRC = ROOT / "release/dist/jackal-v1.3.0-macos-arm64"
+PKG_SRC = ROOT / "release/dist/jackal-v1.4.1-macos-arm64"
 
 
 def sha(p: Path) -> str:
@@ -93,7 +93,7 @@ def main() -> int:
                     "--expected-evaluator", eval_id,
                     "--expected-checker", chk_id,
                     "--expected-source", source_id,
-                    "--expected-release-epoch", "v1.3.0",
+                    "--expected-release-epoch", "v1.4.1",
                     "--expected-command", "range-bound-cert",
                     "--expected-expression", "x^2+1",
                     "--expected-input-lo", "1",
@@ -122,7 +122,7 @@ def main() -> int:
         "--checker", str(pkg / "jackal_gaussian_check"),
         "--expected-evaluator", gaussian_producer_id,
         "--expected-checker", gaussian_checker_id,
-        "--expected-release-epoch", "v1.3.0",
+        "--expected-release-epoch", "v1.4.1",
         "--expected-command", "integrate",
         "--expected-expression", "exp(-10000000000*(x-0.5000123456789)^2)",
         "--expected-input-lo", "0",

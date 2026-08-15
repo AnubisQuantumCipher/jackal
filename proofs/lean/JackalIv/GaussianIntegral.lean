@@ -64,7 +64,7 @@ theorem integral_Ioi_gaussian_le (T : ℝ) (hT : 0 < T) :
     simpa using (integrable_exp_neg_mul_sq (b := 1) (by norm_num)).integrableOn
   have hg : IntegrableOn (fun x : ℝ => (x / T) * Real.exp (-x ^ 2)) (Ioi T) := by
     have hwhole := (integrable_mul_exp_neg_mul_sq (b := 1) (by norm_num)).const_mul (T⁻¹)
-    exact hwhole.integrableOn.congr_fun (fun x _ => by ring) measurableSet_Ioi
+    exact hwhole.integrableOn.congr_fun (fun x _ => by ring_nf) measurableSet_Ioi
   calc
     (∫ x in Ioi T, Real.exp (-x ^ 2))
         ≤ ∫ x in Ioi T, (x / T) * Real.exp (-x ^ 2) := by

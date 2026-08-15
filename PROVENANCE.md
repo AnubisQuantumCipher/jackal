@@ -8,7 +8,146 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.4.0 — 2026-08-15 (current) — pure-ℚ sqrt fragment extension + in-session eval harness
+## Seal v1.4.1 — 2026-08-15 (current) — pure-ℚ exp fragment extension + CI reproducibility fix
+
+Extends v1.4.0's `sqrt_rat` fragment with the first libm-free
+transcendental beyond `sqrt`, `exp` on `[lo, hi]` with `lo >= 0`, and
+repairs the CI reproducibility issue reported by the v1.4.0 workflow.
+
+### `exp_rat` — pure-ℚ Taylor with certified remainder (§487 fragment extension)
+
+`exp` (positive-argument branch only) is now in the release fragment:
+v1.4.0's 18 operators → v1.4.1's 19.  The extension carries NO new TCB:
+
+* **Lean composition theorem** (`proofs/lean/JackalIv/Embed.lean`,
+  `Runs.expRat`): given a child interval `[l, u]` with a bracket
+  `argLoQ ≤ l ≤ u ≤ argHiQ` and a rational Taylor degree `n`, the
+  constructor accepts iff `0 ≤ argLoQ`, `argHiQ/(n+1) ≤ 1/2`,
+  `loQ ≤ expPartial argLoQ n` (in ℝ), and
+  `expPartial argHiQ n + expRemainder argHiQ n ≤ hiQ`.  Soundness proved
+  by monotonicity of `Real.exp` on `[0, ∞)` combined with the existing
+  `real_exp_between` bound in `JackalIv/Gaussian.lean` (which itself
+  reduces to `Complex.exp_bound'`).  No libm `Approx` obligation and no
+  `ModelTCB` axiom.
+* **Executable checker arm** (`proofs/lean/JackalIv/CertCheck.lean`,
+  case `"exp_rat"`): six rational inequalities checked in ℚ using
+  `expPartial` and `expRemainder` at rational arguments — genuinely
+  computable (`Q`/`Bool`/`Nat`/`Int`/`String` only) and reduces in the
+  kernel on exact certs.
+* **Bridge** (`CertSound.lean`, arm `exp_rat`): `checkNode`-accepted
+  `exp_rat` node → `Runs.expRat` derivation → true enclosure.  Same
+  three standard Lean axioms as every other flagship theorem:
+  `[propext, Classical.choice, Quot.sound]`.
+* **Untrusted producer** `tools/exp_rat_producer.py` (§487-fragment
+  producer): exact rational Taylor arithmetic in `fractions.Fraction`;
+  chooses the smallest safe degree; NEVER trusts float `math.exp`.
+  Refuses non-exp expressions and negative lowers fail-closed.
+* **Standalone release CLI** `jackal-exp-rat-release "exp(x)" <lo> <hi>`,
+  admits ONLY the exact form `exp(x)` and emits
+  `assurance=proof-carrying-certificate(checker-accepted;expRat-Runs-derivation;NO-libm-TCB)`.
+* **Fragment inventory** (`release/coverage/formal_coverage_inventory.json`):
+  `exp` promoted from REFUSED → FORMAL with `runs_constructors=["expRat"]`
+  and `soundness_theorem=request_bound_certified_release`.
+* **Regression suite** `tests/formal_exp_rat_release_test.py` (8/8):
+  canonical `[0,1]`, non-integer `[1/2, 3/2]`, larger `[0, 5]`,
+  negative-lower refusal, reversed-limits refusal, non-exp expression
+  refusal, cert-bytes tamper refusal, request-relabel refusal.
+
+**Example enclosures released:**
+```
+jackal-exp-rat-release "exp(x)" 0 1
+  → [1, 979/360]                    (~ [1, 2.71944]; contains e ≈ 2.71828)
+jackal-exp-rat-release "exp(x)" 1/2 3/2
+  → [6331/3840, 11503/2560]         (~ [1.6487, 4.4934]; contains exp(0.5),exp(1.5))
+jackal-exp-rat-release "exp(x)" 0 5
+  → [1, 10819031/72576]             (~ [1, 149.06]; contains exp(5) ≈ 148.41)
+```
+
+### v1.4.0 CI reproducibility repair
+
+The v1.4.0 push reported CI failure with `source_closure.aggregate_sha256`
+drift.  Root cause (post-hoc): v1.4.0's `sqrt_rat` addition modified
+`CertCodec.lean`, which is transitively imported by `GaussianCert.lean`
+via `import JackalIv.CertCodec` — so the Gaussian closure aggregate
+changed in v1.4.0 but the committed `gaussian_proof_identity.json` was
+not regenerated.  Local range regeneration masked the issue: the range
+identity DID get regenerated because I re-ran the range gate manually,
+but the Gaussian identity file kept its v1.3.0 aggregate `41585b3e...`.
+CI live-recomputed the post-sqrt_rat aggregate and refused as expected.
+A second Mathlib linter escalation (`ring` → `ring_nf` on Ubuntu
+24.04's Mathlib) also blocked the build.
+
+v1.4.1 fixes both:
+
+* `.gitattributes` forces `text eol=lf` for every source-closure-hashed
+  artifact so line-ending drift can never cause an aggregate mismatch
+  on Linux/Windows checkouts.
+* `proofs/lean/JackalIv/GaussianIntegral.lean:67` switched from
+  `ring` to `ring_nf` (Mathlib newer version accepts both; older accepted
+  only `ring`, newer treats the linter hint as an error).
+* Both `range_proof_identity.json` and `gaussian_proof_identity.json`
+  regenerated post-`ring_nf` + post-`exp_rat` — new aggregates now
+  committed together with the code they hash.
+
+### Frozen v1.4.1 identities
+
+```
+jackal-native                     820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c
+jackal_cert_check                 b567b8a94ce7acd49ecaa807d86a5bb66d695fb0ce4fea2eb84f0073425984d7
+jackal_gaussian_check             42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77
+range_proof_identity              82376d501264a2aabe1cdce6a373f9c53f2bedf262a25494253131835d8bb2ae
+gaussian_proof_identity           22c59e60b66a7fc6ef232e01fe64967285d36bb65e92847f9b42af721b36a54e
+coverage_inventory                113828ebe3aad96a8e70b753abc54699d936b4ccd645d224a5fa88be9a01a0ab
+sqrt_rat_producer                 4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926
+exp_rat_producer                  ccbc48633bd3980613413399d552321eaa67b15bd101643e53b0dd5f10a37918
+plugin_hermes                     fa9976d6e5387870eb9cfdf89d7bb42bdb162d5c9ee993616c84ef9ce866b4fb
+package tarball                   5fed203d73cc6779584c43af4426e7755d7c0dd3bd298600919d18361712b845
+                                  (79,276,433 bytes; byte-reproducible)
+```
+
+Every flagship Lean theorem's axioms remain: `[Classical.choice, Quot.sound, propext]`.
+
+### Gate receipts on the v1.4.1 final bytes
+
+| Gate | Result |
+|---|---|
+| Lean build (`lake build`) | 17336 jobs — clean, zero sorry |
+| `Cert.cert_check_sound` axioms | `[Classical.choice, Quot.sound, propext]` |
+| `Cert.certified_release` axioms | `[Classical.choice, Quot.sound, propext]` |
+| `Cert.request_bound_certified_release` axioms | `[Classical.choice, Quot.sound, propext]` |
+| `runs_encloses` axioms | `[Classical.choice, Quot.sound, propext]` |
+| Range proof identity | PASS (checker+build binding + axiom audit) |
+| Gaussian proof identity | PASS (checker+build binding + axiom audit) |
+| Positive corpus (20 cases, 17 op fragment) | PASS |
+| Negative controls (30) | 30/30 refused at intended layer |
+| A→B→A 2-mutation harness | 2/2 restore-verified |
+| 11-category cert mutations | 11/11 restore-verified |
+| Coverage inventory (48 rows, 24 FORMAL) | PASS |
+| verify_evidence | PASS |
+| formal_status_gate selftest | 11/11 |
+| formal_sqrt_rat_release_test | 7/7 |
+| formal_exp_rat_release_test | 8/8 |
+| plugin_smoke (13 cases + weak lanes) | PASS |
+| plugin_bundle_identity | PASS |
+| output_path_safety | 6/6 write-once-atomic |
+| receipt_semantic_mutations | 24/24 refused |
+| Gaussian evidence | PASS |
+| Gaussian receipt/checker/emitter/mutations | 16/16 rejected, 1 unsupported |
+| Package deterministic build | two consecutive rebuilds `5fed203d...` identical |
+| Package smoke (fresh extraction) | PASS |
+
+**Claim boundary (v1.4.1).** For every request accepted by the declared
+range fragment (now including `sqrt(x)` on any canonical rational
+interval AND `exp(x)` on any `[lo, hi]` with `lo >= 0` for a suitable
+Taylor degree the producer selects) or Gaussian fragment, checker
+acceptance implies the stated enclosure under each receipt's recorded
+TCB.  Universal correctness for arbitrary expressions remains NOT
+claimed and NOT achievable for a general calculator; unsupported strong
+requests refuse rather than silently downgrade.  Package unsigned/ad-hoc;
+SHA-256 identifies bytes, not authorship.  Independent external
+adversarial evaluation remains pending.
+
+## Seal v1.4.0 — 2026-08-15 (predecessor) — pure-ℚ sqrt fragment extension + in-session eval harness
 
 Extends the sealed v1.3.0 range/Gaussian identities with the first
 non-arithmetic operator promoted into the release fragment without any libm

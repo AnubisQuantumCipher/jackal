@@ -152,6 +152,10 @@ def buildExpr : Nat → List Node → Nat → Option Expr
       -- the underlying expression is still `sqrt(x)`; the alternate op name only
       -- tells the checker which arm to use.
       | "sqrt_rat", [c0] => (buildExpr fuel nodes c0).map (.call1 "sqrt" ·)
+      -- exp_rat is a CHECKER-STRATEGY variant of exp (pure-ℚ, no libm TCB):
+      -- the underlying expression is still `exp(x)`; the alternate op name only
+      -- tells the checker which arm to use.
+      | "exp_rat", [c0] => (buildExpr fuel nodes c0).map (.call1 "exp" ·)
       -- binary structural
       | "add", [c0, c1] =>
           match buildExpr fuel nodes c0, buildExpr fuel nodes c1 with

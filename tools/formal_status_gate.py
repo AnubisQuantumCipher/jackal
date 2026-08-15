@@ -197,7 +197,7 @@ def _selftest() -> int:
     expect_ok(operator="add", requested="formal-bounded", **base)
     expect_ok(operator="sin", requested="formal-bounded", **base)
     expect_ok(operator="sqrt", requested="formal-bounded", **base)  # v1.4.0: sqrt via sqrt_rat
-    expect_refuse("not-in-formal-fragment", operator="exp", requested="formal-bounded", **base)
+    expect_ok(operator="exp", requested="formal-bounded", **base)   # v1.4.1: exp via exp_rat
     expect_refuse("unknown-operator", operator="tan99", requested="formal-bounded", **base)
     expect_refuse("no-checker-accept", operator="add", requested="formal-bounded",
                   **{**base, "checker_accepted": False})

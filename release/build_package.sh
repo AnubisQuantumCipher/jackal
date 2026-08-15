@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the deterministic JACKAL v1.4.0 macOS arm64 release package.
+# Build the deterministic JACKAL v1.4.1 macOS arm64 release package.
 # Assembles a self-contained, fresh-extractable package: evaluator, proved
 # checker, release wrapper + shared validator, evidence, manifest, SHA256SUMS,
 # and honest non-claims. All artifact paths inside the package are relative to
@@ -7,7 +7,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-VER="v1.4.0"
+VER="v1.4.1"
 PKG="$ROOT/release/dist/jackal-$VER-macos-arm64"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
@@ -42,7 +42,7 @@ chmod +x "$PKG/plugin/hermes/jackal_hermes"
 # --- package-local release wrapper: all paths relative to the package root ---
 cat > "$PKG/jackal-cert-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.0 packaged certified-release gate (self-contained).
+# JACKAL v1.4.1 packaged certified-release gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 4 ] || { echo "usage: jackal-cert-release \"<expr in x>\" <lo> <hi> <formal-receipt.json>" >&2; exit 2; }
@@ -61,13 +61,13 @@ exec python3 -I -S -B "$HERE/isolated_entry.py" range \
   --inventory "$HERE/formal_coverage_inventory.json" --expected-inventory "$EI" \
   --proof-identity "$HERE/range_proof_identity.json" \
   --expected-proof-identity-file "$EPF" --expected-proof-identity-digest "$EPD" \
-  --release-epoch v1.4.0 --formal-receipt "$4"
+  --release-epoch v1.4.1 --formal-receipt "$4"
 WRAP
 chmod +x "$PKG/jackal-cert-release"
 
 cat > "$PKG/jackal-gaussian-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.0 theorem-backed Gaussian integration gate (self-contained).
+# JACKAL v1.4.1 theorem-backed Gaussian integration gate (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 5 ] || { echo "usage: jackal-gaussian-release <expression> <lo> <hi> <tolerance> <receipt.json>" >&2; exit 2; }
@@ -81,7 +81,7 @@ EPD=$(awk '/^gaussian_proof_digest /{print $2}' "$HERE/MANIFEST.sha256")
 exec python3 -I -S -B "$HERE/isolated_entry.py" gaussian \
   --expression "$1" --lower "$2" --upper "$3" --tolerance "$4" \
   --producer "$HERE/gaussian_certificate.py" --checker "$HERE/jackal_gaussian_check" \
-  --expected-producer "$EP" --expected-checker "$EC" --release-epoch v1.4.0 \
+  --expected-producer "$EP" --expected-checker "$EC" --release-epoch v1.4.1 \
   --inventory "$HERE/formal_coverage_inventory.json" --expected-inventory "$EI" \
   --proof-identity "$HERE/gaussian_proof_identity.json" \
   --expected-proof-identity-file "$EPF" --expected-proof-identity-digest "$EPD" \
@@ -91,7 +91,7 @@ chmod +x "$PKG/jackal-gaussian-release"
 
 cat > "$PKG/jackal-receipt-verify" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.0 isolated formal-receipt verifier (self-contained).
+# JACKAL v1.4.1 isolated formal-receipt verifier (self-contained).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec python3 -I -S -B "$HERE/isolated_entry.py" verify "$@"
@@ -102,7 +102,7 @@ cp "$ROOT/tools/sqrt_rat_producer.py" "$PKG/sqrt_rat_producer.py"
 chmod +x "$PKG/sqrt_rat_producer.py"
 cat > "$PKG/jackal-sqrt-rat-release" <<'WRAP'
 #!/bin/sh
-# JACKAL v1.4.0 sqrt_rat pure-ℚ release gate (self-contained; NO libm TCB).
+# JACKAL v1.4.1 sqrt_rat pure-ℚ release gate (self-contained; NO libm TCB).
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ "$#" -eq 3 ] || { echo "usage: jackal-sqrt-rat-release \"sqrt(x)\" <lo> <hi>" >&2; exit 2; }
@@ -119,6 +119,29 @@ echo "cert-status=bounded"
 echo "assurance=proof-carrying-certificate(checker-accepted;sqrtRat-Runs-derivation;NO-libm-TCB)"
 WRAP
 chmod +x "$PKG/jackal-sqrt-rat-release"
+
+cp "$ROOT/tools/exp_rat_producer.py" "$PKG/exp_rat_producer.py"
+chmod +x "$PKG/exp_rat_producer.py"
+cat > "$PKG/jackal-exp-rat-release" <<'WRAP'
+#!/bin/sh
+# JACKAL v1.4.1 exp_rat pure-ℚ release gate (self-contained; NO libm TCB).
+# First libm-free transcendental beyond sqrt in the formal fragment.
+set -eu
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+[ "$#" -eq 3 ] || { echo "usage: jackal-exp-rat-release \"exp(x)\" <lo> <hi>" >&2; exit 2; }
+EXPR="$1"; LO="$2"; HI="$3"
+CERT=$(mktemp)
+trap 'rm -f "$CERT"' EXIT
+python3 -I -S -B "$HERE/exp_rat_producer.py" emit \
+  --expression "$EXPR" --lower "$LO" --upper "$HI" > "$CERT" 2>&1 || {
+  err=$(head -1 "$CERT"); echo "status=refused reason=producer-refused detail=\"${err#REFUSE }\"" >&2; exit 1; }
+"$HERE/jackal_cert_check" "$CERT" range-bound-cert "$EXPR" "$LO" "$HI" || {
+  echo "status=refused reason=checker-rejected" >&2; exit 1; }
+echo "status=formal-bounded"
+echo "cert-status=bounded"
+echo "assurance=proof-carrying-certificate(checker-accepted;expRat-Runs-derivation;NO-libm-TCB)"
+WRAP
+chmod +x "$PKG/jackal-exp-rat-release"
 
 # --- evidence (durable, committed copies) ---
 cp "$ROOT/release/evidence/positive_corpus.jsonl" "$PKG/evidence/"
@@ -164,45 +187,53 @@ coverage_inventory formal_coverage_inventory.json $COVERAGE_ID
 EOF
 
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'
-JACKAL v1.4.0 — explicit non-claims
+JACKAL v1.4.1 — explicit non-claims
 - NOT universal correctness. The certified range fragment is exactly:
   num, var, neg, add, sub, mul, div, integer pow (n>=0), sin, cos, abs,
-  floor, ceil, round, trunc, min, max, AND sqrt (via `sqrt_rat`, v1.4.0:
-  the checker validates a pure-ℚ Newton square bracket — NO libm TCB).
-- Generic transcendental range operators (exp, ln, tan, cbrt, atan, asin, acos,
-  powers, '%', AND named constants (pi, e, tau) are FAIL-CLOSED (refused) on
-  the formal path. Named constants were excluded 2026-08-15 (§487-const
-  audit): a `const_rounded` node's value/fl_lo fields are bound only by the
-  undischarged `ConstTCB` premise (not ℚ-decidable), so admitting them would
-  let a crafted `pi value=0` node earn a release ACCEPT while π lies outside
-  the certified box. Constants remain available in weaker lanes (rat, eval)
-  at their honest epistemic class.
+  floor, ceil, round, trunc, min, max, sqrt (via `sqrt_rat`, v1.4.0:
+  pure-ℚ Newton square bracket — NO libm TCB), AND exp (via `exp_rat`,
+  v1.4.1: pure-ℚ Taylor partial + certified remainder on [lo, hi] with
+  lo >= 0 — NO libm TCB).  Every other transcendental range operator
+  (ln, tan, cbrt, atan, asin, acos, log10, log2, hypot, atan2, generic
+  and negative powers, `%`) AND named constants (pi, e, tau) are
+  FAIL-CLOSED (refused) on the formal path.  Named constants were
+  excluded 2026-08-15 (§487-const audit): a `const_rounded` node's
+  value/fl_lo fields are bound only by the undischarged `ConstTCB`
+  premise (not ℚ-decidable), so admitting them would let a crafted
+  `pi value=0` node earn a release ACCEPT while π lies outside the
+  certified box.  Constants remain available in weaker lanes (rat, eval)
+  at their honest epistemic class.  `exp_rat` covers only the
+  positive-argument branch of `exp(x)` on a canonical rational interval;
+  negative-argument exp remains available through the separate zero-libm
+  Gaussian family and (in weaker lanes) through the estimated eval path.
 - The separate zero-libm `gaussian-exp-square-integral-v1` family formally
   covers only canonical `exp(-A*(x-mu)^2)` when A is an exact rational square
-  and the transformed finite domain contains the proved core. Other formal
+  and the transformed finite domain contains the proved core.  Other formal
   integration requests refuse without falling back to the conditional lane.
 - The Lean theorem proves: an accepted certificate implies a Runs derivation
-  and hence a true enclosure UNDER the named ModelTCB. It does NOT prove
+  and hence a true enclosure UNDER the named ModelTCB.  It does NOT prove
   source parsing, the Anubis emitter's faithfulness, native refinement,
-  executable identity, or release-wrapper correctness. Runtime provenance is
+  executable identity, or release-wrapper correctness.  Runtime provenance is
   enforced by the shared validator and independently rechecked from the
-  embedded certificate. Emitter faithfulness is TESTED (positive corpus +
+  embedded certificate.  Emitter faithfulness is TESTED (positive corpus +
   executed controls + A->B->A), not proved.
 - bound_step (adaptive integration) composition and Anubis source->native
   refinement remain OPEN.
-- Platform: macOS arm64, unsigned/ad-hoc developer artifact. NO Apple
+- Platform: macOS arm64, unsigned/ad-hoc developer artifact.  NO Apple
   Developer ID signing and NO notarization is claimed.
-- This is a PUBLIC release of the jackal-calc project. The artifact is
+- This is a PUBLIC release of the jackal-calc project.  The artifact is
   unsigned; verify SHA256SUMS and the pinned evaluator/checker identities in
   MANIFEST.sha256 before use.
 EOF
 
 cat > "$PKG/README.txt" <<'EOF'
-JACKAL v1.4.0 — proof-carrying formal-receipt release + pure-ℚ sqrt (macOS arm64, public, unsigned)
+JACKAL v1.4.1 — proof-carrying formal-receipt release + pure-ℚ sqrt + exp (macOS arm64, public, unsigned)
 
 Verify, then release a certified enclosure:
   shasum -a 256 -c SHA256SUMS         # every shipped file
   ./jackal-cert-release "x^2+1" 1 2 receipt.json
+  ./jackal-sqrt-rat-release "sqrt(x)" 2 3           # pure-ℚ sqrt (NO libm TCB)
+  ./jackal-exp-rat-release  "exp(x)"  0 1           # pure-ℚ exp  (NO libm TCB, v1.4.1)
   ./jackal-gaussian-release 'exp(-10000000000*(x-0.5000123456789)^2)' \
     0 1 1/1000000000000 gaussian-receipt.json
   ./jackal-receipt-verify --receipt receipt.json \
@@ -210,7 +241,7 @@ Verify, then release a certified enclosure:
     --expected-evaluator "$(awk '/^evaluator /{print $3}' MANIFEST.sha256)" \
     --expected-checker "$(awk '/^checker /{print $3}' MANIFEST.sha256)" \
     --expected-source "$(awk '/^source /{print $3}' MANIFEST.sha256)" \
-    --expected-release-epoch v1.4.0 \
+    --expected-release-epoch v1.4.1 \
     --expected-command range-bound-cert \
     --expected-expression 'x^2+1' \
     --expected-input-lo 1 --expected-input-hi 2 \
@@ -223,11 +254,11 @@ Verify, then release a certified enclosure:
 status=formal-bounded is emitted ONLY when the shared validator confirms the exact
 request commitment, the exact evaluator + checker executable identities
 (pinned in MANIFEST.sha256), the proved checker's ACCEPT, TOCTOU stability,
-and no status escalation. The formal receipt embeds the accepted certificate;
+and no status escalation.  The formal receipt embeds the accepted certificate;
 jackal-receipt-verify re-runs the pinned checker and re-derives the semantic
-bindings. Any break refuses with a stable class, never a bounded fallback.
+bindings.  Any break refuses with a stable class, never a bounded fallback.
 The bundled plugin/hermes adapter exposes the same release and verification
-path. See NON-CLAIMS.txt for the exact scope.
+path.  See NON-CLAIMS.txt for the exact scope.
 EOF
 
 cat > "$PKG/PROVENANCE-RECEIPT.txt" <<EOF

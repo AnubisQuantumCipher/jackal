@@ -394,6 +394,7 @@ def opFields : String → List FTag
   | "acos"          => [.children, .out, .flf]
   | "hypot"         => [.children, .out, .flf]
   | "sqrt_rat"      => [.children, .out]
+  | "exp_rat"       => [.children, .out, .nn]
   | "powGeneral"    => [.children, .out, .stage]
   | _               => []
 

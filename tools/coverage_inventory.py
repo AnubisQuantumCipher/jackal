@@ -60,6 +60,11 @@ FORMAL = {
     # sqrt via pure-ℚ Newton bracket (§487 fragment extension, v1.4.0).
     # NO libm TCB — the checker validates rational inequalities only.
     "sqrt":  ["sqrtRat"],
+    # exp via pure-ℚ rational Taylor with certified remainder bound
+    # (§487 fragment extension, v1.4.1).  Positive-argument branch only:
+    # `[lo, hi]` with `0 <= lo`. NO libm TCB — the checker validates six
+    # rational inequalities including expPartial + expRemainder in ℚ.
+    "exp":   ["expRat"],
 }
 LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const obligation
 
@@ -69,8 +74,9 @@ LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const oblig
 # `ConstTCB` premise (not ℚ-decidable), so the request-bound release checker
 # refuses it (§487-const audit, 2026-08-15; Lean lock
 # `requestRejects_const_rounded_node`). Constants remain available in weaker
-# lanes at their honest epistemic class.
-REFUSED_FORMAL = ["exp", "ln", "tan", "cbrt", "atan", "asin", "acos",
+# lanes at their honest epistemic class.  `exp` PROMOTED to FORMAL in v1.4.1
+# via `expRat` (rational Taylor + certified remainder, no libm TCB).
+REFUSED_FORMAL = ["ln", "tan", "cbrt", "atan", "asin", "acos",
                   "log10", "log2", "hypot", "atan2", "pow_neg", "pow_general",
                   "mod", "const"]
 

@@ -1,6 +1,6 @@
 {
   "build_attestation": {
-    "attestation_digest_sha256": "835b0e503e4d5942bafadc1c3a654b9fdc5ffbb484d051bcd5c50aa45df25994",
+    "attestation_digest_sha256": "c76eed72304ffd8b1015e111ecf782e040cfc2ec7bb7a2555f1fecf3ed356b6e",
     "authentication": {
       "authenticated": false,
       "scheme": "none",
@@ -14,7 +14,7 @@
     "checker": {
       "bytes": 137739472,
       "path": "proofs/lean/.lake/build/bin/jackal_gaussian_check",
-      "sha256": "11c741f04b811aa8621db4da5c5dc05e292ead8c0e6a854739f6068757470612",
+      "sha256": "42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77",
       "target": "jackal_gaussian_check"
     },
     "claim_boundary": "This is reproducibility/build-provenance evidence, not a proof of compiler, linker, operating-system, hardware, or supply-chain correctness.",
@@ -29,7 +29,7 @@
     "inputs": {
       "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
       "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
-      "source_closure_sha256": "41585b3efb7271e46d1d634bc7550c021f547580af93b78cfcc2e6616ee1a0db",
+      "source_closure_sha256": "b48ff9440e6b0de2cc43da85fc8fd203d01253b354015166c7ee654c82ed63ad",
       "toolchain_configuration": [
         {
           "path": "proofs/lean/lakefile.toml",
@@ -51,7 +51,7 @@
   "checker": {
     "bytes": 137739472,
     "path": "proofs/lean/.lake/build/bin/jackal_gaussian_check",
-    "sha256": "11c741f04b811aa8621db4da5c5dc05e292ead8c0e6a854739f6068757470612",
+    "sha256": "42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77",
     "target": "jackal_gaussian_check"
   },
   "fragment": {
@@ -74,7 +74,7 @@
     "path": "release/tools/gaussian_proof_identity.py",
     "sha256": "d6142c21aeb27fb1f7a215b7d2c8629316ebd17740875ffd7593a09efdf69847"
   },
-  "identity_digest_sha256": "7fbb0d585aa11d059d710bbe0bdac2337a8da49746e65e27316a95d774a2a606",
+  "identity_digest_sha256": "22c59e60b66a7fc6ef232e01fe64967285d36bb65e92847f9b42af721b36a54e",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {
@@ -141,7 +141,7 @@
   },
   "schema": "jackal-gaussian-proof-identity-v1",
   "source_closure": {
-    "aggregate_sha256": "41585b3efb7271e46d1d634bc7550c021f547580af93b78cfcc2e6616ee1a0db",
+    "aggregate_sha256": "b48ff9440e6b0de2cc43da85fc8fd203d01253b354015166c7ee654c82ed63ad",
     "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
     "external_imports": [
       "Mathlib",
@@ -161,31 +161,32 @@
         "sha256": "2bc091be9dd47acae8d4b8af7b272827a3cea7b5ec08773566ad8fe40a12bf83"
       },
       {
-        "bytes": 22383,
+        "bytes": 24225,
         "imports": [
-          "JackalIv.CertTypes"
+          "JackalIv.CertTypes",
+          "JackalIv.Gaussian"
         ],
         "module": "JackalIv.CertCheck",
         "path": "proofs/lean/JackalIv/CertCheck.lean",
-        "sha256": "f4cc32b7c8e7faa11df8d8be174eaddd924dd23d2e239b45edebab4ce1e03184"
+        "sha256": "c7d9361ed22c8fa1c248f90bc035254f8a8ed0569c497b2824c73cb32227671a"
       },
       {
-        "bytes": 54198,
+        "bytes": 54285,
         "imports": [
           "JackalIv.CertCheck"
         ],
         "module": "JackalIv.CertCodec",
         "path": "proofs/lean/JackalIv/CertCodec.lean",
-        "sha256": "b1fd421e58112e05437f7bd085d079e57b288e326bc817b13460e044be959f1f"
+        "sha256": "0deb67e17240175c7d7d0876287648cf92c6ee7b6c787bc2505c1a46210e9df5"
       },
       {
-        "bytes": 15588,
+        "bytes": 16153,
         "imports": [
           "JackalIv.Syntax"
         ],
         "module": "JackalIv.CertTypes",
         "path": "proofs/lean/JackalIv/CertTypes.lean",
-        "sha256": "432cfbfce919ca4e8dfaacf53d03ef5d0a8ff9a4f95f9821ed3679e9478360d7"
+        "sha256": "ffbd7e0313d22cd7427c1f1b977446a96fb81e568f50aaa5cdb0901d80f78146"
       },
       {
         "bytes": 17004,
@@ -230,7 +231,7 @@
         "sha256": "1690e3412ec811567da9801dbeda7d57b30735f461e22711a97ebe99f5017aa3"
       },
       {
-        "bytes": 9712,
+        "bytes": 9715,
         "imports": [
           "JackalIv.Gaussian",
           "Mathlib.Analysis.Real.Pi.Bounds",
@@ -238,7 +239,7 @@
         ],
         "module": "JackalIv.GaussianIntegral",
         "path": "proofs/lean/JackalIv/GaussianIntegral.lean",
-        "sha256": "ec384c71e6af5a53124c1097317c380fcaa10eb01c70695508545465775778c4"
+        "sha256": "7c3b53502d4d64a4d17ffa59929565e37d9f5a1c45cd8aec93bbfe9d9a6ee16b"
       },
       {
         "bytes": 3704,

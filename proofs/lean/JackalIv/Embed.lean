@@ -45,6 +45,7 @@ universal `[-1,1]` enclosure (a conservative widening of every `iv_sin`/
 `iv_cos` branch; Trig.lean proves the tighter hulls separately).
 -/
 import JackalIv.Syntax
+import JackalIv.Gaussian
 
 namespace JackalIv
 
@@ -241,6 +242,29 @@ inductive Runs : Expr → ℝ × ℝ → ℝ × ℝ → Prop
       (hlnn : 0 ≤ loQ) (hunn : 0 ≤ hiQ)
       (hlb : ((loQ : ℚ) : ℝ) ^ 2 ≤ l) (hub : u ≤ ((hiQ : ℚ) : ℝ) ^ 2) :
       Runs (.call1 "sqrt" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
+  /-- Pure-ℚ `exp` bound (no libm, no `Approx δlib`).  The checker verifies
+  `0 ≤ argLoQ`, `argHiQ ≥ argLoQ`, `argLoQ ≤ child.out_lo`, `child.out_hi
+  ≤ argHiQ`, degree witness `2 * argHiQ ≤ n+1` (⇔ `argHiQ/(n+1) ≤ 1/2`),
+  and the two rational Taylor inequalities `loQ ≤ expPartialQ argLoQ n`
+  and `expPartialQ argHiQ n + expRemainderQ argHiQ n ≤ hiQ`.  Sound by
+  monotonicity of `Real.exp` on `[0, ∞)` combined with `real_exp_between`
+  (`Gaussian.lean`, existing zero-libm foundation).  §487-fragment
+  extension 2026-08-15 (v1.4.1) — expands the release fragment to the
+  first libm-free transcendental beyond `sqrt`, without touching the
+  `ModelTCB`. -/
+  | expRat {e : Expr} {a b l u : ℝ} {argLoQ argHiQ loQ hiQ : ℚ} {n : Nat}
+      (hr : Runs e (a, b) (l, u))
+      (hnpos : 0 < n)
+      (hargnn : 0 ≤ argLoQ)
+      (hargLo : ((argLoQ : ℚ) : ℝ) ≤ l)
+      (hargHi : u ≤ ((argHiQ : ℚ) : ℝ))
+      (hdeg : ((argHiQ : ℚ) : ℝ) / ((n : ℕ) + 1 : ℝ) ≤ 1 / 2)
+      (hLB : ((loQ : ℚ) : ℝ) ≤
+              JackalIv.Gaussian.expPartial ((argLoQ : ℚ) : ℝ) n)
+      (hUB : JackalIv.Gaussian.expPartial ((argHiQ : ℚ) : ℝ) n +
+              JackalIv.Gaussian.expRemainder ((argHiQ : ℚ) : ℝ) n ≤
+              ((hiQ : ℚ) : ℝ)) :
+      Runs (.call1 "exp" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
 
 /-! ### The composition theorem -/
 
@@ -401,6 +425,29 @@ theorem runs_sound {e : Expr} {p q : ℝ × ℝ} (hrun : Runs e p q) :
       · have h2 : Real.sqrt (sem e x) ≤ Real.sqrt (((hiQ : ℚ) : ℝ) ^ 2) :=
           Real.sqrt_le_sqrt (le_trans hm.2 hub)
         rwa [Real.sqrt_sq hhiR] at h2
+  | @expRat e a b l u argLoQ argHiQ loQ hiQ n hr hnpos hargnn hargLo hargHi hdeg hLB hUB ih =>
+    intro hab x hx
+    obtain ⟨hd, hm⟩ := ih hab x hx
+    have hargnnR : (0 : ℝ) ≤ ((argLoQ : ℚ) : ℝ) := by exact_mod_cast hargnn
+    have hsem_ge : ((argLoQ : ℚ) : ℝ) ≤ sem e x := le_trans hargLo hm.1
+    have hsem_le : sem e x ≤ ((argHiQ : ℚ) : ℝ) := le_trans hm.2 hargHi
+    have hargHiR : (0 : ℝ) ≤ ((argHiQ : ℚ) : ℝ) := le_trans hargnnR (le_trans hsem_ge hsem_le)
+    have hexp_ge : Real.exp ((argLoQ : ℚ) : ℝ) ≤ Real.exp (sem e x) :=
+      Real.exp_le_exp.mpr hsem_ge
+    have hexp_le : Real.exp (sem e x) ≤ Real.exp ((argHiQ : ℚ) : ℝ) :=
+      Real.exp_le_exp.mpr hsem_le
+    have hpartLo : JackalIv.Gaussian.expPartial ((argLoQ : ℚ) : ℝ) n ≤
+                    Real.exp ((argLoQ : ℚ) : ℝ) :=
+      Real.sum_le_exp_of_nonneg hargnnR n
+    have hpartHi : Real.exp ((argHiQ : ℚ) : ℝ) ≤
+                    JackalIv.Gaussian.expPartial ((argHiQ : ℚ) : ℝ) n +
+                    JackalIv.Gaussian.expRemainder ((argHiQ : ℚ) : ℝ) n :=
+      (JackalIv.Gaussian.real_exp_between ((argHiQ : ℚ) : ℝ) n hargHiR hdeg).2
+    refine ⟨⟨hd, by simp [call1Dom]⟩, ?_⟩
+    simp only [sem, call1Sem_exp, Set.mem_Icc]
+    refine ⟨?_, ?_⟩
+    · exact le_trans hLB (le_trans hpartLo hexp_ge)
+    · exact le_trans hexp_le (le_trans hpartHi hUB)
   | exp hr hlo hhi ih =>
     intro hab x hx
     obtain ⟨hd, hm⟩ := ih hab x hx

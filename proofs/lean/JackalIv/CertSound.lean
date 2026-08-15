@@ -784,6 +784,56 @@ theorem runs_of_check (hdr : Header) (nodes : List Node)
       have hubR : ((ndc0.out_hi : ℚ) : ℝ) ≤ ((nd.out_hi : ℚ) : ℝ) ^ 2 := by
         exact_mod_cast hubQ
       exact Runs.sqrtRat hr hlnnQ hunnQ hlbR hubR
+    · -- exp_rat  (pure ℚ; no libm TCB, §487-fragment extension v1.4.1).
+      have hop : nd.op = "exp_rat" := by assumption
+      simp only [*] at hb
+      rw [Option.map_eq_some_iff] at hb
+      obtain ⟨a, hba, rfl⟩ := hb
+      obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
+      simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
+      obtain ⟨⟨⟨⟨⟨hnpos, hcLoNN⟩, hcMono⟩, hdegQ⟩, hLB⟩, hUB⟩ := hcheck
+      have hr := ih _ ndc0 a hf0 hba
+      have hnposN : 0 < nd.n := of_decide_eq_true hnpos
+      have hcLoNNQ : (0 : ℚ) ≤ ndc0.out_lo := of_decide_eq_true hcLoNN
+      have hcMonoQ : ndc0.out_lo ≤ ndc0.out_hi := of_decide_eq_true hcMono
+      have hdegQ' : 2 * ndc0.out_hi ≤ ((nd.n : ℕ) : ℚ) + 1 :=
+        of_decide_eq_true hdegQ
+      have hLBQ : nd.out_lo ≤ JackalIv.Gaussian.expPartial ndc0.out_lo nd.n :=
+        of_decide_eq_true hLB
+      have hUBQ : JackalIv.Gaussian.expPartial ndc0.out_hi nd.n +
+                  JackalIv.Gaussian.expRemainder ndc0.out_hi nd.n ≤ nd.out_hi :=
+        of_decide_eq_true hUB
+      -- Real casts.
+      have hcLoNNR : (0 : ℝ) ≤ ((ndc0.out_lo : ℚ) : ℝ) := by exact_mod_cast hcLoNNQ
+      have hcMonoR : ((ndc0.out_lo : ℚ) : ℝ) ≤ ((ndc0.out_hi : ℚ) : ℝ) := by
+        exact_mod_cast hcMonoQ
+      have hcHiNNR : (0 : ℝ) ≤ ((ndc0.out_hi : ℚ) : ℝ) := le_trans hcLoNNR hcMonoR
+      -- Degree condition in ℝ: `argHi / (n+1) ≤ 1/2`.
+      have hnp1_pos : (0 : ℝ) < ((nd.n : ℕ) : ℝ) + 1 := by
+        have : (0 : ℝ) ≤ ((nd.n : ℕ) : ℝ) := by exact_mod_cast Nat.zero_le _
+        linarith
+      have hdegR : ((ndc0.out_hi : ℚ) : ℝ) / (((nd.n : ℕ) : ℝ) + 1) ≤ 1 / 2 := by
+        rw [div_le_iff₀ hnp1_pos]
+        have : (2 : ℝ) * ((ndc0.out_hi : ℚ) : ℝ) ≤ (((nd.n : ℕ) : ℚ) : ℝ) + 1 := by
+          exact_mod_cast hdegQ'
+        push_cast at this
+        linarith
+      -- Lift LB / UB to ℝ via `cast_expPartial` / `cast_expRemainder`.
+      have hLBR : ((nd.out_lo : ℚ) : ℝ) ≤
+                  JackalIv.Gaussian.expPartial ((ndc0.out_lo : ℚ) : ℝ) nd.n := by
+        have := (Rat.cast_le (K := ℝ)).mpr hLBQ
+        rw [JackalIv.Gaussian.cast_expPartial] at this
+        exact this
+      have hUBR : JackalIv.Gaussian.expPartial ((ndc0.out_hi : ℚ) : ℝ) nd.n +
+                  JackalIv.Gaussian.expRemainder ((ndc0.out_hi : ℚ) : ℝ) nd.n ≤
+                  ((nd.out_hi : ℚ) : ℝ) := by
+        have := (Rat.cast_le (K := ℝ)).mpr hUBQ
+        rw [Rat.cast_add, JackalIv.Gaussian.cast_expPartial,
+            JackalIv.Gaussian.cast_expRemainder] at this
+        exact this
+      -- Bracket witnesses collapse: argLoQ = child.out_lo, argHiQ = child.out_hi.
+      exact Runs.expRat (argLoQ := ndc0.out_lo) (argHiQ := ndc0.out_hi)
+              hr hnposN hcLoNNQ (le_refl _) (le_refl _) hdegR hLBR hUBR
 
 /-! ### Structural extraction and the headline theorems
 

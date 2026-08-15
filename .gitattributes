@@ -1,0 +1,29 @@
+# Force LF line endings for every source-closure-hashed artifact so the
+# `release/tools/gaussian_proof_identity.py` aggregate stays byte-identical
+# across macOS/Linux/Windows checkouts (v1.4.1 CI-drift fix).
+* text=auto eol=lf
+
+# Explicit LF for the source-closure inputs and the identity-file targets
+# whose SHA-256s ship in release/MANIFEST.sha256.
+*.lean       text eol=lf
+*.py         text eol=lf
+*.md         text eol=lf
+*.txt        text eol=lf
+*.json       text eol=lf
+*.jsonl      text eol=lf
+*.sh         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.toml       text eol=lf
+jackal            text eol=lf
+jackal-cert-release       text eol=lf
+jackal-gaussian-release   text eol=lf
+jackal-receipt-verify     text eol=lf
+jackal-sqrt-rat-release   text eol=lf
+plugin/hermes/jackal_hermes  text eol=lf
+
+# Binaries: never touch.
+jackal-native binary
+*.tar.gz binary
+*.zip binary
+*.olean binary

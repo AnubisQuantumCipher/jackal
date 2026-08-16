@@ -103,12 +103,12 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
   fields) and a GENUINELY COMPUTABLE checker `checkCert` (structural
   well-formedness — unique ids, below-parent child refs ⇒ acyclic, single root,
   full reachability, canonical rationals; plus the per-node exact-ℚ interval
-  formula and pad verification for the 23 rational-exact `Runs` constructors and
+  formula and pad verification for the 29 rational-decided `Runs` constructors and
   the structural padding for the 8 transcendental ones).  The deliverables:
   - `cert_check_sound : checkCert hdr nodes = true → exprOf nodes = some e →
     ModelTCB hdr nodes → Runs e (↑input) (↑output)` — an accepted certificate
     INDUCES a `Runs` derivation (the whole-tree induction `runs_of_check`
-    reconstructing all 31 constructors);
+    reconstructing all 38 constructors);
   - `cert_encloses` / `certified_release` (the mission §189 statement): the
     released interval encloses `sem e` at every point of the input interval.
   `#print axioms` on all three = `[propext, Classical.choice, Quot.sound]` ONLY.
@@ -140,9 +140,22 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
   unsound approximation. (`tan` awaits an `iv_tan` containment lemma; `cbrt`
   has no Mathlib real cube root; `log10`/`log2` are covered only by the generic
   monotone rule, not a bespoke instance; `mod` is refused by the engine
-  itself.) The embedded sin/cos constructor is the universal [-1,1] hull
-  (conservatively wider than the shipped branches separately proved in
-  Trig.lean).
+  itself.) The embedded sin/cos LIBM-LANE constructor is the universal [-1,1]
+  hull (conservatively wider than the shipped branches separately proved in
+  Trig.lean); since §490 (v1.5.0) the PURE-ℚ lane adds `Runs.sinRat`/`cosRat`
+  (midpoint Taylor via Mathlib `sin_bound`/`cos_bound`, |midpoint| ≤ 1, plus
+  Lipschitz-1 widening — arguments centered outside [-1,1] REFUSE, argument
+  reduction by 2πk is future work), `Runs.logRat` (full positive domain via
+  the inverse exponential bracket), `Runs.atanRat` (full rational domain via
+  cap / tan-bracket / reciprocal strategies over 20-digit rational π bounds),
+  and generalizes `Runs.expRat` to every rational argument (reciprocal
+  identity; the v1.4.1 nonnegative conditions are the `0 ≤ q` special case).
+  Precision residual of the §490 trig lane, stated honestly: the sin/cos
+  point enclosures carry the FIXED-degree Mathlib remainders (`|m|⁵/100`,
+  `|m|⁴·5/96`), so a tan-bracketed `atan` endpoint near |1| is certified only
+  to ~5·10⁻² and sin/cos points to ~10⁻²/~5·10⁻² at |m| = 1 (much tighter for
+  small |m|); degree-parametric trig partial sums are future work, and none
+  of this affects soundness — only enclosure width.
 * Parser / lowering residuals (implementation-correspondence #1):
   - The parser's BYTE-FOR-BYTE identity to the SHIPPED engine parser over the
     full input space is a DIFFERENTIAL GATE (`tests/parser_differential.py`
@@ -166,7 +179,11 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
     operators + `sin`/`cos` (universal `[-1,1]`) + named constants; the
     true-transcendental operators (`sqrt`/`exp`/`ln`/`atan`/`asin`/`acos`/
     `hypot`/`atan2`/`tan`/`cbrt`/`log10`/`log2`/`%`) and negative integer powers
-    FAIL CLOSED in the emitter (outside this bridge, sound refusals); (b) that
+    FAIL CLOSED in the ENGINE emitter (outside this bridge, sound refusals) —
+    while the UNTRUSTED PYTHON producers cover `sqrt`/`exp`/`ln`/`sin`/`cos`/
+    `atan` through the pure-ℚ checker strategy ops (`sqrt_rat`/`exp_rat`/
+    `ln_rat`/`sin_rat`/`cos_rat`/`atan_rat`, §487/§490) with NO libm TCB;
+    (b) that
     the Anubis emitter faithfully produces the certificate for the computation
     it performed is enforced by testing (positive corpus + 24 negative controls
     + the A→B→A tamper showing a non-enclosing emitter is REJECTED), not proof;

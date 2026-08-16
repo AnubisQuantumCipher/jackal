@@ -1,0 +1,102 @@
+{
+  "inference_registry_sha256": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
+  "layers": [
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "S-pos-baseline",
+      "intent": "whitespace-divergent canonical bytes break every content address and digest recomputation",
+      "layer": "canonicalizer",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "refused/policy-pin-mismatch",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
+      "sha_poisoned": "19899f40aa9c913009c7a9045e2c11a2979c0517da9a74bcf994dd90b2dcc5b5",
+      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+    },
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "S-pos-baseline",
+      "intent": "widening a rule cap in the shipped registry must be caught by the verifier's embedded semantic cross-check",
+      "layer": "inference-registry",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "refused/registry-semantics-mismatch",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
+      "sha_poisoned": "8139bda1f695a9f3a7fd8f8bbea4387095e33999387679b2628647945b163d71",
+      "sha_restored": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672"
+    },
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "L-fallback-disabled-policy",
+      "intent": "skipping the axis accept-set turns policy refusals into silent acceptance",
+      "layer": "policy-evaluation",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "verified/",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
+      "sha_poisoned": "2c1fd7851228087ca08e886c9e54e09e1e06cdf1277dcbd4c615bded7db307cc",
+      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+    },
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "LEG-pos-receipt",
+      "intent": "misbinding the receipt enclosure into the derived proposition launders the formal bound",
+      "layer": "legacy-evidence-adapter",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "refused/evidence-prop-mismatch",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
+      "sha_poisoned": "93448b7a2dfe225746248ba80f8c059040ba414f77585471c7a3a29a4fe0f136",
+      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+    },
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "U-pos-linear-convert",
+      "intent": "a forged scale factor must surface as a rule recompute divergence",
+      "layer": "unit-registry",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "refused/rule-invalid",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c",
+      "sha_poisoned": "8e57f301dec59f783f17e5b8238731be32ceb5e4ff35635094e95453a859d5fc",
+      "sha_restored": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c"
+    },
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "M-pos-checked-overflow-fact",
+      "intent": "suppressing overflow recomputation would accept false checked-arithmetic claims",
+      "layer": "machine-verifier",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "refused/machine-cert-invalid",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
+      "sha_poisoned": "babdc907b178c10280cad83ce03f9a61080509b8994ea29e8f8fbd4224f04de2",
+      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+    },
+    {
+      "case_failed_under_poison": true,
+      "designated_case": "R-pos-conditions-present",
+      "intent": "dropping the provenance condition from the permitted rendering hides a load-bearing axis",
+      "layer": "renderer",
+      "matrix_failed_under_poison": true,
+      "observed_under_poison": "claim-verify=verified bundle.digest=e7fc3ce8f7f76adbe8852293a8e5af58cb309179b8317c9eee6484f514b02a33 root=f46e24dbd70ad7434f7c4048fb0ac01c239b068c3769915ca785e1",
+      "ok": true,
+      "restored_byte_identical": true,
+      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
+      "sha_poisoned": "4e74371e514ac21ae851bc190feae9f4f2560490f41ec1cc6a12b6e18c31996d",
+      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+    }
+  ],
+  "post_restore_green": true,
+  "release_epoch": "v1.6.0",
+  "schema": "jackal-claim-aba-v1",
+  "unit_registry_sha256": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c",
+  "verdict": "PASS",
+  "verifier_sha256": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+}

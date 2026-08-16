@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.2 formal-bounded receipt — schema, emitter, and outer digest.
+"""JACKAL v1.5.0 formal-bounded receipt — schema, emitter, and outer digest.
 
 A "formal receipt" carries EVERY field a downstream reverifier needs to
 mechanically re-establish the release verdict without trusting anything
@@ -182,29 +182,76 @@ GAUSSIAN_NON_CLAIMS = [
 ]
 
 # Variant identifiers ship inside the envelope so the verifier can dispatch
-# without inferring from the cert schema alone (sqrt_rat and exp_rat both
-# use `jackal-eval-cert v2`, same as the general range lane, so a separate
-# marker is needed to distinguish them and select the right identity shape
-# and admitted-operator lock).
+# without inferring from the cert schema alone (every rational-fragment
+# variant uses `jackal-eval-cert v2`, same as the general range lane, so a
+# separate marker is needed to distinguish them and select the right
+# identity shape and admitted-operator lock).
 RANGE_VARIANT = "range"
 GAUSSIAN_VARIANT = "gaussian"
 SQRT_RAT_VARIANT = "sqrt_rat"
 EXP_RAT_VARIANT = "exp_rat"
-RATIONAL_VARIANTS = {SQRT_RAT_VARIANT, EXP_RAT_VARIANT}
-ALL_VARIANTS = {RANGE_VARIANT, GAUSSIAN_VARIANT, SQRT_RAT_VARIANT, EXP_RAT_VARIANT}
+LN_RAT_VARIANT = "ln_rat"
+SIN_RAT_VARIANT = "sin_rat"
+COS_RAT_VARIANT = "cos_rat"
+ATAN_RAT_VARIANT = "atan_rat"
+TANH_RAT_VARIANT = "tanh_rat"
+RATIONAL_VARIANTS = {
+    SQRT_RAT_VARIANT, EXP_RAT_VARIANT,
+    LN_RAT_VARIANT, SIN_RAT_VARIANT, COS_RAT_VARIANT, ATAN_RAT_VARIANT,
+    TANH_RAT_VARIANT,
+}
+ALL_VARIANTS = {RANGE_VARIANT, GAUSSIAN_VARIANT} | RATIONAL_VARIANTS
 
-_VARIANT_ADMITTED_OPERATOR: dict[str, str] = {
-    SQRT_RAT_VARIANT: "sqrt",
-    EXP_RAT_VARIANT: "exp",
+# The exact tanh-defining expression admitted by the tanh_rat composite
+# variant.  tanh is not an engine grammar token.  The form 1-2/(exp(2x)+1)
+# is used (rather than (exp(2x)-1)/(exp(2x)+1)) because its division has a
+# CONSTANT numerator, so the interval division loses no correlation and the
+# certified enclosure stays tight on arbitrarily wide input intervals.
+TANH_COMPOSITE_EXPRESSION = "1-2/(exp(2*x)+1)"
+
+# Per-variant locks, shared verbatim with `receipt_verify.py` (imported, so
+# drift is a compile error, never silent divergence).
+VARIANT_ADMITTED_OPERATOR_SETS: dict[str, frozenset[str]] = {
+    SQRT_RAT_VARIANT: frozenset({"sqrt"}),
+    EXP_RAT_VARIANT: frozenset({"exp"}),
+    LN_RAT_VARIANT: frozenset({"ln"}),
+    SIN_RAT_VARIANT: frozenset({"sin"}),
+    COS_RAT_VARIANT: frozenset({"cos"}),
+    ATAN_RAT_VARIANT: frozenset({"atan"}),
+    TANH_RAT_VARIANT: frozenset({"exp", "mul", "sub", "add", "div", "num"}),
 }
 _VARIANT_ADMITTED_EXPRESSION: dict[str, str] = {
     SQRT_RAT_VARIANT: "sqrt(x)",
     EXP_RAT_VARIANT: "exp(x)",
+    LN_RAT_VARIANT: "ln(x)",
+    SIN_RAT_VARIANT: "sin(x)",
+    COS_RAT_VARIANT: "cos(x)",
+    ATAN_RAT_VARIANT: "atan(x)",
+    TANH_RAT_VARIANT: TANH_COMPOSITE_EXPRESSION,
 }
-_VARIANT_COVERAGE_ROW: dict[str, str] = {
+VARIANT_COVERAGE_ROWS: dict[str, str] = {
     SQRT_RAT_VARIANT: "jackal_sqrt_rat_bound",
     EXP_RAT_VARIANT: "jackal_exp_rat_bound",
+    LN_RAT_VARIANT: "jackal_ln_rat_bound",
+    SIN_RAT_VARIANT: "jackal_sin_rat_bound",
+    COS_RAT_VARIANT: "jackal_cos_rat_bound",
+    ATAN_RAT_VARIANT: "jackal_atan_rat_bound",
+    TANH_RAT_VARIANT: "jackal_tanh_rat_bound",
 }
+# Underlying per-operator inventory rows that must remain FORMAL for the
+# variant to verify (a plugin-tool row alone must never mask an operator
+# demotion).  tanh has no operator row of its own: its composite fragment
+# rows are the constituent operators.
+VARIANT_OPERATOR_ROWS: dict[str, frozenset[str]] = {
+    SQRT_RAT_VARIANT: frozenset({"sqrt"}),
+    EXP_RAT_VARIANT: frozenset({"exp"}),
+    LN_RAT_VARIANT: frozenset({"ln"}),
+    SIN_RAT_VARIANT: frozenset({"sin"}),
+    COS_RAT_VARIANT: frozenset({"cos"}),
+    ATAN_RAT_VARIANT: frozenset({"atan"}),
+    TANH_RAT_VARIANT: frozenset({"exp", "mul", "sub", "add", "div", "num"}),
+}
+_VARIANT_COVERAGE_ROW = VARIANT_COVERAGE_ROWS  # backward-compat alias
 
 SQRT_RAT_ASSUMPTIONS = [
     "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
@@ -227,7 +274,7 @@ SQRT_RAT_NON_CLAIMS = [
 
 EXP_RAT_ASSUMPTIONS = [
     "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
-    "The exp_rat cert node bypasses every LibmModel obligation (Runs.expRat carries no `Approx δlib` fact; the Taylor partial + remainder are pure ℚ)",
+    "The exp_rat cert node bypasses every LibmModel obligation (Runs.expRat carries no `Approx δlib` fact; the Taylor partial + remainder and the negative-side reciprocal are pure ℚ)",
     "The Lean releaseNodeOp allowlist admits the `exp_rat` constructor with zero libm TCB",
     "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
     "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
@@ -237,10 +284,108 @@ EXP_RAT_ASSUMPTIONS = [
 ]
 EXP_RAT_NON_CLAIMS = [
     "NOT universal correctness across all operators or expressions",
-    "exp_rat admits ONLY the exact form `exp(x)` on a canonical rational interval `[lo, hi]` with `lo >= 0`",
-    "The negative-argument branch of `exp` is NOT covered by this variant",
+    "exp_rat admits ONLY the exact form `exp(x)` on a canonical rational interval `[lo, hi]` (general-sign since v1.5.0 §490)",
     "Every other transcendental operator (sqrt/ln/tan/cbrt/atan/asin/acos/log10/log2/hypot/atan2) FAIL CLOSED on this variant",
     "The Python exp_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+LN_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "The ln_rat cert node bypasses every LibmModel obligation (Runs.logRat: inverse exponential bracket, pure ℚ via Gaussian.expUBQ/expLBQ)",
+    "The Lean releaseNodeOp allowlist admits the `ln_rat` constructor with zero libm TCB",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned ln_rat producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+LN_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "ln_rat admits ONLY the exact form `ln(x)` on a canonical rational interval with 0 < lo",
+    "Nonpositive lower endpoints FAIL CLOSED (log domain)",
+    "Every other transcendental operator FAIL CLOSED on this variant",
+    "The Python ln_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+SIN_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "The sin_rat cert node bypasses every LibmModel obligation (Runs.sinRat: Mathlib Real.sin_bound midpoint Taylor + Lipschitz-1 widening, pure ℚ)",
+    "The Lean releaseNodeOp allowlist admits the `sin_rat` constructor with zero libm TCB",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned sin_rat producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+SIN_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "sin_rat admits ONLY the exact form `sin(x)` on a canonical rational interval whose midpoint satisfies |m| <= 1",
+    "Arguments centered outside [-1,1] FAIL CLOSED (2πk argument reduction is NOT in the v1.5.0 formal fragment)",
+    "Point-enclosure width is bounded by the fixed-degree Mathlib remainder |m|^5/100 plus the interval halfwidth (Lipschitz-1); this is an enclosure-width residual, not a soundness one",
+    "The Python sin_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+COS_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "The cos_rat cert node bypasses every LibmModel obligation (Runs.cosRat: Mathlib Real.cos_bound midpoint Taylor + Lipschitz-1 widening, pure ℚ)",
+    "The Lean releaseNodeOp allowlist admits the `cos_rat` constructor with zero libm TCB",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned cos_rat producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+COS_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "cos_rat admits ONLY the exact form `cos(x)` on a canonical rational interval whose midpoint satisfies |m| <= 1",
+    "Arguments centered outside [-1,1] FAIL CLOSED (2πk argument reduction is NOT in the v1.5.0 formal fragment)",
+    "Point-enclosure width is bounded by the fixed-degree Mathlib remainder m^4*(5/96) plus the interval halfwidth (Lipschitz-1); this is an enclosure-width residual, not a soundness one",
+    "The Python cos_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+ATAN_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "The atan_rat cert node bypasses every LibmModel obligation (Runs.atanRat: cap / tan-bracket / reciprocal strategies over Mathlib 20-digit rational π bounds, pure ℚ)",
+    "The Lean releaseNodeOp allowlist admits the `atan_rat` constructor with zero libm TCB",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned atan_rat producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+ATAN_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "atan_rat admits ONLY the exact form `atan(x)` on a canonical rational interval (full rational domain)",
+    "Certified endpoint slack from the fixed-degree tan brackets is ~5e-2 near |x| = 1 and tighter elsewhere; this is an enclosure-width residual, not a soundness one",
+    "The Python atan_rat producer is untrusted; formal release requires independent checker ACCEPT",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+TANH_RAT_ASSUMPTIONS = [
+    "Range theorem premise: ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
+    "Every node of the composite certificate is a zero-libm release-fragment constructor (num_exact/var/mul/exp_rat/sub/add/div); recorded float fields are exact rationals",
+    "The tanh reading rests on the mathematical identity tanh(x) = 1 - 2/(exp(2x)+1); the certificate and receipt bind the explicit composite expression string, never the name tanh",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned tanh composite producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+TANH_RAT_NON_CLAIMS = [
+    "NOT universal correctness across all operators or expressions",
+    "tanh_rat admits ONLY the exact composite form `1-2/(exp(2*x)+1)` on a canonical rational interval with |lo|,|hi| <= 20",
+    "The engine grammar has NO tanh token; requests spelled `tanh(x)` FAIL CLOSED at parse in every lane",
+    "The tanh interpretation of the composite expression is a documented mathematical identity, not a checker-verified binding",
+    "The Python tanh composite producer is untrusted; formal release requires independent checker ACCEPT",
     "SHA-256 identifies bytes; it does NOT authenticate an author",
     "The artifact is unsigned and has not received an independent external proof audit",
 ]
@@ -248,11 +393,23 @@ EXP_RAT_NON_CLAIMS = [
 _VARIANT_ASSUMPTIONS: dict[str, list[str]] = {
     SQRT_RAT_VARIANT: SQRT_RAT_ASSUMPTIONS,
     EXP_RAT_VARIANT: EXP_RAT_ASSUMPTIONS,
+    LN_RAT_VARIANT: LN_RAT_ASSUMPTIONS,
+    SIN_RAT_VARIANT: SIN_RAT_ASSUMPTIONS,
+    COS_RAT_VARIANT: COS_RAT_ASSUMPTIONS,
+    ATAN_RAT_VARIANT: ATAN_RAT_ASSUMPTIONS,
+    TANH_RAT_VARIANT: TANH_RAT_ASSUMPTIONS,
 }
 _VARIANT_NON_CLAIMS: dict[str, list[str]] = {
     SQRT_RAT_VARIANT: SQRT_RAT_NON_CLAIMS,
     EXP_RAT_VARIANT: EXP_RAT_NON_CLAIMS,
+    LN_RAT_VARIANT: LN_RAT_NON_CLAIMS,
+    SIN_RAT_VARIANT: SIN_RAT_NON_CLAIMS,
+    COS_RAT_VARIANT: COS_RAT_NON_CLAIMS,
+    ATAN_RAT_VARIANT: ATAN_RAT_NON_CLAIMS,
+    TANH_RAT_VARIANT: TANH_RAT_NON_CLAIMS,
 }
+VARIANT_ASSUMPTION_TABLES = _VARIANT_ASSUMPTIONS
+VARIANT_NON_CLAIM_TABLES = _VARIANT_NON_CLAIMS
 
 PROOF_IDENTITY_BINDING_KEYS = {
     "schema", "file_sha256", "identity_digest_sha256",
@@ -621,31 +778,31 @@ def build_variant_formal_receipt(
     emitted_at_unix: int | None = None,
 ) -> dict[str, Any]:
     """Assemble a `jackal-formal-receipt-v1` for one of the pure-ℚ fragment
-    extensions (`sqrt_rat` v1.4.0 / `exp_rat` v1.4.1).
+    extensions (`sqrt_rat` v1.4.0 / `exp_rat` v1.4.1 / `ln_rat`, `sin_rat`,
+    `cos_rat`, `atan_rat`, `tanh_rat` v1.5.0 §490).
 
     The envelope reuses the range-lane framing exactly (same cert schema,
     same theorem, same request commitment scheme, same checker) but binds
     the STANDALONE Python producer's SHA-256 instead of `jackal-native` —
     the standalone lane never invokes the engine — and locks the
-    admitted-operator set to `{sqrt}` or `{exp}` per variant.  The
-    `variant` field lets the verifier dispatch without inferring from cert
-    contents.
+    admitted-operator set per variant.  The `variant` field lets the
+    verifier dispatch without inferring from cert contents.
     """
     if variant not in RATIONAL_VARIANTS:
         raise ValueError(f"build_variant_formal_receipt: unknown variant {variant!r}")
-    admitted_op = _VARIANT_ADMITTED_OPERATOR[variant]
+    admitted_ops = VARIANT_ADMITTED_OPERATOR_SETS[variant]
     admitted_expr = _VARIANT_ADMITTED_EXPRESSION[variant]
-    coverage_row = _VARIANT_COVERAGE_ROW[variant]
+    coverage_row = VARIANT_COVERAGE_ROWS[variant]
     hdr = _parse_cert_header(cert_bytes)
     sexp = hdr.get("expr", "")
     expr_ops = _operators_in_sexp(sexp) if sexp else set()
-    # `var` is a leaf tag, not an operator lock — the variant's operator is
-    # what wraps it.  For the sqrt_rat/exp_rat variants the wrapping call
-    # must be exactly the admitted operator and nothing else.
+    # `var` is a leaf tag, not an operator lock — the variant's operators are
+    # what wrap it.  The wrapping operators must be exactly the admitted set
+    # and nothing else.
     non_leaf_ops = expr_ops - {"var"}
-    if non_leaf_ops != {admitted_op}:
+    if non_leaf_ops != set(admitted_ops):
         raise ValueError(
-            f"variant {variant!r} expected wrapping operator {{{admitted_op!r}}}; "
+            f"variant {variant!r} expected wrapping operators {sorted(admitted_ops)!r}; "
             f"got {sorted(expr_ops)!r}"
         )
     if request.get("expression", "").replace(" ", "") != admitted_expr:
@@ -692,8 +849,8 @@ def build_variant_formal_receipt(
         },
         "proof_identity": proof_identity,
         "fragment": {
-            "admitted_operators": sorted({admitted_op, "var"}),
-            "expression_operators": sorted({admitted_op, "var"}),
+            "admitted_operators": sorted(set(admitted_ops) | {"var"}),
+            "expression_operators": sorted(set(admitted_ops) | {"var"}),
             "coverage_row_ids": [coverage_row],
             "coverage_inventory_sha256": coverage_inventory_sha256,
             "unsupported_refused": [f"every expression except {admitted_expr}"],

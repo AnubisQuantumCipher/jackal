@@ -10,7 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "jackal_calc.anb"
-PIN = Path(os.environ.get("ANUBIS_BIN", "/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"))
+PIN = Path(os.environ.get("ANUBIS_BIN",
+                          str(Path.home() / "anubis-lang/vm/pins/anubis-a733565f237d")))
 OUT_ROOT = Path(os.environ.get("JACKAL_TEST_OUT", "/tmp/jackal-calc-test-out"))
 
 CASES = [
@@ -64,7 +65,7 @@ CASES = [
     (["molarity", "0.5", "2"], "0.25 mol/L"),
     (["orbit", "6371000", "398600441800000"], "speed=7909.792402654085 m/s period=5060.837447340496 s"),
     (["projectile", "20", "45", "9.80665"], "range=40.78864851911713 m time=2.8841929963302353 s max-height=10.19716212977928 m"),
-    (["self-test"], "self-test: 83/83 Anubis-native invariants pass"),
+    (["self-test"], "self-test: 104/104 Anubis-native invariants pass"),
     # Exact rational engine (echoes its parsed form, per the transcription-check
     # discipline; status=exact is the machine-readable epistemic class)
     (["rat", "0.1 + 0.2"], "status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004"),

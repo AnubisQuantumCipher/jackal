@@ -199,6 +199,60 @@
       "id": "audit-lock-const-rounded-node-refused",
       "observed": "node-op-outside-release-fragment",
       "ok": true
+    },
+    {
+      "expected": "receipt-assumptions",
+      "id": "ln-rat-wrong-variant-tag",
+      "observed": "receipt-assumptions",
+      "ok": true
+    },
+    {
+      "expected": "receipt-assumptions",
+      "id": "cos-rat-variant-swap-to-sin",
+      "observed": "receipt-assumptions",
+      "ok": true
+    },
+    {
+      "expected": "variant-source-identity",
+      "id": "ln-rat-source-anb-forged-nonnull",
+      "observed": "variant-source-identity",
+      "ok": true
+    },
+    {
+      "expected": "producer-identity",
+      "id": "tanh-rat-producer-identity-forged",
+      "observed": "producer-identity",
+      "ok": true
+    },
+    {
+      "expected": "fragment-admitted",
+      "id": "tanh-rat-admitted-forged",
+      "observed": "fragment-admitted",
+      "ok": true
+    },
+    {
+      "expected": "coverage-row-set",
+      "id": "atan-rat-coverage-row-forged",
+      "observed": "coverage-row-set",
+      "ok": true
+    },
+    {
+      "expected": "receipt-non-claims",
+      "id": "sin-rat-non-claims-forged",
+      "observed": "receipt-non-claims",
+      "ok": true
+    },
+    {
+      "expected": "node-op-outside-release-fragment",
+      "id": "ln-rat-tcb-op-smuggle",
+      "observed": "node-op-outside-release-fragment",
+      "ok": true
+    },
+    {
+      "expected": "release-epoch",
+      "id": "ln-rat-stale-expected-epoch",
+      "observed": "release-epoch",
+      "ok": true
     }
   ],
   "schema": "jackal-receipt-semantic-mutations-v1"

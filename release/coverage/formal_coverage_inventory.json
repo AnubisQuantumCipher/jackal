@@ -2,11 +2,13 @@
   "formal_fragment": [
     "abs",
     "add",
+    "atan",
     "ceil",
     "cos",
     "div",
     "exp",
     "floor",
+    "ln",
     "max",
     "min",
     "mul",
@@ -23,12 +25,10 @@
   "refused_from_formal": [
     "acos",
     "asin",
-    "atan",
     "atan2",
     "cbrt",
     "const",
     "hypot",
-    "ln",
     "log10",
     "log2",
     "mod",
@@ -253,7 +253,8 @@
       "allowed_status": "formal-bounded",
       "canonical_lowering": "simplify_bound",
       "certificate_op": [
-        "sin"
+        "sin",
+        "sinRat"
       ],
       "checker_decode": "CertCodec.parseCert",
       "checker_rule": "CertCheck.checkNode",
@@ -266,7 +267,8 @@
       "plugin_tool": "jackal_range_bound",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [
-        "sin"
+        "sin",
+        "sinRat"
       ],
       "soundness_theorem": "request_bound_certified_release",
       "tests": [
@@ -279,7 +281,8 @@
       "allowed_status": "formal-bounded",
       "canonical_lowering": "simplify_bound",
       "certificate_op": [
-        "cos"
+        "cos",
+        "cosRat"
       ],
       "checker_decode": "CertCodec.parseCert",
       "checker_rule": "CertCheck.checkNode",
@@ -292,7 +295,8 @@
       "plugin_tool": "jackal_range_bound",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [
-        "cos"
+        "cos",
+        "cosRat"
       ],
       "soundness_theorem": "request_bound_certified_release",
       "tests": [
@@ -536,25 +540,56 @@
       "verdict": "FORMAL"
     },
     {
-      "allowed_status": "refused",
+      "allowed_status": "formal-bounded",
       "canonical_lowering": "simplify_bound",
-      "certificate_op": [],
-      "checker_decode": "n/a",
-      "checker_rule": "n/a",
-      "evaluator_path": "range-bound-cert refuses (fail closed)",
+      "certificate_op": [
+        "logRat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
       "kind": "operator",
-      "libm_assumption": "libm<=2ulp (not mechanized)",
-      "notes": "outside the formal fragment; refuses formal status",
+      "libm_assumption": "none",
+      "notes": "",
       "operator": "ln",
       "parser_admission": true,
-      "plugin_tool": "jackal_range_bound",
+      "plugin_tool": "jackal_ln_rat_bound",
       "requested_assurance": "formal-bounded",
-      "runs_constructors": [],
-      "soundness_theorem": "n/a",
-      "tests": [
-        "cert_controls.py::C24-C26"
+      "runs_constructors": [
+        "logRat"
       ],
-      "verdict": "REFUSED"
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "simplify_bound",
+      "certificate_op": [
+        "atanRat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode",
+      "evaluator_path": "range-bound-cert (exact-rational interval)",
+      "kind": "operator",
+      "libm_assumption": "none",
+      "notes": "",
+      "operator": "atan",
+      "parser_admission": true,
+      "plugin_tool": "jackal_atan_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "atanRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "cert_positive_corpus.py",
+        "cert_controls.py"
+      ],
+      "verdict": "FORMAL"
     },
     {
       "allowed_status": "refused",
@@ -588,27 +623,6 @@
       "libm_assumption": "libm<=2ulp (not mechanized)",
       "notes": "outside the formal fragment; refuses formal status",
       "operator": "cbrt",
-      "parser_admission": true,
-      "plugin_tool": "jackal_range_bound",
-      "requested_assurance": "formal-bounded",
-      "runs_constructors": [],
-      "soundness_theorem": "n/a",
-      "tests": [
-        "cert_controls.py::C24-C26"
-      ],
-      "verdict": "REFUSED"
-    },
-    {
-      "allowed_status": "refused",
-      "canonical_lowering": "simplify_bound",
-      "certificate_op": [],
-      "checker_decode": "n/a",
-      "checker_rule": "n/a",
-      "evaluator_path": "range-bound-cert refuses (fail closed)",
-      "kind": "operator",
-      "libm_assumption": "libm<=2ulp (not mechanized)",
-      "notes": "outside the formal fragment; refuses formal status",
-      "operator": "atan",
       "parser_admission": true,
       "plugin_tool": "jackal_range_bound",
       "requested_assurance": "formal-bounded",
@@ -1050,6 +1064,354 @@
       "verdict": "WEAK"
     },
     {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [],
+      "checker_decode": "n/a",
+      "checker_rule": "n/a",
+      "description": "canonical s-expression + SHA-256 of any parsed expression",
+      "evaluator_path": "canon",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "canon",
+      "parser_admission": true,
+      "plugin_tool": "jackal_canon",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "dense Q[x] canonical form (degree <= 64)",
+      "evaluator_path": "poly-canon",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "poly-canon",
+      "parser_admission": true,
+      "plugin_tool": "jackal_poly_canon",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "decidable polynomial identity over Q[x]",
+      "evaluator_path": "poly-eq",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "poly-eq",
+      "parser_admission": true,
+      "plugin_tool": "jackal_poly_eq",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "monic polynomial gcd over Q[x] (Euclid)",
+      "evaluator_path": "poly-gcd",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "poly-gcd",
+      "parser_admission": true,
+      "plugin_tool": "jackal_poly_gcd",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "rational-function canonical form P/Q, gcd-reduced, monic denominator, explicit denominator-nonzero side condition",
+      "evaluator_path": "ratfunc-canon",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "ratfunc-canon",
+      "parser_admission": true,
+      "plugin_tool": "jackal_ratfunc_canon",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "Sturm-sequence isolation of all distinct real roots",
+      "evaluator_path": "roots-isolate",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "roots-isolate",
+      "parser_admission": true,
+      "plugin_tool": "jackal_roots_isolate",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "exact sign of a Q[x] polynomial at a rational point",
+      "evaluator_path": "alg-sign",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "alg-sign",
+      "parser_admission": true,
+      "plugin_tool": "jackal_alg_sign",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "order decision between two isolated real algebraic numbers",
+      "evaluator_path": "alg-cmp",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "alg-cmp",
+      "parser_admission": true,
+      "plugin_tool": "jackal_alg_cmp",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "extended gcd with Bezout certificate",
+      "evaluator_path": "xgcd",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "xgcd",
+      "parser_admission": true,
+      "plugin_tool": "jackal_xgcd",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "modular exponentiation (square-and-multiply)",
+      "evaluator_path": "mod-pow",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "mod-pow",
+      "parser_admission": true,
+      "plugin_tool": "jackal_mod_pow",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "modular inverse with product certificate",
+      "evaluator_path": "mod-inv",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "mod-inv",
+      "parser_admission": true,
+      "plugin_tool": "jackal_mod_inv",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "Chinese remainder reconstruction (pairwise-coprime, up to 16 moduli)",
+      "evaluator_path": "crt",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "crt",
+      "parser_admission": true,
+      "plugin_tool": "jackal_crt",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "exact divisibility decision",
+      "evaluator_path": "divides",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "divides",
+      "parser_admission": true,
+      "plugin_tool": "jackal_divides",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
+      "allowed_status": "exact",
+      "canonical_lowering": "n/a",
+      "certificate_op": [
+        "jackal-exact-cert-v1"
+      ],
+      "checker_decode": "tools/exact_verify.py (independent recompute)",
+      "checker_rule": "exact_verify kind handler",
+      "description": "Pratt primality certificate / composite divisor witness (budgeted, fail-closed)",
+      "evaluator_path": "prime-cert",
+      "kind": "lane",
+      "libm_assumption": "none (exact integer/rational computation)",
+      "notes": "exact lane with independently re-checkable certificate; verification is recomputation by tools/exact_verify.py, NOT a Lean-mechanized claim; formal-* language refused",
+      "operator": "prime-cert",
+      "parser_admission": true,
+      "plugin_tool": "jackal_prime_cert",
+      "requested_assurance": "exact",
+      "runs_constructors": [],
+      "soundness_theorem": "n/a",
+      "tests": [
+        "exact_lane_test.py",
+        "exact_verify_test.py"
+      ],
+      "verdict": "CONDITIONAL"
+    },
+    {
       "allowed_status": "formal-bounded",
       "canonical_lowering": "GaussianCert.parseDecimalCanon",
       "certificate_op": [
@@ -1136,7 +1498,7 @@
       "evaluator_path": "plugin/hermes/server.py -> tools/sqrt_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
       "kind": "plugin-tool",
       "libm_assumption": "none",
-      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sqrt_rat_producer and checker; payload is `variant=sqrt_rat` (NOT a jackal-formal-receipt-v1 envelope yet)",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sqrt_rat_producer and checker; payload carries `variant=sqrt_rat` in a jackal-formal-receipt-v1 envelope when requested",
       "operator": "jackal_sqrt_rat_bound",
       "parser_admission": "sqrt(x) only",
       "plugin_tool": "jackal_sqrt_rat_bound",
@@ -1161,13 +1523,13 @@
       ],
       "checker_decode": "CertCodec.parseCert",
       "checker_rule": "CertCheck.checkNode(exp_rat)",
-      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of exp(x) on [lo, hi] with lo >= 0 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (uses exact rational Taylor + certified remainder).  Admits ONLY the exact form 'exp(x)' on a canonical rational interval.",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of exp(x) on any canonical rational interval (general-sign since v1.5.0 \u00a7490: negative arguments via the exact reciprocal identity) via the standalone Python producer + pinned checker; NO libm on the proof-decision path (uses exact rational Taylor + certified remainder).  Admits ONLY the exact form 'exp(x)'.",
       "evaluator_path": "plugin/hermes/server.py -> tools/exp_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
       "kind": "plugin-tool",
       "libm_assumption": "none",
-      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as exp_rat_producer and checker; positive-argument branch only; payload is `variant=exp_rat` (NOT a jackal-formal-receipt-v1 envelope yet)",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as exp_rat_producer and checker; general-sign domain since v1.5.0; payload carries `variant=exp_rat` in a jackal-formal-receipt-v1 envelope when requested",
       "operator": "jackal_exp_rat_bound",
-      "parser_admission": "exp(x) only, lo >= 0",
+      "parser_admission": "exp(x) only",
       "plugin_tool": "jackal_exp_rat_bound",
       "requested_assurance": "formal-bounded",
       "runs_constructors": [
@@ -1180,6 +1542,146 @@
         "package_smoke.py::exp-rat-release-cli",
         "package_smoke.py::plugin-exp-rat",
         "formal_exp_rat_release_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "ln_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(ln_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of ln(x) on a canonical rational interval with 0 < lo via the standalone Python producer + pinned checker; NO libm on the proof-decision path (inverse exponential bracket, Gaussian.expUBQ/expLBQ).  Admits ONLY the exact form 'ln(x)'.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/ln_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as ln_rat_producer and checker; \u00a7490 v1.5.0 fragment extension",
+      "operator": "jackal_ln_rat_bound",
+      "parser_admission": "ln(x) only, 0 < lo",
+      "plugin_tool": "jackal_ln_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "logRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py",
+        "package_smoke.py",
+        "formal_ln_rat_release_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "sin_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(sin_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of sin(x) on a canonical rational interval with |midpoint| <= 1 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (Mathlib Real.sin_bound midpoint Taylor + Lipschitz-1).  Admits ONLY the exact form 'sin(x)'.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/sin_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sin_rat_producer and checker; \u00a7490 v1.5.0 fragment extension",
+      "operator": "jackal_sin_rat_bound",
+      "parser_admission": "sin(x) only, |midpoint| <= 1",
+      "plugin_tool": "jackal_sin_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "sinRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py",
+        "package_smoke.py",
+        "formal_sin_rat_release_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "cos_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(cos_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of cos(x) on a canonical rational interval with |midpoint| <= 1 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (Mathlib Real.cos_bound midpoint Taylor + Lipschitz-1).  Admits ONLY the exact form 'cos(x)'.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/sin_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sin_rat_producer and checker; \u00a7490 v1.5.0 fragment extension",
+      "operator": "jackal_cos_rat_bound",
+      "parser_admission": "cos(x) only, |midpoint| <= 1",
+      "plugin_tool": "jackal_cos_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "cosRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py",
+        "package_smoke.py",
+        "formal_cos_rat_release_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "atan_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(atan_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of atan(x) on ANY canonical rational interval via the standalone Python producer + pinned checker; NO libm on the proof-decision path (cap / tan-bracket / reciprocal strategies over Mathlib 20-digit rational \u03c0 bounds).  Admits ONLY the exact form 'atan(x)'.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/atan_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as atan_rat_producer and checker; \u00a7490 v1.5.0 fragment extension",
+      "operator": "jackal_atan_rat_bound",
+      "parser_admission": "atan(x) only",
+      "plugin_tool": "jackal_atan_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "atanRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py",
+        "package_smoke.py",
+        "formal_atan_rat_release_test.py"
+      ],
+      "verdict": "FORMAL"
+    },
+    {
+      "allowed_status": "formal-bounded",
+      "canonical_lowering": "n/a (bypasses engine)",
+      "certificate_op": [
+        "tanh_rat"
+      ],
+      "checker_decode": "CertCodec.parseCert",
+      "checker_rule": "CertCheck.checkNode(tanh_rat)",
+      "description": "Hermes plugin tool: emit a pure-\u211a formal-bounded enclosure of the composite 1-2/(exp(2*x)+1) \u2014 mathematically tanh(x) \u2014 on a canonical rational interval with |x| <= 20, as an 8-node zero-libm certificate (num_exact/var/mul/exp_rat/add/div/sub; constant-numerator division keeps the enclosure tight at any width).  The receipt binds the composite expression string; the tanh reading is a documented identity, never a checker claim.",
+      "evaluator_path": "plugin/hermes/server.py -> tools/tanh_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+      "kind": "plugin-tool",
+      "libm_assumption": "none",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as tanh_rat_producer and checker; \u00a7490 v1.5.0 fragment extension",
+      "operator": "jackal_tanh_rat_bound",
+      "parser_admission": "1-2/(exp(2*x)+1) only, |x| <= 20",
+      "plugin_tool": "jackal_tanh_rat_bound",
+      "requested_assurance": "formal-bounded",
+      "runs_constructors": [
+        "expRat"
+      ],
+      "soundness_theorem": "request_bound_certified_release",
+      "tests": [
+        "plugin_smoke.py",
+        "package_smoke.py",
+        "formal_tanh_rat_release_test.py"
       ],
       "verdict": "FORMAL"
     },

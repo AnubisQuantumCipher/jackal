@@ -105,10 +105,10 @@ def _run_target(mode: str, argv: list[str]) -> int:
 
 
 def _emit_variant_receipt(argv: list[str]) -> int:
-    """Emit a canonical jackal-formal-receipt-v1 for a sqrt_rat/exp_rat cert.
+    """Emit a canonical jackal-formal-receipt-v1 for a rational-fragment cert.
 
     Flags (all required):
-      --variant sqrt_rat|exp_rat
+      --variant sqrt_rat|exp_rat|ln_rat|sin_rat|cos_rat|atan_rat|tanh_rat
       --expression <expr>
       --lower <lo>          --upper <hi>
       --cert <cert.txt>     (bytes already accepted by the checker)
@@ -121,7 +121,13 @@ def _emit_variant_receipt(argv: list[str]) -> int:
     import argparse
     import hashlib
     ap = argparse.ArgumentParser(prog="emit-variant-receipt")
-    ap.add_argument("--variant", required=True, choices=("sqrt_rat", "exp_rat"))
+    # Admission mirrors formal_receipt.RATIONAL_VARIANTS (the builder's own
+    # fail-closed lock) instead of a hardcoded pair — audit finding
+    # 2026-08-16: the v1.4.2-era pair silently excluded the five v1.5.0
+    # variants from the packaged receipt path.
+    import formal_receipt as _fr_variants
+    ap.add_argument("--variant", required=True,
+                    choices=tuple(sorted(_fr_variants.RATIONAL_VARIANTS)))
     ap.add_argument("--expression", required=True)
     ap.add_argument("--lower", required=True)
     ap.add_argument("--upper", required=True)

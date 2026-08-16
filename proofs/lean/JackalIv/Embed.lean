@@ -242,29 +242,53 @@ inductive Runs : Expr → ℝ × ℝ → ℝ × ℝ → Prop
       (hlnn : 0 ≤ loQ) (hunn : 0 ≤ hiQ)
       (hlb : ((loQ : ℚ) : ℝ) ^ 2 ≤ l) (hub : u ≤ ((hiQ : ℚ) : ℝ) ^ 2) :
       Runs (.call1 "sqrt" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
-  /-- Pure-ℚ `exp` bound (no libm, no `Approx δlib`).  The checker verifies
-  `0 ≤ argLoQ`, `argHiQ ≥ argLoQ`, `argLoQ ≤ child.out_lo`, `child.out_hi
-  ≤ argHiQ`, degree witness `2 * argHiQ ≤ n+1` (⇔ `argHiQ/(n+1) ≤ 1/2`),
-  and the two rational Taylor inequalities `loQ ≤ expPartialQ argLoQ n`
-  and `expPartialQ argHiQ n + expRemainderQ argHiQ n ≤ hiQ`.  Sound by
-  monotonicity of `Real.exp` on `[0, ∞)` combined with `real_exp_between`
-  (`Gaussian.lean`, existing zero-libm foundation).  §487-fragment
-  extension 2026-08-15 (v1.4.1) — expands the release fragment to the
-  first libm-free transcendental beyond `sqrt`, without touching the
-  `ModelTCB`. -/
-  | expRat {e : Expr} {a b l u : ℝ} {argLoQ argHiQ loQ hiQ : ℚ} {n : Nat}
+  /-- Pure-ℚ `exp` bound (no libm, no `Approx δlib`), GENERAL-SIGN since
+  v1.5.0 (§490).  The constructor carries the two semantic endpoint facts
+  `loQ ≤ exp l` and `exp u ≤ hiQ`; the checker discharges them over ℚ via
+  `Gaussian.expLBQ`/`expUBQ` (Taylor partial + certified remainder, with the
+  reciprocal identity `exp q = 1/exp(−q)` on the negative side) — see
+  `Gaussian.exp_between_general`.  Sound by monotonicity of `Real.exp`.
+  v1.4.1 certificates (nonnegative arguments) remain accepted: their
+  conditions are a special case. -/
+  | expRat {e : Expr} {a b l u : ℝ} {loQ hiQ : ℚ}
       (hr : Runs e (a, b) (l, u))
-      (hnpos : 0 < n)
-      (hargnn : 0 ≤ argLoQ)
-      (hargLo : ((argLoQ : ℚ) : ℝ) ≤ l)
-      (hargHi : u ≤ ((argHiQ : ℚ) : ℝ))
-      (hdeg : ((argHiQ : ℚ) : ℝ) / ((n : ℕ) + 1 : ℝ) ≤ 1 / 2)
-      (hLB : ((loQ : ℚ) : ℝ) ≤
-              JackalIv.Gaussian.expPartial ((argLoQ : ℚ) : ℝ) n)
-      (hUB : JackalIv.Gaussian.expPartial ((argHiQ : ℚ) : ℝ) n +
-              JackalIv.Gaussian.expRemainder ((argHiQ : ℚ) : ℝ) n ≤
-              ((hiQ : ℚ) : ℝ)) :
+      (hlo : ((loQ : ℚ) : ℝ) ≤ Real.exp l)
+      (hhi : Real.exp u ≤ ((hiQ : ℚ) : ℝ)) :
       Runs (.call1 "exp" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
+  /-- Pure-ℚ `ln` bound (no libm TCB), §490 fragment extension v1.5.0.
+  The endpoints are certified through the inverse exponential bracket:
+  `exp loQ ≤ l` and `u ≤ exp hiQ`, both discharged over ℚ by
+  `Gaussian.expUBQ`/`expLBQ`.  Sound by `Real.le_log_iff_exp_le` /
+  `Real.log_le_iff_le_exp` and monotonicity of `Real.log` on `(0, ∞)`. -/
+  | logRat {e : Expr} {a b l u : ℝ} {loQ hiQ : ℚ}
+      (hr : Runs e (a, b) (l, u)) (hguard : 0 < l)
+      (hlo : Real.exp ((loQ : ℚ) : ℝ) ≤ l)
+      (hhi : u ≤ Real.exp ((hiQ : ℚ) : ℝ)) :
+      Runs (.call1 "ln" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
+  /-- Pure-ℚ tight `sin` enclosure (no libm TCB), §490 v1.5.0.  The checker
+  derives the ∀-form from the rational midpoint-Taylor + Lipschitz-1 bound
+  (`Transcend.sin_range`); the constructor carries exactly that fact. -/
+  | sinRat {e : Expr} {a b l u : ℝ} {loQ hiQ : ℚ}
+      (hr : Runs e (a, b) (l, u))
+      (henc : ∀ t : ℝ, l ≤ t → t ≤ u →
+        ((loQ : ℚ) : ℝ) ≤ Real.sin t ∧ Real.sin t ≤ ((hiQ : ℚ) : ℝ)) :
+      Runs (.call1 "sin" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
+  /-- Pure-ℚ tight `cos` enclosure (no libm TCB), §490 v1.5.0
+  (`Transcend.cos_range`). -/
+  | cosRat {e : Expr} {a b l u : ℝ} {loQ hiQ : ℚ}
+      (hr : Runs e (a, b) (l, u))
+      (henc : ∀ t : ℝ, l ≤ t → t ≤ u →
+        ((loQ : ℚ) : ℝ) ≤ Real.cos t ∧ Real.cos t ≤ ((hiQ : ℚ) : ℝ)) :
+      Runs (.call1 "cos" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
+  /-- Pure-ℚ `atan` enclosure (no libm TCB), §490 v1.5.0.  The checker
+  discharges the ∀-form through the four decidable endpoint strategies
+  (cap / tan-bracket / positive-reciprocal / negative-reciprocal) proved in
+  `Transcend.atanLo_sound` / `Transcend.atanHi_sound`. -/
+  | atanRat {e : Expr} {a b l u : ℝ} {loQ hiQ : ℚ}
+      (hr : Runs e (a, b) (l, u))
+      (henc : ∀ t : ℝ, l ≤ t → t ≤ u →
+        ((loQ : ℚ) : ℝ) ≤ Real.arctan t ∧ Real.arctan t ≤ ((hiQ : ℚ) : ℝ)) :
+      Runs (.call1 "atan" e) (a, b) (((loQ : ℚ) : ℝ), ((hiQ : ℚ) : ℝ))
 
 /-! ### The composition theorem -/
 
@@ -425,29 +449,42 @@ theorem runs_sound {e : Expr} {p q : ℝ × ℝ} (hrun : Runs e p q) :
       · have h2 : Real.sqrt (sem e x) ≤ Real.sqrt (((hiQ : ℚ) : ℝ) ^ 2) :=
           Real.sqrt_le_sqrt (le_trans hm.2 hub)
         rwa [Real.sqrt_sq hhiR] at h2
-  | @expRat e a b l u argLoQ argHiQ loQ hiQ n hr hnpos hargnn hargLo hargHi hdeg hLB hUB ih =>
+  | @expRat e a b l u loQ hiQ hr hlo hhi ih =>
     intro hab x hx
     obtain ⟨hd, hm⟩ := ih hab x hx
-    have hargnnR : (0 : ℝ) ≤ ((argLoQ : ℚ) : ℝ) := by exact_mod_cast hargnn
-    have hsem_ge : ((argLoQ : ℚ) : ℝ) ≤ sem e x := le_trans hargLo hm.1
-    have hsem_le : sem e x ≤ ((argHiQ : ℚ) : ℝ) := le_trans hm.2 hargHi
-    have hargHiR : (0 : ℝ) ≤ ((argHiQ : ℚ) : ℝ) := le_trans hargnnR (le_trans hsem_ge hsem_le)
-    have hexp_ge : Real.exp ((argLoQ : ℚ) : ℝ) ≤ Real.exp (sem e x) :=
-      Real.exp_le_exp.mpr hsem_ge
-    have hexp_le : Real.exp (sem e x) ≤ Real.exp ((argHiQ : ℚ) : ℝ) :=
-      Real.exp_le_exp.mpr hsem_le
-    have hpartLo : JackalIv.Gaussian.expPartial ((argLoQ : ℚ) : ℝ) n ≤
-                    Real.exp ((argLoQ : ℚ) : ℝ) :=
-      Real.sum_le_exp_of_nonneg hargnnR n
-    have hpartHi : Real.exp ((argHiQ : ℚ) : ℝ) ≤
-                    JackalIv.Gaussian.expPartial ((argHiQ : ℚ) : ℝ) n +
-                    JackalIv.Gaussian.expRemainder ((argHiQ : ℚ) : ℝ) n :=
-      (JackalIv.Gaussian.real_exp_between ((argHiQ : ℚ) : ℝ) n hargHiR hdeg).2
     refine ⟨⟨hd, by simp [call1Dom]⟩, ?_⟩
     simp only [sem, call1Sem_exp, Set.mem_Icc]
-    refine ⟨?_, ?_⟩
-    · exact le_trans hLB (le_trans hpartLo hexp_ge)
-    · exact le_trans hexp_le (le_trans hpartHi hUB)
+    constructor
+    · exact le_trans hlo (Real.exp_le_exp.mpr hm.1)
+    · exact le_trans (Real.exp_le_exp.mpr hm.2) hhi
+  | @logRat e a b l u loQ hiQ hr hguard hlo hhi ih =>
+    intro hab x hx
+    obtain ⟨hd, hm⟩ := ih hab x hx
+    have hsem_pos : (0 : ℝ) < sem e x := lt_of_lt_of_le hguard hm.1
+    refine ⟨⟨hd, ?_⟩, ?_⟩
+    · simp only [call1Dom_ln]; exact hsem_pos
+    · simp only [sem, call1Sem_ln, Set.mem_Icc]
+      constructor
+      · exact (Real.le_log_iff_exp_le hsem_pos).mpr (le_trans hlo hm.1)
+      · exact (Real.log_le_iff_le_exp hsem_pos).mpr (le_trans hm.2 hhi)
+  | @sinRat e a b l u loQ hiQ hr henc ih =>
+    intro hab x hx
+    obtain ⟨hd, hm⟩ := ih hab x hx
+    refine ⟨⟨hd, by simp [call1Dom]⟩, ?_⟩
+    simp only [sem, call1Sem_sin, Set.mem_Icc]
+    exact henc (sem e x) hm.1 hm.2
+  | @cosRat e a b l u loQ hiQ hr henc ih =>
+    intro hab x hx
+    obtain ⟨hd, hm⟩ := ih hab x hx
+    refine ⟨⟨hd, by simp [call1Dom]⟩, ?_⟩
+    simp only [sem, call1Sem_cos, Set.mem_Icc]
+    exact henc (sem e x) hm.1 hm.2
+  | @atanRat e a b l u loQ hiQ hr henc ih =>
+    intro hab x hx
+    obtain ⟨hd, hm⟩ := ih hab x hx
+    refine ⟨⟨hd, by simp [call1Dom]⟩, ?_⟩
+    simp only [sem, call1Sem_atan, Set.mem_Icc]
+    exact henc (sem e x) hm.1 hm.2
   | exp hr hlo hhi ih =>
     intro hab x hx
     obtain ⟨hd, hm⟩ := ih hab x hx

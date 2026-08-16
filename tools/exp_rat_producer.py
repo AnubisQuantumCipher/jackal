@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.1 exp_rat cert producer.
+"""JACKAL exp_rat cert producer (UNTRUSTED; general-sign since v1.5.0).
 
 The Anubis engine has no exp_rat op — it's a checker-strategy addition
 introduced in v1.4.1 (§487-fragment extension: first libm-free
-transcendental beyond `sqrt`).  This standalone producer emits a canonical
-`jackal-eval-cert v2` for `exp(x)` requests on a rational interval
-`[lo, hi]` (with `lo >= 0`), using exact rational Taylor arithmetic to
-build a certified enclosure.
+transcendental beyond `sqrt`) and generalized to EVERY rational argument in
+v1.5.0 (§490: reciprocal identity `exp q = 1/exp(-q)` on the negative
+side).  This standalone producer emits a canonical `jackal-eval-cert v2`
+for `exp(x)` requests on any rational interval `[lo, hi]`, using exact
+rational Taylor arithmetic to build a certified enclosure.
 
-The Lean-proved `jackal_cert_check` (with the new `expRat` Runs constructor
-and the `exp_rat` checkNode arm) validates the emitted cert — the producer
-is completely untrusted, exactly like every other JACKAL producer.
+The Lean-proved `jackal_cert_check` (`Runs.expRat`, `exp_rat` checkNode
+arm) validates the emitted cert — the producer is completely untrusted,
+exactly like every other JACKAL producer.
 
 The checker verifies, at exact rational precision:
 
-  * `0 <= child.out_lo`                                 (nonneg guard)
   * `child.out_lo <= child.out_hi`                      (interval order)
-  * `2 * child.out_hi <= n + 1`                         (degree witness ⇔ z/(n+1) ≤ 1/2)
-  * `out_lo <= expPartial(child.out_lo, n)`             (lower Taylor bound)
-  * `expPartial(child.out_hi, n) + expRemainder(child.out_hi, n) <= out_hi`
-                                                        (upper Taylor bound)
+  * `expDegOKQ(child.out_lo, n)` and `expDegOKQ(child.out_hi, n)`
+                                                        (degree witnesses `2|q| <= n+1`)
+  * `out_lo <= expLBQ(child.out_lo, n)`                 (lower bound, sign-aware)
+  * `expUBQ(child.out_hi, n) <= out_hi`                 (upper bound, sign-aware)
+
+where expLBQ/expUBQ are the Taylor partial / partial+remainder on the
+nonnegative side and their exact reciprocals on the negative side
+(`Gaussian.expLBQ`/`expUBQ`, theorem `exp_between_general`).
 
 Usage:
     python3 tools/exp_rat_producer.py emit \\
@@ -78,6 +82,27 @@ def exp_remainder(z: Fraction, n: int) -> Fraction:
     return 2 * z_pow_n / math.factorial(n)
 
 
+def exp_deg_ok(q: Fraction, n: int) -> bool:
+    """Mirror of Lean `Gaussian.expDegOKQ`."""
+    return n > 0 and 2 * abs(q) <= n + 1
+
+
+def exp_lbq(q: Fraction, n: int) -> Fraction:
+    """Mirror of Lean `Gaussian.expLBQ` (sign-aware lower endpoint)."""
+    if q >= 0:
+        return exp_partial(q, n)
+    z = -q
+    return 1 / (exp_partial(z, n) + exp_remainder(z, n))
+
+
+def exp_ubq(q: Fraction, n: int) -> Fraction:
+    """Mirror of Lean `Gaussian.expUBQ` (sign-aware upper endpoint)."""
+    if q >= 0:
+        return exp_partial(q, n) + exp_remainder(q, n)
+    z = -q
+    return 1 / exp_partial(z, n)
+
+
 def pick_degree(z_hi: Fraction) -> int:
     """Smallest n with `2*z_hi <= n+1` (i.e., z_hi/(n+1) <= 1/2)."""
     # 2*z_hi <= n+1  =>  n >= 2*z_hi - 1.  Round up.
@@ -113,25 +138,22 @@ def emit_cert(expression: str, lower: str, upper: str, degree: int | None = None
     b = parse_canonical_rat(upper)
     if a > b:
         raise ValueError("upper must be >= lower")
-    if a < 0:
-        raise ValueError("exp_rat requires 0 <= lower (positive-argument branch)")
     if degree is None:
-        n = pick_degree(b)
+        n = pick_degree(max(abs(a), abs(b)))
     else:
         n = int(degree)
         if n < 1:
             raise ValueError("degree must be >= 1")
-    # Degree witness: 2*b <= n+1.
-    if 2 * b > n + 1:
+    # Degree witnesses: 2*|a| <= n+1 and 2*|b| <= n+1.
+    if not (exp_deg_ok(a, n) and exp_deg_ok(b, n)):
         raise ValueError(
-            f"degree {n} too small for upper={b}: 2*upper={2*b} > n+1={n+1}"
+            f"degree {n} too small for [{a}, {b}]: need 2*max|q| <= n+1"
         )
-    # Enclosure endpoints:
-    #   lo := expPartial(a, n)                                (>= 0 by term)
-    #   hi := expPartial(b, n) + expRemainder(b, n)
-    lo = exp_partial(a, n)
-    hi = exp_partial(b, n) + exp_remainder(b, n)
-    if lo < 0 or hi < lo:
+    # Enclosure endpoints (sign-aware, §490):
+    #   lo := expLBQ(a, n)     hi := expUBQ(b, n)
+    lo = exp_lbq(a, n)
+    hi = exp_ubq(b, n)
+    if lo <= 0 or hi < lo:
         raise RuntimeError(f"internal: bad enclosure lo={lo} hi={hi}")
     ev_id = producer_sha256()
     req = request_commitment_b64("range-bound-cert", expression, lower, upper)
@@ -152,6 +174,25 @@ def emit_cert(expression: str, lower: str, upper: str, degree: int | None = None
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
+
+def _merge_value_args(argv: list[str]) -> list[str]:
+    """argparse treats a leading-dash VALUE like `-1/2` as an option token
+    (its negative-number heuristic only covers plain numerics).  Merge
+    `--opt value` into `--opt=value` so canonical rational tokens with any
+    sign parse identically for every caller."""
+    merged: list[str] = []
+    i = 0
+    value_opts = {"--expression", "--lower", "--upper", "--degree", "--op"}
+    while i < len(argv):
+        a = argv[i]
+        if a in value_opts and i + 1 < len(argv):
+            merged.append(f"{a}={argv[i + 1]}")
+            i += 2
+        else:
+            merged.append(a)
+            i += 1
+    return merged
+
 def _cli() -> int:
     ap = argparse.ArgumentParser(description="JACKAL exp_rat cert producer")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -162,7 +203,7 @@ def _cli() -> int:
     emit.add_argument("--degree", type=int, default=None,
                       help="Taylor degree (default: chosen automatically)")
     sub.add_parser("sha256", help="print this producer's SHA-256")
-    ns = ap.parse_args()
+    ns = ap.parse_args(_merge_value_args(sys.argv[1:]))
     if ns.cmd == "emit":
         try:
             cert = emit_cert(ns.expression, ns.lower, ns.upper, degree=ns.degree)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.1 fresh-extraction package smoke test.
+"""JACKAL v1.5.0 fresh-extraction package smoke test.
 
 Copies the built package to a fresh temp directory with NO repository-relative
 fallback and exercises it end to end: valid release bounded; unsupported op,
@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PKG_SRC = ROOT / "release/dist/jackal-v1.4.2-macos-arm64"
+PKG_SRC = ROOT / "release/dist/jackal-v1.5.0-macos-arm64"
 
 
 def sha(p: Path) -> str:
@@ -95,7 +95,7 @@ def main() -> int:
                     "--expected-evaluator", eval_id,
                     "--expected-checker", chk_id,
                     "--expected-source", source_id,
-                    "--expected-release-epoch", "v1.4.2",
+                    "--expected-release-epoch", "v1.5.0",
                     "--expected-command", "range-bound-cert",
                     "--expected-expression", "x^2+1",
                     "--expected-input-lo", "1",
@@ -124,7 +124,7 @@ def main() -> int:
         "--checker", str(pkg / "jackal_gaussian_check"),
         "--expected-evaluator", gaussian_producer_id,
         "--expected-checker", gaussian_checker_id,
-        "--expected-release-epoch", "v1.4.2",
+        "--expected-release-epoch", "v1.5.0",
         "--expected-command", "integrate",
         "--expected-expression", "exp(-10000000000*(x-0.5000123456789)^2)",
         "--expected-input-lo", "0",
@@ -226,13 +226,54 @@ def main() -> int:
     results.append(("exp-rat-release-cli", "formal-bounded",
                      exp_cli.stdout, exp_cli.stderr))
 
-    # Negative-lower must refuse fail-closed on the packaged exp wrapper.
+    # General-sign exp (v1.5.0 §490): a negative lower bound now RELEASES —
+    # the checker validates the exact reciprocal-identity bracket.  The
+    # v1.4.1 refusal expectation is deliberately retired WITH its theorem
+    # extension (exp_between_general); refusal discipline is re-witnessed by
+    # the reversed-limits probe below.
     exp_neg = run([str(pkg / "jackal-exp-rat-release"), "exp(x)", "-1", "1"],
                    cwd=pkg)
-    if exp_neg.returncode == 0:
-        fail(f"packaged exp wrapper accepted negative lower: {exp_neg.stdout}")
-    results.append(("exp-rat-release-cli-refuse-neg", "refused",
+    if exp_neg.returncode != 0 or "status=formal-bounded" not in exp_neg.stdout:
+        fail(f"packaged exp wrapper refused general-sign domain: "
+             f"{exp_neg.stdout}{exp_neg.stderr}")
+    if "360/979" not in exp_neg.stdout:
+        fail(f"packaged exp wrapper negative-lower enclosure drifted: {exp_neg.stdout}")
+    results.append(("exp-rat-release-cli-general-sign", "formal-bounded",
                      exp_neg.stdout, exp_neg.stderr))
+
+    # Reversed limits must refuse fail-closed on the packaged exp wrapper.
+    exp_rev = run([str(pkg / "jackal-exp-rat-release"), "exp(x)", "1", "0"],
+                   cwd=pkg)
+    if exp_rev.returncode == 0:
+        fail(f"packaged exp wrapper accepted reversed limits: {exp_rev.stdout}")
+    results.append(("exp-rat-release-cli-refuse-reversed", "refused",
+                     exp_rev.stdout, exp_rev.stderr))
+
+    # v1.5.0 §490 packaged wrappers MUST work from the package layout —
+    # audit finding 2026-08-16: verbatim repo wrappers refused
+    # manifest-missing inside the package; these cases lock the emitted
+    # package-layout wrappers end to end.
+    for wname, wexpr, wlo, whi in [
+        ("jackal-ln-rat-release", "ln(x)", "2", "3"),
+        ("jackal-sin-rat-release", "sin(x)", "-1/2", "1/2"),
+        ("jackal-cos-rat-release", "cos(x)", "0", "1/2"),
+        ("jackal-atan-rat-release", "atan(x)", "1", "2"),
+        ("jackal-tanh-rat-release", "1-2/(exp(2*x)+1)", "-2", "2"),
+    ]:
+        wcli = run([str(pkg / wname), wexpr, wlo, whi], cwd=pkg)
+        if wcli.returncode != 0 or "status=formal-bounded" not in wcli.stdout:
+            fail(f"packaged {wname} refused: {wcli.stdout}{wcli.stderr}")
+        if "checker.ACCEPT=ACCEPT request-bound" not in wcli.stdout:
+            fail(f"packaged {wname} missing checker attest: {wcli.stdout}")
+        results.append((f"{wname}-cli", "formal-bounded", wcli.stdout, wcli.stderr))
+
+    # Domain refusal through the packaged wrapper (midpoint beyond [-1,1]).
+    sin_dom = run([str(pkg / "jackal-sin-rat-release"), "sin(x)", "3/2", "3/2"],
+                  cwd=pkg)
+    if sin_dom.returncode == 0:
+        fail(f"packaged sin wrapper accepted |midpoint|>1: {sin_dom.stdout}")
+    results.append(("sin-rat-release-cli-domain-refuse", "refused",
+                    sin_dom.stdout, sin_dom.stderr))
 
     # Plugin variants must round-trip through the packaged bundle too — this
     # catches the class of drift where the packaged MANIFEST omits producer
@@ -270,7 +311,7 @@ def main() -> int:
         "--checker", str(pkg / "jackal_cert_check"),
         "--expected-evaluator", sha(pkg / "sqrt_rat_producer.py"),
         "--expected-checker",   chk_id,
-        "--expected-release-epoch", "v1.4.2",
+        "--expected-release-epoch", "v1.5.0",
         "--expected-command",   "range-bound-cert",
         "--expected-expression", "sqrt(x)",
         "--expected-input-lo", "2", "--expected-input-hi", "3",
@@ -297,7 +338,7 @@ def main() -> int:
         "--checker", str(pkg / "jackal_cert_check"),
         "--expected-evaluator", sha(pkg / "exp_rat_producer.py"),
         "--expected-checker",   chk_id,
-        "--expected-release-epoch", "v1.4.2",
+        "--expected-release-epoch", "v1.5.0",
         "--expected-command",   "range-bound-cert",
         "--expected-expression", "exp(x)",
         "--expected-input-lo", "0", "--expected-input-hi", "1",
@@ -312,6 +353,49 @@ def main() -> int:
              f"{exp_verify.stdout}{exp_verify.stderr}")
     results.append(("exp-rat-receipt-round-trip", "verified",
                      exp_verify.stdout, exp_verify.stderr))
+
+    # v1.5.0 §490 packaged receipt round-trips — audit finding 2026-08-16:
+    # the packaged emit-variant-receipt path admitted only sqrt_rat/exp_rat,
+    # so §490 wrappers printed formal-bounded but could not emit receipts
+    # from the package.  One emit + independent reverify per new variant.
+    for wname, wprod, wvariant, wexpr, wlo, whi in [
+        ("jackal-ln-rat-release", "ln_rat_producer.py", "ln_rat",
+         "ln(x)", "2", "3"),
+        ("jackal-sin-rat-release", "sin_rat_producer.py", "sin_rat",
+         "sin(x)", "-1/2", "1/2"),
+        ("jackal-cos-rat-release", "sin_rat_producer.py", "cos_rat",
+         "cos(x)", "0", "1/2"),
+        ("jackal-atan-rat-release", "atan_rat_producer.py", "atan_rat",
+         "atan(x)", "1", "2"),
+        ("jackal-tanh-rat-release", "tanh_rat_producer.py", "tanh_rat",
+         "1-2/(exp(2*x)+1)", "-2", "2"),
+    ]:
+        v_rcpt = pkg / f"{wvariant}-receipt.json"
+        v_emit = run([str(pkg / wname), wexpr, wlo, whi, str(v_rcpt)], cwd=pkg)
+        if v_emit.returncode != 0 or not v_rcpt.exists():
+            fail(f"packaged {wvariant} receipt emit failed: "
+                 f"{v_emit.stdout}{v_emit.stderr}")
+        v_verify = run([
+            str(pkg / "jackal-receipt-verify"),
+            "--receipt", str(v_rcpt),
+            "--checker", str(pkg / "jackal_cert_check"),
+            "--expected-evaluator", sha(pkg / wprod),
+            "--expected-checker",   chk_id,
+            "--expected-release-epoch", "v1.5.0",
+            "--expected-command",   "range-bound-cert",
+            f"--expected-expression={wexpr}",
+            f"--expected-input-lo={wlo}", f"--expected-input-hi={whi}",
+            "--proof-identity", str(pkg / "range_proof_identity.json"),
+            "--expected-proof-identity-file", range_proof_file_id,
+            "--expected-proof-identity-digest", range_proof_digest,
+            "--expected-inventory", sha(pkg / "formal_coverage_inventory.json"),
+            "--inventory", str(pkg / "formal_coverage_inventory.json"),
+        ])
+        if v_verify.returncode != 0 or "verified" not in v_verify.stdout:
+            fail(f"packaged {wvariant} receipt reverify failed: "
+                 f"{v_verify.stdout}{v_verify.stderr}")
+        results.append((f"{wvariant}-receipt-round-trip", "verified",
+                         v_verify.stdout, v_verify.stderr))
 
     shutil.rmtree(tmp, ignore_errors=True)
     for name, verdict, _, _ in results:

@@ -1,0 +1,507 @@
+{
+  "checker": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
+  "engine": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+  "release_epoch": "v1.5.0",
+  "rows": [
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(0,0)",
+      "observed": "g=0 u=1 v=0",
+      "ok": true
+    },
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(0,5)",
+      "observed": "g=5 u=0 v=1",
+      "ok": true
+    },
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(-5,0)",
+      "observed": "g=5 u=-1 v=0",
+      "ok": true
+    },
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(240,-46)",
+      "observed": "g=2 u=-9 v=-47",
+      "ok": true
+    },
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(-240,-46)",
+      "observed": "g=2 u=9 v=-47",
+      "ok": true
+    },
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(1,-1)",
+      "observed": "g=1 u=0 v=-1",
+      "ok": true
+    },
+    {
+      "expect": "bezout+gcd+verify",
+      "id": "xgcd(10000000,-1000000)",
+      "observed": "g=1 u=-478260869565217391304347826086956521739130434782608695652173913043478260869565217391304347826086958 v=-4782608695652173913043478260869565217391304347826086956521739130434782608695652173913043478260869569",
+      "ok": true
+    },
+    {
+      "expect": "normalized claim a=7 + verify",
+      "id": "xgcd-lenient-token(007)",
+      "observed": "{\"claim\": {\"a\": \"7\", \"b\": \"3\", \"g\": \"1\"}, \"kind\": \"xgcd\", \"schema\": \"jackal-exact-cert-v1\", \"witness\": {\"u\": \"1\", \"v\": \"",
+      "ok": true
+    },
+    {
+      "expect": "normalized claim a=0 + verify",
+      "id": "xgcd-lenient-token(-0)",
+      "observed": "{\"claim\": {\"a\": \"0\", \"b\": \"3\", \"g\": \"3\"}, \"kind\": \"xgcd\", \"schema\": \"jackal-exact-cert-v1\", \"witness\": {\"u\": \"0\", \"v\": \"",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "xgcd-malformed(+5)",
+      "observed": "rc=101 \nthread '<unnamed>' panicked at src/main.rs:1090:52:\nANUBIS_PANIC: b",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "xgcd-malformed(abc)",
+      "observed": "rc=101 \nthread '<unnamed>' panicked at src/main.rs:1090:52:\nANUBIS_PANIC: b",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "xgcd-malformed(5.0)",
+      "observed": "rc=101 \nthread '<unnamed>' panicked at src/main.rs:1090:52:\nANUBIS_PANIC: b",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "xgcd-malformed(0x7)",
+      "observed": "rc=101 \nthread '<unnamed>' panicked at src/main.rs:1090:52:\nANUBIS_PANIC: b",
+      "ok": true
+    },
+    {
+      "expect": "r=1",
+      "id": "mod-pow(0,0,7)",
+      "observed": "r=1",
+      "ok": true
+    },
+    {
+      "expect": "r=1",
+      "id": "mod-pow(2,0,7)",
+      "observed": "r=1",
+      "ok": true
+    },
+    {
+      "expect": "r=1",
+      "id": "mod-pow(5,117,19)",
+      "observed": "r=1",
+      "ok": true
+    },
+    {
+      "expect": "r=860384932",
+      "id": "mod-pow(2,10000,998244353)",
+      "observed": "r=860384932",
+      "ok": true
+    },
+    {
+      "expect": "r=2",
+      "id": "mod-pow(-3,5,7)",
+      "observed": "r=2",
+      "ok": true
+    },
+    {
+      "expect": "r=0",
+      "id": "mod-pow-m1",
+      "observed": "status=exact r=0\nexact-cert={\"claim\":{\"base\":\"5\",\"exp\":\"3\",\"mod\":\"1\",\"r\":\"0\"},\"k",
+      "ok": true
+    },
+    {
+      "expect": "a*inv%m==1",
+      "id": "mod-inv(17,3120)",
+      "observed": "inv=2753",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "mod-inv-refuse(6,9)",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "mod-inv-refuse(5,1)",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "mod-inv-refuse(5,0)",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "mod-inv-refuse(0,7)",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "congruences",
+      "id": "crt-3mod",
+      "observed": "x=23 M=105",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "crt-noncoprime-refuse",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "prime+independent-pratt",
+      "id": "pratt(1000003)",
+      "observed": "status=exact verdict=prime n=1000003 method=pratt\nexact-cert",
+      "ok": true
+    },
+    {
+      "expect": "prime+independent-pratt",
+      "id": "pratt(2)",
+      "observed": "status=exact verdict=prime n=2 method=pratt\nexact-cert={\"cla",
+      "ok": true
+    },
+    {
+      "expect": "prime+independent-pratt",
+      "id": "pratt(3)",
+      "observed": "status=exact verdict=prime n=3 method=pratt\nexact-cert={\"cla",
+      "ok": true
+    },
+    {
+      "expect": "prime+independent-pratt",
+      "id": "pratt(1000000000000000009)",
+      "observed": "status=exact verdict=prime n=1000000000000000009 method=prat",
+      "ok": true
+    },
+    {
+      "expect": "divisor",
+      "id": "composite(561)",
+      "observed": "d=3",
+      "ok": true
+    },
+    {
+      "expect": "divisor",
+      "id": "composite(1105)",
+      "observed": "d=5",
+      "ok": true
+    },
+    {
+      "expect": "divisor",
+      "id": "composite(41041)",
+      "observed": "d=7",
+      "ok": true
+    },
+    {
+      "expect": "divisor",
+      "id": "composite(4)",
+      "observed": "d=2",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "prime-cert-0-refuse",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "prime-cert-1-refuse",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "same coeffs",
+      "id": "poly-idempotent",
+      "observed": "['-2', '-1', '2', '1']",
+      "ok": true
+    },
+    {
+      "expect": "[-2,-1,2,1]",
+      "id": "poly-oracle",
+      "observed": "['-2', '-1', '2', '1']",
+      "ok": true
+    },
+    {
+      "expect": "degree \"-1\" coeffs [\"0\"]",
+      "id": "poly-zero",
+      "observed": "{\"coeffs\": [\"0\"], \"degree\": \"-1\", \"expr\": \"x-x\"}",
+      "ok": true
+    },
+    {
+      "expect": "equal",
+      "id": "poly-decimal-exact",
+      "observed": "{\"equal\": true, \"lhs\": \"0.5*x+0.1+0.2\", \"rhs\": \"x/2+3/10\"}",
+      "ok": true
+    },
+    {
+      "expect": "accept deg 64",
+      "id": "poly-deg-64",
+      "observed": "status=exact degree=64 coeffs=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,",
+      "ok": true
+    },
+    {
+      "expect": "poly-budget",
+      "id": "poly-deg-65-refuse",
+      "observed": "\nthread '<unnamed>' panicked at src/main.rs:1090:52:\nANUBIS_PANIC: p",
+      "ok": true
+    },
+    {
+      "expect": "poly-budget",
+      "id": "poly-deg-expand-refuse",
+      "observed": "\nthread '<unnamed>' panicked at src/main.rs:1090:52:\nANUBIS_PANIC: p",
+      "ok": true
+    },
+    {
+      "expect": "1/1 + side condition",
+      "id": "ratfunc-x-over-x",
+      "observed": "{\"den_coeffs\": [\"1\"], \"expr\": \"x/x\", \"num_coeffs\": [\"1\"], \"side_condition\": \"denominator-nonzero\"}",
+      "ok": true
+    },
+    {
+      "expect": "0/1",
+      "id": "ratfunc-zero-num",
+      "observed": "{\"den_coeffs\": [\"1\"], \"expr\": \"0/x\", \"num_coeffs\": [\"0\"], \"side_condition\": \"denominator-nonzero\"}",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "ratfunc-zero-den-refuse",
+      "observed": "rc=101 \nthread '<unnamed>' panicked at src/main.rs:1090",
+      "ok": true
+    },
+    {
+      "expect": "2 distinct",
+      "id": "sturm-multiplicity",
+      "observed": "{\"distinct_real_roots\": \"2\", \"expr\": \"(x-1)^4*(x+2)\", \"intervals\": [[\"-3\", \"-3/2\"], [\"0\", \"3/2\"]]}",
+      "ok": true
+    },
+    {
+      "expect": "separated 1 vs 1.000001",
+      "id": "sturm-close-roots",
+      "observed": "[[\"41943013981/41943040000\", \"4194304398101/4194304000000\"], [\"2097153699051/2097152000000\", \"4194310398103/4194304000000\"]]",
+      "ok": true
+    },
+    {
+      "expect": "0 roots",
+      "id": "sturm-constant",
+      "observed": "status=exact distinct-real-roots=0 intervals=\nexact-cert={\"c",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "sturm-zero-poly-refuse",
+      "observed": "rc=101",
+      "ok": true
+    },
+    {
+      "expect": "0 roots",
+      "id": "sturm-no-real-roots",
+      "observed": "{\"distinct_real_roots\": \"0\", \"expr\": \"x^2+1\", \"intervals\": []}",
+      "ok": true
+    },
+    {
+      "expect": "equal",
+      "id": "alg-cmp-equal-cross-poly",
+      "observed": "status=exact order=equal\n",
+      "ok": true
+    },
+    {
+      "expect": "less",
+      "id": "alg-cmp-sqrt2-lt-sqrt3",
+      "observed": "status=exact order=less\n",
+      "ok": true
+    },
+    {
+      "expect": "refuse",
+      "id": "alg-cmp-not-isolating-refuse",
+      "observed": "rc=101 \nthread '<unnamed>' panicked at src/main.rs:1090",
+      "ok": true
+    },
+    {
+      "expect": "byte-identical",
+      "id": "canon-deterministic",
+      "observed": "status=exact canonical=(add (num 2) (mul (num 3) (pow (call sin (div (const pi) ",
+      "ok": true
+    },
+    {
+      "expect": "same hash",
+      "id": "canon-whitespace-stable",
+      "observed": "ws-insensitive",
+      "ok": true
+    },
+    {
+      "expect": "different hash",
+      "id": "canon-distinct('1+2'vs'2+1')",
+      "observed": "b'992d9e35'.. vs b'1d500929'..",
+      "ok": true
+    },
+    {
+      "expect": "different hash",
+      "id": "canon-distinct('ln(x*x)'vs'ln(x)+ln(x)')",
+      "observed": "b'c7fb72bb'.. vs b'bd1b28f8'..",
+      "ok": true
+    },
+    {
+      "expect": "different hash",
+      "id": "canon-distinct('x-1'vs'0-(1-x)')",
+      "observed": "b'c82e6266'.. vs b'57bb2bbc'..",
+      "ok": true
+    },
+    {
+      "expect": "different hash",
+      "id": "canon-distinct('2'vs'2.0')",
+      "observed": "b'e7c38dd3'.. vs b'a524ef7c'..",
+      "ok": true
+    },
+    {
+      "expect": "different hash",
+      "id": "canon-distinct('min(x,2)'vs'min(2,x)')",
+      "observed": "b'8dedc7bc'.. vs b'512697c8'..",
+      "ok": true
+    },
+    {
+      "expect": "exact=0",
+      "id": "negzero-rat",
+      "observed": "status=exact parsed=0-0 exact=0 approx=0\n",
+      "ok": true
+    },
+    {
+      "expect": "[\"0\"]",
+      "id": "negzero-poly",
+      "observed": "{\"coeffs\": [\"0\"], \"degree\": \"-1\", \"expr\": \"0*x-0\"}",
+      "ok": true
+    },
+    {
+      "expect": "checker ACCEPT + reference containment",
+      "id": "formal-ln(x)[1/1000000,1000000]",
+      "observed": "[-13.8155106,13.8155106]",
+      "ok": true
+    },
+    {
+      "expect": "checker ACCEPT + reference containment",
+      "id": "formal-exp(x)[-10,10]",
+      "observed": "[4.53873202e-05,22032.5852]",
+      "ok": true
+    },
+    {
+      "expect": "checker ACCEPT + reference containment",
+      "id": "formal-sin(x)[-1,1]",
+      "observed": "[-1,1]",
+      "ok": true
+    },
+    {
+      "expect": "checker ACCEPT + reference containment",
+      "id": "formal-cos(x)[-1/2,1]",
+      "observed": "[0.218546549,1.71895345]",
+      "ok": true
+    },
+    {
+      "expect": "checker ACCEPT + reference containment",
+      "id": "formal-atan(x)[-1000000,1000000]",
+      "observed": "[-1.58079533,1.58079533]",
+      "ok": true
+    },
+    {
+      "expect": "contains \u00b1tanh(20), envelope within pads",
+      "id": "formal-tanh[-20,20]",
+      "observed": "[-1,1]",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "checker-reversed-input-refuse",
+      "observed": "REJECT checkCert rejected the certificate",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "checker-tcb-op-refuse",
+      "observed": "REJECT bad f field",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "checker-unknown-op-refuse",
+      "observed": "REJECT unexpected extra tokens on node line",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "checker-unknown-field-refuse",
+      "observed": "REJECT expected n field",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "checker-noncanonical-rat-refuse",
+      "observed": "REJECT bad rat pair for header key 'input'",
+      "ok": true
+    },
+    {
+      "expect": "ACCEPT",
+      "id": "sin-midpoint-1-accept",
+      "observed": "midpoint=1",
+      "ok": true
+    },
+    {
+      "expect": "producer refuse",
+      "id": "sin-midpoint-beyond-refuse",
+      "observed": "midpoint>1",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "sin-forged-beyond-domain-refuse",
+      "observed": "REJECT checkCert rejected the certificate",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "verify-minus-zero",
+      "observed": "exact-verify=REJECT reason=int-malformed",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "verify-plus-token",
+      "observed": "exact-verify=REJECT reason=int-malformed",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "verify-leading-zero",
+      "observed": "exact-verify=REJECT reason=int-malformed",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "verify-unknown-kind",
+      "observed": "exact-verify=REJECT reason=cert-schema",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "verify-extra-toplevel",
+      "observed": "exact-verify=REJECT reason=cert-schema",
+      "ok": true
+    },
+    {
+      "expect": "REJECT",
+      "id": "verify-duplicate-key",
+      "observed": "exact-verify=REJECT reason=cert-json\n",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-seal-audit-v1",
+  "verdict": "PASS"
+}

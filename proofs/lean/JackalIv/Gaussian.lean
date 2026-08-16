@@ -94,4 +94,80 @@ theorem expNegQ_encloses (z : ℚ) (n : Nat)
     simp only [Rat.cast_div, Rat.cast_one, cast_expPartial]
     simpa [one_div] using one_div_le_one_div_of_le hs hlo
 
+/-! ### General-sign rational exp bounds (§490 fragment extension v1.5.0)
+
+`expLBQ`/`expUBQ` extend the pure-rational exponential bracket from the
+nonnegative half-line to ALL rational arguments, via the reciprocal
+identity `exp q = 1 / exp (-q)` already proved sound by `expNegQ_encloses`.
+`expDegOKQ` is the shared decidable degree witness (`0 < n` and
+`2·|q| ≤ n + 1`, i.e. `|q| / (n+1) ≤ 1/2`).  No platform transcendental
+appears in either endpoint. -/
+
+/-- Decidable degree witness for the Taylor remainder at argument `q`. -/
+def expDegOKQ (q : ℚ) (n : Nat) : Bool :=
+  decide (0 < n) && decide (2 * |q| ≤ (n : ℚ) + 1)
+
+/-- Exact-rational LOWER endpoint for `exp q`, any rational `q`. -/
+def expLBQ (q : ℚ) (n : Nat) : ℚ :=
+  if 0 ≤ q then expPartial q n else expNegLoQ (-q) n
+
+/-- Exact-rational UPPER endpoint for `exp q`, any rational `q`. -/
+def expUBQ (q : ℚ) (n : Nat) : ℚ :=
+  if 0 ≤ q then expPartial q n + expRemainder q n else expNegHiQ (-q) n
+
+lemma expDegOKQ_n_pos {q : ℚ} {n : Nat} (h : expDegOKQ q n = true) : 0 < n := by
+  unfold expDegOKQ at h
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  exact h.1
+
+lemma expDegOKQ_deg {q : ℚ} {n : Nat} (h : expDegOKQ q n = true) :
+    2 * |q| ≤ (n : ℚ) + 1 := by
+  unfold expDegOKQ at h
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  exact h.2
+
+/-- Real form of the degree witness at `|q|`. -/
+lemma expDegOKQ_degR {q : ℚ} {n : Nat} (h : expDegOKQ q n = true) :
+    ((|q| : ℚ) : ℝ) / ((n : ℝ) + 1) ≤ 1 / 2 := by
+  have hq := expDegOKQ_deg h
+  have hnp : (0 : ℝ) < (n : ℝ) + 1 := by positivity
+  rw [div_le_iff₀ hnp]
+  have h2 : ((2 * |q| : ℚ) : ℝ) ≤ (((n : ℚ) + 1 : ℚ) : ℝ) := by exact_mod_cast hq
+  push_cast at h2 ⊢
+  linarith
+
+/-- THE general-sign bracket: for any rational `q` with the degree witness,
+the exact-rational endpoints `expLBQ`/`expUBQ` enclose `Real.exp q`.
+No libm result appears anywhere in the computation. -/
+theorem exp_between_general (q : ℚ) (n : Nat) (h : expDegOKQ q n = true) :
+    ((expLBQ q n : ℚ) : ℝ) ≤ Real.exp ((q : ℚ) : ℝ) ∧
+      Real.exp ((q : ℚ) : ℝ) ≤ ((expUBQ q n : ℚ) : ℝ) := by
+  have hnpos := expDegOKQ_n_pos h
+  by_cases hq : (0 : ℚ) ≤ q
+  · -- Nonnegative branch: the original `real_exp_between` machinery.
+    have hqR : (0 : ℝ) ≤ ((q : ℚ) : ℝ) := by exact_mod_cast hq
+    have hdegR : ((q : ℚ) : ℝ) / ((n : ℝ) + 1) ≤ 1 / 2 := by
+      have h3 := expDegOKQ_degR h
+      rwa [abs_of_nonneg hq] at h3
+    have hb := real_exp_between ((q : ℚ) : ℝ) n hqR hdegR
+    unfold expLBQ expUBQ
+    rw [if_pos hq, if_pos hq]
+    constructor
+    · simpa [cast_expPartial] using hb.1
+    · have := hb.2
+      simpa [Rat.cast_add, cast_expPartial, cast_expRemainder] using this
+  · -- Negative branch: reciprocal reduction through `expNegQ_encloses`.
+    rw [not_le] at hq
+    have hz : (0 : ℚ) ≤ -q := by linarith
+    have hdegR : ((-q : ℚ) : ℝ) / ((n : ℝ) + 1) ≤ 1 / 2 := by
+      have h3 := expDegOKQ_degR h
+      rwa [abs_of_neg hq] at h3
+    have hb := expNegQ_encloses (-q) n hz hnpos hdegR
+    have hqcast : Real.exp ((q : ℚ) : ℝ) = Real.exp (-((-q : ℚ) : ℝ)) := by
+      norm_num
+    unfold expLBQ expUBQ
+    rw [if_neg (not_le.mpr hq), if_neg (not_le.mpr hq)]
+    rw [hqcast]
+    exact hb
+
 end JackalIv.Gaussian

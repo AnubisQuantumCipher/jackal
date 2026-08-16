@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
-"""JACKAL Hermes plugin — proof-carrying range and Gaussian tool server.
+"""JACKAL Hermes plugin — proof-carrying mathematical evidence tool server.
 
-Exposes twelve tools (see `tools.json`):
+Exposes thirty-three tools (see `tools.json`):
 
   Formal (proof-carrying, checker-attested):
     * `jackal_range_bound`        emit a `jackal-formal-receipt-v1` receipt
     * `jackal_gaussian_integral`  emit a zero-libm Gaussian formal receipt
-    * `jackal_sqrt_rat_bound`     pure-Q sqrt(x) enclosure via Lean-proved checker
-    * `jackal_exp_rat_bound`      pure-Q exp(x) enclosure via Lean-proved checker
+    * `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
+      `jackal_sin_rat_bound`, `jackal_cos_rat_bound`, `jackal_atan_rat_bound`,
+      `jackal_tanh_rat_bound`    pure-Q enclosures via Lean-proved checkers
     * `jackal_verify_receipt`     re-run the pinned Lean-proved checker
 
   Weaker-lane adapters (status passthrough, never inflated):
     * `jackal_exact`, `jackal_evaluate`, `jackal_diff`,
       `jackal_integrate`, `jackal_integrate_adaptive`,
       `jackal_integrate_bound`, `jackal_solve`
+    * the fourteen exact-CAS lanes `jackal_canon` … `jackal_prime_cert`
+
+  Claim-kernel front doors (v1.6.0, additive):
+    * `jackal_claim`          compile a typed claim request into a
+      content-addressed `jackal-claim-bundle-v1` evidence graph
+    * `jackal_verify_bundle`  independent caller-pinned bundle replay
 
 The plugin does NOT ship a new checker or a new evaluator.  It is a
 narrow, fail-closed adapter that binds every call through the SAME
@@ -142,6 +149,46 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "tools/exp_rat_producer.py",
             ROOT / "exp_rat_producer.py",
         ]),
+        ("ln_rat_producer", [
+            ROOT / "tools/ln_rat_producer.py",
+            ROOT / "ln_rat_producer.py",
+        ]),
+        ("sin_rat_producer", [
+            ROOT / "tools/sin_rat_producer.py",
+            ROOT / "sin_rat_producer.py",
+        ]),
+        ("atan_rat_producer", [
+            ROOT / "tools/atan_rat_producer.py",
+            ROOT / "atan_rat_producer.py",
+        ]),
+        ("tanh_rat_producer", [
+            ROOT / "tools/tanh_rat_producer.py",
+            ROOT / "tanh_rat_producer.py",
+        ]),
+        ("exact_verifier", [
+            ROOT / "tools/exact_verify.py",
+            ROOT / "exact_verify.py",
+        ]),
+        ("claim_kernel", [
+            ROOT / "tools/claim_kernel.py",
+            ROOT / "claim_kernel.py",
+        ]),
+        ("claim_router", [
+            ROOT / "tools/claim_router.py",
+            ROOT / "claim_router.py",
+        ]),
+        ("claim_verifier", [
+            ROOT / "tools/claim_bundle_verify.py",
+            ROOT / "claim_bundle_verify.py",
+        ]),
+        ("claim_inference_registry", [
+            ROOT / "release/claim/inference_registry_v1.json",
+            ROOT / "inference_registry_v1.json",
+        ]),
+        ("claim_unit_registry", [
+            ROOT / "release/claim/unit_registry_v1.json",
+            ROOT / "unit_registry_v1.json",
+        ]),
     ):
         for c in cands:
             if c.exists():
@@ -182,6 +229,12 @@ from formal_receipt import (  # noqa: E402
     build_variant_formal_receipt,
     SQRT_RAT_VARIANT,
     EXP_RAT_VARIANT,
+    LN_RAT_VARIANT,
+    SIN_RAT_VARIANT,
+    COS_RAT_VARIANT,
+    ATAN_RAT_VARIANT,
+    TANH_RAT_VARIANT,
+    TANH_COMPOSITE_EXPRESSION,
     RATIONAL_VARIANTS,
     canonical_rat as _canonical_rat,
     request_commitment_b64 as _request_commitment_b64,
@@ -388,7 +441,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_checker=ck_expected,
                 formal_receipt_path=formal_path,
                 plugin_sha256=PLUGIN_HASH,
-                release_epoch="v1.4.2",
+                release_epoch="v1.5.0",
             )
             receipt = _strict_json_loads(Path(formal_path).read_bytes())
             rerun = vr.verify_receipt(
@@ -403,7 +456,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
                 expected_source=_load_pinned_source_id(),
-                expected_release_epoch="v1.4.2",
+                expected_release_epoch="v1.5.0",
                 expected_request={
                     "command": "range-bound-cert",
                     "expression": expr,
@@ -462,7 +515,7 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
             expected_checker=checker_expected,
             receipt=str(receipt_path),
             plugin_sha256=PLUGIN_HASH,
-            release_epoch="v1.4.2",
+            release_epoch="v1.5.0",
             timeout=60,
         )
         try:
@@ -479,7 +532,7 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_file=proof_file_expected,
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
-                expected_release_epoch="v1.4.2",
+                expected_release_epoch="v1.5.0",
                 expected_request={
                     "command": "integrate",
                     "expression": args["expression"],
@@ -498,6 +551,20 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
     if rerun.get("verdict") != "ACCEPT":
         return _refuse("plugin-checker-rerun", str(rerun.get("verdict")))
     return {"status": "formal-bounded", "checker_rerun": "ACCEPT", "receipt": receipt}
+
+
+# variant -> MANIFEST producer label: the identity bound as `evaluator` in a
+# rational-fragment receipt.  sin_rat and cos_rat share one producer file, so
+# both dispatch to the `sin_rat_producer` pin.
+_VARIANT_PRODUCER_LABELS = {
+    SQRT_RAT_VARIANT: "sqrt_rat_producer",
+    EXP_RAT_VARIANT: "exp_rat_producer",
+    LN_RAT_VARIANT: "ln_rat_producer",
+    SIN_RAT_VARIANT: "sin_rat_producer",
+    COS_RAT_VARIANT: "sin_rat_producer",
+    ATAN_RAT_VARIANT: "atan_rat_producer",
+    TANH_RAT_VARIANT: "tanh_rat_producer",
+}
 
 
 def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
@@ -553,12 +620,9 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
             "input_lo": args["expected_input_lo"],
             "input_hi": args["expected_input_hi"],
         }
-        if variant == "sqrt_rat":
-            ev_expected = _manifest_alias({"sqrt_rat_producer"}, "sqrt_rat_producer")
-            _, ck_expected = _load_pinned_ids()
-            expected_source_val = None
-        elif variant == "exp_rat":
-            ev_expected = _manifest_alias({"exp_rat_producer"}, "exp_rat_producer")
+        if variant in _VARIANT_PRODUCER_LABELS:
+            label = _VARIANT_PRODUCER_LABELS[variant]
+            ev_expected = _manifest_alias({label}, label)
             _, ck_expected = _load_pinned_ids()
             expected_source_val = None
         else:
@@ -589,29 +653,28 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
         return _refuse(r.cls, r.detail)
     return {"status": "verified", **result}
 
-# -- pure-Q fragment adapters: sqrt_rat + exp_rat (v1.4.x fragment extensions) --
+# -- pure-Q fragment adapters: sqrt/exp/ln/sin/cos/atan/tanh (v1.4.0–v1.5.0) --
 #
-# These tools route around `jackal-native` entirely: they invoke the
-# pinned standalone Python producer (`tools/sqrt_rat_producer.py` /
-# `tools/exp_rat_producer.py`) with identity hashed pre/post, feed its
-# canonical certificate bytes to the SAME pinned `jackal_cert_check`
-# every other formal lane uses (also identity hashed pre/post), and only
-# return a `status=formal-bounded` payload when the checker prints ACCEPT.
-# Producer identity is pinned in `MANIFEST.sha256` under
-# `sqrt_rat_producer` / `exp_rat_producer`; the checker identity is the
-# same pin every other range lane uses.  Both tools admit only the exact
-# single-variable form (`sqrt(x)` / `exp(x)`); every other expression
-# refuses `producer-refused` without downgrade.  Payload includes the
-# base64 cert bytes and its SHA-256 so a downstream consumer can save
-# and independently re-check.  These are NOT yet round-trippable through
-# `jackal_verify_receipt` (they carry a `variant` marker, not the
-# canonical `jackal-formal-receipt-v1` envelope) — receipt-integration
-# is a documented follow-up (see NON-CLAIMS in the release wrapper).
+# These tools route around `jackal-native` entirely: they invoke the pinned
+# standalone Python producer for their variant (`tools/<variant>_producer.py`;
+# sin_rat and cos_rat share `tools/sin_rat_producer.py` via `--op sin|cos`)
+# with identity hashed pre/post, feed its canonical certificate bytes to the
+# SAME pinned `jackal_cert_check` every other formal lane uses (also identity
+# hashed pre/post), and only return a `status=formal-bounded` payload when
+# the checker prints ACCEPT.  Producer identities are pinned in
+# `MANIFEST.sha256` under `<variant>_producer` labels (`sin_rat_producer`
+# covers both sin_rat and cos_rat).  Each tool admits only the exact
+# expression form frozen in `formal_receipt` for its variant; every other
+# expression refuses `plugin-fragment` / `producer-refused` without
+# downgrade.  The payload embeds a full `jackal-formal-receipt-v1` envelope
+# (variant marker set) with the base64 cert bytes and their SHA-256, so a
+# downstream consumer can save, independently re-check, and round-trip the
+# receipt through `jackal_verify_receipt`.
 
 
 def _run_rational_producer(
     producer_path: Path, expected_producer_sha: str,
-    expr: str, lo: str, hi: str,
+    expr: str, lo: str, hi: str, extra_args: list[str] | None = None,
 ) -> bytes:
     """Invoke a pure-Q producer with TOCTOU-stable identity + fail-closed refusal."""
     pre = hashlib.sha256(producer_path.read_bytes()).hexdigest()
@@ -621,6 +684,7 @@ def _run_rational_producer(
         )
     proc = subprocess.run(
         [sys.executable, "-I", "-S", "-B", str(producer_path), "emit",
+         *(extra_args or []),
          "--expression", expr, "--lower", lo, "--upper", hi],
         capture_output=True, timeout=60,
     )
@@ -682,11 +746,13 @@ def _parse_cert_enclosure(cert_bytes: bytes) -> tuple[str, str]:
 def _rational_bound_result(
     *, variant: str, admitted_expr: str, producer_key: str,
     producer_manifest_label: str, expr: str, lo: str, hi: str,
+    extra_producer_args: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Common body for jackal_sqrt_rat_bound / jackal_exp_rat_bound.
+    """Common body for the pure-ℚ rational-fragment bound tools.
 
-    Emits a full `jackal-formal-receipt-v1` envelope with `variant` set to
-    `sqrt_rat` / `exp_rat`, so downstream can round-trip through
+    Emits a full `jackal-formal-receipt-v1` envelope with `variant` set
+    (`sqrt_rat` / `exp_rat` / `ln_rat` / `sin_rat` / `cos_rat` / `atan_rat`
+    / `tanh_rat`), so downstream can round-trip through
     `jackal_verify_receipt` (v1.4.2+).
     """
     if variant not in RATIONAL_VARIANTS:
@@ -699,7 +765,8 @@ def _rational_bound_result(
     expected_producer = _manifest_alias({producer_manifest_label}, producer_manifest_label)
     _, expected_checker = _load_pinned_ids()
     producer_path = LAYOUT[producer_key]
-    cert_bytes = _run_rational_producer(producer_path, expected_producer, expr, lo, hi)
+    cert_bytes = _run_rational_producer(producer_path, expected_producer,
+                                        expr, lo, hi, extra_producer_args)
     encl_lo, encl_hi = _parse_cert_enclosure(cert_bytes)
     checker_out, checker_sha = _run_checker_on_cert_bytes(
         cert_bytes, "range-bound-cert", expr, lo, hi, expected_checker,
@@ -713,7 +780,7 @@ def _rational_bound_result(
     inv_sha = hashlib.sha256(inv_bytes).hexdigest()
     receipt = build_variant_formal_receipt(
         variant=variant,
-        release_epoch="v1.4.2",
+        release_epoch="v1.5.0",
         request={"command": "range-bound-cert", "expression": expr,
                  "input_lo": lo, "input_hi": hi},
         enclosure=(encl_lo, encl_hi),
@@ -756,6 +823,75 @@ def tool_exp_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
         admitted_expr="exp(x)",
         producer_key="exp_rat_producer",
         producer_manifest_label="exp_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+    )
+
+
+def tool_ln_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q ln(x) enclosure or refuse (v1.5.0 fragment extension)."""
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant=LN_RAT_VARIANT,
+        admitted_expr="ln(x)",
+        producer_key="ln_rat_producer",
+        producer_manifest_label="ln_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+    )
+
+
+def tool_sin_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q sin(x) enclosure or refuse (v1.5.0 fragment extension)."""
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant=SIN_RAT_VARIANT,
+        admitted_expr="sin(x)",
+        producer_key="sin_rat_producer",
+        producer_manifest_label="sin_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+        extra_producer_args=["--op", "sin"],
+    )
+
+
+def tool_cos_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q cos(x) enclosure or refuse (v1.5.0 fragment extension)."""
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant=COS_RAT_VARIANT,
+        admitted_expr="cos(x)",
+        producer_key="sin_rat_producer",
+        producer_manifest_label="sin_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+        extra_producer_args=["--op", "cos"],
+    )
+
+
+def tool_atan_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q atan(x) enclosure or refuse (v1.5.0 fragment extension)."""
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant=ATAN_RAT_VARIANT,
+        admitted_expr="atan(x)",
+        producer_key="atan_rat_producer",
+        producer_manifest_label="atan_rat_producer",
+        expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
+    )
+
+
+def tool_tanh_rat_bound(args: dict[str, Any]) -> dict[str, Any]:
+    """Emit a pure-Q tanh enclosure via its composite defining expression, or
+    refuse (v1.5.0 fragment extension).
+
+    `tanh` is not an engine grammar token: the receipt binds the literal
+    composite expression frozen in `formal_receipt.TANH_COMPOSITE_EXPRESSION`
+    and the tanh reading is a documented mathematical identity.  Producer
+    budget: |x| <= 20.
+    """
+    _validate_args(args, ["expression", "input_lo", "input_hi"])
+    return _rational_bound_result(
+        variant=TANH_RAT_VARIANT,
+        admitted_expr=TANH_COMPOSITE_EXPRESSION,
+        producer_key="tanh_rat_producer",
+        producer_manifest_label="tanh_rat_producer",
         expr=args["expression"], lo=args["input_lo"], hi=args["input_hi"],
     )
 
@@ -811,6 +947,84 @@ _WEAK_LANE_TOOLS: dict[str, dict[str, Any]] = {
         "args": ["expression", "input_lo", "input_hi"],
         "argv": lambda a: ["solve", a["expression"], a["input_lo"], a["input_hi"]],
     },
+    # -- exact CAS / number-theory lanes (§490 v1.5.0) ------------------------
+    # Engine-computed `status=exact` lanes.  Where the engine emits one, the
+    # final stdout line carries a `jackal-exact-cert-v1` certificate
+    # (`exact-cert={...}`) that `tools/exact_verify.py` re-checks by full
+    # independent recomputation (canon/alg-sign/alg-cmp/divides carry no or a
+    # partial certificate).  NOT formal: no Lean checker involvement; the
+    # inventory row class is `exact` and passthrough never inflates it.
+    "jackal_canon": {
+        "lane": "canon",
+        "args": ["expression"],
+        "argv": lambda a: ["canon", a["expression"]],
+    },
+    "jackal_poly_canon": {
+        "lane": "poly-canon",
+        "args": ["expression"],
+        "argv": lambda a: ["poly-canon", a["expression"]],
+    },
+    "jackal_poly_eq": {
+        "lane": "poly-eq",
+        "args": ["lhs", "rhs"],
+        "argv": lambda a: ["poly-eq", a["lhs"], a["rhs"]],
+    },
+    "jackal_poly_gcd": {
+        "lane": "poly-gcd",
+        "args": ["lhs", "rhs"],
+        "argv": lambda a: ["poly-gcd", a["lhs"], a["rhs"]],
+    },
+    "jackal_ratfunc_canon": {
+        "lane": "ratfunc-canon",
+        "args": ["expression"],
+        "argv": lambda a: ["ratfunc-canon", a["expression"]],
+    },
+    "jackal_roots_isolate": {
+        "lane": "roots-isolate",
+        "args": ["expression"],
+        "argv": lambda a: ["roots-isolate", a["expression"]],
+    },
+    "jackal_alg_sign": {
+        "lane": "alg-sign",
+        "args": ["expression", "point"],
+        "argv": lambda a: ["alg-sign", a["expression"], a["point"]],
+    },
+    "jackal_alg_cmp": {
+        "lane": "alg-cmp",
+        "args": ["p", "a1", "b1", "q", "a2", "b2"],
+        "argv": lambda a: ["alg-cmp", a["p"], a["a1"], a["b1"],
+                            a["q"], a["a2"], a["b2"]],
+    },
+    "jackal_xgcd": {
+        "lane": "xgcd",
+        "args": ["a", "b"],
+        "argv": lambda a: ["xgcd", a["a"], a["b"]],
+    },
+    "jackal_mod_pow": {
+        "lane": "mod-pow",
+        "args": ["base", "exp", "mod"],
+        "argv": lambda a: ["mod-pow", a["base"], a["exp"], a["mod"]],
+    },
+    "jackal_mod_inv": {
+        "lane": "mod-inv",
+        "args": ["a", "m"],
+        "argv": lambda a: ["mod-inv", a["a"], a["m"]],
+    },
+    "jackal_crt": {
+        "lane": "crt",
+        "args": ["args"],
+        "argv": lambda a: ["crt", *a["args"].split()],
+    },
+    "jackal_divides": {
+        "lane": "divides",
+        "args": ["a", "b"],
+        "argv": lambda a: ["divides", a["a"], a["b"]],
+    },
+    "jackal_prime_cert": {
+        "lane": "prime-cert",
+        "args": ["n"],
+        "argv": lambda a: ["prime-cert", a["n"]],
+    },
 }
 
 # Epistemic classes a weaker lane may legitimately print.  `formal-*` is
@@ -832,6 +1046,12 @@ def _parse_engine_fields(stdout_text: str) -> dict[str, str]:
     """Collect `key=value` tokens from the engine's metadata lines."""
     fields: dict[str, str] = {}
     for line in stdout_text.splitlines():
+        if line.startswith("exact-cert="):
+            # The exact-lane certificate is one raw JSON object whose string
+            # fields may contain spaces or `=`; carry the whole line verbatim
+            # so downstream can hand it to `tools/exact_verify.py` unchanged.
+            fields.setdefault("exact_cert", line[len("exact-cert="):])
+            continue
         for token in line.split():
             if "=" in token:
                 key, _, value = token.partition("=")
@@ -905,12 +1125,202 @@ def _make_weak_tool(tool_name: str, spec: dict[str, Any]):
     return tool
 
 
+# -- claim-bundle evidence kernel (v1.6.0, additive) ---------------------------
+
+def _claim_component(label: str) -> tuple[Path, str]:
+    """Resolve a claim-kernel component and its manifest pin (fail closed)."""
+    path = LAYOUT[label]
+    pin = _MANIFEST_ROWS.get(label)
+    if not pin:
+        raise PluginRefusal("plugin-identity",
+                            f"manifest row {label!r} missing")
+    live = hashlib.sha256(path.read_bytes()).hexdigest()
+    if live != pin:
+        raise PluginRefusal("plugin-identity",
+                            f"{label} bytes do not match the manifest pin")
+    return path, pin
+
+
+def _claim_toctou(label: str, path: Path, pin: str) -> None:
+    if hashlib.sha256(path.read_bytes()).hexdigest() != pin:
+        raise PluginRefusal("plugin-identity", f"{label} changed mid-call")
+
+
+def tool_jackal_claim(args: dict[str, Any]) -> dict[str, Any]:
+    """Compile a structured claim request into a jackal-claim-bundle-v1
+    through the deterministic policy router, or refuse.
+
+    On success, returns:
+        {"status": "ok", "root": ..., "bundle_digest_sha256": ...,
+         "rendering": {...}, "route_trace": [...], "bundle": {...}}
+    """
+    _validate_args(args, [], object_keys=["request"])
+    router_path, router_pin = _claim_component("claim_router")
+    kernel_path, kernel_pin = _claim_component("claim_kernel")
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-claim-") as td:
+        req_path = os.path.join(td, "request.json")
+        bundle_path = os.path.join(td, "bundle.json")
+        with open(req_path, "w", encoding="utf-8") as handle:
+            json.dump(args["request"], handle, sort_keys=True)
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-I", "-S", "-B", str(router_path),
+                 "claim", "--request", req_path,
+                 "--emit-bundle", bundle_path],
+                capture_output=True, text=True, timeout=900)
+        except subprocess.TimeoutExpired:
+            return _refuse("plugin-subprocess", "claim router timeout")
+        _claim_toctou("claim_router", router_path, router_pin)
+        _claim_toctou("claim_kernel", kernel_path, kernel_pin)
+        stdout = proc.stdout or ""
+        if proc.returncode != 0:
+            reason, detail = "plugin-claim-refused", stdout.strip()[:300]
+            for line in stdout.splitlines():
+                if line.startswith("status=refused"):
+                    parts = line.split("reason=", 1)
+                    if len(parts) == 2:
+                        reason = parts[1].split()[0]
+                    if 'detail="' in line:
+                        detail = line.split('detail="', 1)[1].rstrip('"')
+                    break
+            return _refuse(reason, detail)
+        try:
+            bundle = _strict_json_loads(
+                Path(bundle_path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            return _refuse("plugin-claim-bundle", str(exc)[:200])
+    fields: dict[str, str] = {}
+    trace: list[Any] = []
+    for line in stdout.splitlines():
+        if line.startswith("route_trace="):
+            trace = json.loads(line[len("route_trace="):])
+        elif "=" in line and not line.startswith("bundle="):
+            key, _, value = line.partition("=")
+            fields[key] = value
+    return {
+        "status": "ok",
+        "root": fields.get("root", bundle.get("root", "")),
+        "bundle_digest_sha256": bundle.get("bundle_digest_sha256", ""),
+        "rendering": bundle.get("rendering"),
+        "route_trace": trace,
+        "bundle": bundle,
+    }
+
+
+def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
+    """Independently replay a claim bundle against caller-pinned
+    expectations through the standalone dependency-free verifier.
+
+    Returns {"status": "verified"|"refused"|"indeterminate", ...} — never
+    a bare badge; the full axis/rendering report rides in "report".
+    """
+    allowed = {"bundle", "expected_release_epoch",
+               "expected_policy_sha256", "expected_root_proposition",
+               "verification_time_unix", "expected_nonce"}
+    required = allowed - {"expected_nonce"}
+    if not isinstance(args, dict):
+        raise PluginRefusal("plugin-args-schema",
+                            "arguments must be an object")
+    if not required <= set(args) or not set(args) <= allowed:
+        raise PluginRefusal(
+            "plugin-args-schema",
+            f"missing/extra fields: {sorted(set(args) ^ required)}")
+    if not isinstance(args["bundle"], dict):
+        raise PluginRefusal("plugin-args-schema", "bundle must be an object")
+    if not isinstance(args["expected_root_proposition"], dict):
+        raise PluginRefusal("plugin-args-schema",
+                            "expected_root_proposition must be an object")
+    for key in ("expected_release_epoch", "expected_policy_sha256",
+                "verification_time_unix"):
+        if not isinstance(args[key], str) or not args[key]:
+            raise PluginRefusal("plugin-args-schema",
+                                f"missing/invalid field: {key!r}")
+    verifier_path, verifier_pin = _claim_component("claim_verifier")
+    inf_path, inf_pin = _claim_component("claim_inference_registry")
+    unit_path, unit_pin = _claim_component("claim_unit_registry")
+    ev_expected, ck_expected = _load_pinned_ids()
+    proof_file_expected, proof_digest_expected = \
+        _load_pinned_proof_ids("range")
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-claim-") as td:
+        bundle_path = os.path.join(td, "bundle.json")
+        prop_path = os.path.join(td, "root_prop.json")
+        with open(bundle_path, "w", encoding="utf-8") as handle:
+            json.dump(args["bundle"], handle, indent=1, sort_keys=True)
+        with open(prop_path, "w", encoding="utf-8") as handle:
+            json.dump(args["expected_root_proposition"], handle,
+                      sort_keys=True)
+        argv = [sys.executable, "-I", "-S", "-B", str(verifier_path),
+                "--bundle", bundle_path,
+                "--expected-release-epoch", args["expected_release_epoch"],
+                "--expected-policy-sha256", args["expected_policy_sha256"],
+                "--expected-root-proposition", prop_path,
+                "--expected-inference-registry", str(inf_path),
+                "--expected-inference-registry-sha256", inf_pin,
+                "--expected-unit-registry", str(unit_path),
+                "--expected-unit-registry-sha256", unit_pin,
+                "--expected-environment-epoch", ev_expected,
+                "--verification-time-unix", args["verification_time_unix"],
+                "--receipt-verifier", str(LAYOUT["verifier"]),
+                "--exact-verifier", str(LAYOUT["exact_verifier"]),
+                "--checker", str(LAYOUT["checker"]),
+                "--expected-checker", ck_expected,
+                "--expected-evaluator", ev_expected,
+                "--inventory", str(LAYOUT["inventory"]),
+                "--expected-inventory",
+                _load_pinned_inventory_id(),
+                "--proof-identity", str(LAYOUT["range_proof_identity"]),
+                "--expected-proof-identity-file", proof_file_expected,
+                "--expected-proof-identity-digest", proof_digest_expected]
+        if "expected_nonce" in args:
+            if not isinstance(args["expected_nonce"], str):
+                raise PluginRefusal("plugin-args-schema",
+                                    "expected_nonce must be a string")
+            argv += ["--expected-nonce", args["expected_nonce"]]
+        for label in ("sqrt_rat_producer", "exp_rat_producer",
+                      "ln_rat_producer", "sin_rat_producer",
+                      "atan_rat_producer", "tanh_rat_producer"):
+            pin = _MANIFEST_ROWS.get(label)
+            if pin:
+                argv += ["--trusted-producer", pin]
+        try:
+            proc = subprocess.run(argv, capture_output=True, text=True,
+                                  timeout=3600)
+        except subprocess.TimeoutExpired:
+            return _refuse("plugin-subprocess", "claim verifier timeout")
+        _claim_toctou("claim_verifier", verifier_path, verifier_pin)
+    stdout = proc.stdout or ""
+    verdict, reason, detail = "", "", ""
+    for line in stdout.splitlines():
+        if line.startswith("claim-verify="):
+            verdict = line.split("=", 2)[1].split()[0]
+            if "reason=" in line:
+                reason = line.split("reason=", 1)[1].split()[0]
+            if 'detail="' in line:
+                detail = line.split('detail="', 1)[1].rstrip('"')
+            break
+    if verdict == "verified":
+        return {"status": "verified", "verdict": "verified",
+                "report": stdout.splitlines()}
+    if verdict == "indeterminate":
+        return {"status": "indeterminate", "reason": reason,
+                "detail": detail, "report": stdout.splitlines()}
+    return {"status": "refused", "reason": reason or "claim-verify-failed",
+            "detail": detail, "report": stdout.splitlines()}
+
+
 TOOLS = {
     "jackal_range_bound":       tool_range_bound,
     "jackal_gaussian_integral": tool_gaussian_integral,
     "jackal_sqrt_rat_bound":    tool_sqrt_rat_bound,
     "jackal_exp_rat_bound":     tool_exp_rat_bound,
+    "jackal_ln_rat_bound":      tool_ln_rat_bound,
+    "jackal_sin_rat_bound":     tool_sin_rat_bound,
+    "jackal_cos_rat_bound":     tool_cos_rat_bound,
+    "jackal_atan_rat_bound":    tool_atan_rat_bound,
+    "jackal_tanh_rat_bound":    tool_tanh_rat_bound,
     "jackal_verify_receipt":    tool_verify_receipt,
+    "jackal_claim":             tool_jackal_claim,
+    "jackal_verify_bundle":     tool_jackal_verify_bundle,
 }
 for _tool_name, _spec in _WEAK_LANE_TOOLS.items():
     TOOLS[_tool_name] = _make_weak_tool(_tool_name, _spec)

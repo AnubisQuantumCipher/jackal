@@ -70,6 +70,8 @@ fn usage() uses(io.print) {
     print("exact-rat:  rat \"0.1 + 0.2\"   (exact rational arithmetic)");
     print("worksheet:  worksheet \"a = 5; b = a^2; a+b\"   (variables persist across ;)");
     print("exact-int:  big-add big-mul big-pow big-fact big-ncr   (arbitrary precision)");
+    print("exact-cert: xgcd mod-pow mod-inv crt divides prime-cert   (CERTIFIED EXACT ALGEBRA: number theory; final line = jackal-exact-cert-v1 JSON)");
+    print("exact-cas:  canon poly-canon poly-eq poly-gcd ratfunc-canon roots-isolate alg-sign alg-cmp   (CERTIFIED EXACT ALGEBRA: Q[x], Sturm isolation)");
     print("science+:   ph dilute relativity decibel-power blackbody");
     print("science:    add sub mul div pow sqrt cbrt sin cos tan sin-deg hypot ln log10 exp");
     print("math:       quadratic lerp percent-error ncr gcd lcm fact prime");
@@ -3066,6 +3068,1297 @@ fn bound_step(f, f1, f2, f3, f4, taylor_degree, a_edge, b_edge, span, tol, depth
     return BoundResult { lo: summed.lo, hi: summed.hi, nodes: second.nodes, taylored: first.taylored + second.taylored, ranged: first.ranged + second.ranged };
 }
 
+// ---------------------------------------------------------------------------
+// JACKAL CERTIFIED EXACT ALGEBRA — signed big integers, modular arithmetic,
+// dense Q[x] polynomials, rational functions, Sturm root isolation, and Pratt
+// primality certificates. Every command in this section prints its human
+// lines and then, as the FINAL stdout line, a jackal-exact-cert-v1 JSON
+// certificate (sorted keys, compact separators, no floats: all numbers are
+// decimal strings, rationals "p/q" gcd-reduced with den>0 and "3" not "3/1").
+// The certificates are verified INDEPENDENTLY by tools/exact_verify.py, which
+// recomputes everything and trusts nothing the engine says. Refusals are
+// named panics (int-budget, poly-fragment, poly-budget, ratfunc-zero-den,
+// prime-cert-budget, roots-budget, crt-not-coprime, mod-inv-not-coprime,
+// alg-cmp-not-isolating, alg-cmp-budget) — never a downgraded claim.
+// ---------------------------------------------------------------------------
+
+// Signed integers ride the existing Rational struct with den == [1], reusing
+// the bigint magnitude kernel (big_add/big_sub/big_mul/big_divmod/big_gcd).
+// int_make skips the rat_make gcd pass (den is 1, nothing to reduce).
+fn int_make(neg, mag) {
+    if big_is_zero(mag) { return Rational { neg: false, num: [0], den: [1] }; }
+    return Rational { neg: neg, num: mag, den: [1] };
+}
+
+fn int_from_text(text) {
+    if len(text) == 0 { panic("exact-int: empty integer input; fail closed"); }
+    let neg = false;
+    let start = 0;
+    if char_at(text, 0) == "-" { neg = true; start = 1; }
+    let digits = "";
+    let i = start;
+    while i < len(text) { digits = digits + char_at(text, i); i = i + 1; }
+    if len(digits) == 0 { panic("exact-int: sign without digits; fail closed"); }
+    if len(digits) > 4096 { panic("exact-int: input exceeds 4096 decimal digits; fail closed (int-budget)"); }
+    return int_make(neg, big_from_text(digits));
+}
+
+fn int_to_text(a) { return rat_to_text(a); }
+
+fn int_add(a, b) {
+    let a_neg = a.neg;
+    let b_neg = b.neg;
+    if a_neg == b_neg { return int_make(a_neg, big_add(a.num, b.num)); }
+    let comparison = big_cmp(a.num, b.num);
+    if comparison == 0 { return int_make(false, [0]); }
+    if comparison > 0 { return int_make(a_neg, big_sub(a.num, b.num)); }
+    return int_make(b_neg, big_sub(b.num, a.num));
+}
+
+fn int_sub(a, b) { return int_add(a, rat_neg(b)); }
+
+fn int_mul(a, b) {
+    if big_is_zero(a.num) || big_is_zero(b.num) { return int_make(false, [0]); }
+    let a_neg = a.neg;
+    let b_neg = b.neg;
+    return int_make(a_neg != b_neg, big_mul(a.num, b.num));
+}
+
+fn int_cmp(a, b) {
+    let a_neg = a.neg;
+    let b_neg = b.neg;
+    if a_neg != b_neg {
+        if a_neg { return -1; }
+        return 1;
+    }
+    let c = big_cmp(a.num, b.num);
+    if a_neg { return -c; }
+    return c;
+}
+
+struct IntDivmod {
+    q: Rational,
+    r: Rational,
+}
+
+// EUCLIDEAN division: a = q*b + r with 0 <= r < |b|. For b > 0 this matches
+// Python's % semantics exactly, which is what tools/exact_verify.py uses.
+fn int_divmod(a, b) {
+    if big_is_zero(b.num) { panic("exact division by zero; fail closed"); }
+    let dm = big_divmod(a.num, b.num);
+    let qm = dm.quotient;
+    let rm = dm.remainder;
+    let a_neg = a.neg;
+    let b_neg = b.neg;
+    if !a_neg {
+        return IntDivmod { q: int_make(b_neg, qm), r: int_make(false, rm) };
+    }
+    if big_is_zero(rm) {
+        return IntDivmod { q: int_make(!b_neg, qm), r: int_make(false, [0]) };
+    }
+    return IntDivmod { q: int_make(!b_neg, big_add(qm, [1])), r: int_make(false, big_sub(b.num, rm)) };
+}
+
+fn int_mod(a, b) { return int_divmod(a, b).r; }
+
+struct Xgcd {
+    g: Rational,
+    u: Rational,
+    v: Rational,
+}
+
+// Extended Euclid on signed integers: u*a + v*b == g, g >= 0, g | a, g | b,
+// and g == 0 only when a == b == 0. Euclidean remainders keep every
+// intermediate remainder nonnegative and strictly decreasing.
+fn int_xgcd(a, b) {
+    let old_r = a;
+    let cur_r = b;
+    let old_u = rat_one();
+    let cur_u = rat_zero();
+    let old_v = rat_zero();
+    let cur_v = rat_one();
+    while !big_is_zero(cur_r.num) {
+        let dm = int_divmod(old_r, cur_r);
+        let q = dm.q;
+        let next_r = dm.r;
+        let next_u = int_sub(old_u, int_mul(q, cur_u));
+        let next_v = int_sub(old_v, int_mul(q, cur_v));
+        old_r = cur_r;
+        cur_r = next_r;
+        old_u = cur_u;
+        cur_u = next_u;
+        old_v = cur_v;
+        cur_v = next_v;
+    }
+    if old_r.neg {
+        return Xgcd { g: rat_neg(old_r), u: rat_neg(old_u), v: rat_neg(old_v) };
+    }
+    return Xgcd { g: old_r, u: old_u, v: old_v };
+}
+
+fn big_from_small(v) {
+    if v < 0 { panic("internal error: big_from_small on a negative value; fail closed"); }
+    let limbs = [];
+    let x = v;
+    while x > 0 {
+        push(limbs, x % 1000000000);
+        x = x / 1000000000;
+    }
+    if len(limbs) == 0 { push(limbs, 0); }
+    return limbs;
+}
+
+// Exact i64 view of a big magnitude, or -1 when it does not comfortably fit.
+fn big_to_i64_or_neg(a) {
+    if len(a) == 1 { return a[0]; }
+    if len(a) == 2 { return a[1] * 1000000000 + a[0]; }
+    return -1;
+}
+
+fn big_mod(a, m) { return big_divmod(a, m).remainder; }
+
+fn big_diff(a, b) {
+    if big_cmp(a, b) >= 0 { return big_sub(a, b); }
+    return big_sub(b, a);
+}
+
+// Square-and-multiply, reducing after every multiplication.
+fn big_modpow(base, exponent, modulus) {
+    if big_cmp(modulus, [1]) == 0 { return [0]; }
+    let result = [1];
+    let b = big_mod(base, modulus);
+    let e = exponent;
+    while !big_is_zero(e) {
+        if !big_is_even(e) { result = big_mod(big_mul(result, b), modulus); }
+        b = big_mod(big_mul(b, b), modulus);
+        e = big_half(e);
+    }
+    return result;
+}
+
+fn int_modpow(base, exponent, modulus) {
+    if exponent.neg { panic("mod-pow: exponent must be nonnegative; fail closed"); }
+    if modulus.neg || big_is_zero(modulus.num) { panic("mod-pow: modulus must be >= 1; fail closed"); }
+    let b0 = int_mod(base, modulus);
+    return int_make(false, big_modpow(b0.num, exponent.num, modulus.num));
+}
+
+fn int_modinv(a, modulus) {
+    if modulus.neg || big_cmp(modulus.num, [2]) < 0 { panic("mod-inv: modulus must be >= 2; fail closed"); }
+    let x = int_xgcd(a, modulus);
+    let g = x.g;
+    if g.neg || big_cmp(g.num, [1]) != 0 {
+        panic("mod-inv: gcd(a, m) != 1, no inverse exists; fail closed (mod-inv-not-coprime)");
+    }
+    return int_mod(x.u, modulus);
+}
+
+struct CrtResult {
+    x: Rational,
+    modulus: Rational,
+}
+
+// Incremental Chinese remainder reconstruction over pairwise-coprime moduli.
+fn crt_combine(rs, ms) {
+    let n = len(ms);
+    if n < 2 || n > 16 { panic("crt requires between 2 and 16 residue/modulus pairs; fail closed (int-budget)"); }
+    let i = 0;
+    while i < n {
+        let m = ms[i];
+        if m.neg || big_cmp(m.num, [2]) < 0 { panic("crt: each modulus must be >= 2; fail closed"); }
+        let j = i + 1;
+        while j < n {
+            let mj = ms[j];
+            if big_cmp(big_gcd(m.num, mj.num), [1]) != 0 {
+                panic("crt: moduli are not pairwise coprime; fail closed (crt-not-coprime)");
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    let x = int_mod(rs[0], ms[0]);
+    let acc = ms[0];
+    i = 1;
+    while i < n {
+        let mi = ms[i];
+        let diff = int_sub(rs[i], x);
+        let inv = int_modinv(acc, mi);
+        let t = int_mod(int_mul(diff, inv), mi);
+        x = int_add(x, int_mul(acc, t));
+        acc = int_mul(acc, mi);
+        i = i + 1;
+    }
+    return CrtResult { x: x, modulus: acc };
+}
+
+// --- jackal-exact-cert-v1 JSON assembly -------------------------------------
+// Keys are emitted in sorted order by hand; payload strings are restricted to
+// a charset that needs no JSON escaping, enforced by cert_safe_expr below.
+
+fn jstr(s) { return "\"" + s + "\""; }
+fn jkv(key, value_json) { return "\"" + key + "\":" + value_json; }
+
+fn cert_envelope(kind, claim_json, witness_json) {
+    return "exact-cert={\"claim\":" + claim_json + ",\"kind\":\"" + kind + "\",\"schema\":\"jackal-exact-cert-v1\",\"witness\":" + witness_json + "}";
+}
+
+// Refuse any expression byte outside the safe charset before echoing it into
+// a JSON string (no escaping machinery exists on purpose). TAB is refused
+// even though the grammar tolerates it: a raw 0x09 inside a JSON string is
+// invalid JSON. Uppercase X is refused: the frozen grammar has only 'x'.
+fn cert_safe_expr(text) {
+    let safe = "0123456789.eE x+-*/^()";
+    let i = 0;
+    while i < len(text) {
+        if !char_in(safe, char_at(text, i)) {
+            panic("exact-cert: expression contains a character outside the safe charset; fail closed (cert-charset)");
+        }
+        i = i + 1;
+    }
+    return text;
+}
+
+// Signed rational CLI literal: [-]digits, [-]digits/digits, or [-]decimal.
+fn rat_from_frac_text(text) {
+    if len(text) == 0 { panic("exact-alg: empty rational input; fail closed"); }
+    let neg = false;
+    let start = 0;
+    if char_at(text, 0) == "-" { neg = true; start = 1; }
+    let body = "";
+    let i = start;
+    while i < len(text) { body = body + char_at(text, i); i = i + 1; }
+    if len(body) == 0 { panic("exact-alg: sign without digits; fail closed"); }
+    if len(body) > 4096 { panic("exact-alg: rational input exceeds 4096 decimal digits; fail closed (int-budget)"); }
+    let slash = -1;
+    i = 0;
+    while i < len(body) {
+        if char_at(body, i) == "/" {
+            if slash >= 0 { panic("exact-alg: malformed rational (multiple '/'); fail closed"); }
+            slash = i;
+        }
+        i = i + 1;
+    }
+    let value = rat_zero();
+    if slash < 0 {
+        let dots = 0;
+        i = 0;
+        while i < len(body) {
+            let ch = char_at(body, i);
+            if ch == "." { dots = dots + 1; } else if !is_digit_char(ch) {
+                panic("exact-alg: malformed rational literal; fail closed");
+            }
+            i = i + 1;
+        }
+        if dots > 1 || char_at(body, 0) == "." || char_at(body, len(body) - 1) == "." {
+            panic("exact-alg: malformed rational literal; fail closed");
+        }
+        value = rat_from_num_text(body);
+    } else {
+        let numer = "";
+        let denom = "";
+        i = 0;
+        while i < slash { numer = numer + char_at(body, i); i = i + 1; }
+        i = slash + 1;
+        while i < len(body) { denom = denom + char_at(body, i); i = i + 1; }
+        if len(numer) == 0 || len(denom) == 0 { panic("exact-alg: malformed rational; fail closed"); }
+        value = rat_make(false, big_from_text(numer), big_from_text(denom));
+    }
+    if neg { return rat_neg(value); }
+    return value;
+}
+
+fn rat_sign(r) {
+    if big_is_zero(r.num) { return 0; }
+    if r.neg { return -1; }
+    return 1;
+}
+
+fn rat_half_point(lo, hi) {
+    return rat_mul(rat_add_impl(lo, hi), Rational { neg: false, num: [1], den: [2] });
+}
+
+// The 4096-decimal-digit coefficient cap of the contract, checked wherever a
+// canonical coefficient is rendered.
+fn rat_digit_guard(r) {
+    if len(big_to_text(r.num)) > 4096 || len(big_to_text(r.den)) > 4096 {
+        panic("poly: coefficient exceeds 4096 decimal digits; fail closed (poly-budget)");
+    }
+    return r;
+}
+
+// --- dense Q[x] polynomials --------------------------------------------------
+// Coefficient list ascending (c0..cd) of canonical Rationals; normalized form
+// strips leading (high-order) zeros; the zero polynomial is [0] (degree -1).
+
+fn poly_norm(p) {
+    while len(p) > 1 && big_is_zero(p[len(p) - 1].num) { pop(p); }
+    return p;
+}
+
+fn poly_zero() { return [rat_zero()]; }
+fn poly_is_zero(p) { return len(p) == 1 && big_is_zero(p[0].num); }
+
+fn poly_deg(p) {
+    if poly_is_zero(p) { return -1; }
+    return len(p) - 1;
+}
+
+fn poly_add(a, b) {
+    let result = [];
+    let n = len(a);
+    if len(b) > n { n = len(b); }
+    let i = 0;
+    while i < n {
+        let x = rat_zero();
+        if i < len(a) { x = a[i]; }
+        let y = rat_zero();
+        if i < len(b) { y = b[i]; }
+        push(result, rat_add_impl(x, y));
+        i = i + 1;
+    }
+    return poly_norm(result);
+}
+
+fn poly_neg(p) {
+    let result = [];
+    let i = 0;
+    while i < len(p) { push(result, rat_neg(p[i])); i = i + 1; }
+    return result;
+}
+
+fn poly_sub(a, b) { return poly_add(a, poly_neg(b)); }
+
+fn poly_mul(a, b) {
+    if poly_is_zero(a) || poly_is_zero(b) { return poly_zero(); }
+    let dd = len(a) + len(b) - 2;
+    if dd > 64 { panic("poly: expanded degree exceeds the cap of 64; fail closed (poly-budget)"); }
+    let result = [];
+    let t = 0;
+    while t <= dd { push(result, rat_zero()); t = t + 1; }
+    let i = 0;
+    while i < len(a) {
+        let j = 0;
+        while j < len(b) {
+            result[i + j] = rat_add_impl(result[i + j], rat_mul(a[i], b[j]));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return poly_norm(result);
+}
+
+fn poly_scale_div(p, c) {
+    let result = [];
+    let i = 0;
+    while i < len(p) { push(result, rat_div(p[i], c)); i = i + 1; }
+    return poly_norm(result);
+}
+
+// Square-and-multiply; the exponent is already capped at 64 by
+// poly_exponent_literal and every intermediate product re-checks the degree
+// cap inside poly_mul. 0^0 == 1 by the expression-fragment convention.
+fn poly_pow(p, n) {
+    if n < 0 { panic("poly: negative exponent outside the polynomial fragment; fail closed (poly-fragment)"); }
+    let result = [rat_one()];
+    let base = p;
+    let e = n;
+    while e > 0 {
+        if e % 2 == 1 { result = poly_mul(result, base); }
+        e = e / 2;
+        if e > 0 { base = poly_mul(base, base); }
+    }
+    return result;
+}
+
+struct PolyDivmod {
+    q: list,
+    r: list,
+}
+
+// Exact long division over Q: a = q*b + r with deg r < deg b.
+fn poly_divmod(a, b) {
+    if poly_is_zero(b) { panic("poly: division by the zero polynomial; fail closed"); }
+    if poly_is_zero(a) || len(a) < len(b) { return PolyDivmod { q: poly_zero(), r: a }; }
+    let qlen = len(a) - len(b) + 1;
+    let q = [];
+    let t = 0;
+    while t < qlen { push(q, rat_zero()); t = t + 1; }
+    let rem = a;
+    let blead = b[len(b) - 1];
+    let i = qlen - 1;
+    while i >= 0 {
+        if len(rem) == len(b) + i {
+            let coeff = rat_div(rem[len(rem) - 1], blead);
+            q[i] = coeff;
+            let j = 0;
+            while j < len(b) {
+                rem[i + j] = rat_sub(rem[i + j], rat_mul(coeff, b[j]));
+                j = j + 1;
+            }
+            rem = poly_norm(rem);
+        }
+        i = i - 1;
+    }
+    return PolyDivmod { q: poly_norm(q), r: poly_norm(rem) };
+}
+
+fn poly_monic(p) {
+    if poly_is_zero(p) { return p; }
+    let lead = p[len(p) - 1];
+    return poly_scale_div(p, lead);
+}
+
+// Euclid over Q[x], then monic. Conventions: gcd(0,0)=0, gcd(p,0)=monic(p).
+fn poly_gcd(a, b) {
+    let x = a;
+    let y = b;
+    while !poly_is_zero(y) {
+        let dm = poly_divmod(x, y);
+        x = y;
+        y = dm.r;
+    }
+    return poly_monic(x);
+}
+
+fn poly_eval(p, v) {
+    let acc = rat_zero();
+    let i = len(p) - 1;
+    while i >= 0 {
+        acc = rat_add_impl(rat_mul(acc, v), p[i]);
+        i = i - 1;
+    }
+    return acc;
+}
+
+fn poly_deriv(p) {
+    if len(p) <= 1 { return poly_zero(); }
+    let result = [];
+    let i = 1;
+    while i < len(p) {
+        push(result, rat_mul(p[i], rat_int(i)));
+        i = i + 1;
+    }
+    return poly_norm(result);
+}
+
+fn poly_equal(a, b) {
+    if len(a) != len(b) { return false; }
+    let i = 0;
+    while i < len(a) {
+        if rat_cmp(a[i], b[i]) != 0 { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn poly_coeffs_text(p) {
+    let text = "";
+    let i = 0;
+    while i < len(p) {
+        rat_digit_guard(p[i]);
+        if i > 0 { text = text + ","; }
+        text = text + rat_to_text(p[i]);
+        i = i + 1;
+    }
+    return text;
+}
+
+fn json_coeff_array(p) {
+    let text = "[";
+    let i = 0;
+    while i < len(p) {
+        rat_digit_guard(p[i]);
+        if i > 0 { text = text + ","; }
+        text = text + "\"" + rat_to_text(p[i]) + "\"";
+        i = i + 1;
+    }
+    return text + "]";
+}
+
+// Contract rule (frozen with the verifier): a '^' exponent is admitted iff it
+// is a SINGLE numeric literal token whose exact value is a nonnegative
+// integer ("2.0" and "1e1" qualify); value above 64 refuses poly-budget;
+// anything else (neg/fractional/non-literal/chained) refuses poly-fragment.
+fn poly_exponent_literal(node) {
+    if node[0] != "num" { panic("poly: ^ exponent must be a nonnegative integer literal; fail closed (poly-fragment)"); }
+    let value = rat_from_num_text(node[2]);
+    if big_cmp(value.den, [1]) != 0 { panic("poly: ^ exponent must be a nonnegative integer literal; fail closed (poly-fragment)"); }
+    if big_cmp(value.num, [64]) > 0 { panic("poly: ^ exponent exceeds the cap of 64; fail closed (poly-budget)"); }
+    return value.num[0];
+}
+
+struct PolyBox {
+    coeffs: list,
+}
+
+// AST -> dense Q[x] lowering (POLY fragment). ONE self-recursive walker
+// returning a struct, recursive results bound to locals first (the pinned
+// checker's shape inference requires this — see the deriv() note above).
+// Admitted: num, var x, neg, add, sub, mul, pow(base, nonneg-int-literal),
+// div by a subexpression that LOWERS to a nonzero constant. Everything else
+// refuses with a named reason.
+fn poly_lower(node) {
+    let tag = node[0];
+    if tag == "num" { return PolyBox { coeffs: [rat_from_num_text(node[2])] }; }
+    if tag == "var" {
+        if node[1] != "x" { panic("poly: only the variable x is admitted; fail closed (poly-fragment)"); }
+        return PolyBox { coeffs: [rat_zero(), rat_one()] };
+    }
+    if tag == "neg" {
+        let inner = poly_lower(node[1]);
+        let ic = inner.coeffs;
+        return PolyBox { coeffs: poly_neg(ic) };
+    }
+    if tag == "add" || tag == "sub" || tag == "mul" || tag == "div" {
+        let left = poly_lower(node[1]);
+        let right = poly_lower(node[2]);
+        let lc = left.coeffs;
+        let rc = right.coeffs;
+        if tag == "add" { return PolyBox { coeffs: poly_add(lc, rc) }; }
+        if tag == "sub" { return PolyBox { coeffs: poly_sub(lc, rc) }; }
+        if tag == "mul" { return PolyBox { coeffs: poly_mul(lc, rc) }; }
+        if len(rc) != 1 { panic("poly: division only by a constant subexpression in the polynomial fragment; fail closed (poly-fragment)"); }
+        if big_is_zero(rc[0].num) { panic("poly: division by a zero constant; fail closed (poly-fragment)"); }
+        return PolyBox { coeffs: poly_scale_div(lc, rc[0]) };
+    }
+    if tag == "pow" {
+        let base = poly_lower(node[1]);
+        let bc = base.coeffs;
+        let e = poly_exponent_literal(node[2]);
+        return PolyBox { coeffs: poly_pow(bc, e) };
+    }
+    if tag == "mod" { panic("poly: '%' is outside the polynomial fragment; fail closed (poly-fragment)"); }
+    if tag == "const" { panic("poly: named constants are outside the polynomial fragment; fail closed (poly-fragment)"); }
+    panic("poly: functions are outside the polynomial fragment; fail closed (poly-fragment)");
+}
+
+struct RatFunc {
+    num: list,
+    den: list,
+}
+
+// AST -> rational function (P, Q) lowering (RATFUNC fragment): the four field
+// ops with unrestricted division except by the zero polynomial. Intermediate
+// pairs are NOT gcd-reduced (frozen with the verifier: the engine is the
+// most-refusing variant; the 64-degree cap applies to every intermediate
+// product inside poly_mul). Same single-walker discipline as poly_lower.
+fn rf_lower(node) {
+    let tag = node[0];
+    if tag == "num" { return RatFunc { num: [rat_from_num_text(node[2])], den: [rat_one()] }; }
+    if tag == "var" {
+        if node[1] != "x" { panic("ratfunc: only the variable x is admitted; fail closed (poly-fragment)"); }
+        return RatFunc { num: [rat_zero(), rat_one()], den: [rat_one()] };
+    }
+    if tag == "neg" {
+        let inner = rf_lower(node[1]);
+        let inum = inner.num;
+        let iden = inner.den;
+        return RatFunc { num: poly_neg(inum), den: iden };
+    }
+    if tag == "add" || tag == "sub" || tag == "mul" || tag == "div" {
+        let left = rf_lower(node[1]);
+        let right = rf_lower(node[2]);
+        let ln = left.num;
+        let ld = left.den;
+        let rn = right.num;
+        let rd = right.den;
+        if tag == "add" {
+            let cross_a = poly_mul(ln, rd);
+            let cross_b = poly_mul(rn, ld);
+            return RatFunc { num: poly_add(cross_a, cross_b), den: poly_mul(ld, rd) };
+        }
+        if tag == "sub" {
+            let cross_a = poly_mul(ln, rd);
+            let cross_b = poly_mul(rn, ld);
+            return RatFunc { num: poly_sub(cross_a, cross_b), den: poly_mul(ld, rd) };
+        }
+        if tag == "mul" {
+            return RatFunc { num: poly_mul(ln, rn), den: poly_mul(ld, rd) };
+        }
+        if poly_is_zero(rn) { panic("ratfunc: division by the zero polynomial; fail closed (ratfunc-zero-den)"); }
+        return RatFunc { num: poly_mul(ln, rd), den: poly_mul(ld, rn) };
+    }
+    if tag == "pow" {
+        let base = rf_lower(node[1]);
+        let bn = base.num;
+        let bd = base.den;
+        let e = poly_exponent_literal(node[2]);
+        return RatFunc { num: poly_pow(bn, e), den: poly_pow(bd, e) };
+    }
+    if tag == "mod" { panic("ratfunc: '%' is outside the rational-function fragment; fail closed (poly-fragment)"); }
+    if tag == "const" { panic("ratfunc: named constants are outside the rational-function fragment; fail closed (poly-fragment)"); }
+    panic("ratfunc: functions are outside the rational-function fragment; fail closed (poly-fragment)");
+}
+
+// Canonical P/Q: divide both by gcd(P,Q), then make Q monic. Zero numerator
+// canonicalizes to 0/1.
+fn rf_canon(f) {
+    let p = f.num;
+    let q = f.den;
+    if poly_is_zero(q) { panic("ratfunc: zero denominator; fail closed (ratfunc-zero-den)"); }
+    if poly_is_zero(p) { return RatFunc { num: poly_zero(), den: [rat_one()] }; }
+    let g = poly_gcd(p, q);
+    let pd = poly_divmod(p, g);
+    let qd = poly_divmod(q, g);
+    if !poly_is_zero(pd.r) || !poly_is_zero(qd.r) { panic("ratfunc: internal gcd division invariant violated; fail closed"); }
+    let pr = pd.q;
+    let qr = qd.q;
+    let lead = qr[len(qr) - 1];
+    return RatFunc { num: poly_scale_div(pr, lead), den: poly_scale_div(qr, lead) };
+}
+
+// --- Sturm machinery over Q[x] -----------------------------------------------
+
+// Squarefree part s = p / gcd(p, p'), made monic.
+fn poly_squarefree(p) {
+    if poly_is_zero(p) { panic("roots: the zero polynomial vanishes everywhere; fail closed (roots-zero-poly)"); }
+    let d = poly_deriv(p);
+    let g = poly_gcd(p, d);
+    let dm = poly_divmod(p, g);
+    if !poly_is_zero(dm.r) { panic("roots: internal squarefree division invariant violated; fail closed"); }
+    return poly_monic(dm.q);
+}
+
+// p0 = s, p1 = s', p_{k+1} = -(p_{k-1} rem p_k), stopping at the zero rem.
+fn sturm_chain(s) {
+    let chain = [s];
+    let d = poly_deriv(s);
+    if poly_is_zero(d) { return chain; }
+    push(chain, d);
+    while true {
+        let a = chain[len(chain) - 2];
+        let b = chain[len(chain) - 1];
+        let dm = poly_divmod(a, b);
+        let r = dm.r;
+        if poly_is_zero(r) { break; }
+        push(chain, poly_neg(r));
+        if len(chain) > 130 { panic("roots: Sturm chain exceeded its budget; fail closed (roots-budget)"); }
+    }
+    return chain;
+}
+
+// Sign-variation count V(t), zeros skipped. With this convention
+// V(a) - V(b) counts the distinct roots of s in the half-open interval (a, b].
+fn sturm_variations(chain, t) {
+    let count = 0;
+    let prev = 0;
+    let i = 0;
+    while i < len(chain) {
+        let s = rat_sign(poly_eval(chain[i], t));
+        if s != 0 {
+            if prev != 0 && s != prev { count = count + 1; }
+            prev = s;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Cauchy root bound: every root r satisfies |r| < B = 1 + max_i |c_i / c_d|.
+fn cauchy_bound(s) {
+    let lead = s[len(s) - 1];
+    let best = rat_zero();
+    let i = 0;
+    while i < len(s) - 1 {
+        let q = rat_abs(rat_div(s[i], lead));
+        if rat_cmp(q, best) > 0 { best = q; }
+        i = i + 1;
+    }
+    return rat_add_impl(rat_one(), best);
+}
+
+struct RootIv {
+    lo: Rational,
+    hi: Rational,
+    count: i64,
+    depth: i64,
+}
+
+// One Sturm-count-preserving bisection of an isolating interval (count == 1).
+fn sturm_refine(chain, iv) {
+    let lo = iv.lo;
+    let hi = iv.hi;
+    let mid = rat_half_point(lo, hi);
+    let c = sturm_variations(chain, lo) - sturm_variations(chain, mid);
+    if c == 1 { return RootIv { lo: lo, hi: mid, count: 1, depth: iv.depth + 1 }; }
+    return RootIv { lo: mid, hi: hi, count: 1, depth: iv.depth + 1 };
+}
+
+// Full isolation pipeline: bisect (-B, B] until every interval carries exactly
+// one variation drop, then enforce the certificate side conditions:
+// s(a_i) != 0 and strict ordering b_i < a_{i+1}. Depth cap 64 (roots-budget).
+fn sturm_isolate_all(chain, s) {
+    let out = [];
+    if len(s) <= 1 { return out; }
+    let bound = cauchy_bound(s);
+    let neg_b = rat_neg(bound);
+    let k = sturm_variations(chain, neg_b) - sturm_variations(chain, bound);
+    if k == 0 { return out; }
+    let stack = [RootIv { lo: neg_b, hi: bound, count: k, depth: 0 }];
+    while len(stack) > 0 {
+        let iv = stack[len(stack) - 1];
+        pop(stack);
+        let c = iv.count;
+        if c == 1 { push(out, iv); continue; }
+        if iv.depth >= 64 { panic("roots: bisection exceeded depth 64; fail closed (roots-budget)"); }
+        let lo = iv.lo;
+        let hi = iv.hi;
+        let mid = rat_half_point(lo, hi);
+        let vlo = sturm_variations(chain, lo);
+        let vmid = sturm_variations(chain, mid);
+        let vhi = sturm_variations(chain, hi);
+        let left_count = vlo - vmid;
+        let right_count = vmid - vhi;
+        if left_count + right_count != c { panic("roots: internal Sturm-count invariant violated; fail closed"); }
+        let d1 = iv.depth + 1;
+        if right_count > 0 { push(stack, RootIv { lo: mid, hi: hi, count: right_count, depth: d1 }); }
+        if left_count > 0 { push(stack, RootIv { lo: lo, hi: mid, count: left_count, depth: d1 }); }
+    }
+    let i = 0;
+    while i < len(out) {
+        let guard = 0;
+        while rat_sign(poly_eval(s, out[i].lo)) == 0 {
+            out[i] = sturm_refine(chain, out[i]);
+            guard = guard + 1;
+            if guard > 64 { panic("roots: endpoint refinement exceeded its budget; fail closed (roots-budget)"); }
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while i + 1 < len(out) {
+        let guard = 0;
+        while rat_cmp(out[i].hi, out[i + 1].lo) >= 0 {
+            out[i] = sturm_refine(chain, out[i]);
+            out[i + 1] = sturm_refine(chain, out[i + 1]);
+            guard = guard + 1;
+            if guard > 64 { panic("roots: interval separation exceeded its budget; fail closed (roots-budget)"); }
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+// Compare two real algebraic numbers, each given as (poly, isolating interval).
+// Equality is decided exactly via a gcd root in the interval intersection;
+// otherwise Sturm-preserving bisection separates the intervals (budget 200).
+fn alg_cmp_order(p_expr, a1_text, b1_text, q_expr, a2_text, b2_text) {
+    let pb = poly_lower(parse_ast(p_expr));
+    let qb = poly_lower(parse_ast(q_expr));
+    let s1 = poly_squarefree(pb.coeffs);
+    let s2 = poly_squarefree(qb.coeffs);
+    let ch1 = sturm_chain(s1);
+    let ch2 = sturm_chain(s2);
+    let a1 = rat_from_frac_text(a1_text);
+    let b1 = rat_from_frac_text(b1_text);
+    let a2 = rat_from_frac_text(a2_text);
+    let b2 = rat_from_frac_text(b2_text);
+    if sturm_variations(ch1, a1) - sturm_variations(ch1, b1) != 1 || rat_sign(poly_eval(s1, a1)) == 0 {
+        panic("alg-cmp: the first interval does not isolate exactly one root of its polynomial; fail closed (alg-cmp-not-isolating)");
+    }
+    if sturm_variations(ch2, a2) - sturm_variations(ch2, b2) != 1 || rat_sign(poly_eval(s2, a2)) == 0 {
+        panic("alg-cmp: the second interval does not isolate exactly one root of its polynomial; fail closed (alg-cmp-not-isolating)");
+    }
+    let g = poly_gcd(s1, s2);
+    if len(g) > 1 {
+        let lo = rat_max(a1, a2);
+        let hi = rat_min(b1, b2);
+        if rat_cmp(lo, hi) < 0 {
+            let chg = sturm_chain(g);
+            if sturm_variations(chg, lo) - sturm_variations(chg, hi) >= 1 { return "equal"; }
+        }
+    }
+    let i1 = RootIv { lo: a1, hi: b1, count: 1, depth: 0 };
+    let i2 = RootIv { lo: a2, hi: b2, count: 1, depth: 0 };
+    let steps = 0;
+    while steps < 200 {
+        if rat_cmp(i1.hi, i2.lo) <= 0 { return "less"; }
+        if rat_cmp(i2.hi, i1.lo) <= 0 { return "greater"; }
+        i1 = sturm_refine(ch1, i1);
+        i2 = sturm_refine(ch2, i2);
+        steps = steps + 1;
+    }
+    panic("alg-cmp: 200-bisection budget exhausted; fail closed (alg-cmp-budget)");
+}
+
+// --- Pratt primality certificates ---------------------------------------------
+
+struct SmallDiv {
+    divisor: i64,
+    found: bool,
+    proven_prime: bool,
+}
+
+// Trial division by 2 then odd d <= 1e6. Passing d*d > n without a hit proves
+// n prime outright (no divisor at or below the square root).
+fn smallest_small_divisor(n) {
+    if big_divmod_small(n, 2).remainder == 0 { return SmallDiv { divisor: 2, found: true, proven_prime: false }; }
+    let cap = big_to_i64_or_neg(n);
+    let d = 3;
+    while d <= 1000000 {
+        if cap >= 0 && d * d > cap { return SmallDiv { divisor: 0, found: false, proven_prime: true }; }
+        if big_divmod_small(n, d).remainder == 0 { return SmallDiv { divisor: d, found: true, proven_prime: false }; }
+        d = d + 2;
+    }
+    return SmallDiv { divisor: 0, found: false, proven_prime: false };
+}
+
+// Miller-Rabin with the fixed witness set {2..37}. Decisive for n < 3.3e24
+// (Sorenson-Webster); beyond that it is a SCREEN only — the Pratt witness
+// conditions are what actually prove primality, so a composite that slips the
+// screen can only waste budget, never yield a false "prime" verdict.
+fn mr_is_probable_prime(n) {
+    if big_cmp(n, [2]) < 0 { return false; }
+    if big_cmp(n, [2]) == 0 || big_cmp(n, [3]) == 0 { return true; }
+    if big_is_even(n) { return false; }
+    let n1 = big_sub(n, [1]);
+    let d = n1;
+    let s = 0;
+    while big_is_even(d) {
+        d = big_half(d);
+        s = s + 1;
+    }
+    let witnesses = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+    let wi = 0;
+    while wi < len(witnesses) {
+        let ar = big_mod(big_from_small(witnesses[wi]), n);
+        wi = wi + 1;
+        if big_is_zero(ar) { continue; }
+        let x = big_modpow(ar, d, n);
+        if big_cmp(x, [1]) == 0 || big_cmp(x, n1) == 0 { continue; }
+        let r = 1;
+        let saw_minus_one = false;
+        while r < s {
+            x = big_mod(big_mul(x, x), n);
+            if big_cmp(x, n1) == 0 { saw_minus_one = true; break; }
+            r = r + 1;
+        }
+        if !saw_minus_one { return false; }
+    }
+    return true;
+}
+
+struct RhoResult {
+    divisor: list,
+    ok: bool,
+    used: i64,
+}
+
+// Pollard rho, Brent variant, batched gcd every 128 steps; global iteration
+// cap 200000 shared across increment retries (threaded via budget_start).
+fn pollard_rho(n, budget_start) {
+    let used = budget_start;
+    let c = 1;
+    while c <= 20 {
+        let cb = big_from_small(c);
+        let y = [2];
+        let r = 1;
+        let q = [1];
+        let g = [1];
+        let x = [2];
+        let ys = [2];
+        while big_cmp(g, [1]) == 0 {
+            x = y;
+            let i = 0;
+            while i < r {
+                y = big_mod(big_add(big_mod(big_mul(y, y), n), cb), n);
+                i = i + 1;
+            }
+            used = used + r;
+            if used > 200000 { return RhoResult { divisor: [1], ok: false, used: used }; }
+            let k = 0;
+            while k < r && big_cmp(g, [1]) == 0 {
+                ys = y;
+                let lim = 128;
+                if r - k < lim { lim = r - k; }
+                let j = 0;
+                while j < lim {
+                    y = big_mod(big_add(big_mod(big_mul(y, y), n), cb), n);
+                    let diff = big_diff(x, y);
+                    if !big_is_zero(diff) { q = big_mod(big_mul(q, diff), n); }
+                    j = j + 1;
+                }
+                g = big_gcd(q, n);
+                k = k + lim;
+                used = used + lim;
+                if used > 200000 { return RhoResult { divisor: [1], ok: false, used: used }; }
+            }
+            r = r * 2;
+        }
+        if big_cmp(g, n) == 0 {
+            g = [1];
+            while big_cmp(g, [1]) == 0 {
+                ys = big_mod(big_add(big_mod(big_mul(ys, ys), n), cb), n);
+                let diff = big_diff(x, ys);
+                if big_is_zero(diff) { break; }
+                g = big_gcd(diff, n);
+                used = used + 1;
+                if used > 200000 { return RhoResult { divisor: [1], ok: false, used: used }; }
+            }
+        }
+        if big_cmp(g, [1]) > 0 && big_cmp(g, n) < 0 { return RhoResult { divisor: g, ok: true, used: used }; }
+        c = c + 1;
+    }
+    return RhoResult { divisor: [1], ok: false, used: used };
+}
+
+fn sort_bigs(xs) {
+    let i = 1;
+    while i < len(xs) {
+        let j = i;
+        while j > 0 && big_cmp(xs[j - 1], xs[j]) > 0 {
+            let tmp = xs[j - 1];
+            xs[j - 1] = xs[j];
+            xs[j] = tmp;
+            j = j - 1;
+        }
+        i = i + 1;
+    }
+    return xs;
+}
+
+struct FactorPair {
+    q: list,
+    e: i64,
+}
+
+// Full prime factorization of m >= 2, ascending (q, e) pairs. Trial division
+// to 1e6, then Pollard rho on the rough cofactor; ANY budget failure refuses
+// prime-cert-budget, never a downgraded claim.
+fn factor_grouped(m) {
+    if big_cmp(m, [2]) < 0 { panic("prime-cert: internal factor target below 2; fail closed"); }
+    let primes = [];
+    let rest = m;
+    while big_is_even(rest) {
+        push(primes, [2]);
+        rest = big_half(rest);
+    }
+    let d = 3;
+    while d <= 1000000 && big_cmp(rest, [1]) != 0 {
+        let cap = big_to_i64_or_neg(rest);
+        if cap >= 0 && d * d > cap { break; }
+        let dm = big_divmod_small(rest, d);
+        if dm.remainder == 0 {
+            push(primes, big_from_small(d));
+            rest = dm.quotient;
+        } else {
+            d = d + 2;
+        }
+    }
+    if big_cmp(rest, [1]) != 0 {
+        let stack = [rest];
+        let budget = 0;
+        let rounds = 0;
+        while len(stack) > 0 {
+            rounds = rounds + 1;
+            if rounds > 128 { panic("prime-cert: factoring exceeded its budget; fail closed (prime-cert-budget)"); }
+            let f = stack[len(stack) - 1];
+            pop(stack);
+            if mr_is_probable_prime(f) { push(primes, f); continue; }
+            let rho = pollard_rho(f, budget);
+            budget = rho.used;
+            if !rho.ok { panic("prime-cert: factoring exceeded its budget; fail closed (prime-cert-budget)"); }
+            let d1 = rho.divisor;
+            let dm2 = big_divmod(f, d1);
+            if !big_is_zero(dm2.remainder) { panic("prime-cert: internal rho divisor invariant violated; fail closed"); }
+            push(stack, d1);
+            push(stack, dm2.quotient);
+        }
+    }
+    let sorted = sort_bigs(primes);
+    let grouped = [];
+    let i = 0;
+    while i < len(sorted) {
+        let q = sorted[i];
+        let e = 1;
+        while i + 1 < len(sorted) && big_cmp(sorted[i + 1], q) == 0 {
+            e = e + 1;
+            i = i + 1;
+        }
+        push(grouped, FactorPair { q: q, e: e });
+        i = i + 1;
+    }
+    return grouped;
+}
+
+// Exhibit a concrete divisor of an MR-composite n (for the composite cert).
+fn find_divisor(n) {
+    let sd = smallest_small_divisor(n);
+    if sd.found { return big_from_small(sd.divisor); }
+    if sd.proven_prime { panic("prime-cert: internal contradiction (screen says composite, trial says prime); fail closed"); }
+    let rho = pollard_rho(n, 0);
+    if !rho.ok { panic("prime-cert: could not exhibit a divisor within budget; fail closed (prime-cert-budget)"); }
+    return rho.divisor;
+}
+
+// Witness a with a^(n-1) == 1 and a^((n-1)/q) != 1 for every prime q | n-1:
+// such an a has multiplicative order exactly n-1, which PROVES n prime
+// (Pratt). Candidates 2..201 (200 tries), then refuse.
+fn find_pratt_witness(n, n1, fs) {
+    let a = 2;
+    while a <= 201 {
+        let ab = big_mod(big_from_small(a), n);
+        if !big_is_zero(ab) {
+            if big_cmp(big_modpow(ab, n1, n), [1]) == 0 {
+                let ok = true;
+                let i = 0;
+                while i < len(fs) {
+                    let fp = fs[i];
+                    let t = big_divmod(n1, fp.q).quotient;
+                    if big_cmp(big_modpow(ab, t, n), [1]) == 0 { ok = false; break; }
+                    i = i + 1;
+                }
+                if ok { return a; }
+            }
+        }
+        a = a + 1;
+    }
+    panic("prime-cert: witness search exhausted 200 candidates; fail closed (prime-cert-budget)");
+}
+
+struct PrattBuild {
+    json: string,
+    nodes: i64,
+}
+
+// Recursive Pratt-tree construction as sorted-key JSON. ONE self-recursive
+// fn returning a struct (checker discipline); q == 2 gets a null subcert,
+// n in {2, 3} is the base-case node. Depth cap 64, node cap 512.
+fn pratt_build(n, depth, nodes_before) {
+    if depth > 64 { panic("prime-cert: Pratt recursion exceeded depth 64; fail closed (prime-cert-budget)"); }
+    let nodes = nodes_before + 1;
+    if nodes > 512 { panic("prime-cert: Pratt tree exceeded 512 nodes; fail closed (prime-cert-budget)"); }
+    if big_cmp(n, [3]) <= 0 {
+        return PrattBuild { json: "{\"a\":\"1\",\"factors\":[]}", nodes: nodes };
+    }
+    let n1 = big_sub(n, [1]);
+    let fs = factor_grouped(n1);
+    let a_val = find_pratt_witness(n, n1, fs);
+    let parts = "";
+    let i = 0;
+    while i < len(fs) {
+        let fp = fs[i];
+        let qb = fp.q;
+        let sub_json = "null";
+        if big_cmp(qb, [2]) != 0 {
+            let child = pratt_build(qb, depth + 1, nodes);
+            let cj = child.json;
+            nodes = child.nodes;
+            sub_json = cj;
+        }
+        if i > 0 { parts = parts + ","; }
+        parts = parts + "{\"cert\":" + sub_json + ",\"e\":\"" + str(fp.e) + "\",\"q\":\"" + big_to_text(qb) + "\"}";
+        i = i + 1;
+    }
+    return PrattBuild { json: "{\"a\":\"" + str(a_val) + "\",\"factors\":[" + parts + "]}", nodes: nodes };
+}
+
+// --- CERTIFIED EXACT ALGEBRA command handlers ---------------------------------
+
+fn cmd_canon(argv) uses(io.print) {
+    require_arity(argv, 2);
+    let sexp = ast_sexp(parse_ast(argv[1]));
+    print("status=exact canonical=${sexp} sha256=${hash_sha256(sexp)}");
+}
+
+fn cmd_xgcd(argv) uses(io.print) {
+    require_arity(argv, 3);
+    let a = int_from_text(argv[1]);
+    let b = int_from_text(argv[2]);
+    let x = int_xgcd(a, b);
+    let gt = int_to_text(x.g);
+    let ut = int_to_text(x.u);
+    let vt = int_to_text(x.v);
+    print("status=exact g=${gt} u=${ut} v=${vt}");
+    let claim = "{" + jkv("a", jstr(int_to_text(a))) + "," + jkv("b", jstr(int_to_text(b))) + "," + jkv("g", jstr(gt)) + "}";
+    let witness = "{" + jkv("u", jstr(ut)) + "," + jkv("v", jstr(vt)) + "}";
+    print(cert_envelope("xgcd", claim, witness));
+}
+
+fn cmd_mod_pow(argv) uses(io.print) {
+    require_arity(argv, 4);
+    let base = int_from_text(argv[1]);
+    let exponent = int_from_text(argv[2]);
+    let modulus = int_from_text(argv[3]);
+    let r = int_modpow(base, exponent, modulus);
+    let rt = int_to_text(r);
+    print("status=exact r=${rt}");
+    let claim = "{" + jkv("base", jstr(int_to_text(base))) + "," + jkv("exp", jstr(int_to_text(exponent))) + "," + jkv("mod", jstr(int_to_text(modulus))) + "," + jkv("r", jstr(rt)) + "}";
+    print(cert_envelope("mod-pow", claim, "{}"));
+}
+
+fn cmd_mod_inv(argv) uses(io.print) {
+    require_arity(argv, 3);
+    let a = int_from_text(argv[1]);
+    let modulus = int_from_text(argv[2]);
+    let inv = int_modinv(a, modulus);
+    let it = int_to_text(inv);
+    print("status=exact inv=${it}");
+    let claim = "{" + jkv("a", jstr(int_to_text(a))) + "," + jkv("inv", jstr(it)) + "," + jkv("m", jstr(int_to_text(modulus))) + "}";
+    print(cert_envelope("mod-inv", claim, "{}"));
+}
+
+fn cmd_crt(argv) uses(io.print) {
+    if len(argv) < 5 || (len(argv) - 1) % 2 != 0 {
+        panic("crt requires residue/modulus pairs: crt r1 m1 r2 m2 [...]; fail closed");
+    }
+    let rs = [];
+    let ms = [];
+    let i = 1;
+    while i < len(argv) {
+        push(rs, int_from_text(argv[i]));
+        push(ms, int_from_text(argv[i + 1]));
+        i = i + 2;
+    }
+    let combined = crt_combine(rs, ms);
+    let xt = int_to_text(combined.x);
+    let mt = int_to_text(combined.modulus);
+    print("status=exact x=${xt} M=${mt}");
+    let residues = "[";
+    i = 0;
+    while i < len(rs) {
+        if i > 0 { residues = residues + ","; }
+        residues = residues + "{" + jkv("m", jstr(int_to_text(ms[i]))) + "," + jkv("r", jstr(int_to_text(rs[i]))) + "}";
+        i = i + 1;
+    }
+    residues = residues + "]";
+    let claim = "{" + jkv("M", jstr(mt)) + "," + jkv("residues", residues) + "," + jkv("x", jstr(xt)) + "}";
+    print(cert_envelope("crt", claim, "{}"));
+}
+
+fn cmd_divides(argv) uses(io.print) {
+    require_arity(argv, 3);
+    let a = int_from_text(argv[1]);
+    let b = int_from_text(argv[2]);
+    let result = false;
+    if big_is_zero(a.num) {
+        result = big_is_zero(b.num);
+    } else {
+        result = big_is_zero(int_mod(b, a).num);
+    }
+    let word = if result { "true" } else { "false" };
+    print("status=exact divides=${word}");
+}
+
+fn cmd_prime_cert(argv) uses(io.print) {
+    require_arity(argv, 2);
+    let text = argv[1];
+    if len(text) > 61 { panic("prime-cert: input exceeds 61 digits (n <= 10^60 domain); fail closed (prime-cert-budget)"); }
+    let n = big_from_text(text);
+    if big_cmp(n, [2]) < 0 { panic("prime-cert: n must be >= 2; fail closed"); }
+    let nt = big_to_text(n);
+    if !mr_is_probable_prime(n) {
+        let d = find_divisor(n);
+        let dt = big_to_text(d);
+        print("status=exact verdict=composite n=${nt} divisor=${dt}");
+        let claim = "{" + jkv("n", jstr(nt)) + "}";
+        let witness = "{" + jkv("divisor", jstr(dt)) + "}";
+        print(cert_envelope("composite", claim, witness));
+        return;
+    }
+    let built = pratt_build(n, 0, 0);
+    let bj = built.json;
+    print("status=exact verdict=prime n=${nt} method=pratt");
+    let claim = "{" + jkv("n", jstr(nt)) + "}";
+    print(cert_envelope("prime", claim, bj));
+}
+
+fn cmd_poly_canon(argv) uses(io.print) {
+    require_arity(argv, 2);
+    let expr = argv[1];
+    let lowered = poly_lower(parse_ast(expr));
+    let p = lowered.coeffs;
+    cert_safe_expr(expr);
+    let d = poly_deg(p);
+    print("status=exact degree=${d} coeffs=${poly_coeffs_text(p)}");
+    let claim = "{" + jkv("coeffs", json_coeff_array(p)) + "," + jkv("degree", jstr(str(d))) + "," + jkv("expr", jstr(expr)) + "}";
+    print(cert_envelope("poly-canon", claim, "{}"));
+}
+
+fn cmd_poly_eq(argv) uses(io.print) {
+    require_arity(argv, 3);
+    let lhs = argv[1];
+    let rhs = argv[2];
+    let pl = poly_lower(parse_ast(lhs));
+    let pr = poly_lower(parse_ast(rhs));
+    let lc = pl.coeffs;
+    let rc = pr.coeffs;
+    cert_safe_expr(lhs);
+    cert_safe_expr(rhs);
+    let same = poly_equal(lc, rc);
+    let word = if same { "true" } else { "false" };
+    print("status=exact equal=${word}");
+    let claim = "{" + jkv("equal", word) + "," + jkv("lhs", jstr(lhs)) + "," + jkv("rhs", jstr(rhs)) + "}";
+    let witness = "{" + jkv("lhs_coeffs", json_coeff_array(lc)) + "," + jkv("rhs_coeffs", json_coeff_array(rc)) + "}";
+    print(cert_envelope("poly-eq", claim, witness));
+}
+
+fn cmd_poly_gcd(argv) uses(io.print) {
+    require_arity(argv, 3);
+    let lhs = argv[1];
+    let rhs = argv[2];
+    let pl = poly_lower(parse_ast(lhs));
+    let pr = poly_lower(parse_ast(rhs));
+    let g = poly_gcd(pl.coeffs, pr.coeffs);
+    cert_safe_expr(lhs);
+    cert_safe_expr(rhs);
+    print("status=exact gcd=${poly_coeffs_text(g)}");
+    let claim = "{" + jkv("gcd_coeffs", json_coeff_array(g)) + "," + jkv("lhs", jstr(lhs)) + "," + jkv("rhs", jstr(rhs)) + "}";
+    print(cert_envelope("poly-gcd", claim, "{}"));
+}
+
+fn cmd_ratfunc_canon(argv) uses(io.print) {
+    require_arity(argv, 2);
+    let expr = argv[1];
+    let canonical = rf_canon(rf_lower(parse_ast(expr)));
+    let p = canonical.num;
+    let q = canonical.den;
+    cert_safe_expr(expr);
+    print("status=exact num=${poly_coeffs_text(p)} den=${poly_coeffs_text(q)} side-condition=denominator-nonzero");
+    let claim = "{" + jkv("den_coeffs", json_coeff_array(q)) + "," + jkv("expr", jstr(expr)) + "," + jkv("num_coeffs", json_coeff_array(p)) + "," + jkv("side_condition", jstr("denominator-nonzero")) + "}";
+    print(cert_envelope("ratfunc-canon", claim, "{}"));
+}
+
+fn cmd_roots_isolate(argv) uses(io.print) {
+    require_arity(argv, 2);
+    let expr = argv[1];
+    let lowered = poly_lower(parse_ast(expr));
+    let p = lowered.coeffs;
+    let s = poly_squarefree(p);
+    let chain = sturm_chain(s);
+    let rivs = sturm_isolate_all(chain, s);
+    cert_safe_expr(expr);
+    let k = len(rivs);
+    let iv_text = "";
+    let iv_json = "[";
+    let i = 0;
+    while i < len(rivs) {
+        let lo_t = rat_to_text(rivs[i].lo);
+        let hi_t = rat_to_text(rivs[i].hi);
+        iv_text = iv_text + "[" + lo_t + "," + hi_t + "]";
+        if i > 0 { iv_json = iv_json + ","; }
+        iv_json = iv_json + "[" + jstr(lo_t) + "," + jstr(hi_t) + "]";
+        i = i + 1;
+    }
+    iv_json = iv_json + "]";
+    print("status=exact distinct-real-roots=${k} intervals=${iv_text}");
+    let claim = "{" + jkv("distinct_real_roots", jstr(str(k))) + "," + jkv("expr", jstr(expr)) + "," + jkv("intervals", iv_json) + "}";
+    print(cert_envelope("roots-isolate", claim, "{}"));
+}
+
+fn cmd_alg_sign(argv) uses(io.print) {
+    require_arity(argv, 3);
+    let lowered = poly_lower(parse_ast(argv[1]));
+    let point = rat_from_frac_text(argv[2]);
+    let s = rat_sign(poly_eval(lowered.coeffs, point));
+    print("status=exact sign=${s}");
+}
+
+fn cmd_alg_cmp(argv) uses(io.print) {
+    require_arity(argv, 7);
+    let order = alg_cmp_order(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+    print("status=exact order=${order}");
+}
+
 fn run_native_self_test() uses(io.print) {
     let a = Vec3 { x: 1.0, y: 2.0, z: 3.0 };
     let b = Vec3 { x: 4.0, y: 5.0, z: 6.0 };
@@ -3216,7 +4509,64 @@ fn run_native_self_test() uses(io.print) {
     assert(mid_res.lo <= -8.537274556592414e-18);
     assert(mid_res.hi >= -8.537274556592414e-18);
     assert(number_text(9223372036854775808.0) != "9223372036854775807");
-    print("self-test: 83/83 Anubis-native invariants pass");
+
+    // CERTIFIED EXACT ALGEBRA invariants (jackal-exact-cert-v1 lanes).
+    // Oracle values recomputed with Python ints/fractions on 2026-08-16.
+    let cea_a = int_from_text("1234567890123456789012345678901234567890");
+    let cea_b = int_from_text("-9876543210987654321098765432109876543210");
+    let cea_x = int_xgcd(cea_a, cea_b);
+    assert(int_to_text(cea_x.g) == "90000000009000000000900000000090");
+    let cea_bez = int_add(int_mul(cea_x.u, cea_a), int_mul(cea_x.v, cea_b));
+    assert(int_cmp(cea_bez, cea_x.g) == 0);
+    assert(big_is_zero(int_mod(cea_a, cea_x.g).num) && big_is_zero(int_mod(cea_b, cea_x.g).num));
+    let cea_base = int_from_text("123456789");
+    let cea_mod = int_from_text("998244353");
+    let cea_mp = int_modpow(cea_base, int_from_text("1000"), cea_mod);
+    assert(int_to_text(cea_mp) == "215277794");
+    let cea_acc = int_mod(int_from_text("1"), cea_mod);
+    let cea_i = 0;
+    while cea_i < 1000 {
+        cea_acc = int_mod(int_mul(cea_acc, cea_base), cea_mod);
+        cea_i = cea_i + 1;
+    }
+    assert(int_cmp(cea_mp, cea_acc) == 0);
+    let cea_inv = int_modinv(int_from_text("12345"), int_from_text("1000003"));
+    assert(int_to_text(cea_inv) == "775863");
+    assert(int_to_text(int_mod(int_mul(cea_inv, int_from_text("12345")), int_from_text("1000003"))) == "1");
+    let cea_crt = crt_combine(
+        [int_from_text("2"), int_from_text("3"), int_from_text("2")],
+        [int_from_text("3"), int_from_text("5"), int_from_text("7")]);
+    assert(int_to_text(cea_crt.x) == "23" && int_to_text(cea_crt.modulus) == "105");
+    let cea_pratt = pratt_build(big_from_text("1000003"), 0, 0);
+    assert(hash_sha256(cea_pratt.json) == "d9db6f53abfabb449709f8683ad429da1ba84ca6de52b18e32200fad36db1d19");
+    assert(big_to_text(find_divisor(big_from_text("1000001"))) == "101");
+    let cea_p1 = poly_lower(parse_ast("(x+1)^2"));
+    let cea_p2 = poly_lower(parse_ast("x^2+2*x+1"));
+    assert(poly_equal(cea_p1.coeffs, cea_p2.coeffs));
+    let cea_p3 = poly_lower(parse_ast("x^2-1"));
+    let cea_p4 = poly_lower(parse_ast("(x-1)^2"));
+    assert(!poly_equal(cea_p3.coeffs, cea_p4.coeffs));
+    let cea_rf = rf_canon(rf_lower(parse_ast("(x^2-1)/(x-1)")));
+    let cea_rfn = cea_rf.num;
+    let cea_rfd = cea_rf.den;
+    assert(poly_coeffs_text(cea_rfn) == "1,1");
+    assert(poly_coeffs_text(cea_rfd) == "1");
+    let cea_sp = poly_lower(parse_ast("(x^2-2)*(x-3)"));
+    let cea_ss = poly_squarefree(cea_sp.coeffs);
+    let cea_ch = sturm_chain(cea_ss);
+    let cea_bound = cauchy_bound(cea_ss);
+    assert(sturm_variations(cea_ch, rat_neg(cea_bound)) - sturm_variations(cea_ch, cea_bound) == 3);
+    let cea_iso = sturm_isolate_all(cea_ch, cea_ss);
+    assert(len(cea_iso) == 3);
+    assert(rat_cmp(cea_iso[0].hi, cea_iso[1].lo) < 0 && rat_cmp(cea_iso[1].hi, cea_iso[2].lo) < 0);
+    // NOTE: the mission brief expected sign(x^2-2 at 3/2) == -1, but
+    // (3/2)^2 - 2 = 1/4 > 0; the true sign is +1 and 7/5 gives the -1 case.
+    let cea_sq2 = poly_lower(parse_ast("x^2-2"));
+    assert(rat_sign(poly_eval(cea_sq2.coeffs, rat_from_frac_text("3/2"))) == 1);
+    assert(rat_sign(poly_eval(cea_sq2.coeffs, rat_from_frac_text("7/5"))) == -1);
+    assert(alg_cmp_order("x^2-2", "1", "3/2", "x-3/2", "1", "2") == "less");
+    assert(alg_cmp_order("x^2-4", "1", "3", "x-2", "3/2", "5/2") == "equal");
+    print("self-test: 104/104 Anubis-native invariants pass");
 }
 
 fn main() uses(io.print) {
@@ -3287,6 +4637,24 @@ fn main() uses(io.print) {
         print("status=exact parsed=${ast_to_text(ast)} exact=${rat_to_text(exact)} approx=${approx_text}");
         return;
     }
+
+    // JACKAL CERTIFIED EXACT ALGEBRA: CAS, number-theory, and real-algebraic
+    // lanes; each prints its human lines and then a final jackal-exact-cert-v1
+    // JSON line, independently checked by tools/exact_verify.py.
+    if op == "canon" { cmd_canon(argv); return; }
+    if op == "poly-canon" { cmd_poly_canon(argv); return; }
+    if op == "poly-eq" { cmd_poly_eq(argv); return; }
+    if op == "poly-gcd" { cmd_poly_gcd(argv); return; }
+    if op == "ratfunc-canon" { cmd_ratfunc_canon(argv); return; }
+    if op == "roots-isolate" { cmd_roots_isolate(argv); return; }
+    if op == "alg-sign" { cmd_alg_sign(argv); return; }
+    if op == "alg-cmp" { cmd_alg_cmp(argv); return; }
+    if op == "xgcd" { cmd_xgcd(argv); return; }
+    if op == "mod-pow" { cmd_mod_pow(argv); return; }
+    if op == "mod-inv" { cmd_mod_inv(argv); return; }
+    if op == "crt" { cmd_crt(argv); return; }
+    if op == "divides" { cmd_divides(argv); return; }
+    if op == "prime-cert" { cmd_prime_cert(argv); return; }
 
     // JACKAL expression engine: general evaluation and the numerical laboratory.
     if op == "eval" { require_arity(argv, 2); print_number(evaluate_expression(argv[1], {})); return; }
@@ -3589,7 +4957,7 @@ fn main() uses(io.print) {
         // Evidence citations refer to the 1,402-case frozen-artifact campaign
         // adjudicated 2026-08-13 and this repo's own suites.
         print("JACKAL COMMAND MATURITY — epistemic classes, oracles, residuals");
-        print("class=exact       commands=rat,big-add,big-mul,big-pow,big-fact,big-ncr,gcd,lcm,ncr,fact,prime,hex,bin,band,bor,bxor,shl,shr  oracle=python-int+fraction  evidence=300-rational-trees+99-bigint-cases(2026-08-13)  residual=none-observed-within-grammar-and-budgets");
+        print("class=exact       commands=rat,big-add,big-mul,big-pow,big-fact,big-ncr,gcd,lcm,ncr,fact,prime,hex,bin,band,bor,bxor,shl,shr,xgcd,mod-pow,mod-inv,crt,divides,prime-cert,canon,poly-canon,poly-eq,poly-gcd,ratfunc-canon,roots-isolate,alg-sign,alg-cmp  oracle=python-int+fraction  evidence=300-rational-trees+99-bigint-cases(2026-08-13)  residual=none-observed-within-grammar-and-budgets");
         print("class=bounded     commands=integrate-bound,range-bound  guarantee=certified-enclosure-under-stated-f64-model  residual=implementation-tested-not-mechanized;libm<=2ulp-assumed");
         print("class=proof-carrying commands=range-bound-cert  guarantee=emits-a-checker-verifiable-certificate; jackal_cert_check (Lean-proved cert_check_sound) accepting it mechanically implies a Runs derivation, hence a true enclosure under ModelTCB  fragment=exact-Q ops+sin/cos+named-consts (transcendentals fail closed)  residual=emitter-faithfulness-tested;codec+Lean-runtime in TCB");
         print("class=checked     commands=diff  oracle=sympy+richardson-self-check  evidence=79-released-derivatives-max-rel-dev-1.221e-15(2026-08-13)  residual=sampled-agreement-not-proof-of-identity");

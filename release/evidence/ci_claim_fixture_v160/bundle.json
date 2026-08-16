@@ -1,0 +1,315 @@
+{
+ "bundle_digest_sha256": "1500aa6866051c281dc108b2c34bd851e32b55443aec15fe038e5d7be1696a47",
+ "engine_identity": {
+  "evaluator_sha256": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+  "source_anb_sha256": "34870c66276005272d9ab48a3cc1261ba0e0317a9e45089b1acfb07acc0efd25"
+ },
+ "nodes": [
+  {
+   "assumptions": [],
+   "assurance": {
+    "artifact": {
+     "authenticated": false,
+     "content_addressed": true,
+     "reproducible_built": false,
+     "transparency_logged": false
+    },
+    "implementation": "independently-recomputed",
+    "input_provenance": "supplied",
+    "mathematical": "exact",
+    "model_validity": "not-applicable"
+   },
+   "checker": null,
+   "decision": null,
+   "display": {
+    "text": ""
+   },
+   "env": {
+    "vars": {}
+   },
+   "evidence": {
+    "kind": "exact-cert",
+    "payload_b64": "eyJjbGFpbSI6eyJiYXNlIjoiMyIsImV4cCI6IjEwMCIsIm1vZCI6IjciLCJyIjoiNCJ9LCJraW5kIjoibW9kLXBvdyIsInNjaGVtYSI6ImphY2thbC1leGFjdC1jZXJ0LXYxIiwid2l0bmVzcyI6e319",
+    "sha256": "af7965dc9d115f5a72e67856bfa1f5e5d15e23d096c4e6e8e3a9fe81a0d1e6d0"
+   },
+   "freshness": {
+    "emitted_at_unix": "1786920569",
+    "environment_epoch": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+    "expires_at_unix": null,
+    "max_age_seconds": null,
+    "nonce": null,
+    "source_version": "v1.6.0"
+   },
+   "id": "4ff56bfb7f6f7944e140a3bc26449558b32ada337823dc0673a2a9edf4711e07",
+   "parents": [],
+   "producer": null,
+   "proposition": {
+    "arg": {
+     "args": [
+      {
+       "t": "rat",
+       "v": "3"
+      },
+      {
+       "t": "rat",
+       "v": "100"
+      },
+      {
+       "t": "rat",
+       "v": "7"
+      }
+     ],
+     "fn": "mod_pow",
+     "t": "app"
+    },
+    "set": {
+     "hi": "4",
+     "lo": "4",
+     "t": "interval"
+    },
+    "t": "in"
+   },
+   "release_epoch": "v1.6.0",
+   "residual_non_claims": [
+    "no-source-native-refinement",
+    "no-replay-prevention-without-external-nonce-store",
+    "no-probability-distributions-from-intervals",
+    "no-real-world-input-truth",
+    "no-universal-soundness-bounded-fragments-only",
+    "transparency-metadata-is-not-mathematical-evidence"
+   ],
+   "rule": {
+    "id": "evidence_admit",
+    "params": {
+     "evidence_kind": "exact-cert"
+    }
+   },
+   "schema": "jackal-claim-node-v1"
+  },
+  {
+   "assumptions": [],
+   "assurance": {
+    "artifact": {
+     "authenticated": false,
+     "content_addressed": true,
+     "reproducible_built": false,
+     "transparency_logged": false
+    },
+    "implementation": "independently-recomputed",
+    "input_provenance": "supplied",
+    "mathematical": "exact",
+    "model_validity": "not-applicable"
+   },
+   "checker": null,
+   "decision": null,
+   "display": {
+    "text": ""
+   },
+   "env": {
+    "vars": {}
+   },
+   "evidence": {
+    "kind": "none"
+   },
+   "freshness": {
+    "emitted_at_unix": "1786920569",
+    "environment_epoch": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+    "expires_at_unix": null,
+    "max_age_seconds": null,
+    "nonce": null,
+    "source_version": "v1.6.0"
+   },
+   "id": "eaece459be1231b1bc7811a7737b75e316116a229a5696e7deab6fe12c45c244",
+   "parents": [
+    "4ff56bfb7f6f7944e140a3bc26449558b32ada337823dc0673a2a9edf4711e07"
+   ],
+   "producer": null,
+   "proposition": {
+    "lhs": {
+     "args": [
+      {
+       "t": "rat",
+       "v": "3"
+      },
+      {
+       "t": "rat",
+       "v": "100"
+      },
+      {
+       "t": "rat",
+       "v": "7"
+      }
+     ],
+     "fn": "mod_pow",
+     "t": "app"
+    },
+    "rhs": {
+     "t": "rat",
+     "v": "7"
+    },
+    "t": "lt"
+   },
+   "release_epoch": "v1.6.0",
+   "residual_non_claims": [
+    "no-source-native-refinement",
+    "no-replay-prevention-without-external-nonce-store",
+    "no-probability-distributions-from-intervals",
+    "no-real-world-input-truth",
+    "no-universal-soundness-bounded-fragments-only",
+    "transparency-metadata-is-not-mathematical-evidence"
+   ],
+   "rule": {
+    "id": "threshold_from_enclosure",
+    "params": {
+     "op": "lt",
+     "threshold": "7"
+    }
+   },
+   "schema": "jackal-claim-node-v1"
+  },
+  {
+   "assumptions": [],
+   "assurance": {
+    "artifact": {
+     "authenticated": false,
+     "content_addressed": true,
+     "reproducible_built": false,
+     "transparency_logged": false
+    },
+    "implementation": "independently-recomputed",
+    "input_provenance": "supplied",
+    "mathematical": "exact",
+    "model_validity": "not-applicable"
+   },
+   "checker": null,
+   "decision": {
+    "action": "proceed",
+    "comparison": "lt",
+    "consequence_class": "decision-boundary",
+    "decision_id": "ci-admission-demo",
+    "margin": "3",
+    "threshold": "7"
+   },
+   "display": {
+    "text": ""
+   },
+   "env": {
+    "vars": {}
+   },
+   "evidence": {
+    "kind": "none"
+   },
+   "freshness": {
+    "emitted_at_unix": "1786920569",
+    "environment_epoch": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+    "expires_at_unix": null,
+    "max_age_seconds": null,
+    "nonce": null,
+    "source_version": "v1.6.0"
+   },
+   "id": "767334ad2c9340c78573e19c9b31b3968054eb08440a31b8f6621a6f29dcf8da",
+   "parents": [
+    "eaece459be1231b1bc7811a7737b75e316116a229a5696e7deab6fe12c45c244"
+   ],
+   "producer": null,
+   "proposition": {
+    "args": [
+     {
+      "args": [
+       {
+        "t": "rat",
+        "v": "3"
+       },
+       {
+        "t": "rat",
+        "v": "100"
+       },
+       {
+        "t": "rat",
+        "v": "7"
+       }
+      ],
+      "fn": "mod_pow",
+      "t": "app"
+     },
+     {
+      "t": "str",
+      "v": "lt"
+     },
+     {
+      "t": "rat",
+      "v": "7"
+     }
+    ],
+    "name": "threshold_robust",
+    "t": "pred"
+   },
+   "release_epoch": "v1.6.0",
+   "residual_non_claims": [
+    "no-source-native-refinement",
+    "no-replay-prevention-without-external-nonce-store",
+    "no-probability-distributions-from-intervals",
+    "no-real-world-input-truth",
+    "no-universal-soundness-bounded-fragments-only",
+    "transparency-metadata-is-not-mathematical-evidence"
+   ],
+   "rule": {
+    "id": "robust_decision",
+    "params": {
+     "action": "proceed",
+     "consequence_class": "decision-boundary",
+     "decision_id": "ci-admission-demo"
+    }
+   },
+   "schema": "jackal-claim-node-v1"
+  }
+ ],
+ "policy": {
+  "accept": {
+   "artifact_required_flags": {},
+   "implementation": [
+    "directly-trusted",
+    "campaign-tested",
+    "independently-recomputed",
+    "checker-derived"
+   ],
+   "input_provenance": [
+    "supplied",
+    "integrity-bound"
+   ],
+   "mathematical": [
+    "checked",
+    "bounded",
+    "formal-bounded",
+    "exact"
+   ],
+   "model_validity": [
+    "not-applicable",
+    "assumed"
+   ]
+  },
+  "allow_fallback": false,
+  "policy_id": "jackal-default-v1",
+  "require": {
+   "decision_margin_min": null,
+   "forbid_rules": [],
+   "max_age_seconds": null,
+   "max_depth": 32,
+   "max_enclosure_width": null,
+   "max_nodes": 128,
+   "require_nonce": false
+  },
+  "schema": "jackal-claim-policy-v1"
+ },
+ "registries": {
+  "inference_registry_sha256": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
+  "unit_registry_sha256": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c"
+ },
+ "release_epoch": "v1.6.0",
+ "rendering": {
+  "permitted_text": "Exact over the admitted integer/rational semantics. independently recomputed. input provenance supplied. no physical model involved. decision ci-admission-demo (decision-boundary) robust with certified margin 3. non-claims: no-source-native-refinement; no-replay-prevention-without-external-nonce-store; no-probability-distributions-from-intervals; no-real-world-input-truth; no-universal-soundness-bounded-fragments-only; transparency-metadata-is-not-mathematical-evidence.",
+  "token": "render-v1/exact/supplied/not-applicable/independently-recomputed/decision"
+ },
+ "root": "767334ad2c9340c78573e19c9b31b3968054eb08440a31b8f6621a6f29dcf8da",
+ "schema": "jackal-claim-bundle-v1"
+}

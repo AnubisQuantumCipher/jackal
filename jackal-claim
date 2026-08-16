@@ -1,0 +1,12 @@
+#!/bin/sh
+# jackal-claim — compile a structured claim request into a
+# jackal-claim-bundle-v1 through the deterministic policy router.
+#
+# Usage: ./jackal-claim --request <file|-> [--emit-bundle <path>]
+#
+# The router runs under `python3 -I -S -B` (no user site, no env import
+# surface) and refuses rather than downgrades: allow_fallback defaults to
+# false and v1 has no sound weaker enclosure lane.
+set -eu
+ROOT=$(cd "$(dirname "$0")" && pwd)
+exec python3 -I -S -B "$ROOT/tools/claim_router.py" claim "$@"

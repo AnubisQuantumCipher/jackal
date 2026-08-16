@@ -48,8 +48,12 @@ FORMAL = {
     "mul":   ["mul"],
     "div":   ["div"],
     "pow":   ["powZero", "powEvenPos", "powOddPos"],   # integer n>=0 only
-    "sin":   ["sin"],
-    "cos":   ["cos"],
+    # sin/cos: the engine emitter path carries the universal [-1,1] hull
+    # (`sin`/`cos` constructors); the standalone producer path adds the
+    # tight pure-ℚ midpoint-Taylor strategy (§490 v1.5.0, `sinRat`/`cosRat`,
+    # |midpoint| <= 1, NO libm TCB).
+    "sin":   ["sin", "sinRat"],
+    "cos":   ["cos", "cosRat"],
     "abs":   ["abs"],
     "floor": ["floor"],
     "ceil":  ["ceil"],
@@ -61,10 +65,17 @@ FORMAL = {
     # NO libm TCB — the checker validates rational inequalities only.
     "sqrt":  ["sqrtRat"],
     # exp via pure-ℚ rational Taylor with certified remainder bound
-    # (§487 fragment extension, v1.4.1).  Positive-argument branch only:
-    # `[lo, hi]` with `0 <= lo`. NO libm TCB — the checker validates six
-    # rational inequalities including expPartial + expRemainder in ℚ.
+    # (§487 fragment extension, v1.4.1; GENERAL-SIGN since v1.5.0 §490 via
+    # the reciprocal identity).  NO libm TCB — the checker validates
+    # sign-aware rational inequalities (Gaussian.expLBQ/expUBQ).
     "exp":   ["expRat"],
+    # ln via the pure-ℚ INVERSE exponential bracket (§490 v1.5.0).
+    # Full positive rational domain.  NO libm TCB.
+    "ln":    ["logRat"],
+    # atan via pure-ℚ cap / tan-bracket / reciprocal strategies over the
+    # Mathlib 20-digit rational π bounds (§490 v1.5.0).  Full rational
+    # domain.  NO libm TCB.
+    "atan":  ["atanRat"],
 }
 LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const obligation
 
@@ -75,8 +86,9 @@ LIBM_CONST_TCB: set[str] = set()  # no FORMAL row carries a ModelTCB const oblig
 # refuses it (§487-const audit, 2026-08-15; Lean lock
 # `requestRejects_const_rounded_node`). Constants remain available in weaker
 # lanes at their honest epistemic class.  `exp` PROMOTED to FORMAL in v1.4.1
-# via `expRat` (rational Taylor + certified remainder, no libm TCB).
-REFUSED_FORMAL = ["ln", "tan", "cbrt", "atan", "asin", "acos",
+# via `expRat`; `ln` and `atan` PROMOTED to FORMAL in v1.5.0 §490 via
+# `logRat`/`atanRat` (both zero-libm).
+REFUSED_FORMAL = ["tan", "cbrt", "asin", "acos",
                   "log10", "log2", "hypot", "atan2", "pow_neg", "pow_general",
                   "mod", "const"]
 
@@ -97,6 +109,29 @@ WEAK_LANES = [
     ("big-*",      "exact big-integer arithmetic (not yet checker-covered)", "exact"),
     ("claim-card", "physical model with assumptions", "model-based"),
 ]
+# Exact CAS / number-theory lanes (§490 v1.5.0): computed exactly by the
+# engine, each emitting a `jackal-exact-cert-v1` certificate that the
+# independent stdlib-only verifier `tools/exact_verify.py` re-checks by full
+# recomputation.  `exact` here means exact integer/rational computation with
+# an independently re-checkable certificate — NOT a Lean-mechanized claim;
+# formal-* language is structurally refused on these lanes.
+EXACT_CAS_LANES = [
+    ("canon",        "canonical s-expression + SHA-256 of any parsed expression", "exact"),
+    ("poly-canon",   "dense Q[x] canonical form (degree <= 64)", "exact"),
+    ("poly-eq",      "decidable polynomial identity over Q[x]", "exact"),
+    ("poly-gcd",     "monic polynomial gcd over Q[x] (Euclid)", "exact"),
+    ("ratfunc-canon", "rational-function canonical form P/Q, gcd-reduced, monic denominator, explicit denominator-nonzero side condition", "exact"),
+    ("roots-isolate", "Sturm-sequence isolation of all distinct real roots", "exact"),
+    ("alg-sign",     "exact sign of a Q[x] polynomial at a rational point", "exact"),
+    ("alg-cmp",      "order decision between two isolated real algebraic numbers", "exact"),
+    ("xgcd",         "extended gcd with Bezout certificate", "exact"),
+    ("mod-pow",      "modular exponentiation (square-and-multiply)", "exact"),
+    ("mod-inv",      "modular inverse with product certificate", "exact"),
+    ("crt",          "Chinese remainder reconstruction (pairwise-coprime, up to 16 moduli)", "exact"),
+    ("divides",      "exact divisibility decision", "exact"),
+    ("prime-cert",   "Pratt primality certificate / composite divisor witness (budgeted, fail-closed)", "exact"),
+]
+
 
 # Operator → plugin-tool routing.  Most operators funnel through the engine's
 # `range-bound-cert` command and are exposed via `jackal_range_bound`.  The
@@ -105,7 +140,9 @@ WEAK_LANES = [
 # exposes them as dedicated tools.
 _OPERATOR_PLUGIN_TOOL = {
     "sqrt": "jackal_sqrt_rat_bound",  # v1.4.0 fragment extension
-    "exp":  "jackal_exp_rat_bound",   # v1.4.1 fragment extension
+    "exp":  "jackal_exp_rat_bound",   # v1.4.1 fragment extension (general-sign v1.5.0)
+    "ln":   "jackal_ln_rat_bound",    # v1.5.0 §490 fragment extension
+    "atan": "jackal_atan_rat_bound",  # v1.5.0 §490 fragment extension
 }
 
 
@@ -174,6 +211,24 @@ def build_rows() -> list[dict]:
             "tests": ["test_calculator.py"],
             "verdict": "CONDITIONAL" if status in ("exact", "bounded") else "WEAK",
             "notes": "weaker lane; must never inherit formal-* language",
+        })
+    for lane, desc, status in EXACT_CAS_LANES:
+        rows.append({
+            "kind": "lane", "operator": lane, "description": desc,
+            "parser_admission": True, "canonical_lowering": "n/a",
+            "evaluator_path": lane,
+            "certificate_op": ["jackal-exact-cert-v1"] if lane != "canon" else [],
+            "checker_decode": "tools/exact_verify.py (independent recompute)" if lane != "canon" else "n/a",
+            "checker_rule": "exact_verify kind handler" if lane != "canon" else "n/a",
+            "soundness_theorem": "n/a", "runs_constructors": [],
+            "libm_assumption": "none (exact integer/rational computation)",
+            "plugin_tool": f"jackal_{lane.replace('-', '_')}",
+            "requested_assurance": status, "allowed_status": status,
+            "tests": ["exact_lane_test.py", "exact_verify_test.py"],
+            "verdict": "CONDITIONAL",
+            "notes": "exact lane with independently re-checkable certificate; "
+                     "verification is recomputation by tools/exact_verify.py, "
+                     "NOT a Lean-mechanized claim; formal-* language refused",
         })
     gaussian_wired = (
         GAUSSIAN_PROOF.exists()
@@ -265,12 +320,12 @@ def build_rows() -> list[dict]:
         "allowed_status": "formal-bounded",
         "tests": ["plugin_smoke.py::S14", "package_smoke.py::sqrt-rat-release-cli", "package_smoke.py::plugin-sqrt-rat", "formal_sqrt_rat_release_test.py"],
         "verdict": "FORMAL" if "sqrtRat" in runs else "UNWIRED",
-        "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sqrt_rat_producer and checker; payload is `variant=sqrt_rat` (NOT a jackal-formal-receipt-v1 envelope yet)",
+        "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as sqrt_rat_producer and checker; payload carries `variant=sqrt_rat` in a jackal-formal-receipt-v1 envelope when requested",
     })
     rows.append({
         "kind": "plugin-tool", "operator": "jackal_exp_rat_bound",
-        "description": "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of exp(x) on [lo, hi] with lo >= 0 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (uses exact rational Taylor + certified remainder).  Admits ONLY the exact form 'exp(x)' on a canonical rational interval.",
-        "parser_admission": "exp(x) only, lo >= 0",
+        "description": "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of exp(x) on any canonical rational interval (general-sign since v1.5.0 §490: negative arguments via the exact reciprocal identity) via the standalone Python producer + pinned checker; NO libm on the proof-decision path (uses exact rational Taylor + certified remainder).  Admits ONLY the exact form 'exp(x)'.",
+        "parser_admission": "exp(x) only",
         "canonical_lowering": "n/a (bypasses engine)",
         "evaluator_path": "plugin/hermes/server.py -> tools/exp_rat_producer.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
         "certificate_op": ["exp_rat"],
@@ -284,8 +339,45 @@ def build_rows() -> list[dict]:
         "allowed_status": "formal-bounded",
         "tests": ["plugin_smoke.py::S15", "plugin_smoke.py::S16", "package_smoke.py::exp-rat-release-cli", "package_smoke.py::plugin-exp-rat", "formal_exp_rat_release_test.py"],
         "verdict": "FORMAL" if "expRat" in runs else "UNWIRED",
-        "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as exp_rat_producer and checker; positive-argument branch only; payload is `variant=exp_rat` (NOT a jackal-formal-receipt-v1 envelope yet)",
+        "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as exp_rat_producer and checker; general-sign domain since v1.5.0; payload carries `variant=exp_rat` in a jackal-formal-receipt-v1 envelope when requested",
     })
+    for vop, vprod, vctor, vdesc, vadm in [
+        ("jackal_ln_rat_bound", "ln_rat_producer", "logRat",
+         "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of ln(x) on a canonical rational interval with 0 < lo via the standalone Python producer + pinned checker; NO libm on the proof-decision path (inverse exponential bracket, Gaussian.expUBQ/expLBQ).  Admits ONLY the exact form 'ln(x)'.",
+         "ln(x) only, 0 < lo"),
+        ("jackal_sin_rat_bound", "sin_rat_producer", "sinRat",
+         "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of sin(x) on a canonical rational interval with |midpoint| <= 1 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (Mathlib Real.sin_bound midpoint Taylor + Lipschitz-1).  Admits ONLY the exact form 'sin(x)'.",
+         "sin(x) only, |midpoint| <= 1"),
+        ("jackal_cos_rat_bound", "sin_rat_producer", "cosRat",
+         "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of cos(x) on a canonical rational interval with |midpoint| <= 1 via the standalone Python producer + pinned checker; NO libm on the proof-decision path (Mathlib Real.cos_bound midpoint Taylor + Lipschitz-1).  Admits ONLY the exact form 'cos(x)'.",
+         "cos(x) only, |midpoint| <= 1"),
+        ("jackal_atan_rat_bound", "atan_rat_producer", "atanRat",
+         "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of atan(x) on ANY canonical rational interval via the standalone Python producer + pinned checker; NO libm on the proof-decision path (cap / tan-bracket / reciprocal strategies over Mathlib 20-digit rational π bounds).  Admits ONLY the exact form 'atan(x)'.",
+         "atan(x) only"),
+        ("jackal_tanh_rat_bound", "tanh_rat_producer", "expRat",
+         "Hermes plugin tool: emit a pure-ℚ formal-bounded enclosure of the composite 1-2/(exp(2*x)+1) — mathematically tanh(x) — on a canonical rational interval with |x| <= 20, as an 8-node zero-libm certificate (num_exact/var/mul/exp_rat/add/div/sub; constant-numerator division keeps the enclosure tight at any width).  The receipt binds the composite expression string; the tanh reading is a documented identity, never a checker claim.",
+         "1-2/(exp(2*x)+1) only, |x| <= 20"),
+    ]:
+        rows.append({
+            "kind": "plugin-tool", "operator": vop,
+            "description": vdesc,
+            "parser_admission": vadm,
+            "canonical_lowering": "n/a (bypasses engine)",
+            "evaluator_path": f"plugin/hermes/server.py -> tools/{vprod}.py (identity-pinned, TOCTOU stable) -> jackal_cert_check range-bound-cert",
+            "certificate_op": [vop.replace("jackal_", "").replace("_bound", "")],
+            "checker_decode": "CertCodec.parseCert",
+            "checker_rule": f"CertCheck.checkNode({vop.replace('jackal_', '').replace('_bound', '')})",
+            "soundness_theorem": "request_bound_certified_release",
+            "runs_constructors": [vctor],
+            "libm_assumption": "none",
+            "plugin_tool": vop,
+            "requested_assurance": "formal-bounded",
+            "allowed_status": "formal-bounded",
+            "tests": ["plugin_smoke.py", "package_smoke.py",
+                      f"formal_{vop.replace('jackal_', '').replace('_bound', '')}_release_test.py"],
+            "verdict": "FORMAL" if vctor in runs else "UNWIRED",
+            "notes": f"producer + checker identities pinned in release/MANIFEST.sha256 as {vprod} and checker; §490 v1.5.0 fragment extension",
+        })
     rows.append({
         "kind": "plugin-tool-mode", "operator": "jackal_verify_receipt:range",
         "description": "Hermes plugin tool mode: bind an external range request and re-run the pinned range checker",

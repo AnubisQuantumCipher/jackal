@@ -307,6 +307,11 @@ def buildRawExpr : Nat → List Node → Nat → Option RawExpr
       | "sqrt_rat", [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "sqrt" ·)
       -- exp_rat: strategy variant of exp, same underlying expression.
       | "exp_rat", [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "exp" ·)
+      -- ln_rat / sin_rat / cos_rat / atan_rat: strategy variants (§490 v1.5.0).
+      | "ln_rat",   [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "ln" ·)
+      | "sin_rat",  [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "sin" ·)
+      | "cos_rat",  [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "cos" ·)
+      | "atan_rat", [c0] => (buildRawExpr fuel nodes c0).map (RawExpr.call1 "atan" ·)
       | "add", [c0, c1] =>
           match buildRawExpr fuel nodes c0, buildRawExpr fuel nodes c1 with
           | some a, some b => some (RawExpr.add a b) | _, _ => none
@@ -390,6 +395,19 @@ def releaseNodeOp : String → Bool
   -- partial and remainder computed in ℚ — no libm TCB.  Sound by
   -- monotonicity of `Real.exp` on `[0, ∞)` combined with `real_exp_between`.
   | "exp_rat"       => true
+  -- Pure-ℚ ln (`Runs.logRat`, §490 v1.5.0): inverse exponential bracket over
+  -- ℚ (expUBQ/expLBQ) — no libm TCB.  Sound by log/exp inversion +
+  -- monotonicity of `Real.log` on `(0, ∞)`.
+  | "ln_rat"        => true
+  -- Pure-ℚ tight sin/cos (`Runs.sinRat`/`cosRat`, §490 v1.5.0): midpoint
+  -- Taylor (Mathlib sin_bound/cos_bound, |m| ≤ 1) + Lipschitz-1 widening —
+  -- no libm TCB.
+  | "sin_rat"       => true
+  | "cos_rat"       => true
+  -- Pure-ℚ atan (`Runs.atanRat`, §490 v1.5.0): cap / tan-bracket /
+  -- reciprocal strategies over ℚ with 20-digit rational π bounds — no libm
+  -- TCB.
+  | "atan_rat"      => true
   | _                 => false
 
 /-- All certificate nodes belong to the exact released FORMAL fragment. -/
@@ -514,7 +532,8 @@ admitted by the Lean release policy. -/
 theorem releaseNodeOp_accepts_formal_inventory :
     ["num_exact", "var", "neg", "add", "sub", "mul", "div",
       "powZero", "powEvenPos", "powOddPos", "sin", "cos", "abs", "floor",
-      "ceil", "round", "trunc", "min", "max", "sqrt_rat", "exp_rat"].all releaseNodeOp = true := by
+      "ceil", "round", "trunc", "min", "max", "sqrt_rat", "exp_rat",
+      "ln_rat", "sin_rat", "cos_rat", "atan_rat"].all releaseNodeOp = true := by
   decide
 
 /-- Kernel-reduced refusal lock for checker-supported constructors that are

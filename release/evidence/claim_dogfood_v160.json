@@ -1,0 +1,119 @@
+{
+  "bundle_digests": {
+    "dog1": "03cf17fe8891ccda1b6055b306331d08a3c5118cea3b64a7ef524c5a623070c7",
+    "dog10": "0d4564ee49969b448c8067445bc033dc901b4122be3bb2ede574b1befc02db08",
+    "dog2": "9e2dd70974294b9f3b31c46d502cec2c51855a484b91e0c478269ce1e050b827",
+    "dog3": "8235a360840037208d4014d2cc7ce4dd5cbaef1debd77aabfbed1636f25dee04",
+    "dog4": "6bc3d70aa19567b3dba819685dbf3a8630a86160127381f132f0d26ef70a2095",
+    "dog5": "dfa75093cb5e025ad386fba8b015dd1f1b3becf8bd0b8e96351a4d8b0c625d4d",
+    "dog6-checked": "d075912e9f4b778cebc21616d0a508dbfd22e1367d8b1f4217d1b1971c26af81",
+    "dog6-wrap": "c650f54ee4a758a9d4819939b5267da7a96ab9ef466ecb3720b8f61fc43e5f43",
+    "dog7": "e233ada8029afea0e89f2f4bd75cd1df82eb13d2650b4a9f8c26e7c3f741ec9d",
+    "dog8": "3cb8216a4890839edbd922b6f21093e85ab33e3cd912a0358e7352a3cb8e52be",
+    "dog9": "00a2f3c93fcea2dbe4f5175c19d4cacbefe98eff6de52bacd00471bae025fbaf"
+  },
+  "engine": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+  "release_epoch": "v1.6.0",
+  "router": "ccab2cce27770297698ae107c59a8d147d81c5f2ff0cd7d686a11d4390d095eb",
+  "rows": [
+    {
+      "expect": "verified bounded margin=1",
+      "id": "dog1-exact-threshold",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified formal-bounded supplied",
+      "id": "dog2-formal-supplied",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified model-conditional",
+      "id": "dog3-model-physics",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified cm [1100,1400]",
+      "id": "dog4-units",
+      "observed": "verified/ set={'hi': '1400', 'lo': '1100', 't': 'interval'}",
+      "ok": true
+    },
+    {
+      "expect": "unit-dim-mismatch",
+      "id": "dog4-units-twin-refuses",
+      "observed": "status=refused reason=unit-dim-mismatch detail=\"'m' vs 's'\"",
+      "ok": true
+    },
+    {
+      "expect": "verified [-1,1]",
+      "id": "dog5-uncertainty-outward",
+      "observed": "verified/ set={'hi': '1', 'lo': '-1', 't': 'interval'}",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-invalid",
+      "id": "dog5-false-independence-refuses",
+      "observed": "refused/rule-invalid",
+      "ok": true
+    },
+    {
+      "expect": "distinct eq-44 vs overflow-pred claims",
+      "id": "dog6-machine-wrap-vs-checked",
+      "observed": "verified/ verified/ wrap=eq checked=pred",
+      "ok": true
+    },
+    {
+      "expect": "v1.5.0 receipt verified unmigrated",
+      "id": "dog7-legacy-receipt",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/assurance-launder",
+      "id": "dog8-laundering-refuses",
+      "observed": "refused/assurance-launder",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "dog8-honest-twin-verifies",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "dog9-nonce-accepts",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/nonce-mismatch",
+      "id": "dog9-wrong-nonce-refuses",
+      "observed": "refused/nonce-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/freshness-stale",
+      "id": "dog9-stale-refuses",
+      "observed": "refused/freshness-stale",
+      "ok": true
+    },
+    {
+      "expect": "identical root and bundle digest",
+      "id": "dog10-repo-plugin-parity",
+      "observed": "cli=0d4564ee49969b44 plugin=0d4564ee49969b44",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "dog10-parity-verifies",
+      "observed": "verified/",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-claim-dogfood-v1",
+  "verdict": "PASS",
+  "verifier": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+}

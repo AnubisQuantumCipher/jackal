@@ -1,8 +1,9 @@
-# JACKAL CALC — CLAIM-AWARE STEM ENGINE
+# JACKAL CALC — MATHEMATICAL EVIDENCE KERNEL
 
-JACKAL is a deterministic, offline STEM calculator with one unusual property: **every answer
-tells you what kind of answer it is** — `exact`, `bounded` (a conditional interval enclosure),
-`formal-bounded` (a proved-checker-accepted enclosure),
+JACKAL is a deterministic, offline **mathematical evidence kernel** — an epistemic claim
+compiler for Hermes and machine consumers that is also a full STEM calculator. Its one
+unusual property: **every answer tells you what kind of answer it is** — `exact`, `bounded`
+(a conditional interval enclosure), `formal-bounded` (a proved-checker-accepted enclosure),
 `checked`, `estimated`, or `model-based` — and what it would take to trust it. When JACKAL
 cannot stand behind a number, it refuses with a named reason instead of printing something
 plausible.
@@ -91,7 +92,7 @@ sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub re
 (Apple Silicon macOS), verify the release checksums and pinned identities, or build from
 source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Formal-release paths (v1.4.1).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
+**Formal-release paths (v1.5.0).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
 emits `status=formal-bounded` **only** when the shared
 release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
@@ -101,27 +102,35 @@ The bundled `plugin/hermes` adapter exposes the same release and verification
 path.  See NON-CLAIMS.txt for the exact scope.  Formal-status *soundness* (an
 accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.4.1" for the receipts and preserved predecessor scars.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.5.0" for the receipts and preserved predecessor scars.
 
+**The zero-libm transcendental fragment (v1.5.0).** Seven standalone release
+wrappers emit pure-ℚ, Lean-checker-verified enclosures with **no libm on the
+proof-decision path**; every producer is untrusted and every claim is
+re-validated by the compiled proved checker `jackal_cert_check`:
 
-`jackal-sqrt-rat-release "sqrt(x)" <lo> <hi>` releases a pure-ℚ enclosure of
-`sqrt(x)` on `[lo, hi]` via the v1.4.0 fragment extension.  The producer
-(`tools/sqrt_rat_producer.py`) is untrusted; the compiled Lean-proved
-`jackal_cert_check` validates a rational Newton square bracket
-(`loQ² ≤ input.lo` and `input.hi ≤ hiQ²`) with **no libm on the
-proof-decision path**.  Every other expression refuses without downgrade.
+| Wrapper | Admits | Domain | Strategy (all exact ℚ) |
+|---|---|---|---|
+| `jackal-sqrt-rat-release "sqrt(x)" lo hi` | `sqrt(x)` | `lo ≥ 0` | Newton square bracket (v1.4.0) |
+| `jackal-exp-rat-release "exp(x)" lo hi` | `exp(x)` | all rationals (general-sign since v1.5.0) | Taylor partial + certified remainder; exact reciprocal for negatives |
+| `jackal-ln-rat-release "ln(x)" lo hi` | `ln(x)` | `lo > 0` | inverse exponential bracket (`exp(out_lo) ≤ lo`, `hi ≤ exp(out_hi)`, decided in ℚ) |
+| `jackal-sin-rat-release "sin(x)" lo hi` | `sin(x)` | midpoint within `[-1,1]` | Mathlib `sin_bound` midpoint Taylor + Lipschitz-1 widening |
+| `jackal-cos-rat-release "cos(x)" lo hi` | `cos(x)` | midpoint within `[-1,1]` | Mathlib `cos_bound` midpoint Taylor + Lipschitz-1 widening |
+| `jackal-atan-rat-release "atan(x)" lo hi` | `atan(x)` | all rationals | cap / tan-bracket / reciprocal strategies over 20-digit rational π bounds |
+| `jackal-tanh-rat-release "1-2/(exp(2*x)+1)" lo hi` | the tanh-defining composite | `|x| ≤ 20` | 8-node zero-libm certificate DAG; constant-numerator division stays tight at any width |
 
-`jackal-exp-rat-release "exp(x)" <lo> <hi>` releases a pure-ℚ enclosure of
-`exp(x)` on `[lo, hi]` with `lo >= 0` via the v1.4.1 fragment extension.
-The producer (`tools/exp_rat_producer.py`) is untrusted and NEVER trusts
-`math.exp`; the compiled Lean-proved `jackal_cert_check` validates six
-rational Taylor inequalities (`0 ≤ argLoQ`, `argLoQ ≤ argHiQ`,
-`2·argHiQ ≤ n+1` degree witness, `loQ ≤ expPartial argLoQ n`,
-`expPartial argHiQ n + expRemainder argHiQ n ≤ hiQ`), with `expPartial`
-and `expRemainder` computed in ℚ.  Sound by monotonicity of `Real.exp`
-on `[0, ∞)` combined with `real_exp_between` in `Gaussian.lean` — **no
-libm on the proof-decision path**.  Every other expression refuses
-without downgrade.
+`tanh` is not an engine grammar token: the wrapper admits the explicit
+composite expression `1-2/(exp(2*x)+1)` (mathematically equal to `tanh(x)`),
+the receipt binds that expression string, and the tanh reading is a
+documented identity — never a checker claim.  Requests spelled `tanh(x)`
+fail closed at parse in every lane.  Every unsupported expression refuses
+without downgrade.  Documented enclosure-width residuals (soundness is never
+affected): sin/cos point enclosures carry the fixed-degree Mathlib remainders
+(`|m|⁵/100`, `|m|⁴·5/96`), and tan-bracketed `atan` endpoints near `|x| = 1`
+are certified to ~5·10⁻²; ln/exp/sqrt/tanh brackets are tight (~10⁻⁹ or
+better at defaults).  Arguments outside a fragment's stated domain refuse
+with a named reason — sin/cos beyond `|midpoint| ≤ 1` (2πk argument
+reduction is future work), ln at `lo ≤ 0`, tanh beyond `|x| ≤ 20`.
 The separate `jackal-gaussian-release "exp(-A*(x-mu)^2)" <lo> <hi> <tolerance> <formal-receipt.json>`
 path admits only canonical nonnegative rational tokens, a checker-verified positive rational
 `scale` with `scale^2=A`, and a transformed interval containing `[-6,6]`. Its untrusted producer
@@ -144,20 +153,26 @@ checker on this machine** — recomputing the outer digest alone is not
 sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The Hermes plugin exposes twelve tools —
-five formal (`jackal_range_bound`, `jackal_gaussian_integral`,
-`jackal_sqrt_rat_bound` (v1.4.0), `jackal_exp_rat_bound` (v1.4.1),
-`jackal_verify_receipt`) plus seven weaker-lane adapters (`jackal_exact`,
-`jackal_evaluate`, `jackal_diff`, `jackal_integrate`, `jackal_integrate_adaptive`,
-`jackal_integrate_bound`, `jackal_solve`) that thread through the pinned
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-three
+tools — ten formal (`jackal_range_bound`, `jackal_gaussian_integral`,
+`jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
+`jackal_sin_rat_bound`, `jackal_cos_rat_bound`, `jackal_atan_rat_bound`,
+`jackal_tanh_rat_bound`, `jackal_verify_receipt`), twenty-one weaker-lane
+adapters (the seven numeric lanes `jackal_exact`, `jackal_evaluate`,
+`jackal_diff`, `jackal_integrate`, `jackal_integrate_adaptive`,
+`jackal_integrate_bound`, `jackal_solve`, and fourteen exact-CAS lanes from
+`jackal_canon` through `jackal_prime_cert`) that thread through the pinned
 evaluator with identity checks and return the engine's honest inventory-derived
 epistemic class (`exact`/`checked`/`estimated`/`bounded`/`model-based`) with
-`formal: false` — status inflation is structurally impossible.
+`formal: false` — status inflation is structurally impossible — plus the two
+v1.6.0 claim-kernel front doors (`jackal_claim`, `jackal_verify_bundle`; see
+"The claim-bundle evidence kernel" below).
 
-The v1.4.1 eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
+The eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
 plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,
-24/24 including the two §487 audit locks for U+2028 parser-differential
-injection and `const_rounded` release-fragment admission) prove that every
+42/42 including the two §487 audit locks for U+2028 parser-differential
+injection and `const_rounded` release-fragment admission, and the §490
+v1.5.0 variant locks incl. the ln_rat→ln TCB-op smuggle) prove that every
 trust-boundary gate — request/AST/enclosure/certificate/limits/formal-status/
 checker/evaluator/outer-digest/stale-success/plugin-bundle — is load-bearing:
 the mutation harness disables one governing gate (still-compiling), the poison
@@ -165,7 +180,7 @@ is admitted only under that disablement, and the exact pre-mutation bytes are
 restored hash-verified before A(post). See `release/evidence/` for the durable
 transcripts (`positive_corpus.jsonl`, `negative_controls.jsonl`,
 `plugin_smoke.jsonl`, `mutations_11.json`, `receipt_semantic_mutations.json`,
-`fail_closed_sweep.jsonl`, `gaussian_formal_v130.json`, and `aba_mutations.json`).
+`fail_closed_sweep.jsonl`, `gaussian_formal_v150.json` (v1.3.0 record preserved), and `aba_mutations.json`).
 
 ## Build from source
 
@@ -315,27 +330,26 @@ How it works, and exactly what it claims:
   certified-lane simplifier with a proved **`lower_preserves_sem`** (lowering never changes the
   real semantics on the defined domain), and `parse_lower_denotes` / `parse_lower_encloses`
   compose them so the admitted *source string* — not just an abstract tree — is what the
-  fragment is the exact-ℚ operators + `sin`/`cos` + **`sqrt` (v1.4.0, via `sqrt_rat`:
-  pure-ℚ Newton square bracket, NO libm TCB)** + **`exp` (v1.4.1, via `exp_rat`:
-  pure-ℚ Taylor partial + certified remainder on `[lo, hi]` with `lo >= 0`, NO
-  libm TCB)**; every other true-transcendental (`ln`/`tan`/`cbrt`/`atan`/`asin`/`acos`/…)
-  AND named constants (`pi`/`e`/`tau`) fail closed (const excluded 2026-08-15, §487-const
-  audit — their value is bound only by the undischarged `ConstTCB` premise, not
-  ℚ-decidable). What is *not* proven is
-  exact-rational interval evaluation and emits a canonical **evaluation certificate**; the
-  compiled Lean checker `jackal_cert_check` — built *directly from the proved `checkCert`*, no
-  `@[implemented_by]` on the trust path — verifies it, and the theorem `cert_check_sound` proves
-  that acceptance mechanically **induces a `Runs` derivation**, hence a true enclosure under the
-  named `ModelTCB`. The fail-closed `jackal-cert-release` gate emits `status=bounded` only when
-  the checker accepts, so *an error in the actual evaluator causes refusal, never an unsupported
-  certified release* — verified by a positive corpus, 24 negative controls (each failing for its
-  intended semantic reason, `tests/cert_controls.py`), and an A→B→A tamper where a deliberately
-  non-enclosing emitter is rejected then restored by hash (`tests/cert_tamper.sh`). The certified
-  fragment is the exact-ℚ operators + `sin`/`cos` + **`sqrt` (v1.4.0, via `sqrt_rat`:
-  pure-ℚ Newton square bracket, NO libm TCB)**; true-transcendentals AND named constants
-  (`pi`/`e`/`tau`) fail closed (const excluded 2026-08-15, §487-const audit — their value is
-  bound only by the undischarged `ConstTCB` premise, not ℚ-decidable). What is *not* proven is
-  enumerated in
+  theorem covers.  Implementation-correspondence bridge #2: the engine's `range-bound-cert`
+  command performs exact-rational interval evaluation and emits a canonical **evaluation
+  certificate**; the compiled Lean checker `jackal_cert_check` — built *directly from the
+  proved `checkCert`*, no `@[implemented_by]` on the trust path — verifies it, and the theorem
+  `cert_check_sound` proves that acceptance mechanically **induces a `Runs` derivation**, hence
+  a true enclosure under the named `ModelTCB`. The fail-closed `jackal-cert-release` gate emits
+  `status=bounded` only when the checker accepts, so *an error in the actual evaluator causes
+  refusal, never an unsupported certified release* — verified by a positive corpus, 30 negative
+  controls (each failing for its intended semantic reason, `tests/cert_controls.py`), and an
+  A→B→A tamper where a deliberately non-enclosing emitter is rejected then restored by hash
+  (`tests/cert_tamper.sh`). The certified release fragment is the exact-ℚ operators +
+  `sin`/`cos` + the six pure-ℚ checker strategies — **`sqrt`** (v1.4.0, `sqrt_rat`: Newton
+  square bracket), **`exp`** (v1.4.1, `exp_rat`; general-sign since v1.5.0 §490 via the exact
+  reciprocal identity), **`ln`** (v1.5.0, `ln_rat`: inverse exponential bracket), tight
+  **`sin`/`cos`** (v1.5.0, `sin_rat`/`cos_rat`: Mathlib midpoint Taylor + Lipschitz-1,
+  |midpoint| ≤ 1), and **`atan`** (v1.5.0, `atan_rat`: cap / tan-bracket / reciprocal over
+  20-digit rational π bounds) — all with **NO libm TCB**; the remaining true-transcendentals
+  (`tan`/`cbrt`/`asin`/`acos`/`log10`/`log2`/…) AND named constants (`pi`/`e`/`tau`) fail
+  closed (const excluded 2026-08-15, §487-const audit — their value is bound only by the
+  undischarged `ConstTCB` premise, not ℚ-decidable). What is *not* proven is enumerated in
   [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm meeting its
   2-ulp model; the still-fail-closed operators; the bigint/rational lanes (checked in-language by
   the Anubis SMT checker, outside this Lean scope); that the Anubis emitter faithfully produces
@@ -442,6 +456,120 @@ Compute budgets fail closed: `big-fact`/`big-ncr` accept n <= 10000, `big-pow` e
 <= 10000 on bases <= 1000 digits. The legacy `fact`/`ncr` stay on the documented i64
 register model; the `big-` lane is the exact model.
 
+## Exact algebra and number theory — certificate-bearing lanes
+
+The v1.5.0 exact CAS lane turns the bigint/rational core into a small
+certifiable computer-algebra surface.  Every command computes EXACTLY
+(big-rational / big-integer arithmetic, never floats), prints `status=exact`,
+and — where a compact witness exists — emits a final
+`exact-cert={...}` line: a canonical `jackal-exact-cert-v1` JSON certificate
+that the small, stdlib-only, independent verifier
+`tools/exact_verify.py` re-checks **by full recomputation** (its own parser,
+its own polynomial arithmetic, its own Sturm chains — it never trusts the
+engine):
+
+```bash
+./jackal poly-eq "(x+1)^2" "x^2+2*x+1"     # status=exact equal=true  + cert
+./jackal poly-eq "x^2-1" "(x-1)^2"          # equal=false — counterexample-proof coefficients in the cert
+./jackal ratfunc-canon "(x^2-1)/(x-1)"      # num=1,1 den=1 side-condition=denominator-nonzero
+./jackal roots-isolate "(x^2-2)*(x-3)"      # 3 disjoint rational isolating intervals + Sturm-checkable cert
+./jackal alg-cmp "x^2-2" 1 3/2 "x^2-3" 3/2 2   # order=less — sqrt(2) < sqrt(3), decided exactly
+./jackal xgcd 240 -46                        # g=2 u=-9 v=-47 + Bezout certificate
+./jackal prime-cert 1000003                  # verdict=prime + recursive Pratt certificate
+./jackal prime-cert 561                      # verdict=composite divisor=3 (Carmichael numbers cannot pass)
+./jackal mod-inv 3 7 && ./jackal crt 2 3 3 5 2 7
+./jackal canon "2+3*sin(pi/6)^2"             # canonical s-expression + SHA-256
+
+# independent replay of any emitted certificate:
+./jackal xgcd 240 -46 | sed -n 's/^exact-cert=//p' | python3 -I -S -B tools/exact_verify.py -
+# exact-verify=ACCEPT kind=xgcd cert_sha256=... method=independent-recompute
+```
+
+Semantics and honest labels: `exact` here means exact integer/rational
+computation with an independently re-checkable certificate — it is NOT a
+Lean-mechanized claim (those are the `formal-*` lanes), and the verifier's
+ACCEPT line says `method=independent-recompute`.  Polynomial identity over
+ℚ[x] is DECIDED (canonical-form comparison, degree ≤ 64); rational-function
+canonicalization records the `denominator-nonzero` side condition because
+`(x²-1)/(x-1) = x+1` only where the original denominator is nonzero;
+`roots-isolate` reports distinct real roots (multiplicities are not
+claimed); `prime-cert` refuses beyond its factoring budget (trial division +
+Pollard rho, `n ≤ 10^60`) instead of downgrading — a Pratt certificate or a
+divisor, never a probabilistic verdict labeled exact.  General symbolic
+simplification and equality outside these fragments remain refused, exactly
+as before.
+
+## The claim-bundle evidence kernel (v1.6.0, additive)
+
+v1.6.0 turns the engine and its lanes into a typed claim compiler: every
+consequential quantitative conclusion either carries a canonical,
+independently replayable evidence graph that preserves every weaker
+class and assumption, or refuses.
+
+```bash
+# Compile a structured claim request into a content-addressed bundle:
+./jackal-claim --request request.json --emit-bundle bundle.json
+# Independently replay it against caller-pinned expectations:
+./jackal-claim-verify --bundle bundle.json \
+  --expected-release-epoch v1.6.0 \
+  --expected-root-proposition root_prop.json \
+  --expected-policy-sha256 <hex> \
+  --verification-time-unix "$(date +%s)"
+```
+
+The kernel is deliberately small and closed:
+
+- **Canonical bytes are load-bearing.**  One canonical JSON function
+  (RFC 8785-compatible on the admitted value space; no floats, NFC-only
+  strings, duplicate keys refused); node identity = SHA-256 of canonical
+  node bytes; bundles bind nodes, root, policy, registries, and engine
+  identity into one digest.
+- **Provenance is a graph, not a badge.**  Fifteen registered inference
+  rules (`release/claim/inference_registry_v1.json`) — evidence
+  admission, conjunction, typed substitution, exact-rational interval
+  arithmetic (division only off zero), linear/affine unit conversion,
+  threshold derivation, robust decisions, model conditioning, provenance
+  passthrough, attestation attach.  Anything else refuses; this is not a
+  theorem prover.
+- **Assurance is multidimensional and non-launderable.**  Four ordered
+  axes (input provenance, model validity, mathematical class,
+  implementation) propagate by pointwise meet with rule caps; artifact
+  flags AND; residual non-claims union and never disappear.  A declared
+  vector that diverges from the recomputed one refuses.  A signature can
+  only ever affect artifact provenance.  Exact math over an assumed
+  model stays `model_validity=assumed`; formal math over supplied input
+  stays `input_provenance=supplied`.
+- **Decisions carry structured consequence classes** (`informational`,
+  `advisory`, `decision-boundary`, `safety-critical`) with
+  kernel-mandated minimum axis floors and exact certified margins —
+  `safety-critical` over a merely assumed physical model refuses.
+- **Legacy lanes ride unmodified.**  `jackal-formal-receipt-v1` receipts
+  and `jackal-exact-cert-v1` certificates enter graphs only through
+  adapters that re-run the EXISTING independent verifiers
+  (`receipt_verify.py` + pinned Lean checker, `exact_verify.py`); a
+  bounded machine-integer fragment (`jackal-machine-int-cert-v1`: w8-w64,
+  signed/unsigned, wrap/checked two's-complement) is fully recomputed by
+  the claim verifier with the engine's exact bitwise commands as drift
+  alarms.
+- **The verifier trusts nothing.**  `tools/claim_bundle_verify.py` is
+  dependency-free, runs under `python3 -I -S -B`, requires caller-pinned
+  epoch/root-proposition/policy/registries/time/nonce, recomputes every
+  hash, rule, axis, floor, and the deterministic rendering, and returns
+  `verified`, `refused`, or `indeterminate` with one of 70 stable reason
+  classes — never a bare VERIFIED badge.
+- **Interval-composed enclosures cap at `mathematical=bounded`**: hull
+  arithmetic is recomputed by the Python verifier, not the Lean checker;
+  formal parents keep `formal-bounded` in their own nodes.  The graph
+  never flattens.
+
+Hermes exposes the kernel as two additive tools — `jackal_claim` and
+`jackal_verify_bundle` — alongside the unchanged 31.  Hostile controls
+(108-row matrix: serialization, graph identity, laundering, units,
+consequence floors, freshness/replay, machine arithmetic, legacy
+compatibility, rendering), A→B→A tamper gates over the seven claim trust
+layers, ten end-to-end dogfood graphs, and a fresh-extraction three-way
+parity gate ship in `release/evidence/claim_*_v160.json`.
+
 ## Command atlas
 
 | World | Commands |
@@ -449,10 +577,12 @@ register model; the `big-` lane is the exact model.
 | Trust and metrology | `claim-card self-test maturity measure-mul uncertain-ohm kinetic-sensitivity` |
 | Expression engine | `eval integrate integrate-adaptive derivative solve` |
 | Certified enclosures | `integrate-bound range-bound` (proven interval bounds, refuse-on-doubt) |
-| Proof-carrying | `range-bound-cert` plus release wrappers `jackal-cert-release` and `jackal-gaussian-release` (matching Lean checker required) |
+| Proof-carrying | `range-bound-cert` plus release wrappers `jackal-cert-release`, `jackal-gaussian-release`, and the seven zero-libm fragment wrappers `jackal-{sqrt,exp,ln,sin,cos,atan,tanh}-rat-release` (matching Lean checker required) |
 | Provenance | `parse-dump lower-dump` (canonical s-expr of the parse/lowering — drives the Lean parser-correspondence gate) |
 | Symbolic | `diff` (self-verifying d/dx) |
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |
+| Exact algebra (certificate-bearing) | `canon poly-canon poly-eq poly-gcd ratfunc-canon roots-isolate alg-sign alg-cmp` |
+| Number theory (certificate-bearing) | `xgcd mod-pow mod-inv crt divides prime-cert` |
 | Worksheet | `worksheet` (persistent variables across `;`) |
 | Exact integers | `big-add big-mul big-pow big-fact big-ncr` |
 | Numerical laboratory | `matrix2 solve2 integrate-x2 derivative-x3` |
@@ -530,8 +660,15 @@ printed enclosure ever excludes the independently computed truth. See
   hostile/cross-lane/determinism — and must report zero findings.
 - Measurement multiplication/division uses conservative first-order addition of relative absolute
   uncertainties; it does not infer distributions, covariance or confidence levels.
-- The expression engine is numeric, not symbolic: no CAS, no simplification. Expression
-  arithmetic is IEEE-754 f64; only the `big-` integer lane is arbitrary precision. Numbers
+- The `eval`/`worksheet` expression engine is numeric, not symbolic: no general CAS,
+  no general simplification.  The v1.5.0 exact-algebra lane is a deliberately small
+  CERTIFIABLE fragment on top of it — polynomial/rational-function canonicalization and
+  decidable identity over ℚ[x] (degree ≤ 64), Sturm root isolation, and the number-theory
+  kernel — each claim carried by a `jackal-exact-cert-v1` certificate an independent
+  verifier recomputes.  Everything outside those fragments (trig identities, factoring,
+  general symbolic equality) refuses, exactly as before.  Expression
+  arithmetic in `eval` is IEEE-754 f64; the `big-` integer, `rat`, and exact-algebra
+  lanes are arbitrary precision. Numbers
   require a leading digit (`0.5`, not `.5`). Expression division/modulo by zero and non-finite
   results (NaN/inf) fail closed — deliberately stricter than the underlying language's
   documented IEEE leniency.

@@ -1212,12 +1212,21 @@ fn big_ncr(n, r) {
 
 fn big_pow(base, exponent) {
     if exponent < 0 { panic("big-pow requires exponent >= 0"); }
-    if exponent > 10000 { panic("big-pow exponent is capped at 10000 (compute budget); fail closed"); }
+    // Conservative output-size admission: digits(base^e) <= digits(base)*e.
+    // This admits 2^100000 while keeping the 100,000-digit response budget.
+    let base_text = big_to_text(base);
+    let base_digits = len(base_text);
+    if base_text != "0" && base_text != "1" && exponent > 100000 / base_digits {
+        panic("big-pow estimated output exceeds 100000 decimal digits (compute budget); fail closed");
+    }
     let result = [1];
-    let e = 0;
-    while e < exponent {
-        result = big_mul(result, base);
-        e = e + 1;
+    let factor = base;
+    let e = exponent;
+    // Exponentiation by squaring replaces the old linear multiplication loop.
+    while e > 0 {
+        if e % 2 == 1 { result = big_mul(result, factor); }
+        e = e / 2;
+        if e > 0 { factor = big_mul(factor, factor); }
     }
     return result;
 }
@@ -1428,7 +1437,8 @@ fn ast_to_text(node) {
     if tag == "mul" { return ast_wrap(node[1], 2) + "*" + ast_wrap(node[2], 3); }
     if tag == "div" { return ast_wrap(node[1], 2) + "/" + ast_wrap(node[2], 3); }
     if tag == "mod" { return ast_wrap(node[1], 2) + "%" + ast_wrap(node[2], 3); }
-    if tag == "pow" { return ast_wrap(node[1], 5) + "^" + ast_wrap(node[2], 3); }
+    // Nested powers are parenthesized so the text preserves the AST explicitly.
+    if tag == "pow" { return ast_wrap(node[1], 5) + "^" + ast_wrap(node[2], 5); }
     let arguments = node[2];
     let text = node[1] + "(";
     let i = 0;
@@ -1561,6 +1571,33 @@ fn has_where_defined_convention(node) {
     if tag == "mul" && (ast_is_num(node[1], 0.0) || ast_is_num(node[2], 0.0)) { return true; }
     if has_where_defined_convention(node[1]) { return true; }
     return has_where_defined_convention(node[2]);
+}
+
+// Deliberately narrow real-domain inference: claim x>0 only when the original
+// AST directly requires it. This is metadata, not a general inequality solver.
+fn requires_positive_x(node) {
+    let tag = node[0];
+    if tag == "num" || tag == "var" || tag == "const" { return false; }
+    if tag == "neg" { return requires_positive_x(node[1]); }
+    if tag == "call" {
+        let name = node[1];
+        let arguments = node[2];
+        if (name == "ln" || name == "log10" || name == "log2")
+            && len(arguments) == 1 && arguments[0][0] == "var" && arguments[0][1] == "x" {
+            return true;
+        }
+        let i = 0;
+        while i < len(arguments) {
+            if requires_positive_x(arguments[i]) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+    if tag == "pow" && node[1][0] == "var" && node[1][1] == "x" && node[2][0] != "num" {
+        return true;
+    }
+    if requires_positive_x(node[1]) { return true; }
+    return requires_positive_x(node[2]);
 }
 
 // SOUND simplifier for the certified-bound lane. Unlike simplify(), it never
@@ -2064,16 +2101,27 @@ fn rat_pow(a, exponent) {
     let flip = exponent < 0;
     let e = exponent;
     if flip { e = -e; }
-    if e > 10000 { panic("rat: exponent is capped at 10000 (compute budget); fail closed"); }
+    let budget_digits = max(len(big_to_text(a.num)), len(big_to_text(a.den)));
+    if e > 100000 / budget_digits {
+        panic("rat: estimated output exceeds 100000 decimal digits (compute budget); fail closed");
+    }
     let a_num = a.num;
     if flip && big_is_zero(a_num) { panic("exact division by zero; fail closed"); }
     let num = [1];
     let den = [1];
-    let i = 0;
-    while i < e {
-        num = big_mul(num, a.num);
-        den = big_mul(den, a.den);
-        i = i + 1;
+    let num_factor = a.num;
+    let den_factor = a.den;
+    let k = e;
+    while k > 0 {
+        if k % 2 == 1 {
+            num = big_mul(num, num_factor);
+            den = big_mul(den, den_factor);
+        }
+        k = k / 2;
+        if k > 0 {
+            num_factor = big_mul(num_factor, num_factor);
+            den_factor = big_mul(den_factor, den_factor);
+        }
     }
     let base_neg = a.neg;
     let neg = base_neg && e % 2 == 1;
@@ -2109,10 +2157,13 @@ fn rat_from_num_text(text) {
         if seen_dot { frac_digits = frac_digits + 1; }
         i = i + 1;
     }
-    if exp_value > 10000 { panic("rat: exponent is capped at 10000 (compute budget); fail closed"); }
     let shift = exp_value;
     if exp_neg { shift = -shift; }
     let power = shift - frac_digits;
+    let mantissa_digits = len(mantissa);
+    if mantissa_digits + abs(power) > 100000 {
+        panic("rat: estimated output exceeds 100000 decimal digits (compute budget); fail closed");
+    }
     let num = big_from_text(mantissa);
     let den = [1];
     if power > 0 { num = big_mul(num, big_pow([10], power)); }
@@ -2124,7 +2175,6 @@ fn rat_exponent_value(node) {
     if node[0] == "neg" { return -rat_exponent_value(node[1]); }
     if node[0] == "num" {
         let text = node[2];
-        if len(text) > 5 { panic("rat: exponent is capped at 10000 (compute budget); fail closed"); }
         let i = 0;
         while i < len(text) {
             let ch = char_at(text, i);
@@ -3267,6 +3317,7 @@ fn main() uses(io.print) {
         let derived = simplify(deriv(ast));
         let check = verify_derivative(ast, derived);
         print("d/dx[${source}] = ${ast_to_text(derived)}");
+        if requires_positive_x(raw) { print("domain-real=x>0"); }
         if has_where_defined_convention(raw) {
             print("domain-caveat=simplification assumed subexpressions defined (u/u, u-u, u^0, 0*u); result valid only on the original expression's domain");
         }

@@ -208,7 +208,7 @@ Five wrappers cover the current fragment:
     --expected-evaluator "$(awk '/^evaluator /{print $3}' release/MANIFEST.sha256)" \
     --expected-checker  "$(awk '/^checker /{print $NF}'   release/MANIFEST.sha256)" \
     --expected-source   "$(awk '/^source /{print $NF}'    release/MANIFEST.sha256)" \
-    --expected-release-epoch v1.4.1 \
+    --expected-release-epoch v1.4.2 \
     --expected-command range-bound-cert \
     --expected-expression 'x^2+1' \
     --expected-input-lo 1 --expected-input-hi 2 \

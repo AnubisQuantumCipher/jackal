@@ -231,10 +231,26 @@ def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: st
         os.close(fd)
     if proc.returncode != 0:
         err = proc.stderr.decode("utf-8", "replace")
-        reason = next((s for s in ("fail closed", "outside the certified", "only x is bound",
-                                   "containing zero", "requires lo <= hi")
-                       if s in err), "evaluator refused")
-        raise ReleaseRefusal("evaluator-refused", reason)
+        lowered = err.lower()
+        if "interval containing zero" in lowered:
+            cls = "evaluator-domain-singularity"
+            detail = "denominator interval contains zero; singularity detected on the requested interval"
+        elif "outside the certified fragment" in lowered or "unsupported construct" in lowered:
+            cls = "evaluator-unsupported-fragment"
+            detail = "expression contains an operator outside the formal range fragment"
+        elif "only x is bound" in lowered or "unknown identifier" in lowered:
+            cls = "evaluator-unbound-variable"
+            detail = "formal range requests bind only x"
+        elif "requires lo <= hi" in lowered:
+            cls = "request-interval-order"
+            detail = "lower bound exceeds upper bound"
+        elif "budget" in lowered:
+            cls = "evaluator-budget"
+            detail = "evaluator exhausted its declared compute budget"
+        else:
+            cls = "evaluator-refused"
+            detail = "evaluator refused without a recognized diagnostic"
+        raise ReleaseRefusal(cls, detail)
 
     receipt = bind_and_check(
         cert_path=cert_path, expr=expr, lo=lo, hi=hi,

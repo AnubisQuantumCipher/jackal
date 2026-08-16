@@ -91,7 +91,7 @@ sealed in [`PROVENANCE.md`](PROVENANCE.md)); obtain it from the public GitHub re
 (Apple Silicon macOS), verify the release checksums and pinned identities, or build from
 source (see below and [GETTING-STARTED.md](GETTING-STARTED.md)).
 
-**Formal-release paths (v1.4.1).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
+**Formal-release paths (v1.4.2).** `jackal-cert-release "<expr in x>" <lo> <hi> [formal-receipt.json]`
 emits `status=formal-bounded` **only** when the shared
 release validator (`tests/release_validate.py`)
 confirms the whole bound chain: the exact request commitment, the exact `jackal-native`
@@ -101,7 +101,7 @@ The bundled `plugin/hermes` adapter exposes the same release and verification
 path.  See NON-CLAIMS.txt for the exact scope.  Formal-status *soundness* (an
 accepted certificate implies a true enclosure) is Lean-proved; runtime
 *provenance* (request/evaluator identity) is validator-enforced, not theorem-proved. See
-[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.4.1" for the receipts and preserved predecessor scars.
+[`PROVENANCE.md`](PROVENANCE.md) "Seal v1.4.2" for the receipts and preserved predecessor scars.
 
 
 `jackal-sqrt-rat-release "sqrt(x)" <lo> <hi>` releases a pure-ℚ enclosure of
@@ -356,6 +356,10 @@ and then **refuses to print a derivative that fails its own numeric check**: the
 compared against a central difference (h = 1e-5, the optimal cube-root-of-epsilon scale for
 f64) at sample points, skipping points outside the domain. Sampled agreement is a check, not a
 proof of identity — the output says so (`assurance=numeric-sample-check(not-proof-of-identity)`).
+Nested powers are always parenthesized in output, so `x^(x^x)` is never rendered as the
+precedence-dependent `x^x^x`. A narrow intrinsic-domain pass emits machine-readable metadata
+when justified by the source AST; for example `diff "x^(x^x)"` emits `domain-real=x>0`.
+This is intentionally not advertised as a general inequality solver.
 
 ```bash
 ./jackal diff "x^2*sin(x)"
@@ -438,9 +442,12 @@ lists — every result exact, never rounded:
 ./jackal big-add 999999999999999999999999 1
 ```
 
-Compute budgets fail closed: `big-fact`/`big-ncr` accept n <= 10000, `big-pow` exponents
-<= 10000 on bases <= 1000 digits. The legacy `fact`/`ncr` stay on the documented i64
-register model; the `big-` lane is the exact model.
+Compute budgets fail closed: `big-fact`/`big-ncr` accept n <= 10000. `big-pow` uses
+exponentiation by squaring and admits requests by a conservative 100,000-decimal-digit output
+budget (`digits(base) * exponent`), rather than a raw exponent cap. Thus `2^100000` is admitted
+and returned exactly, while requests whose conservative output estimate exceeds the budget are
+refused before allocation. The legacy `fact`/`ncr` stay on the documented i64 register model;
+the `big-` lane is the exact model.
 
 ## Command atlas
 
@@ -546,8 +553,8 @@ printed enclosure ever excludes the independently computed truth. See
 - `diff` differentiates with respect to `x`; other free variables are treated as constants and
   bound to 1.5 during the numeric verification pass. Symbolic simplification is minimal — no
   trig identities, no factoring, no collection.
-- `rat` exponents are capped at 10000 (compute budget); non-rational operations (functions,
-  constants, `%`) fail closed rather than approximate.
+- `rat` uses the same 100,000-decimal-digit conservative output budget as the exact-integer lane;
+  non-rational operations (functions, constants, `%`) fail closed rather than approximate.
 - Worksheet state lives for one invocation; there is no persistent session file.
 - Richardson values are error *estimates* from grid refinement, not proven bounds — both grids
   can miss structure narrower than the panel width, so agreement is necessary but not sufficient.

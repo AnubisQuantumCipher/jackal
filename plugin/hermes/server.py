@@ -52,12 +52,14 @@ if not (sys.flags.isolated and sys.flags.no_site):
     raise SystemExit(126)
 
 import argparse
+import ast
 import hashlib
 import json
 import os
 import re
 import subprocess
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -222,6 +224,66 @@ class PluginRefusal(Exception):
         super().__init__(f"{reason}: {detail}")
         self.reason = reason
         self.detail = detail
+
+
+def _classify_evaluator_refusal(detail: str) -> str:
+    """Map evaluator prose to a stable, machine-actionable refusal class."""
+    lowered = detail.lower()
+    if "interval containing zero" in lowered or ("denominator" in lowered and "zero" in lowered):
+        return "evaluator-domain-singularity"
+    if "outside the certified fragment" in lowered or "unsupported construct" in lowered:
+        return "evaluator-unsupported-fragment"
+    if "only x is bound" in lowered or "unknown identifier" in lowered:
+        return "evaluator-unbound-variable"
+    if "compute budget" in lowered or "budget" in lowered:
+        return "evaluator-budget"
+    return "evaluator-refused"
+
+
+def _fraction_from_ast(node: ast.AST, source: str) -> Fraction:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        token = ast.get_source_segment(source, node)
+        if token is None:
+            raise PluginRefusal("exact-replay-parser", "numeric source segment unavailable")
+        return Fraction(token)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        value = _fraction_from_ast(node.operand, source)
+        return value if isinstance(node.op, ast.UAdd) else -value
+    if isinstance(node, ast.BinOp):
+        left = _fraction_from_ast(node.left, source)
+        right = _fraction_from_ast(node.right, source)
+        if isinstance(node.op, ast.Add): return left + right
+        if isinstance(node.op, ast.Sub): return left - right
+        if isinstance(node.op, ast.Mult): return left * right
+        if isinstance(node.op, ast.Div):
+            if right == 0:
+                raise PluginRefusal("exact-replay-domain", "division by zero")
+            return left / right
+        if isinstance(node.op, ast.Pow):
+            if right.denominator != 1:
+                raise PluginRefusal("exact-replay-fragment", "power exponent is not an integer")
+            exponent = right.numerator
+            if abs(exponent) > 100000:
+                raise PluginRefusal("exact-replay-budget", "absolute exponent exceeds 100000")
+            return left ** exponent
+    raise PluginRefusal("exact-replay-fragment", f"unsupported AST node {type(node).__name__}")
+
+
+def _replay_exact_expression(expression: str, expected: str) -> dict[str, str]:
+    """Independently replay exact rational arithmetic with stdlib Fraction."""
+    if hasattr(sys, "set_int_max_str_digits"):
+        sys.set_int_max_str_digits(0)
+    translated = expression.replace("^", "**")
+    try:
+        tree = ast.parse(translated, mode="eval")
+        value = _fraction_from_ast(tree.body, translated)
+        expected_value = Fraction(expected)
+    except (SyntaxError, ValueError, ZeroDivisionError) as exc:
+        raise PluginRefusal("exact-replay-parser", str(exc)) from exc
+    rendered = str(value.numerator) if value.denominator == 1 else f"{value.numerator}/{value.denominator}"
+    if value != expected_value:
+        raise PluginRefusal("exact-replay-divergence", f"engine={expected} replay={rendered}")
+    return {"status": "verified", "exact": rendered, "method": "independent-fraction-replay"}
 
 
 def _manifest_alias(labels: set[str], description: str) -> str:
@@ -861,7 +923,7 @@ def _run_pinned_evaluator(argv: list[str]) -> tuple[str, str]:
              for ln in raw_detail.splitlines() if "ANUBIS_PANIC: " in ln),
             raw_detail.split("\n")[0],
         )[:300]
-        raise PluginRefusal("evaluator-refused", detail)
+        raise PluginRefusal(_classify_evaluator_refusal(detail), detail)
     return proc.stdout, pre
 
 
@@ -886,7 +948,7 @@ def _make_weak_tool(tool_name: str, spec: dict[str, Any]):
                 "plugin-lane-status-divergence",
                 f"engine printed status={printed!r} but inventory row {lane!r} "
                 f"allows {allowed!r}")
-        return {
+        result = {
             "status": allowed,
             "lane": lane,
             "formal": False,
@@ -900,6 +962,15 @@ def _make_weak_tool(tool_name: str, spec: dict[str, Any]):
                 row.get("description", ""),
             ],
         }
+        if tool_name == "jackal_exact":
+            exact = fields.get("exact")
+            if exact is None:
+                raise PluginRefusal("exact-replay-missing", "engine emitted no exact= field")
+            result["exact_replay"] = _replay_exact_expression(args["expression"], exact)
+            result["non_claims"].append(
+                "Exact replay is an independent implementation check, not a formal proof"
+            )
+        return result
 
     tool.__name__ = f"tool_{tool_name}"
     return tool

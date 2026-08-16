@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.1 fresh-extraction package smoke test.
+"""JACKAL v1.4.2 fresh-extraction package smoke test.
 
 Copies the built package to a fresh temp directory with NO repository-relative
 fallback and exercises it end to end: valid release bounded; unsupported op,

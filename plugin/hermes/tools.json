@@ -1,7 +1,7 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.4.1",
+  "version": "v1.4.2",
   "description": "JACKAL verified computation kernel: formal-bounded range/Gaussian enclosures, independent receipt verification, and honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates.",
   "bundle_files": [
     "server.py",
@@ -167,7 +167,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.4.1",
+        "release_epoch": "v1.4.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -192,14 +192,14 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.4.1",
+        "release_epoch": "v1.4.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
     },
     {
       "name": "jackal_exact",
-      "description": "Exact big-rational arithmetic (status=exact). NOT formal: computationally exact, outside the Lean certificate chain.",
+      "description": "Exact big-rational arithmetic (status=exact), independently replayed with stdlib Fraction. NOT formal: computationally exact, outside the Lean certificate chain.",
       "arguments": {
         "expression": {"type": "string", "required": true,
                        "help": "Integers, decimals, + - * / ^ (integer exponents), parentheses. Everything else refuses."}

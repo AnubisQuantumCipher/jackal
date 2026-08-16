@@ -8,12 +8,20 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.4.2 — 2026-08-15 (current) — variant receipt round-trip landed
+## Seal v1.4.2 — 2026-08-15 (current) — variant receipt round-trip + exact-lane hardening
 
 The v1.4.1b seal called out one deferred item: extending
 `jackal-formal-receipt-v1` so `jackal_verify_receipt` could round-trip
 the `variant=sqrt_rat` / `variant=exp_rat` payloads emitted by the two
 new plugin tools.  That's now done.
+
+This source-current hardening slice additionally repairs the exact-rational A3
+capability gap (`2^100000` now releases exactly under a conservative
+100000-decimal-digit output budget), upgrades evaluator refusals to stable
+machine-readable classes, adds an independent stdlib-`Fraction` replay to
+`jackal_exact`, and emits machine-readable `domain-real=x>0` metadata for the
+intrinsic-positive `diff "x^(x^x)"` case.  No formal claim surface widened:
+the weaker lanes remain explicitly non-formal.
 
 ### Schema evolution: backward-compatible `variant` field
 
@@ -103,7 +111,8 @@ driven by the receipt's `variant` field.
 ### Frozen v1.4.2 identities
 
 ```
-jackal-native            820c0722e46a0800115c404ea1c9251c6f72fe8c6897bdabe437f342f9310b6c  (unchanged)
+jackal_calc.anb          ea33bafe98a55872826854965989648904d3c119ae4ae175c9504ca1166ef8b0  (bumped — exact-lane budget admission + domain metadata)
+jackal-native            bc41cc27638953b9688b4021ccfdea92956b6c5dbf1baf633da7e962482b037d  (rebuilt from the updated source)
 jackal_cert_check        b567b8a94ce7acd49ecaa807d86a5bb66d695fb0ce4fea2eb84f0073425984d7  (unchanged)
 jackal_gaussian_check    42d3f3e74b90062c958baeda9ddf9ddd6f82ef3f8e4dd2b9ade5017239fe7a77  (unchanged)
 range_proof_identity     82376d501264a2aabe1cdce6a373f9c53f2bedf262a25494253131835d8bb2ae  (unchanged)
@@ -111,20 +120,26 @@ gaussian_proof_identity  22c59e60b66a7fc6ef232e01fe64967285d36bb65e92847f9b42af7
 coverage_inventory       17890f7e001462eb1c38baedad5bcf1d977a55e1d0258d4ddf233ba1ac86b1dd  (unchanged)
 sqrt_rat_producer        4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926  (unchanged)
 exp_rat_producer         ccbc48633bd3980613413399d552321eaa67b15bd101643e53b0dd5f10a37918  (unchanged)
-plugin_hermes            06774cc7d54a5c4a228d7de19bc50070a190a906de8f0da4f7f69a653c38f0ae  (bumped — server.py variant emit + verify dispatch)
-package tarball          30b1a7441cdd9c1b0f24ac6d187608d3235f1ced6c57469dc1b1f697f475b1a0  (byte-reproducible)
+plugin_hermes            4a4365d0f9d98c0dee7646f957b8308bb5d319d27ed0648b794d30dddd3d36d4  (bumped — exact replay + stable refusal classes + domain metadata)
+package tarball          bb0b8e80caa54e47ae34f373cc1e859e1df7bb927ee8aa4a2b7ff68c41c76269  (41 files, 79,293,930 bytes; byte-reproducible across two rebuilds)
 ```
 
 ### Gate receipts on the v1.4.2 final bytes
 
-Lake build 8682 jobs · Range + Gaussian proof identity · Positive corpus 20/20 ·
-Negative controls 30/30 · A→B→A 2-mutation 2/2 · 11-category mutations 11/11 ·
-Formal-status gate 11/11 · sqrt_rat 7/7 · exp_rat 8/8 · Plugin smoke S1..S16
-(S14/S15 now include jackal_verify_receipt round-trip) · Plugin bundle identity
-17 files · output_path_safety 6/6 · **receipt_semantic_mutations 33/33** ·
-Gaussian receipt + mutations · Package smoke **18 cases** (including two new
-variant receipt round-trips through the packaged jackal-receipt-verify).
-Deterministic tarball `30b1a744…` across two consecutive rebuilds.
+Lake build 17336 jobs (`jackal_cert_check`) + 17326 jobs (`jackal_gaussian_check`) ·
+repo `python3 -I -S tests/trust_boundary_hardening_test.py` **5/5 OK** ·
+live repo plugin path via `tools/isolated_entry.py plugin call`: `jackal_exact 2^100000`
+→ `status=exact`, 30103 digits, `exact_replay.status=verified`; `jackal_exact 10^100000`
+→ `status=refused reason=evaluator-budget`; `jackal_diff x^(x^x)` →
+`status=checked` with `domain-real=x>0` and canonical `x^(x^x)` rendering ·
+Positive corpus 20/20 · Negative controls 30/30 · A→B→A 2-mutation 2/2 ·
+11-category mutations 11/11 · Formal-status gate 11/11 · sqrt_rat 7/7 ·
+exp_rat 8/8 · Plugin smoke S1..S16 (S14/S15 include jackal_verify_receipt
+round-trip) · Plugin bundle identity 17 files · output_path_safety 6/6 ·
+**receipt_semantic_mutations 33/33** · Gaussian receipt + mutations ·
+Package smoke **18 cases** (including the variant receipt round-trips and
+fresh-extraction plugin formal calls) · deterministic tarball `bb0b8e80…`
+across two consecutive rebuilds.
 
 **Claim boundary unchanged.** No new axioms.  The schema evolution is a
 dispatch field, not a new proof premise — `sqrt_rat`/`exp_rat` receipts

@@ -43,6 +43,12 @@ Every weaker-lane row derives its epistemic class VERBATIM from the
 printed `status=` line must equal the inventory row; divergence refuses
 with `plugin-lane-status-divergence` rather than picking one.
 
+`jackal_exact` additionally replays the restricted rational AST through an
+independent stdlib `Fraction` implementation and refuses with
+`exact-replay-divergence` if the two exact results differ. This is an
+independent implementation check, not a Lean proof; that distinction is
+carried in the returned `exact_replay` object and non-claims.
+
 ## Invocation modes
 
 The plugin ships one Python entry-point (`plugin/hermes/server.py`) with
@@ -76,6 +82,16 @@ startup.
 * `producer-identity`           standalone producer SHA-256 != pinned value
 * `producer-toctou`             standalone producer bytes changed across the call
 * `evaluator-refused`           the evaluator refused (returns detail)
+* `evaluator-domain-singularity` denominator interval contains zero
+* `evaluator-unsupported-fragment` operator is outside the formal fragment
+* `evaluator-unbound-variable`  formal request contains an unbound variable
+* `evaluator-budget`            declared compute budget was exhausted
+* `exact-replay-parser`         independent replay could not parse the exact witness
+* `exact-replay-fragment`       independent replay hit an unsupported AST form
+* `exact-replay-domain`         independent replay found exact division by zero
+* `exact-replay-budget`         independent replay exceeded its exponent guard
+* `exact-replay-missing`        engine emitted no `exact=` field for `jackal_exact`
+* `exact-replay-divergence`     exact engine and independent replay disagree
 * `checker-rejected`            `jackal_cert_check` REJECT
 * `checker-no-accept`           `jackal_cert_check` printed no ACCEPT line
 * `formal-status-refused`       formal-status gate refused

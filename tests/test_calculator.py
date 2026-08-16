@@ -8,6 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+if hasattr(sys, "set_int_max_str_digits"):
+    sys.set_int_max_str_digits(0)
+
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "jackal_calc.anb"
 PIN = Path(os.environ.get("ANUBIS_BIN", "/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"))
@@ -71,7 +74,7 @@ CASES = [
     (["rat", "1/3 + 1/6"], "status=exact parsed=1/3+1/6 exact=1/2 approx=0.5"),
     # approx is the honest IEEE f64 value of pow(2/3, -2) — NOT 2.25; the exact
     # field 9/4 is the true answer, and that discrepancy is the feature.
-    (["rat", "(2/3)^-2"], "status=exact parsed=(2/3)^-2 exact=9/4 approx=2.2500000000000004"),
+    (["rat", "(2/3)^-2"], "status=exact parsed=(2/3)^(-2) exact=9/4 approx=2.2500000000000004"),
     (["rat", "1/3 - 1/3"], "status=exact parsed=1/3-1/3 exact=0 approx=0"),
     (["rat", "-3/9"], "status=exact parsed=-3/9 exact=-1/3 approx=-0.3333333333333333"),
     (["rat", "2.5e1 * 2"], "status=exact parsed=2.5e1*2 exact=50 approx=50"),
@@ -199,6 +202,11 @@ CONTAINS_CASES = [
     (["diff", "x^2"], ["d/dx[x^2] = 2*x", "check=numeric"]),
     (["diff", "x^2*sin(x)"], ["2*x*sin(x)+x^2*cos(x)", "check=numeric"]),
     (["diff", "x^x"], ["x^x*(ln(x)+1)", "check=numeric"]),
+    (["diff", "x^(x^x)"], [
+        "d/dx[x^(x^x)] = x^(x^x)*(x^x*(ln(x)+1)*ln(x)+x^x/x)",
+        "domain-real=x>0",
+        "check=numeric",
+    ]),
     (["diff", "sqrt(x)"], ["1/(2*sqrt(x))", "check=numeric"]),
     (["diff", "5"], ["d/dx[5] = 0", "check=numeric points=9"]),
     # Certified interval lane: the enclosure is checked NUMERICALLY against an
@@ -292,12 +300,16 @@ RAT_ORACLE_CASES = [
 # Exact-integer engine: expected values computed HERE by Python's arbitrary
 # precision at runtime — an independent oracle, not author-transcribed constants.
 ORACLE_CASES = [
+    (["rat", "2^100000"], "status=exact parsed=2^100000 exact=" + str(2**100000) + " approx=not-representable-in-float64"),
     (["big-fact", "100"], str(math.factorial(100))),
     (["big-fact", "1000"], str(math.factorial(1000))),
     (["big-ncr", "100", "50"], str(math.comb(100, 50))),
     (["big-ncr", "1000", "500"], str(math.comb(1000, 500))),
     (["big-pow", "2", "512"], str(2**512)),
     (["big-pow", "123456789", "100"], str(123456789**100)),
+    # Admission is output-cost based, not a raw exponent cap: this 30,103-digit
+    # result is smaller than 10000! (35,660 digits) and must be released exactly.
+    (["big-pow", "2", "100000"], str(2**100000)),
     (["big-add", "999999999999999999999999", "1"], str(10**24)),
     (["big-mul", "123456789012345678901234567890", "987654321098765432109876543210"],
      str(123456789012345678901234567890 * 987654321098765432109876543210)),
@@ -364,7 +376,8 @@ FAIL_CASES = [
     (["big-fact", "10001"], "compute budget"),
     (["big-fact", "-1"], "big-fact requires 0 <= n <= 10000"),
     (["big-ncr", "5", "9"], "nCr requires 0 <= r <= n"),
-    (["big-pow", "2", "10001"], "capped at 10000"),
+    (["big-pow", "10", "100000"], "estimated output exceeds 100000 decimal digits"),
+    (["rat", "10^100000"], "estimated output exceeds 100000 decimal digits"),
     (["big-mul", "12x", "3"], "decimal digits only"),
     (["worksheet", "pi = 3"], "reserved name"),
     (["worksheet", "zz + 1"], "unknown identifier"),

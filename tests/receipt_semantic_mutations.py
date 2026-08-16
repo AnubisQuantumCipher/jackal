@@ -145,9 +145,45 @@ EXP_RAT_REQUEST = {
 }
 SQRT_RAT_PRODUCER = ROOT / "tools" / "sqrt_rat_producer.py"
 EXP_RAT_PRODUCER = ROOT / "tools" / "exp_rat_producer.py"
+LN_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "ln(x)",
+    "input_lo": "2",
+    "input_hi": "3",
+}
+SIN_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "sin(x)",
+    "input_lo": "-1/2",
+    "input_hi": "1/2",
+}
+COS_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "cos(x)",
+    "input_lo": "0",
+    "input_hi": "1/2",
+}
+ATAN_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "atan(x)",
+    "input_lo": "1",
+    "input_hi": "2",
+}
+TANH_RAT_REQUEST = {
+    "command": "range-bound-cert",
+    "expression": "1-2/(exp(2*x)+1)",
+    "input_lo": "0",
+    "input_hi": "1",
+}
+LN_RAT_PRODUCER = ROOT / "tools" / "ln_rat_producer.py"
+SIN_RAT_PRODUCER = ROOT / "tools" / "sin_rat_producer.py"
+ATAN_RAT_PRODUCER = ROOT / "tools" / "atan_rat_producer.py"
+TANH_RAT_PRODUCER = ROOT / "tools" / "tanh_rat_producer.py"
 
 
-def _fresh_variant(*, variant: str, request: dict[str, str], producer: Path) -> dict:
+def _fresh_variant(*, variant: str, request: dict[str, str], producer: Path,
+                   epoch: str = "v1.4.2",
+                   extra_args: list[str] | None = None) -> dict:
     import subprocess
     from formal_receipt import (
         build_variant_formal_receipt, canonical_rat,
@@ -158,9 +194,10 @@ def _fresh_variant(*, variant: str, request: dict[str, str], producer: Path) -> 
         cert_path = Path(td) / f"{variant}.cert"
         proc = subprocess.run(
             [sys.executable, "-I", "-S", "-B", str(producer), "emit",
+             *(extra_args or []),
              "--expression", request["expression"],
              "--lower", request["input_lo"], "--upper", request["input_hi"]],
-            capture_output=True, check=True, timeout=60,
+            capture_output=True, check=True, timeout=120,
         )
         cert_path.write_bytes(proc.stdout)
         cert_bytes = cert_path.read_bytes()
@@ -169,7 +206,7 @@ def _fresh_variant(*, variant: str, request: dict[str, str], producer: Path) -> 
     inv_bytes = INVENTORY.read_bytes()
     return build_variant_formal_receipt(
         variant=variant,
-        release_epoch="v1.4.2",
+        release_epoch=epoch,
         request=request,
         enclosure=(encl_lo, encl_hi),
         cert_bytes=cert_bytes,
@@ -193,6 +230,33 @@ def fresh_sqrt_rat() -> dict:
 def fresh_exp_rat() -> dict:
     return _fresh_variant(variant="exp_rat", request=EXP_RAT_REQUEST,
                            producer=EXP_RAT_PRODUCER)
+
+
+def fresh_ln_rat() -> dict:
+    return _fresh_variant(variant="ln_rat", request=LN_RAT_REQUEST,
+                          producer=LN_RAT_PRODUCER, epoch="v1.5.0")
+
+
+def fresh_sin_rat() -> dict:
+    return _fresh_variant(variant="sin_rat", request=SIN_RAT_REQUEST,
+                          producer=SIN_RAT_PRODUCER, epoch="v1.5.0",
+                          extra_args=["--op", "sin"])
+
+
+def fresh_cos_rat() -> dict:
+    return _fresh_variant(variant="cos_rat", request=COS_RAT_REQUEST,
+                          producer=SIN_RAT_PRODUCER, epoch="v1.5.0",
+                          extra_args=["--op", "cos"])
+
+
+def fresh_atan_rat() -> dict:
+    return _fresh_variant(variant="atan_rat", request=ATAN_RAT_REQUEST,
+                          producer=ATAN_RAT_PRODUCER, epoch="v1.5.0")
+
+
+def fresh_tanh_rat() -> dict:
+    return _fresh_variant(variant="tanh_rat", request=TANH_RAT_REQUEST,
+                          producer=TANH_RAT_PRODUCER, epoch="v1.5.0")
 
 
 def verify_variant(receipt: dict, *, variant: str, request: dict,
@@ -265,6 +329,21 @@ def main() -> int:
     if verify_variant(exp_receipt, variant="exp_rat", request=EXP_RAT_REQUEST,
                       producer=EXP_RAT_PRODUCER).get("verdict") != "ACCEPT":
         raise RuntimeError("baseline exp_rat receipt did not verify")
+    ln_receipt = fresh_ln_rat()
+    sin_receipt = fresh_sin_rat()
+    cos_receipt = fresh_cos_rat()
+    atan_receipt = fresh_atan_rat()
+    tanh_receipt = fresh_tanh_rat()
+    for _name, _rcpt, _req, _prod in [
+        ("ln_rat", ln_receipt, LN_RAT_REQUEST, LN_RAT_PRODUCER),
+        ("sin_rat", sin_receipt, SIN_RAT_REQUEST, SIN_RAT_PRODUCER),
+        ("cos_rat", cos_receipt, COS_RAT_REQUEST, SIN_RAT_PRODUCER),
+        ("atan_rat", atan_receipt, ATAN_RAT_REQUEST, ATAN_RAT_PRODUCER),
+        ("tanh_rat", tanh_receipt, TANH_RAT_REQUEST, TANH_RAT_PRODUCER),
+    ]:
+        if verify_variant(_rcpt, variant=_name, request=_req, producer=_prod,
+                          epoch="v1.5.0").get("verdict") != "ACCEPT":
+            raise RuntimeError(f"baseline {_name} receipt did not verify")
 
     cases: list[tuple[str, callable, str]] = []
 
@@ -481,6 +560,61 @@ def main() -> int:
     add("audit-lock-const-rounded-node-refused",
         lambda: verify_range(const_node),
         "node-op-outside-release-fragment")
+
+    # ---- v1.5.0 §490 variant round-trip mutation locks ---------------------
+    add("ln-rat-wrong-variant-tag",
+        lambda: verify_variant(mutate(ln_receipt, ("variant",), "exp_rat"),
+                               variant="ln_rat", request=LN_RAT_REQUEST,
+                               producer=LN_RAT_PRODUCER, epoch="v1.5.0"),
+        "receipt-assumptions")
+    add("cos-rat-variant-swap-to-sin",
+        lambda: verify_variant(mutate(cos_receipt, ("variant",), "sin_rat"),
+                               variant="cos_rat", request=COS_RAT_REQUEST,
+                               producer=SIN_RAT_PRODUCER, epoch="v1.5.0"),
+        "receipt-assumptions")
+    add("ln-rat-source-anb-forged-nonnull",
+        lambda: verify_variant(mutate(ln_receipt, ("identities", "source_anb_sha256"), "0" * 64),
+                               variant="ln_rat", request=LN_RAT_REQUEST,
+                               producer=LN_RAT_PRODUCER, epoch="v1.5.0"),
+        "variant-source-identity")
+    add("tanh-rat-producer-identity-forged",
+        lambda: verify_variant(mutate(tanh_receipt, ("identities", "producer_sha256"), "0" * 64),
+                               variant="tanh_rat", request=TANH_RAT_REQUEST,
+                               producer=TANH_RAT_PRODUCER, epoch="v1.5.0"),
+        "producer-identity")
+    add("tanh-rat-admitted-forged",
+        lambda: verify_variant(mutate(tanh_receipt, ("fragment", "admitted_operators"),
+                                      ["exp", "var"]),
+                               variant="tanh_rat", request=TANH_RAT_REQUEST,
+                               producer=TANH_RAT_PRODUCER, epoch="v1.5.0"),
+        "fragment-admitted")
+    add("atan-rat-coverage-row-forged",
+        lambda: verify_variant(mutate(atan_receipt, ("fragment", "coverage_row_ids"),
+                                      ["jackal_range_bound"]),
+                               variant="atan_rat", request=ATAN_RAT_REQUEST,
+                               producer=ATAN_RAT_PRODUCER, epoch="v1.5.0"),
+        "coverage-row-set")
+    add("sin-rat-non-claims-forged",
+        lambda: verify_variant(mutate(sin_receipt, ("non_claims",),
+                                      ["UNIVERSAL sin correctness"]),
+                               variant="sin_rat", request=SIN_RAT_REQUEST,
+                               producer=SIN_RAT_PRODUCER, epoch="v1.5.0"),
+        "receipt-non-claims")
+    # TCB-op smuggling lock: relabel the pure-ℚ `ln_rat` node to the
+    # libm-TCB `ln` op.  The release-fragment node mirror must refuse —
+    # exactly as the Lean `releaseNodeOp` wildcard refuses `ln`.
+    ln_tcb_node = replace_range_node_op(ln_receipt, b"ln_rat", b"ln")
+    add("ln-rat-tcb-op-smuggle",
+        lambda: verify_variant(ln_tcb_node,
+                               variant="ln_rat", request=LN_RAT_REQUEST,
+                               producer=LN_RAT_PRODUCER, epoch="v1.5.0"),
+        "node-op-outside-release-fragment")
+    # Stale-epoch lock for the new cycle.
+    add("ln-rat-stale-expected-epoch",
+        lambda: verify_variant(ln_receipt, variant="ln_rat",
+                               request=LN_RAT_REQUEST,
+                               producer=LN_RAT_PRODUCER, epoch="v1.4.2"),
+        "release-epoch")
 
     rows = []
     failures = 0

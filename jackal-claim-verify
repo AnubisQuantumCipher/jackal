@@ -1,0 +1,58 @@
+#!/bin/sh
+# jackal-claim-verify — independently replay a jackal-claim-bundle-v1.
+#
+# Usage: ./jackal-claim-verify --bundle <file|-> \
+#          --expected-release-epoch v1.6.0 \
+#          --expected-root-proposition <file|json> \
+#          --expected-policy-sha256 <hex> \
+#          --verification-time-unix <unix-seconds> \
+#          [--expected-nonce <str>] [extra verifier args...]
+#
+# This wrapper fills the INFRASTRUCTURE pins (registries, engine epoch,
+# legacy verifier paths, checker identity, inventory, proof identity)
+# from the repository layout and release/MANIFEST.sha256.  The SEMANTIC
+# pins — expected epoch, root proposition, policy hash, verification
+# time, nonce — must come from the caller; the verifier never copies
+# them from the bundle.  The verifier itself is dependency-free and
+# recomputes every hash; this wrapper is a convenience, not a trust
+# surface.
+set -eu
+ROOT=$(cd "$(dirname "$0")" && pwd)
+
+sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+
+MANIFEST="$ROOT/release/MANIFEST.sha256"
+CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
+INVENTORY="$ROOT/release/coverage/formal_coverage_inventory.json"
+PROOF_ID="$ROOT/release/evidence/range_proof_identity.json"
+INF_REG="$ROOT/release/claim/inference_registry_v1.json"
+UNIT_REG="$ROOT/release/claim/unit_registry_v1.json"
+
+EXPECTED_CHECKER=$(awk '$1=="checker"{print $NF}' "$MANIFEST")
+EXPECTED_EVALUATOR=$(awk '$1=="evaluator"{print $NF}' "$MANIFEST")
+PROOF_DIGEST=$(python3 -I -S -B -c "import json,sys; \
+print(json.load(open(sys.argv[1]))['identity_digest_sha256'])" "$PROOF_ID")
+
+set -- "$@" \
+  --expected-inference-registry "$INF_REG" \
+  --expected-inference-registry-sha256 "$(sha "$INF_REG")" \
+  --expected-unit-registry "$UNIT_REG" \
+  --expected-unit-registry-sha256 "$(sha "$UNIT_REG")" \
+  --expected-environment-epoch "$(sha "$ROOT/jackal-native")" \
+  --receipt-verifier "$ROOT/tools/receipt_verify.py" \
+  --exact-verifier "$ROOT/tools/exact_verify.py" \
+  --checker "$CHECKER" \
+  --expected-checker "$EXPECTED_CHECKER" \
+  --expected-evaluator "$EXPECTED_EVALUATOR" \
+  --inventory "$INVENTORY" \
+  --expected-inventory "$(sha "$INVENTORY")" \
+  --proof-identity "$PROOF_ID" \
+  --expected-proof-identity-file "$(sha "$PROOF_ID")" \
+  --expected-proof-identity-digest "$PROOF_DIGEST"
+
+for producer in sqrt_rat exp_rat ln_rat sin_rat atan_rat tanh_rat; do
+  pin=$(awk -v l="${producer}_producer" '$1==l{print $NF}' "$MANIFEST")
+  [ -n "$pin" ] && set -- "$@" --trusted-producer "$pin"
+done
+
+exec python3 -I -S -B "$ROOT/tools/claim_bundle_verify.py" "$@"

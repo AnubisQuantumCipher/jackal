@@ -1,5 +1,5 @@
 #!/bin/sh
-# JACKAL v1.4.2 sqrt_rat fail-closed release wrapper.
+# JACKAL v1.5.0 sqrt_rat fail-closed release wrapper.
 #
 # Admits ONLY `sqrt(x)` on a canonical rational interval [lo, hi] and emits
 # a request-bound release ACCEPT from the pinned Lean-proved checker.
@@ -109,7 +109,7 @@ inv_bytes = (root / "release/coverage/formal_coverage_inventory.json").read_byte
 inv_sha = hashlib.sha256(inv_bytes).hexdigest()
 receipt = fr.build_variant_formal_receipt(
     variant=fr.SQRT_RAT_VARIANT,
-    release_epoch="v1.4.2",
+    release_epoch="v1.5.0",
     request={"command": "range-bound-cert", "expression": expr,
              "input_lo": lo, "input_hi": hi},
     enclosure=tuple(fr._parse_cert_header(cert_bytes).get("output","").split(" ", 1)),

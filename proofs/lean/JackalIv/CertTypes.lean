@@ -20,7 +20,8 @@ It also defines the total, fail-closed `exprOf` reconstruction of the canonical
 `Syntax.Expr` from the node tree, and `LibmModel` — the NAMED TCB: a `Prop`
 hypothesis carrying exactly the transcendental (sqrt/exp/ln/atan/asin/acos/hypot/
 powGeneral) `Approx`/stage facts the `Runs` constructors need.  `LibmModel` is a
-hypothesis, NEVER a Lean axiom; the 23 rational-exact constructors need no TCB.
+hypothesis, NEVER a Lean axiom; the 29 rational-decided constructors (23
+original exact-formula ops + 6 pure-ℚ strategies) need no TCB.
 
 No `sorry`/`admit`/axiom/`native_decide`/`@[implemented_by]` on any trust path.
 -/
@@ -156,6 +157,14 @@ def buildExpr : Nat → List Node → Nat → Option Expr
       -- the underlying expression is still `exp(x)`; the alternate op name only
       -- tells the checker which arm to use.
       | "exp_rat", [c0] => (buildExpr fuel nodes c0).map (.call1 "exp" ·)
+      -- ln_rat / sin_rat / cos_rat / atan_rat are CHECKER-STRATEGY variants of
+      -- ln / sin / cos / atan (pure-ℚ, no libm TCB, §490 v1.5.0): the
+      -- underlying expression is the plain call; the alternate op name only
+      -- tells the checker which arm to use.
+      | "ln_rat",   [c0] => (buildExpr fuel nodes c0).map (.call1 "ln" ·)
+      | "sin_rat",  [c0] => (buildExpr fuel nodes c0).map (.call1 "sin" ·)
+      | "cos_rat",  [c0] => (buildExpr fuel nodes c0).map (.call1 "cos" ·)
+      | "atan_rat", [c0] => (buildExpr fuel nodes c0).map (.call1 "atan" ·)
       -- binary structural
       | "add", [c0, c1] =>
           match buildExpr fuel nodes c0, buildExpr fuel nodes c1 with

@@ -1,0 +1,197 @@
+{
+  "baseline_commit": "a58c5e42be0aa3b9749f243744dec2e8b60b6e11",
+  "compatibility_floor": "COMPAT_FLOOR_PASS frozen_tools=31 live_tools=33 frozen_gates=32 errors=0",
+  "docs_code_agreement": {
+    "DOCS_MATCH_CODE": "yes",
+    "findings_fixed": [
+      "README.md lead recast to Mathematical Evidence Kernel identity (was: claim-aware STEM engine/calculator only)",
+      "README.md:156 thirty-one -> thirty-three with the two claim-kernel front doors",
+      "GETTING-STARTED.md:246 plugin intro now states thirty-three tools",
+      "plugin/hermes/server.py docstring: thirty-one -> thirty-three, claim front doors documented",
+      "plugin/hermes/tools.json version v1.5.0 -> v1.6.0; description covers claim kernel",
+      "release/MANIFEST.sha256 header now v1.6.0 (via repin_v150.py header fix); plugin_hermes repinned bb53da14... -> d94ffbe1f0f4057214260e422dd7544e7bb8bdc1d36489deeb8cde197af856f4",
+      "PROVENANCE.md:134 frozen-identity row updated to new plugin bundle hash",
+      "tests/test_calculator.py:13 personal absolute path literal replaced with Path.home() launcher convention"
+    ],
+    "intentional_non_changes": [
+      "release_epoch=v1.5.0 strings in server.py legacy lanes and tools.json legacy returns: byte-stable legacy-receipt compatibility per PROVENANCE.md",
+      "README.md v1.5.0-epoch section headers: historically accurate feature-epoch labels for lanes preserved in v1.6.0",
+      "PROVENANCE.md:95,317 v1.5 seal narrative: historical record",
+      "release/claim/SPEC.md is the canonical claim spec filename (mission listed SPEC-v1.md/ASSURANCE.md; assurance matrix lives in SPEC.md section 4; PROVENANCE.md cross-references release/claim/SPEC.md)"
+    ]
+  },
+  "final_seal": {
+    "aggregate": "GATES: PASS (38 gates); log /private/tmp/jackal-v160-publication-evidence/gates_v160_final_run1.log sha256=e5c58356e9a01964529a2ef71dfbcc227a9e9874801f301cb2c6312be72fe15f",
+    "black_box_acceptance": "200/200 via v1.6 aggregate",
+    "checkpoint_commit": "7d4c26308f800223a864a9c997aa366489c37e8d",
+    "final_package_sha256": "0cdacf56bb83d65454330973280cde7da0b9262d6163ccd7efbbbb47bc88e39a",
+    "final_package_size_bytes": 79519523,
+    "fresh_extraction_smoke": "checksums 0 fails; jackal-native self-test 104/104; sqrt wrapper formal-bounded; jackal-claim status=ok; plugin stdio list_tools = 33 with both claim front doors",
+    "sealed_at": "2026-08-16",
+    "two_build_byte_identical": true
+  },
+  "focused_controls": {
+    "claim-hostile": "PASS rows=108 failures=0",
+    "claim-package-parity": "PASS rows=47 failures=0 (double build byte-identical on current bytes)",
+    "compat-floor": "PASS 0 errors",
+    "evidence-determinism": "PASS failures=0",
+    "exact-verify": "PASS positives=34 tampers=91",
+    "mutations-11": "PASS 11/11 (regenerated evidence sha256=22d14b3fe6f7e3ed82d7018dd1dbfbca48bb8925c94a26dd617462125b35d760)",
+    "plugin-bundle-identity": "PASS bundle=d94ffbe1f0f4057214260e422dd7544e7bb8bdc1d36489deeb8cde197af856f4 repo_package_equal=true",
+    "plugin-smoke": "PASS (regenerated evidence sha256=ccf56d9fe580de60a613db2a42b80ede3a8aec93bde9d0e511829c9a29de7e02)",
+    "receipt-semantic-mutations": "PASS 42/42"
+  },
+  "known_defects_deferred": [
+    "release/tools/repin_v150.py:26 hardcoded /tmp/jackal-final-build engine source with silent keep-existing fallback (maintenance tool, not a gate; behavior desirable for this release: engine bytes must not change)",
+    "tests/{bound_campaign,iv_differential}.py and tests/cert_tamper.sh fixed /tmp scratch paths (campaign tools outside the 38-gate set; concurrency hazard only)",
+    "repin script filename says v150 but is the v1.6.0 repin path (cosmetic)"
+  ],
+  "note": "APPROVE is for current bytes after the fixes above; final package identities are re-sealed and this artifact re-verified at the Phase 6 final reseal.",
+  "overclaim_scan": {
+    "notes": [
+      "no generic VERIFIED badge; assurance classes preserved everywhere",
+      "no universal-soundness or end-to-end-formally-verified-executable claim",
+      "Apple Silicon macOS scope stated; SHA-256 treated as byte identity only",
+      "finite hostile campaigns described as bounded evidence"
+    ],
+    "result": "PASS"
+  },
+  "package_inclusion_exclusion": {
+    "builder": "release/build_package_v160.sh",
+    "determinism": "USTAR uid=0 gid=0 mtime=1786752000, gzip mtime=0, LC_ALL=C sorted SHA256SUMS; host tar bypassed",
+    "gitignore": "correct; jackal-native intentionally untracked (MANIFEST-pinned, ships in package); no scratch tracked",
+    "method": "explicit per-file cp inclusion list; no cp -r, no glob include",
+    "website_reachability": "structurally unreachable (zero references in release/ and tools/)"
+  },
+  "residuals_non_claims": [
+    "no source-to-native formal refinement claim",
+    "no end-to-end formally verified executable claim",
+    "no one-time replay prevention without an external nonce store",
+    "no claim that supplied inputs are true in the world",
+    "no probabilistic confidence or independence inferred from intervals",
+    "no universal soundness outside admitted fragments",
+    "composed interval graphs remain bounded, not Lean-covered formal-bounded",
+    "no authentication claim from digest equality",
+    "finite hostile campaigns are bounded evidence, not universal theorems"
+  ],
+  "review_epoch": "v1.6.0",
+  "reviewed_at": "2026-08-16",
+  "reviewer": "independent current-tree release audit (mission Phase 2; three parallel read-only audit lanes + mechanical re-runs)",
+  "schema": "jackal-release-review-v1",
+  "secret_scan": {
+    "credential_leaks": 0,
+    "notes": [
+      "evals/ ANTHROPIC_API_KEY references are env lookups and docs placeholders only",
+      "hostile-matrix fixtures contain no plausible-token strings",
+      "personal-path literal removed from tests/test_calculator.py"
+    ],
+    "result": "PASS"
+  },
+  "tool_inventory": {
+    "count": 33,
+    "dispatch_parity": "server.py handlers 12 direct + 21 weak-lane = 33, 1:1 with tools.json",
+    "expected": 33,
+    "new_v160": [
+      "jackal_claim",
+      "jackal_verify_bundle"
+    ]
+  },
+  "verdict": "APPROVE",
+  "working_set": {
+    "modified_tracked": [
+      "PROVENANCE.md",
+      "README.md",
+      "jackal-cert-release",
+      "jackal-exp-rat-release",
+      "jackal-gaussian-release",
+      "jackal-sqrt-rat-release",
+      "jackal_calc.anb",
+      "plugin/hermes/README.md",
+      "plugin/hermes/server.py",
+      "plugin/hermes/tools.json",
+      "proofs/lean/JackalIv/CertCheck.lean",
+      "proofs/lean/JackalIv/CertCodec.lean",
+      "proofs/lean/JackalIv/CertRequest.lean",
+      "proofs/lean/JackalIv/CertSound.lean",
+      "proofs/lean/JackalIv/CertTypes.lean",
+      "proofs/lean/JackalIv/Embed.lean",
+      "proofs/lean/JackalIv/Gaussian.lean",
+      "proofs/lean/JackalIv/Ledger.lean",
+      "proofs/lean/lakefile.toml",
+      "release/MANIFEST.sha256",
+      "release/build_package.sh",
+      "release/coverage/formal_coverage_inventory.json",
+      "release/evidence/aba_mutations.json",
+      "release/evidence/gaussian_proof_identity.json",
+      "release/evidence/mutations_11.json",
+      "release/evidence/negative_controls.jsonl",
+      "release/evidence/plugin_smoke.jsonl",
+      "release/evidence/positive_corpus.jsonl",
+      "release/evidence/range_proof_identity.json",
+      "release/evidence/receipt_semantic_mutations.json",
+      "release/verify_evidence.py",
+      "tests/cert_mutations_11.py",
+      "tests/formal_exp_rat_release_test.py",
+      "tests/package_smoke.py",
+      "tests/plugin_bundle_identity_test.py",
+      "tests/plugin_smoke.py",
+      "tests/receipt_semantic_mutations.py",
+      "tests/test_calculator.py",
+      "tools/coverage_inventory.py",
+      "tools/exp_rat_producer.py",
+      "tools/formal_receipt.py",
+      "tools/isolated_entry.py",
+      "tools/receipt_verify.py"
+    ],
+    "protected_excluded": [
+      "website/"
+    ],
+    "untracked_release_paths": [
+      "jackal-atan-rat-release",
+      "jackal-claim",
+      "jackal-claim-verify",
+      "jackal-cos-rat-release",
+      "jackal-ln-rat-release",
+      "jackal-sin-rat-release",
+      "jackal-tanh-rat-release",
+      "proofs/lean/JackalIv/Transcend.lean",
+      "release/build_package_v160.sh",
+      "release/claim/",
+      "release/compat/",
+      "release/evidence/claim_aba_v160.json",
+      "release/evidence/claim_dogfood_v160.json",
+      "release/evidence/claim_hostile_matrix_v160.json",
+      "release/evidence/gaussian_formal_v150.json",
+      "release/evidence/seal_audit_receipts_v150.json",
+      "release/evidence/seal_audit_v150.json",
+      "release/tools/repin_v150.py",
+      "release/tools/run_gates_v150.py",
+      "release/tools/run_gates_v160.py",
+      "tests/branch_discontinuity_test.py",
+      "tests/claim_aba_test.py",
+      "tests/claim_dogfood_test.py",
+      "tests/claim_hostile_test.py",
+      "tests/claim_package_parity_test.py",
+      "tests/evidence_determinism_test.py",
+      "tests/exact_lane_test.py",
+      "tests/exact_verify_test.py",
+      "tests/formal_atan_rat_release_test.py",
+      "tests/formal_cos_rat_release_test.py",
+      "tests/formal_ln_rat_release_test.py",
+      "tests/formal_sin_rat_release_test.py",
+      "tests/formal_tanh_rat_release_test.py",
+      "tests/seal_audit_receipts_v150.py",
+      "tests/seal_audit_v150.py",
+      "tools/atan_rat_producer.py",
+      "tools/claim_bundle_verify.py",
+      "tools/claim_kernel.py",
+      "tools/claim_router.py",
+      "tools/compat_floor.py",
+      "tools/exact_verify.py",
+      "tools/ln_rat_producer.py",
+      "tools/sin_rat_producer.py",
+      "tools/tanh_rat_producer.py"
+    ]
+  },
+  "working_set_identity_sha256": "5704b0504f2905f4295ab4655987a3cff14fa00d1bf7fb88c1fa587ed513e024"
+}

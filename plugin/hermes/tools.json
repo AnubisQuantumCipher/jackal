@@ -1,8 +1,8 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.4.1",
-  "description": "JACKAL verified computation kernel: formal-bounded range/Gaussian enclosures, independent receipt verification, and honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates.",
+  "version": "v1.6.0",
+  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the v1.6.0 claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles.",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
@@ -75,6 +75,46 @@
     "runtime/exp_rat_producer.py": [
       "../../tools/exp_rat_producer.py",
       "../../exp_rat_producer.py"
+    ],
+    "runtime/ln_rat_producer.py": [
+      "../../tools/ln_rat_producer.py",
+      "../../ln_rat_producer.py"
+    ],
+    "runtime/sin_rat_producer.py": [
+      "../../tools/sin_rat_producer.py",
+      "../../sin_rat_producer.py"
+    ],
+    "runtime/atan_rat_producer.py": [
+      "../../tools/atan_rat_producer.py",
+      "../../atan_rat_producer.py"
+    ],
+    "runtime/tanh_rat_producer.py": [
+      "../../tools/tanh_rat_producer.py",
+      "../../tanh_rat_producer.py"
+    ],
+    "runtime/exact_verify.py": [
+      "../../tools/exact_verify.py",
+      "../../exact_verify.py"
+    ],
+    "runtime/claim_kernel.py": [
+      "../../tools/claim_kernel.py",
+      "../../claim_kernel.py"
+    ],
+    "runtime/claim_router.py": [
+      "../../tools/claim_router.py",
+      "../../claim_router.py"
+    ],
+    "runtime/claim_bundle_verify.py": [
+      "../../tools/claim_bundle_verify.py",
+      "../../claim_bundle_verify.py"
+    ],
+    "runtime/inference_registry_v1.json": [
+      "../../release/claim/inference_registry_v1.json",
+      "../../inference_registry_v1.json"
+    ],
+    "runtime/unit_registry_v1.json": [
+      "../../release/claim/unit_registry_v1.json",
+      "../../unit_registry_v1.json"
     ]
   },
   "tools": [
@@ -167,19 +207,19 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.4.1",
+        "release_epoch": "v1.5.0",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
     },
     {
       "name": "jackal_exp_rat_bound",
-      "description": "Emit a formal-bounded pure-Q exp(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'exp(x)' on a canonical rational interval [lo, hi] with lo >= 0 (positive-argument branch); every other expression refuses without downgrade. v1.4.1 fragment extension.",
+      "description": "Emit a formal-bounded pure-Q exp(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'exp(x)' on a canonical rational interval [lo, hi] (general-sign since v1.5.0); every other expression refuses without downgrade. v1.4.1 fragment extension.",
       "arguments": {
         "expression": {"type": "string", "required": true,
                        "help": "Must equal 'exp(x)' after whitespace normalization."},
         "input_lo":   {"type": "string", "required": true,
-                       "help": "Interval lower bound as an integer or reduced rational; must be >= 0."},
+                       "help": "Interval lower bound as an integer or reduced rational; any sign (general-sign since v1.5.0)."},
         "input_hi":   {"type": "string", "required": true,
                        "help": "Interval upper bound (canonical rational, hi >= lo); the producer picks a Taylor degree with 2*hi <= n+1."}
       },
@@ -192,7 +232,132 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.4.1",
+        "release_epoch": "v1.5.0",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_ln_rat_bound",
+      "description": "Emit a formal-bounded pure-Q ln(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'ln(x)' on a canonical rational interval with lo > 0; every other expression refuses without downgrade. v1.5.0 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal 'ln(x)' after whitespace normalization."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational; must be > 0."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo)."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "ln_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing ln(x) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.5.0",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_sin_rat_bound",
+      "description": "Emit a formal-bounded pure-Q sin(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'sin(x)' on a canonical rational interval whose midpoint m satisfies |m| <= 1; every other expression refuses without downgrade. v1.5.0 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal 'sin(x)' after whitespace normalization."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo); midpoint (lo+hi)/2 must satisfy |m| <= 1."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "sin_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing sin(x) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.5.0",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_cos_rat_bound",
+      "description": "Emit a formal-bounded pure-Q cos(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'cos(x)' on a canonical rational interval whose midpoint m satisfies |m| <= 1; every other expression refuses without downgrade. Shares the sin_rat producer (--op cos). v1.5.0 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal 'cos(x)' after whitespace normalization."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo); midpoint (lo+hi)/2 must satisfy |m| <= 1."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "cos_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing cos(x) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.5.0",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_atan_rat_bound",
+      "description": "Emit a formal-bounded pure-Q atan(x) enclosure via the untrusted producer + Lean-proved checker. NO libm on the proof-decision path. Admits ONLY the exact form 'atan(x)' on a canonical rational interval; every other expression refuses without downgrade. v1.5.0 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal 'atan(x)' after whitespace normalization."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo)."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "atan_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing atan(x) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.5.0",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_tanh_rat_bound",
+      "description": "Emit a formal-bounded pure-Q tanh enclosure via the untrusted composite producer + Lean-proved checker. NO libm on the proof-decision path. tanh is not an engine grammar token: admits ONLY the literal composite expression '1-2/(exp(2*x)+1)' (= tanh(x) mathematically) on a canonical rational interval with |lo|,|hi| <= 20; every other expression refuses without downgrade. v1.5.0 fragment extension.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Must equal '1-2/(exp(2*x)+1)' after whitespace normalization (the frozen tanh-defining composite)."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Interval lower bound as an integer or reduced rational; |lo| <= 20."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Interval upper bound (canonical rational, hi >= lo); |hi| <= 20."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "variant": "tanh_rat",
+        "enclosure": "[lo, hi] canonical rationals enclosing 1-2/(exp(2*x)+1) over the input interval",
+        "certificate_b64": "base64 of the exact canonical certificate bytes the checker accepted",
+        "certificate_sha256": "SHA-256 of the certificate bytes",
+        "checker_verdict": "ACCEPT on success",
+        "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
+        "theorem_id": "request_bound_certified_release",
+        "release_epoch": "v1.5.0",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -289,6 +454,264 @@
       "returns": {
         "status": "estimated | refused",
         "fields": "root=, residual=, condition-amplification=, root-error-estimate=, assurance="
+      }
+    },
+    {
+      "name": "jackal_canon",
+      "description": "Canonical s-expression + SHA-256 of any parsed expression (status=exact). NOT formal: exact computation outside the Lean certificate chain; no exact-cert emitted.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Any expression the engine grammar parses."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "canonical=, sha256=",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_poly_canon",
+      "description": "Dense Q[x] canonical form, degree <= 64 (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Polynomial expression in x within the poly fragment."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "degree=, coeffs=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_poly_eq",
+      "description": "Decidable polynomial identity over Q[x] (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "lhs": {"type": "string", "required": true, "help": "Left polynomial expression in x."},
+        "rhs": {"type": "string", "required": true, "help": "Right polynomial expression in x."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "equal=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_poly_gcd",
+      "description": "Monic polynomial gcd over Q[x] via Euclid (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "lhs": {"type": "string", "required": true, "help": "Left polynomial expression in x."},
+        "rhs": {"type": "string", "required": true, "help": "Right polynomial expression in x."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "gcd=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_ratfunc_canon",
+      "description": "Rational-function canonical form P/Q, gcd-reduced, monic denominator, explicit denominator-nonzero side condition (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Rational-function expression in x within the ratfunc fragment."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "num=, den=, side-condition=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_roots_isolate",
+      "description": "Sturm-sequence isolation of all distinct real roots (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Polynomial expression in x within the poly fragment."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "distinct-real-roots=, intervals=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_alg_sign",
+      "description": "Exact sign of a Q[x] polynomial at a rational point (status=exact). NOT formal; no exact-cert emitted.",
+      "arguments": {
+        "expression": {"type": "string", "required": true, "help": "Polynomial expression in x within the poly fragment."},
+        "point": {"type": "string", "required": true, "help": "Rational evaluation point (e.g. '3/2')."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "sign=",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_alg_cmp",
+      "description": "Order decision between two isolated real algebraic numbers (status=exact). NOT formal; no exact-cert emitted.",
+      "arguments": {
+        "p":  {"type": "string", "required": true, "help": "First defining polynomial in x."},
+        "a1": {"type": "string", "required": true, "help": "First isolating interval lower bound (rational)."},
+        "b1": {"type": "string", "required": true, "help": "First isolating interval upper bound (rational)."},
+        "q":  {"type": "string", "required": true, "help": "Second defining polynomial in x."},
+        "a2": {"type": "string", "required": true, "help": "Second isolating interval lower bound (rational)."},
+        "b2": {"type": "string", "required": true, "help": "Second isolating interval upper bound (rational)."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "order=",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_xgcd",
+      "description": "Extended gcd with Bezout certificate (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "a": {"type": "string", "required": true, "help": "First integer."},
+        "b": {"type": "string", "required": true, "help": "Second integer."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "g=, u=, v=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_mod_pow",
+      "description": "Modular exponentiation via square-and-multiply (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "base": {"type": "string", "required": true, "help": "Base integer."},
+        "exp":  {"type": "string", "required": true, "help": "Nonnegative exponent integer."},
+        "mod":  {"type": "string", "required": true, "help": "Modulus integer >= 1."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "r=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_mod_inv",
+      "description": "Modular inverse with product certificate (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "a": {"type": "string", "required": true, "help": "Integer to invert."},
+        "m": {"type": "string", "required": true, "help": "Modulus integer >= 2; gcd(a, m) must be 1."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "inv=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_crt",
+      "description": "Chinese remainder reconstruction over pairwise-coprime moduli, up to 16 pairs (status=exact). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "args": {"type": "string", "required": true,
+                 "help": "Space-separated residue/modulus pairs: 'r1 m1 r2 m2 [...]' (e.g. '2 3 3 5 2 7')."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "x=, M=, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_divides",
+      "description": "Exact divisibility decision (status=exact). NOT formal; no exact-cert emitted.",
+      "arguments": {
+        "a": {"type": "string", "required": true, "help": "Candidate divisor integer."},
+        "b": {"type": "string", "required": true, "help": "Dividend integer."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "divides=",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_prime_cert",
+      "description": "Pratt primality certificate or composite divisor witness, budgeted and fail-closed (status=exact; n <= 10^60, Pratt tree depth <= 64, nodes <= 512). Emits a jackal-exact-cert-v1 certificate independently re-checkable by tools/exact_verify.py. NOT formal.",
+      "arguments": {
+        "n": {"type": "string", "required": true, "help": "Integer >= 2, at most 61 digits."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "fields": "verdict= (prime|composite), n=, divisor= or method=pratt, exact_cert (raw jackal-exact-cert-v1 JSON string)",
+        "engine_output": "verbatim engine stdout",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_claim",
+      "description": "Compile a structured jackal-claim-request-v1 into a canonical, content-addressed jackal-claim-bundle-v1 evidence graph through the deterministic policy router (v1.6.0 evidence kernel). Routes through the existing exact/formal/machine/unit lanes, emits a route trace naming candidates and refusal reasons, and refuses rather than silently downgrading (allow_fallback defaults false). The bundle is independently replayable via jackal_verify_bundle.",
+      "arguments": {
+        "request": {
+          "type": "object",
+          "required": true,
+          "help": "jackal-claim-request-v1 object: {schema, steps:[{id, op, ...}], root, policy?, nonce?, emitted_at_unix?, max_age_seconds?, expires_at_unix?}. Step ops: input, exact, enclose, gaussian, machine, interval_add/sub/mul/div, threshold, decision, convert, and, model, passthrough, attach."
+        }
+      },
+      "returns": {
+        "status": "ok | refused",
+        "root": "root claim-node id (SHA-256 of canonical node bytes)",
+        "bundle_digest_sha256": "SHA-256 of canonical bundle bytes",
+        "rendering": "deterministic {token, permitted_text} — never a bare VERIFIED badge",
+        "route_trace": "per-step candidate lanes with selected/refused status and reasons",
+        "bundle": "the full jackal-claim-bundle-v1 object",
+        "reason": "stable refusal class on refusal"
+      }
+    },
+    {
+      "name": "jackal_verify_bundle",
+      "description": "Independently replay a jackal-claim-bundle-v1 against caller-pinned expectations (v1.6.0 evidence kernel). The standalone dependency-free verifier recomputes every canonical byte and hash, revalidates the DAG, re-runs embedded legacy evidence through the existing receipt/exact verifiers and pinned Lean checker, recomputes machine/unit mathematics, re-evaluates every inference rule and assurance-axis propagation, enforces consequence-class floors and policy, and recomputes the deterministic rendering. Returns verified | refused | indeterminate with exact reasons — never a generic green badge.",
+      "arguments": {
+        "bundle": {
+          "type": "object",
+          "required": true,
+          "help": "The jackal-claim-bundle-v1 object to replay."
+        },
+        "expected_release_epoch": {
+          "type": "string",
+          "required": true,
+          "help": "Caller-pinned epoch (e.g. 'v1.6.0'); never copied from the bundle."
+        },
+        "expected_policy_sha256": {
+          "type": "string",
+          "required": true,
+          "help": "Caller-pinned SHA-256 of the canonical policy bytes."
+        },
+        "expected_root_proposition": {
+          "type": "object",
+          "required": true,
+          "help": "Caller-pinned canonical root proposition IR object."
+        },
+        "verification_time_unix": {
+          "type": "string",
+          "required": true,
+          "help": "Caller-supplied verification time (unix seconds) for freshness/expiry checks."
+        },
+        "expected_nonce": {
+          "type": "string",
+          "required": false,
+          "help": "Caller nonce; the bundle root must bind exactly this nonce."
+        }
+      },
+      "returns": {
+        "status": "verified | refused | indeterminate",
+        "report": "full verifier output lines (axes, artifact flags, freshness, assumptions, residual non-claims, decision binding, rendering token, permitted text)",
+        "reason": "stable refusal class on refusal/indeterminate",
+        "detail": "short human-readable detail"
       }
     }
   ]

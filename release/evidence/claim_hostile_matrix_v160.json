@@ -1,0 +1,656 @@
+{
+  "release_epoch": "v1.6.0",
+  "rows": [
+    {
+      "expect": "verified",
+      "id": "S-pos-baseline",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/duplicate-key",
+      "id": "S-duplicate-key",
+      "observed": "refused/duplicate-key",
+      "ok": true
+    },
+    {
+      "expect": "refused/float-forbidden",
+      "id": "S-float-forbidden",
+      "observed": "refused/float-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "refused/float-forbidden",
+      "id": "S-nan-forbidden",
+      "observed": "refused/float-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "refused/unknown-field",
+      "id": "S-unknown-field",
+      "observed": "refused/unknown-field",
+      "ok": true
+    },
+    {
+      "expect": "refused/node-schema",
+      "id": "S-wrong-node-schema",
+      "observed": "refused/node-schema",
+      "ok": true
+    },
+    {
+      "expect": "refused/bundle-schema",
+      "id": "S-wrong-bundle-schema",
+      "observed": "refused/bundle-schema",
+      "ok": true
+    },
+    {
+      "expect": "refused/prop-schema",
+      "id": "S-type-confusion-int-for-token",
+      "observed": "refused/prop-schema",
+      "ok": true
+    },
+    {
+      "expect": "refused/rat-not-canonical",
+      "id": "S-rep-leading-zero",
+      "observed": "refused/rat-not-canonical",
+      "ok": true
+    },
+    {
+      "expect": "refused/rat-not-canonical",
+      "id": "S-rep-plus",
+      "observed": "refused/rat-not-canonical",
+      "ok": true
+    },
+    {
+      "expect": "refused/rat-not-canonical",
+      "id": "S-rep-unreduced-den1",
+      "observed": "refused/rat-not-canonical",
+      "ok": true
+    },
+    {
+      "expect": "refused/rat-not-canonical",
+      "id": "S-rep-unreduced",
+      "observed": "refused/rat-not-canonical",
+      "ok": true
+    },
+    {
+      "expect": "refused/rat-not-canonical",
+      "id": "S-rep-negzero",
+      "observed": "refused/rat-not-canonical",
+      "ok": true
+    },
+    {
+      "expect": "refused/rat-not-canonical",
+      "id": "S-rep-decimal",
+      "observed": "refused/rat-not-canonical",
+      "ok": true
+    },
+    {
+      "expect": "refused/unicode-forbidden",
+      "id": "S-unicode-lineseparator",
+      "observed": "refused/unicode-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "refused/unicode-forbidden",
+      "id": "S-unicode-nonnfc",
+      "observed": "refused/unicode-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "refused/bundle-budget",
+      "id": "S-budget-node-count",
+      "observed": "refused/bundle-budget",
+      "ok": true
+    },
+    {
+      "expect": "refused/prop-budget",
+      "id": "S-budget-prop-depth",
+      "observed": "refused/prop-budget",
+      "ok": true
+    },
+    {
+      "expect": "refused/string-budget",
+      "id": "S-budget-string",
+      "observed": "refused/string-budget",
+      "ok": true
+    },
+    {
+      "expect": "bundle.digest=e7fc3ce8f7f76adb",
+      "id": "S-canonical-roundtrip",
+      "observed": "claim-verify=verified bundle.digest=e7fc3ce8f7f76adbe8852293a8e5af58cb309179b8317c9eee6484f514b02a33 root=f46e24dbd70ad7434f7c4048fb0ac01c239b068c3769915ca785e1",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "G-pos-chain",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/graph-cycle",
+      "id": "G-self-cycle",
+      "observed": "refused/graph-cycle",
+      "ok": true
+    },
+    {
+      "expect": "refused/parent-missing",
+      "id": "G-missing-parent",
+      "observed": "refused/parent-missing",
+      "ok": true
+    },
+    {
+      "expect": "refused/orphan-node",
+      "id": "G-orphan-node",
+      "observed": "refused/orphan-node",
+      "ok": true
+    },
+    {
+      "expect": "refused/parent-duplicate",
+      "id": "G-duplicate-parent",
+      "observed": "refused/parent-duplicate",
+      "ok": true
+    },
+    {
+      "expect": "refused/node-id-mismatch",
+      "id": "G-node-id-forged",
+      "observed": "refused/node-id-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/node-duplicate-id",
+      "id": "G-duplicate-id-different-bytes",
+      "observed": "refused/node-duplicate-id",
+      "ok": true
+    },
+    {
+      "expect": "refused/root-proposition-mismatch",
+      "id": "G-root-swap-prop-pin",
+      "observed": "refused/root-proposition-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/root-missing",
+      "id": "G-root-missing",
+      "observed": "refused/root-missing",
+      "ok": true
+    },
+    {
+      "expect": "refused/node-id-mismatch",
+      "id": "G-parent-swap-stale-id",
+      "observed": "refused/node-id-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-invalid",
+      "id": "G-parent-swap-rehash",
+      "observed": "refused/rule-invalid",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-invalid",
+      "id": "G-rule-swap",
+      "observed": "refused/rule-invalid",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-unknown",
+      "id": "G-rule-unknown",
+      "observed": "refused/rule-unknown",
+      "ok": true
+    },
+    {
+      "expect": "refused/policy-pin-mismatch",
+      "id": "G-policy-swap",
+      "observed": "refused/policy-pin-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/registry-inference-mismatch",
+      "id": "G-registry-inference-swap",
+      "observed": "refused/registry-inference-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/registry-unit-mismatch",
+      "id": "G-registry-unit-swap",
+      "observed": "refused/registry-unit-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/digest-mismatch",
+      "id": "G-bundle-digest",
+      "observed": "refused/digest-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-invalid",
+      "id": "G-coordinated-widen-rehash",
+      "observed": "refused/rule-invalid",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "L-pos-meet-estimated",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/assurance-launder",
+      "id": "L-estimated-to-exact",
+      "observed": "refused/assurance-launder",
+      "ok": true
+    },
+    {
+      "expect": "refused/assurance-launder",
+      "id": "L-checked-to-formal",
+      "observed": "refused/assurance-launder",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "L-pos-model-condition",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/model-upgrade",
+      "id": "L-model-upgrade",
+      "observed": "refused/model-upgrade",
+      "ok": true
+    },
+    {
+      "expect": "refused/provenance-upgrade",
+      "id": "L-provenance-upgrade",
+      "observed": "refused/provenance-upgrade",
+      "ok": true
+    },
+    {
+      "expect": "refused/assurance-launder",
+      "id": "L-signed-hash-to-math",
+      "observed": "refused/assurance-launder",
+      "ok": true
+    },
+    {
+      "expect": "refused/implementation-upgrade",
+      "id": "L-source-native-never",
+      "observed": "refused/implementation-upgrade",
+      "ok": true
+    },
+    {
+      "expect": "refused/implementation-upgrade",
+      "id": "L-implementation-upgrade",
+      "observed": "refused/implementation-upgrade",
+      "ok": true
+    },
+    {
+      "expect": "refused/residual-missing",
+      "id": "L-omitted-residual",
+      "observed": "refused/residual-missing",
+      "ok": true
+    },
+    {
+      "expect": "refused/policy-violation",
+      "id": "L-fallback-disabled-policy",
+      "observed": "refused/policy-violation",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "U-pos-compatible-add",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-dim-mismatch",
+      "id": "U-incompatible-add",
+      "observed": "refused/unit-dim-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-affine-forbidden",
+      "id": "U-affine-mul",
+      "observed": "refused/unit-affine-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-dim-mismatch",
+      "id": "U-dimensionless-confusion",
+      "observed": "refused/unit-dim-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-alias-forbidden",
+      "id": "U-alias-in-bundle",
+      "observed": "refused/unit-alias-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-unknown",
+      "id": "U-unknown-unit",
+      "observed": "refused/unit-unknown",
+      "ok": true
+    },
+    {
+      "expect": "refused/interval-endpoints",
+      "id": "U-endpoint-swap",
+      "observed": "refused/interval-endpoints",
+      "ok": true
+    },
+    {
+      "expect": "refused/interval-div-zero",
+      "id": "U-div-zero-crossing",
+      "observed": "refused/interval-div-zero",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-invalid",
+      "id": "U-false-independence-narrow",
+      "observed": "refused/rule-invalid",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "U-pos-dependency-outward",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/threshold-not-established",
+      "id": "U-threshold-inside-interval",
+      "observed": "refused/threshold-not-established",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "U-pos-threshold",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "U-pos-linear-convert",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-dim-mismatch",
+      "id": "U-convert-dim-mismatch",
+      "observed": "refused/unit-dim-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "U-pos-affine-point-convert",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/unit-affine-forbidden",
+      "id": "U-affine-interval-convert",
+      "observed": "refused/unit-affine-forbidden",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "D-pos-informational",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "D-pos-advisory",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/consequence-floor",
+      "id": "D-floor-checked-not-bounded",
+      "observed": "refused/consequence-floor",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-params",
+      "id": "D-unknown-consequence-class",
+      "observed": "refused/rule-params",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "D-pos-advisory-zero-margin",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/rule-invalid",
+      "id": "D-forged-margin",
+      "observed": "refused/rule-invalid",
+      "ok": true
+    },
+    {
+      "expect": "refused/epoch-mismatch",
+      "id": "F-wrong-epoch",
+      "observed": "refused/epoch-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/environment-mismatch",
+      "id": "F-stale-environment",
+      "observed": "refused/environment-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/freshness-expired",
+      "id": "F-expired",
+      "observed": "refused/freshness-expired",
+      "ok": true
+    },
+    {
+      "expect": "refused/freshness-stale",
+      "id": "F-stale-age",
+      "observed": "refused/freshness-stale",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "F-pos-age-ok",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "F-pos-nonce",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/nonce-mismatch",
+      "id": "F-nonce-mismatch",
+      "observed": "refused/nonce-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/nonce-missing",
+      "id": "F-nonce-missing",
+      "observed": "refused/nonce-missing",
+      "ok": true
+    },
+    {
+      "expect": "refused/epoch-mismatch",
+      "id": "F-node-epoch-drift",
+      "observed": "refused/epoch-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "refused/artifact-upgrade",
+      "id": "F-transparency-no-record",
+      "observed": "refused/artifact-upgrade",
+      "ok": true
+    },
+    {
+      "expect": "refused/provenance-upgrade",
+      "id": "F-issuer-as-observed",
+      "observed": "refused/provenance-upgrade",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "M-pos-wrap-add",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "M-pos-checked-overflow-fact",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "M-pos-checked-in-range",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-width",
+      "id": "M-width-confusion",
+      "observed": "refused/machine-width",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-cert-invalid",
+      "id": "M-checked-overflow-accepted",
+      "observed": "refused/machine-cert-invalid",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-overflow-claim",
+      "id": "M-checked-claiming-value",
+      "observed": "refused/machine-overflow-claim",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-overflow-claim",
+      "id": "M-wrap-claiming-overflow-pred",
+      "observed": "refused/machine-overflow-claim",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-shift-range",
+      "id": "M-shift-width-or-more",
+      "observed": "refused/machine-shift-range",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-shift-range",
+      "id": "M-shift-negative",
+      "observed": "refused/machine-shift-range",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-cert-invalid",
+      "id": "M-shr-arith-vs-logical",
+      "observed": "refused/machine-cert-invalid",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "M-pos-shr-arith",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-cert-invalid",
+      "id": "M-rotate-confusion",
+      "observed": "refused/machine-cert-invalid",
+      "ok": true
+    },
+    {
+      "expect": "refused/machine-overflow-claim",
+      "id": "M-convert-out-of-range",
+      "observed": "refused/machine-overflow-claim",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "M-pos-convert-in-range",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/evidence-hash-mismatch",
+      "id": "M-cert-mutation-hash",
+      "observed": "refused/evidence-hash-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "LEG-pos-receipt",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/consequence-floor",
+      "id": "D-safety-critical-assumed-model",
+      "observed": "refused/consequence-floor",
+      "ok": true
+    },
+    {
+      "expect": "refused/evidence-verify-failed",
+      "id": "LEG-receipt-tampered",
+      "observed": "refused/evidence-verify-failed",
+      "ok": true
+    },
+    {
+      "expect": "refused/evidence-prop-mismatch",
+      "id": "LEG-receipt-prop-mismatch",
+      "observed": "refused/evidence-prop-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "LEG-pos-exact",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/evidence-verify-failed",
+      "id": "LEG-exact-forged",
+      "observed": "refused/evidence-verify-failed",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "LEG-pos-exact-threshold",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "D-pos-exact-decision-boundary",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "verified",
+      "id": "D-pos-exact-safety-critical",
+      "observed": "verified/",
+      "ok": true
+    },
+    {
+      "expect": "refused/render-mismatch",
+      "id": "R-forged-rendering",
+      "observed": "refused/render-mismatch",
+      "ok": true
+    },
+    {
+      "expect": "rendering with conditions",
+      "id": "R-pos-conditions-present",
+      "observed": "claim-verify=verified bundle.digest=e7fc3ce8f7f76adbe8852293a8e5af58cb309179b8317c9eee6484f514b02a33 root=f46e24dbd70ad7434f7c4048fb0ac01c239b068c3769915ca785e1",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-claim-hostile-matrix-v1",
+  "verdict": "PASS",
+  "verifier": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+}

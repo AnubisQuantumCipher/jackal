@@ -16,7 +16,9 @@ The checker has three passes (see `checkCert`):
    the unique root); `rootId = header.root_id`; the root referenced by no
    node; full reachability from the root; and `header output = root out`.
 2. `nodes.all (checkNode header nodes ·)` — the per-op semantic pass.  For each
-   of the 23 rational-exact `Runs` constructors it verifies that `out` equals
+   of the 29 rational-decided `Runs` constructors (the 23 original exact-formula
+   ops plus the six pure-ℚ strategies sqrt_rat/exp_rat/ln_rat/sin_rat/cos_rat/
+   atan_rat) it verifies that `out` equals
    the exact interval formula over the children's `out` and the recorded
    floats, discharging every `Approx` obligation with `algApproxQ` over `ℚ`
    and padding with `padLoQ`/`padHiQ` (all from `CertTypes`).  For the 8
@@ -41,6 +43,7 @@ No `sorry`/`admit`/axiom/`native_decide`/`unsafe`/`@[implemented_by]`.
 -/
 import JackalIv.CertTypes
 import JackalIv.Gaussian
+import JackalIv.Transcend
 
 namespace JackalIv.Cert
 
@@ -138,6 +141,16 @@ def sexpBuild : Nat → List Node → Nat → Option String
       -- the certificate node type, not in the reconstructed expression sexp.
       | "exp_rat", [c0] =>
           (sexpBuild fuel nodes c0).map (fun s => "(call exp " ++ s ++ ")")
+      -- ln_rat / sin_rat / cos_rat / atan_rat print as plain calls — the
+      -- strategy annotation lives on the certificate node type only (§490).
+      | "ln_rat", [c0] =>
+          (sexpBuild fuel nodes c0).map (fun s => "(call ln " ++ s ++ ")")
+      | "sin_rat", [c0] =>
+          (sexpBuild fuel nodes c0).map (fun s => "(call sin " ++ s ++ ")")
+      | "cos_rat", [c0] =>
+          (sexpBuild fuel nodes c0).map (fun s => "(call cos " ++ s ++ ")")
+      | "atan_rat", [c0] =>
+          (sexpBuild fuel nodes c0).map (fun s => "(call atan " ++ s ++ ")")
       | "add", [c0, c1] =>
           match sexpBuild fuel nodes c0, sexpBuild fuel nodes c1 with
           | some a, some b => some ("(add " ++ a ++ " " ++ b ++ ")") | _, _ => none
@@ -419,19 +432,60 @@ def checkNode (hdr : Header) (nodes : List Node) (nd : Node) : Bool :=
           decide (0 ≤ nd.out_lo) && decide (0 ≤ nd.out_hi) &&
           decide (nd.out_lo ^ 2 ≤ l) && decide (u ≤ nd.out_hi ^ 2)
       | none => false
-  -- Pure-ℚ `exp` bound (no libm TCB): `Runs.expRat`, §487 fragment extension
-  -- v1.4.1.  Uses `nd.n` as Taylor degree and the child's rational endpoints
-  -- as the argument bracket.  Sound by monotonicity of `Real.exp` on
-  -- `[0, ∞)` combined with the Complex.exp_bound' Taylor tail (Gaussian.lean).
+  -- Pure-ℚ `exp` bound (no libm TCB): `Runs.expRat`.  GENERAL-SIGN since
+  -- v1.5.0 (§490): `expLBQ`/`expUBQ` extend the v1.4.1 Taylor bracket to
+  -- negative arguments through the reciprocal identity, so every
+  -- v1.4.1-accepted certificate (nonnegative arguments) remains accepted —
+  -- its conditions are the `0 ≤ q` branch of the same functions.
   | "exp_rat", [c0] =>
       match childOut nodes c0 with
       | some (cLo, cHi) =>
-          decide (0 < nd.n) &&
-          decide (0 ≤ cLo) && decide (cLo ≤ cHi) &&
-          decide (2 * cHi ≤ ((nd.n : ℕ) : ℚ) + 1) &&
-          decide (nd.out_lo ≤ JackalIv.Gaussian.expPartial cLo nd.n) &&
-          decide (JackalIv.Gaussian.expPartial cHi nd.n +
-                  JackalIv.Gaussian.expRemainder cHi nd.n ≤ nd.out_hi)
+          decide (cLo ≤ cHi) &&
+          Gaussian.expDegOKQ cLo nd.n && Gaussian.expDegOKQ cHi nd.n &&
+          decide (nd.out_lo ≤ Gaussian.expLBQ cLo nd.n) &&
+          decide (Gaussian.expUBQ cHi nd.n ≤ nd.out_hi)
+      | none => false
+  -- Pure-ℚ `ln` bound (no libm TCB): `Runs.logRat`, §490 v1.5.0.  The
+  -- endpoints are certified through the INVERSE exponential bracket:
+  -- `expUBQ out_lo n ≤ cLo` witnesses `exp out_lo ≤ cLo` and
+  -- `cHi ≤ expLBQ out_hi n` witnesses `cHi ≤ exp out_hi`.
+  | "ln_rat", [c0] =>
+      match childOut nodes c0 with
+      | some (cLo, cHi) =>
+          decide (0 < cLo) && decide (cLo ≤ cHi) &&
+          Gaussian.expDegOKQ nd.out_lo nd.n && Gaussian.expDegOKQ nd.out_hi nd.n &&
+          decide (Gaussian.expUBQ nd.out_lo nd.n ≤ cLo) &&
+          decide (cHi ≤ Gaussian.expLBQ nd.out_hi nd.n)
+      | none => false
+  -- Pure-ℚ tight `sin` enclosure (no libm TCB): `Runs.sinRat`, §490 v1.5.0.
+  -- Midpoint Taylor (Mathlib `Real.sin_bound`, degree-3 partial, |m| ≤ 1)
+  -- widened by the halfwidth (Lipschitz-1).  The midpoint and halfwidth are
+  -- RECOMPUTED from the child interval — no witness fields.
+  | "sin_rat", [c0] =>
+      match childOut nodes c0 with
+      | some (cLo, cHi) =>
+          decide (cLo ≤ cHi) && decide (|(cLo + cHi) / 2| ≤ 1) &&
+          decide (nd.out_lo ≤ Transcend.sinLoQ ((cLo + cHi) / 2) - (cHi - cLo) / 2) &&
+          decide (Transcend.sinHiQ ((cLo + cHi) / 2) + (cHi - cLo) / 2 ≤ nd.out_hi)
+      | none => false
+  -- Pure-ℚ tight `cos` enclosure (no libm TCB): `Runs.cosRat`, §490 v1.5.0.
+  | "cos_rat", [c0] =>
+      match childOut nodes c0 with
+      | some (cLo, cHi) =>
+          decide (cLo ≤ cHi) && decide (|(cLo + cHi) / 2| ≤ 1) &&
+          decide (nd.out_lo ≤ Transcend.cosLoQ ((cLo + cHi) / 2) - (cHi - cLo) / 2) &&
+          decide (Transcend.cosHiQ ((cLo + cHi) / 2) + (cHi - cLo) / 2 ≤ nd.out_hi)
+      | none => false
+  -- Pure-ℚ `atan` enclosure (no libm TCB): `Runs.atanRat`, §490 v1.5.0.
+  -- Four decidable strategies per endpoint (cap / tan-bracket /
+  -- positive-reciprocal / negative-reciprocal), each proved sound in
+  -- `Transcend.atanLo_sound` / `atanHi_sound` — full rational domain.
+  | "atan_rat", [c0] =>
+      match childOut nodes c0 with
+      | some (cLo, cHi) =>
+          decide (cLo ≤ cHi) &&
+          Transcend.atanLoOK nd.out_lo cLo &&
+          Transcend.atanHiOK nd.out_hi cHi
       | none => false
   -- fail closed
   | _, _ => false

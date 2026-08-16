@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.2 formal-receipt independent verifier.
+"""JACKAL v1.5.0 formal-receipt independent verifier.
 
 Consumes a `jackal-formal-receipt-v1` JSON document and mechanically
 re-establishes every binding it claims — WITHOUT trusting the release
@@ -75,9 +75,15 @@ from formal_receipt import (  # noqa: E402
     MODEL_ASSUMPTIONS, NON_CLAIMS, GAUSSIAN_ASSUMPTIONS,
     GAUSSIAN_NON_CLAIMS,
     RANGE_VARIANT, GAUSSIAN_VARIANT, SQRT_RAT_VARIANT, EXP_RAT_VARIANT,
+    LN_RAT_VARIANT, SIN_RAT_VARIANT, COS_RAT_VARIANT, ATAN_RAT_VARIANT,
+    TANH_RAT_VARIANT,
     RATIONAL_VARIANTS, ALL_VARIANTS,
     SQRT_RAT_ASSUMPTIONS, SQRT_RAT_NON_CLAIMS,
     EXP_RAT_ASSUMPTIONS, EXP_RAT_NON_CLAIMS,
+    VARIANT_ADMITTED_OPERATOR_SETS, VARIANT_COVERAGE_ROWS,
+    VARIANT_OPERATOR_ROWS,
+    VARIANT_ASSUMPTION_TABLES, VARIANT_NON_CLAIM_TABLES,
+    _VARIANT_ADMITTED_EXPRESSION,
     recompute_receipt_digest, sha256_hex,
     load_proof_identity_binding, PROOF_IDENTITY_BINDING_KEYS,
     canonical_rat as _shared_canonical_rat,
@@ -195,6 +201,15 @@ _RANGE_RELEASE_NODE_OPS: dict[str, set[str]] = {
     # Taylor + certified remainder.  The Lean `releaseNodeOp` allowlist
     # accepts this and `Runs.expRat` is checker-sound with no libm TCB.
     "exp_rat": {"exp"},
+    # ln_rat / sin_rat / cos_rat / atan_rat (§490 fragment extension,
+    # v1.5.0): pure-ℚ strategies (inverse exp bracket; midpoint Taylor +
+    # Lipschitz; cap/tan-bracket/reciprocal over rational π bounds).  The
+    # Lean `releaseNodeOp` allowlist accepts these; `Runs.logRat`/`sinRat`/
+    # `cosRat`/`atanRat` are checker-sound with no libm TCB.
+    "ln_rat": {"ln"},
+    "sin_rat": {"sin"},
+    "cos_rat": {"cos"},
+    "atan_rat": {"atan"},
     # the release fragment identical.  `num_rounded` likewise absent.
     # sqrt_rat (§487 fragment extension, v1.4.0): pure-ℚ sqrt via rational
     # square bracket.  The Lean `releaseNodeOp` allowlist accepts this and
@@ -390,12 +405,9 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     lka = sorted(set(thm.get("lean_kernel_axioms") or []))
     if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
         raise ReceiptRefusal("theorem-axioms", str(lka))
-    if variant == SQRT_RAT_VARIANT:
-        expected_assumptions = SQRT_RAT_ASSUMPTIONS
-        expected_non_claims = SQRT_RAT_NON_CLAIMS
-    elif variant == EXP_RAT_VARIANT:
-        expected_assumptions = EXP_RAT_ASSUMPTIONS
-        expected_non_claims = EXP_RAT_NON_CLAIMS
+    if variant in RATIONAL_VARIANTS:
+        expected_assumptions = VARIANT_ASSUMPTION_TABLES[variant]
+        expected_non_claims = VARIANT_NON_CLAIM_TABLES[variant]
     elif is_gaussian:
         expected_assumptions = GAUSSIAN_ASSUMPTIONS
         expected_non_claims = GAUSSIAN_NON_CLAIMS
@@ -813,18 +825,17 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
         expected_admitted = {"exp", "mul", "neg", "pow2", "sub"}
         expected_coverage = ["gaussian-exp-square-integral-v1"]
         expected_refused = ["all expressions outside gaussian-exp-square-v1"]
-    elif variant == SQRT_RAT_VARIANT:
-        # sqrt_rat variant restricts the release fragment to `sqrt` alone
-        # (plus the `var` leaf every range expression carries).  The
-        # coverage-row id points at the plugin-tool row rather than the
-        # per-operator row; the operator row still exists and must be FORMAL.
-        expected_admitted = {"sqrt", "var"}
-        expected_coverage = ["jackal_sqrt_rat_bound"]
-        expected_refused = ["every expression except sqrt(x)"]
-    elif variant == EXP_RAT_VARIANT:
-        expected_admitted = {"exp", "var"}
-        expected_coverage = ["jackal_exp_rat_bound"]
-        expected_refused = ["every expression except exp(x)"]
+    elif variant in RATIONAL_VARIANTS:
+        # A rational-fragment variant restricts the release fragment to its
+        # admitted operator set (plus the `var` leaf every range expression
+        # carries).  The coverage-row id points at the plugin-tool row rather
+        # than the per-operator rows; the operator rows still exist and must
+        # be FORMAL (checked below).
+        expected_admitted = set(VARIANT_ADMITTED_OPERATOR_SETS[variant]) | {"var"}
+        expected_coverage = [VARIANT_COVERAGE_ROWS[variant]]
+        expected_refused = [
+            f"every expression except {_VARIANT_ADMITTED_EXPRESSION[variant]}"
+        ]
     else:
         expected_admitted = {
             key for key, row in rows.items()
@@ -855,19 +866,18 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
             raise ReceiptRefusal("coverage-row-theorem-mismatch",
                                  f"{key}:{row.get('soundness_theorem')}")
     # For rational-fragment variants, the coverage-row loop above locks
-    # the plugin-tool row.  Also require the underlying operator row (sqrt/exp)
-    # to still be FORMAL in the inventory so a mutation that quietly demotes
-    # the operator from FORMAL cannot be masked by a plugin-tool-row alone.
-    if variant == SQRT_RAT_VARIANT:
-        op_row = rows.get("sqrt")
-        if op_row is None or op_row.get("verdict") != "FORMAL":
-            raise ReceiptRefusal("variant-operator-row",
-                                 f"sqrt operator row must be FORMAL for sqrt_rat variant")
-    elif variant == EXP_RAT_VARIANT:
-        op_row = rows.get("exp")
-        if op_row is None or op_row.get("verdict") != "FORMAL":
-            raise ReceiptRefusal("variant-operator-row",
-                                 f"exp operator row must be FORMAL for exp_rat variant")
+    # the plugin-tool row.  Also require every underlying operator row of the
+    # variant's admitted set to still be FORMAL in the inventory so a mutation
+    # that quietly demotes an operator from FORMAL cannot be masked by a
+    # plugin-tool row alone.  (`num` is a leaf row shipped under the
+    # operator kind as well.)
+    if variant in RATIONAL_VARIANTS:
+        for op_name in sorted(VARIANT_OPERATOR_ROWS[variant]):
+            op_row = rows.get(op_name)
+            if op_row is None or op_row.get("verdict") != "FORMAL":
+                raise ReceiptRefusal(
+                    "variant-operator-row",
+                    f"{op_name} operator row must be FORMAL for {variant} variant")
 
     # Result-status must be exactly formal-bounded (no silent downgrade).
     res = receipt.get("result", {})

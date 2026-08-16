@@ -1,7 +1,8 @@
 #!/bin/sh
-# JACKAL v1.4.2 exp_rat fail-closed release wrapper.
+# JACKAL v1.5.0 exp_rat fail-closed release wrapper.
 #
-# Admits ONLY `exp(x)` on a canonical rational interval [lo, hi] with lo >= 0
+# Admits ONLY `exp(x)` on a canonical rational interval [lo, hi] — any signs
+# since v1.5.0 (§490: negative arguments via the exact reciprocal identity) —
 # and emits a request-bound release ACCEPT from the pinned Lean-proved checker.
 # The producer and checker binaries are pinned to their release/MANIFEST.sha256
 # SHA-256 values; identities are hashed before AND after invocation (TOCTOU
@@ -109,7 +110,7 @@ inv_bytes = (root / "release/coverage/formal_coverage_inventory.json").read_byte
 inv_sha = hashlib.sha256(inv_bytes).hexdigest()
 receipt = fr.build_variant_formal_receipt(
     variant=fr.EXP_RAT_VARIANT,
-    release_epoch="v1.4.2",
+    release_epoch="v1.5.0",
     request={"command": "range-bound-cert", "expression": expr,
              "input_lo": lo, "input_hi": hi},
     enclosure=tuple(fr._parse_cert_header(cert_bytes).get("output","").split(" ", 1)),

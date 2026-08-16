@@ -1,0 +1,9 @@
+{"schema": "jackal-claim-request-v1",
+ "steps": [
+   {"id": "p", "op": "exact", "command": "mod-pow",
+    "args": ["3", "100", "7"]},
+   {"id": "t", "op": "threshold", "arg": "p", "cmp": "lt",
+    "threshold": "7"},
+   {"id": "d", "op": "decision", "arg": "t", "decision_id": "ci-admission-demo",
+    "action": "proceed", "consequence_class": "decision-boundary"}],
+ "root": "d"}

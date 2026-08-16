@@ -226,9 +226,10 @@ def ConstTCB (nodes : List Node) : Prop :=
 For every reconstructed subexpression `e` rooted at node `id` (with recorded
 interval `nd.out`), a run exists producing exactly `(↑nd.out_lo, ↑nd.out_hi)`.
 The induction is on `buildExpr`'s fuel; each child recurses at the predecessor
-fuel, so the induction hypothesis applies verbatim.  Every one of the 31
+fuel, so the induction hypothesis applies verbatim.  Every one of the 38
 `Runs` constructors is reconstructed; `const_rounded`'s missing rounding fact
 is supplied by the disclosed `ConstTCB`. -/
+set_option maxHeartbeats 3200000
 theorem runs_of_check (hdr : Header) (nodes : List Node)
     (hall : ∀ nd ∈ nodes, checkNode hdr nodes nd = true)
     (hlibm : LibmModel hdr nodes) (hconst : ConstTCB nodes) :
@@ -244,7 +245,7 @@ theorem runs_of_check (hdr : Header) (nodes : List Node)
     have hcheck : checkNode hdr nodes nd = true := hall nd hmem
     have hlf : libmNodeFact nodes nd := hlibm nd hmem
     simp only [buildExpr, hfind] at hb
-    simp only [checkNode] at hcheck
+    unfold checkNode at hcheck
     split at hcheck
     all_goals (try (exact absurd hcheck (by decide)))
     · -- num_exact
@@ -784,56 +785,114 @@ theorem runs_of_check (hdr : Header) (nodes : List Node)
       have hubR : ((ndc0.out_hi : ℚ) : ℝ) ≤ ((nd.out_hi : ℚ) : ℝ) ^ 2 := by
         exact_mod_cast hubQ
       exact Runs.sqrtRat hr hlnnQ hunnQ hlbR hubR
-    · -- exp_rat  (pure ℚ; no libm TCB, §487-fragment extension v1.4.1).
+    · -- exp_rat  (pure ℚ; no libm TCB; GENERAL-SIGN §490 v1.5.0).
       have hop : nd.op = "exp_rat" := by assumption
       simp only [*] at hb
       rw [Option.map_eq_some_iff] at hb
       obtain ⟨a, hba, rfl⟩ := hb
       obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
       simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
-      obtain ⟨⟨⟨⟨⟨hnpos, hcLoNN⟩, hcMono⟩, hdegQ⟩, hLB⟩, hUB⟩ := hcheck
+      obtain ⟨⟨⟨⟨_hMono, hdegLo⟩, hdegHi⟩, hLB⟩, hUB⟩ := hcheck
       have hr := ih _ ndc0 a hf0 hba
-      have hnposN : 0 < nd.n := of_decide_eq_true hnpos
-      have hcLoNNQ : (0 : ℚ) ≤ ndc0.out_lo := of_decide_eq_true hcLoNN
-      have hcMonoQ : ndc0.out_lo ≤ ndc0.out_hi := of_decide_eq_true hcMono
-      have hdegQ' : 2 * ndc0.out_hi ≤ ((nd.n : ℕ) : ℚ) + 1 :=
-        of_decide_eq_true hdegQ
-      have hLBQ : nd.out_lo ≤ JackalIv.Gaussian.expPartial ndc0.out_lo nd.n :=
+      have hLBQ : nd.out_lo ≤ Gaussian.expLBQ ndc0.out_lo nd.n :=
         of_decide_eq_true hLB
-      have hUBQ : JackalIv.Gaussian.expPartial ndc0.out_hi nd.n +
-                  JackalIv.Gaussian.expRemainder ndc0.out_hi nd.n ≤ nd.out_hi :=
+      have hUBQ : Gaussian.expUBQ ndc0.out_hi nd.n ≤ nd.out_hi :=
         of_decide_eq_true hUB
-      -- Real casts.
-      have hcLoNNR : (0 : ℝ) ≤ ((ndc0.out_lo : ℚ) : ℝ) := by exact_mod_cast hcLoNNQ
-      have hcMonoR : ((ndc0.out_lo : ℚ) : ℝ) ≤ ((ndc0.out_hi : ℚ) : ℝ) := by
-        exact_mod_cast hcMonoQ
-      have hcHiNNR : (0 : ℝ) ≤ ((ndc0.out_hi : ℚ) : ℝ) := le_trans hcLoNNR hcMonoR
-      -- Degree condition in ℝ: `argHi / (n+1) ≤ 1/2`.
-      have hnp1_pos : (0 : ℝ) < ((nd.n : ℕ) : ℝ) + 1 := by
-        have : (0 : ℝ) ≤ ((nd.n : ℕ) : ℝ) := by exact_mod_cast Nat.zero_le _
-        linarith
-      have hdegR : ((ndc0.out_hi : ℚ) : ℝ) / (((nd.n : ℕ) : ℝ) + 1) ≤ 1 / 2 := by
-        rw [div_le_iff₀ hnp1_pos]
-        have : (2 : ℝ) * ((ndc0.out_hi : ℚ) : ℝ) ≤ (((nd.n : ℕ) : ℚ) : ℝ) + 1 := by
-          exact_mod_cast hdegQ'
-        push_cast at this
-        linarith
-      -- Lift LB / UB to ℝ via `cast_expPartial` / `cast_expRemainder`.
-      have hLBR : ((nd.out_lo : ℚ) : ℝ) ≤
-                  JackalIv.Gaussian.expPartial ((ndc0.out_lo : ℚ) : ℝ) nd.n := by
-        have := (Rat.cast_le (K := ℝ)).mpr hLBQ
-        rw [JackalIv.Gaussian.cast_expPartial] at this
-        exact this
-      have hUBR : JackalIv.Gaussian.expPartial ((ndc0.out_hi : ℚ) : ℝ) nd.n +
-                  JackalIv.Gaussian.expRemainder ((ndc0.out_hi : ℚ) : ℝ) nd.n ≤
-                  ((nd.out_hi : ℚ) : ℝ) := by
-        have := (Rat.cast_le (K := ℝ)).mpr hUBQ
-        rw [Rat.cast_add, JackalIv.Gaussian.cast_expPartial,
-            JackalIv.Gaussian.cast_expRemainder] at this
-        exact this
-      -- Bracket witnesses collapse: argLoQ = child.out_lo, argHiQ = child.out_hi.
-      exact Runs.expRat (argLoQ := ndc0.out_lo) (argHiQ := ndc0.out_hi)
-              hr hnposN hcLoNNQ (le_refl _) (le_refl _) hdegR hLBR hUBR
+      have hbLo := Gaussian.exp_between_general ndc0.out_lo nd.n hdegLo
+      have hbHi := Gaussian.exp_between_general ndc0.out_hi nd.n hdegHi
+      have hloR : ((nd.out_lo : ℚ) : ℝ) ≤ Real.exp ((ndc0.out_lo : ℚ) : ℝ) :=
+        le_trans (by exact_mod_cast hLBQ) hbLo.1
+      have hhiR : Real.exp ((ndc0.out_hi : ℚ) : ℝ) ≤ ((nd.out_hi : ℚ) : ℝ) :=
+        le_trans hbHi.2 (by exact_mod_cast hUBQ)
+      exact Runs.expRat hr hloR hhiR
+    · -- ln_rat  (pure ℚ; no libm TCB; §490 v1.5.0).
+      have hop : nd.op = "ln_rat" := by assumption
+      simp only [*] at hb
+      rw [Option.map_eq_some_iff] at hb
+      obtain ⟨a, hba, rfl⟩ := hb
+      obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
+      simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
+      obtain ⟨⟨⟨⟨⟨hPos, _hMono⟩, hdegLo⟩, hdegHi⟩, hUBc⟩, hLBc⟩ := hcheck
+      have hr := ih _ ndc0 a hf0 hba
+      have hPosQ : (0 : ℚ) < ndc0.out_lo := of_decide_eq_true hPos
+      have hUBQ : Gaussian.expUBQ nd.out_lo nd.n ≤ ndc0.out_lo :=
+        of_decide_eq_true hUBc
+      have hLBQ : ndc0.out_hi ≤ Gaussian.expLBQ nd.out_hi nd.n :=
+        of_decide_eq_true hLBc
+      have hbLo := Gaussian.exp_between_general nd.out_lo nd.n hdegLo
+      have hbHi := Gaussian.exp_between_general nd.out_hi nd.n hdegHi
+      have hguard : (0 : ℝ) < ((ndc0.out_lo : ℚ) : ℝ) := by exact_mod_cast hPosQ
+      have hlo : Real.exp ((nd.out_lo : ℚ) : ℝ) ≤ ((ndc0.out_lo : ℚ) : ℝ) :=
+        le_trans hbLo.2 (by exact_mod_cast hUBQ)
+      have hhi : ((ndc0.out_hi : ℚ) : ℝ) ≤ Real.exp ((nd.out_hi : ℚ) : ℝ) :=
+        le_trans (by exact_mod_cast hLBQ) hbHi.1
+      exact Runs.logRat hr hguard hlo hhi
+    · -- sin_rat  (pure ℚ; no libm TCB; §490 v1.5.0).
+      have hop : nd.op = "sin_rat" := by assumption
+      simp only [*] at hb
+      rw [Option.map_eq_some_iff] at hb
+      obtain ⟨a, hba, rfl⟩ := hb
+      obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
+      simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
+      obtain ⟨⟨⟨_hMono, hm⟩, hlo⟩, hhi⟩ := hcheck
+      have hr := ih _ ndc0 a hf0 hba
+      have hmQ : |(ndc0.out_lo + ndc0.out_hi) / 2| ≤ 1 := of_decide_eq_true hm
+      have hloQ : nd.out_lo ≤
+          Transcend.sinLoQ ((ndc0.out_lo + ndc0.out_hi) / 2) -
+            (ndc0.out_hi - ndc0.out_lo) / 2 := of_decide_eq_true hlo
+      have hhiQ : Transcend.sinHiQ ((ndc0.out_lo + ndc0.out_hi) / 2) +
+            (ndc0.out_hi - ndc0.out_lo) / 2 ≤ nd.out_hi := of_decide_eq_true hhi
+      have henc := Transcend.sin_range _ _ _ _ hmQ hloQ hhiQ
+      refine Runs.sinRat hr ?_
+      intro t ht1 ht2
+      apply henc t
+      · have hcast : ((((ndc0.out_lo + ndc0.out_hi) / 2 : ℚ)) : ℝ) -
+            (((ndc0.out_hi - ndc0.out_lo) / 2 : ℚ) : ℝ) = ((ndc0.out_lo : ℚ) : ℝ) := by
+          push_cast; ring
+        rw [hcast]; exact ht1
+      · have hcast : ((((ndc0.out_lo + ndc0.out_hi) / 2 : ℚ)) : ℝ) +
+            (((ndc0.out_hi - ndc0.out_lo) / 2 : ℚ) : ℝ) = ((ndc0.out_hi : ℚ) : ℝ) := by
+          push_cast; ring
+        rw [hcast]; exact ht2
+    · -- cos_rat  (pure ℚ; no libm TCB; §490 v1.5.0).
+      have hop : nd.op = "cos_rat" := by assumption
+      simp only [*] at hb
+      rw [Option.map_eq_some_iff] at hb
+      obtain ⟨a, hba, rfl⟩ := hb
+      obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
+      simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
+      obtain ⟨⟨⟨_hMono, hm⟩, hlo⟩, hhi⟩ := hcheck
+      have hr := ih _ ndc0 a hf0 hba
+      have hmQ : |(ndc0.out_lo + ndc0.out_hi) / 2| ≤ 1 := of_decide_eq_true hm
+      have hloQ : nd.out_lo ≤
+          Transcend.cosLoQ ((ndc0.out_lo + ndc0.out_hi) / 2) -
+            (ndc0.out_hi - ndc0.out_lo) / 2 := of_decide_eq_true hlo
+      have hhiQ : Transcend.cosHiQ ((ndc0.out_lo + ndc0.out_hi) / 2) +
+            (ndc0.out_hi - ndc0.out_lo) / 2 ≤ nd.out_hi := of_decide_eq_true hhi
+      have henc := Transcend.cos_range _ _ _ _ hmQ hloQ hhiQ
+      refine Runs.cosRat hr ?_
+      intro t ht1 ht2
+      apply henc t
+      · have hcast : ((((ndc0.out_lo + ndc0.out_hi) / 2 : ℚ)) : ℝ) -
+            (((ndc0.out_hi - ndc0.out_lo) / 2 : ℚ) : ℝ) = ((ndc0.out_lo : ℚ) : ℝ) := by
+          push_cast; ring
+        rw [hcast]; exact ht1
+      · have hcast : ((((ndc0.out_lo + ndc0.out_hi) / 2 : ℚ)) : ℝ) +
+            (((ndc0.out_hi - ndc0.out_lo) / 2 : ℚ) : ℝ) = ((ndc0.out_hi : ℚ) : ℝ) := by
+          push_cast; ring
+        rw [hcast]; exact ht2
+    · -- atan_rat  (pure ℚ; no libm TCB; §490 v1.5.0).
+      have hop : nd.op = "atan_rat" := by assumption
+      simp only [*] at hb
+      rw [Option.map_eq_some_iff] at hb
+      obtain ⟨a, hba, rfl⟩ := hb
+      obtain ⟨ndc0, hf0⟩ := buildExpr_some_findNode hba
+      simp only [childOut_of_findNode hf0, Bool.and_eq_true] at hcheck
+      obtain ⟨⟨_hMono, hloOK⟩, hhiOK⟩ := hcheck
+      have hr := ih _ ndc0 a hf0 hba
+      refine Runs.atanRat hr ?_
+      intro t ht1 ht2
+      exact ⟨Transcend.atanLo_sound hloOK ht1, Transcend.atanHi_sound hhiOK ht2⟩
 
 /-! ### Structural extraction and the headline theorems
 

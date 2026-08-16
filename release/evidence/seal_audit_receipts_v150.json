@@ -1,0 +1,33 @@
+{
+  "checker": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
+  "release_epoch": "v1.5.0",
+  "rows": [
+    {
+      "id": "R-A-baseline-replay",
+      "observed": "ACCEPT ACCEPT",
+      "ok": true
+    },
+    {
+      "id": "R-B-enclosure-inward",
+      "observed": "refused result-enclosure-canonical",
+      "ok": true
+    },
+    {
+      "id": "R-C-endpoints-swapped",
+      "observed": "refused result-enclosure-order",
+      "ok": true
+    },
+    {
+      "id": "R-D-type-confusion-number",
+      "observed": "refused result-enclosure-format",
+      "ok": true
+    },
+    {
+      "id": "R-E-coordinated-cert-tamper",
+      "observed": "refused checker-rejected-on-rerun",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-seal-audit-receipts-v1",
+  "verdict": "PASS"
+}

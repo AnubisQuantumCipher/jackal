@@ -1,0 +1,1 @@
+{"args": [{"args": [{"t": "rat", "v": "3"}, {"t": "rat", "v": "100"}, {"t": "rat", "v": "7"}], "fn": "mod_pow", "t": "app"}, {"t": "str", "v": "lt"}, {"t": "rat", "v": "7"}], "name": "threshold_robust", "t": "pred"}

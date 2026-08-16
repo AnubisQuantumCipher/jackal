@@ -16,7 +16,12 @@ import cert_evidence_verify
 
 
 def verify_gaussian() -> None:
-    evidence = json.loads((ROOT / "release/evidence/gaussian_formal_v130.json").read_text())
+    # v1.5.0 re-freeze: the §490 fragment extension rebuilt the shared Lean
+    # library, so jackal_gaussian_check (and the coverage inventory) carry new
+    # identities.  The challenge certificate is BYTE-IDENTICAL to the v1.3.0
+    # record (producer unchanged); gaussian_formal_v130.json is preserved as
+    # history and gaussian_formal_v150.json binds the live identities.
+    evidence = json.loads((ROOT / "release/evidence/gaussian_formal_v150.json").read_text())
     challenge = evidence["challenge"]
     observed = evidence["observed_result"]
     identities = evidence["identities"]

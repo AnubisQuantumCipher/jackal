@@ -8,7 +8,502 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.4.2 — 2026-08-15 (current) — variant receipt round-trip landed
+## Seal v1.6.0 — 2026-08-16 (current) — claim-bundle evidence kernel: typed claim compiler over the intact v1.5.0 floor
+
+An additive epoch: the v1.5.0 engine, exact-CAS surface, formal
+fragments, receipt formats, CLI commands, and all 31 Hermes tools are
+the untouched compatibility floor (mechanically locked — see the gates
+below); the new kernel composes those lanes into canonical,
+content-addressed, independently replayable claim graphs.
+
+### What landed
+
+- **Schemas** (`release/claim/SPEC.md`): `jackal-claim-node-v1`,
+  `jackal-claim-bundle-v1`, `jackal-claim-policy-v1`,
+  `jackal-inference-registry-v1`, `jackal-unit-registry-v1`,
+  `jackal-machine-int-cert-v1`.  Canonical bytes: one RFC 8785-compatible
+  JSON function on a restricted value space (no floats anywhere, NFC-only
+  strings, duplicate keys refused, unknown current-version fields
+  refused); node identity = SHA-256 of canonical node bytes; the bundle
+  digest binds nodes, root, policy, registries, and engine identity.
+- **Closed inference registry** (15 rules, hash-bound file
+  `e7c999c34312288f…`): evidence_admit, and_intro, equality_substitute,
+  interval_add/sub/mul (exact rational hulls), interval_div (denominator
+  independently re-proved off zero), unit_convert_linear/affine,
+  threshold_from_enclosure, robust_decision, model_condition,
+  provenance_passthrough, artifact_attestation_attach.  Everything else
+  refuses (`rule-unknown`) — this is not a theorem prover.
+- **Small compositional assurance algebra** (non-bypassable): four
+  ordered axes (input_provenance, model_validity, mathematical,
+  implementation) propagate by pointwise meet + rule caps; artifact
+  flags AND (raised only by attestation records); residual non-claims
+  union and never disappear; declared-vs-recomputed divergence refuses
+  with per-axis classes.  Interval-composed enclosures cap at
+  `mathematical=bounded` (the hull is verifier-recomputed, not
+  Lean-checked); formal parents keep `formal-bounded` in their own
+  nodes — the graph never flattens.
+- **Structured consequence classes** (`informational`, `advisory`,
+  `decision-boundary`, `safety-critical`) with kernel-mandated minimum
+  axis floors enforced at verification (`consequence-floor`);
+  `safety-critical` under a merely assumed physical model refuses.
+- **Independent verifier** `tools/claim_bundle_verify.py`
+  (`79d579d1be966e85…`): dependency-free, `python3 -I -S -B`,
+  caller-pinned epoch/root-proposition/policy/registries/time/nonce,
+  70 stable refusal classes, verdicts `verified`/`refused`/
+  `indeterminate`, never a bare badge.  Legacy evidence dispatches to
+  the EXISTING `receipt_verify.py` + pinned Lean checker and
+  `exact_verify.py`; machine-int certificates are fully recomputed with
+  the engine's exact `band/bor/bxor/shl/shr` commands as producer-side
+  drift alarms.
+- **Deterministic router** `tools/claim_router.py`
+  (`ccab2cce27770297…`) + kernel `tools/claim_kernel.py`
+  (`0e33bed664d4a070…`): documented stable lane order, per-step route
+  trace with candidate refusal reasons, `allow_fallback` default false
+  and refuse-not-downgrade (v1 has no sound weaker enclosure lane).
+  Front doors: repo wrappers `jackal-claim` / `jackal-claim-verify`,
+  packaged twins, and Hermes tools `jackal_claim` /
+  `jackal_verify_bundle` (31 → 33; every prior tool byte-compatible).
+- **Exact unit registry v1** (`d2d30dfe2a74d58a…`): 60 audited units
+  over the 7-dim SI vector, exact rational scales, affine
+  Celsius/Fahrenheit restricted to point conversions, aliases admitted
+  only at input canonicalization; **uncertainty v1**: outward interval
+  propagation only, repeated dependencies never cancel, probabilistic
+  propagation refuses.
+- **Machine-int fragment v1**: widths 8/16/32/64, signed/unsigned,
+  two's-complement wrap/checked, add/sub/mul/neg, bitwise, logical and
+  arithmetic shifts, rotates, comparisons, exact conversions; checked
+  overflow yields an explicit overflow FACT, never a value claim.
+
+### Deterministic-evidence repair carried forward
+
+The v1.5.0 addendum below repaired the volatile-thread-id scar; the
+`evidence-determinism` gate now re-runs both seal batteries twice per
+aggregate and fails on any byte divergence
+(`seal_audit_v150.json = 6f91d76e…`, `seal_audit_receipts_v150.json =
+2f59c048…`, both re-proven this seal).
+
+### Gates — v1.6.0 aggregate, terminal
+
+`release/tools/run_gates_v160.py` invokes all 32 v1.5.0 gates verbatim
+(imported from the untouched `run_gates_v150.py`) plus six additive
+gates.  Full run 2026-08-16: **GATES: PASS (38 gates)**, including
+`black-box-acceptance TOTAL 200/200`, `seal-audit rows=83`,
+`seal-audit-receipts rows=5`, and:
+
+- `compat-floor` — mechanical v1.5 surface lock
+  (`release/compat/v150_floor.json`, sha256 `cf7598e8e673a097…`):
+  31 tools with exact argument/return keys, the 32-gate list, 93 engine
+  commands, 7 variants, 69 coverage rows, 11 wrappers — additive-only
+  diff, errors=0.
+- `evidence-determinism` — two-run byte equality + volatile-pattern scan.
+- `claim-hostile` — 108-row hostile matrix (serialization, graph
+  identity, laundering, units, consequence floors, freshness/replay,
+  machine arithmetic, legacy compatibility, rendering; every negative
+  case has a positive twin).  Evidence:
+  `release/evidence/claim_hostile_matrix_v160.json`
+  (`ed8393d5666948a7…`).
+- `claim-dogfood` — the ten required end-to-end mixed graphs, 16 rows.
+  Evidence: `release/evidence/claim_dogfood_v160.json`
+  (`e723e56c8836c87c…`).
+- `claim-aba` — A→B→A tamper gates over seven trust layers
+  (canonicalizer, inference registry, policy evaluation, legacy
+  adapter, unit registry, machine verifier, renderer): every poison
+  detected for the intended reason, byte-identical restores,
+  post-restore green.  The gate CAUGHT one real gap during development
+  (per-rule caps were not cross-checked against the shipped registry)
+  which was fixed by strengthening the verifier's embedded
+  `registry-semantics-mismatch` table.  Evidence:
+  `release/evidence/claim_aba_v160.json` (`e9b797f8688bca2e…`).
+- `claim-package-parity` — the v1.6.0 package builds twice
+  bit-identically, fresh-extracts, exercises ALL 33 plugin tools and
+  all 11 shell wrappers, and proves three-way parity (repo CLI, package
+  CLI, plugin) on canonical root hash and bundle digest; 47 rows.
+
+### Hosted CI scope (distinct from the local aggregate)
+
+The GitHub Actions `Formal proof identity gate` workflow runs two jobs
+on Ubuntu 24.04: (a) Lean source-closure builds of both checkers plus
+proof-identity/axiom audits in `--proof-only` mode, and (b) the v1.6.0
+engine-free claim-kernel admission job — mechanical 33-tool inventory
+lock, `tools/compat_floor.py --check`, and
+`release/tools/ci_claim_admission.py` (committed exact-lane fixture
+replayed to `verified` with caller-supplied pins, plus one semantic
+tamper refusing `node-id-mismatch`).  Hosted CI does NOT run the
+macOS-only engine, the platform-matching checker-identity gates, or
+this full 38-gate aggregate; those are sealed locally and recorded
+here.  The hosted subset is a live indicator, not a substitute for the
+local proof/build campaign.
+
+### Frozen identities (this seal)
+
+```text
+evaluator jackal-native        8617ad087f859f58… (unchanged from v1.5.0)
+source jackal_calc.anb         34870c6627600527… (unchanged)
+checker jackal_cert_check      05c3518b836f2397… (unchanged)
+gaussian jackal_gaussian_check ccac690bf916f71a… (unchanged)
+claim_kernel                   0e33bed664d4a070…
+claim_router                   ccab2cce27770297…
+claim_verifier                 79d579d1be966e85…
+claim_inference_registry       e7c999c34312288f…
+claim_unit_registry            d2d30dfe2a74d58a…
+plugin_hermes bundle           d94ffbe1f0f40572… (27 runtime logical names)
+package tarball                jackal-v1.6.0-macos-arm64.tar.gz
+                               0cdacf56bb83d654… (79,519,523 bytes,
+                               two-build byte equality re-proven on the
+                               final publication tree)
+```
+
+The v1.5.0 package directory and tarball under `release/dist/` remain
+byte-frozen; the frozen coverage inventory
+(`630b8988ef6f8b33…`) and both proof identities are byte-identical to
+the v1.5.0 seal, so every previously emitted receipt keeps verifying
+under its original expected epoch/request.
+
+### Assurance classification (what kind of claim each layer makes)
+
+| Layer | Class |
+|---|---|
+| Lean checker acceptance ⇒ true enclosure under ModelTCB | theorem-covered (unchanged axioms `propext, Classical.choice, Quot.sound`) |
+| Exact CAS certificates; claim-bundle replay; machine-int recompute; interval hulls; unit conversions | independently recomputed (second implementation, no shared code with the producer) |
+| Engine lanes, emitter faithfulness, plugin surface, hostile matrices, A→B→A | campaign-tested (finite batteries; counts above) |
+| Physics/model lanes, f64/libm rounding model, receipt model assumptions | model-dependent (carried as `model_validity=assumed`, never upgraded) |
+| Claim-request inputs | externally supplied (`input_provenance=supplied`, visibly conditional) |
+
+### Residual TCB and explicit non-claims (v1.6.0)
+
+- Python interpreter + standard library for producers/verifiers
+  (mitigated: `-I -S -B`, dependency-free verifier, independent
+  recompute discipline); Lean runtime + codec for the formal lane
+  (unchanged from v1.5.0).
+- No source→native refinement (`source-native-refined` is never
+  granted); no end-to-end formally verified executable claim.
+- No one-time replay prevention without an external nonce store
+  (nonce/epoch binding + caller-time freshness only).
+- No probability distributions, confidence levels, independence, or
+  calibration inferred from intervals; probabilistic propagation
+  refuses.
+- No real-world truth of supplied inputs; no universal soundness —
+  bounded fragments only; transparency metadata is provenance, never
+  mathematical evidence; not a general replacement for
+  Mathematica/Sage/SymPy.
+- Composed interval enclosures are `bounded`, not `formal-bounded`
+  (the composition is verifier-recomputed, not Lean-checked).
+
+
+## Seal v1.5.0 — 2026-08-16 (predecessor) — certified CAS epoch: five zero-libm transcendental fragments + exact algebra/number-theory lane
+
+The largest fragment extension since the formal epoch began.  Two independent,
+monotone growth axes landed together, with no change to any headline theorem
+name, receipt schema magic, or acceptance definition:
+
+### Axis 1 — the zero-libm transcendental fragment (§490)
+
+Five new pure-ℚ checker strategies join `sqrt_rat` (v1.4.0) and `exp_rat`
+(v1.4.1), all validated by the SAME compiled Lean-proved `jackal_cert_check`
+through the SAME `request_bound_certified_release` theorem:
+
+* **`exp_rat` generalized to every rational argument.**  `Gaussian.expLBQ` /
+  `expUBQ` extend the Taylor bracket to negative arguments through the exact
+  reciprocal identity `exp q = 1/exp(−q)` (`exp_between_general`, building on
+  the v1.3.0 `expNegQ_encloses` foundation).  Every v1.4.1 certificate
+  remains accepted — its conditions are the `0 ≤ q` branch of the same
+  functions.  The v1.4.1 negative-lower REFUSAL expectations in the exp
+  release test and package smoke were retired WITH this theorem extension
+  (the accept condition changed because the proof surface grew, exactly as
+  v1.4.1 retired v1.4.0's exp refusals); refusal discipline is re-witnessed
+  by reversed-limit and degree-witness probes.
+* **`ln_rat`** — full positive rational domain via the INVERSE exponential
+  bracket: `expUBQ(out_lo, n) ≤ lo` witnesses `exp(out_lo) ≤ lo` and
+  `hi ≤ expLBQ(out_hi, n)` witnesses `hi ≤ exp(out_hi)`; sound by
+  `Real.le_log_iff_exp_le` / `log_le_iff_le_exp` + log monotonicity
+  (`Runs.logRat`).
+* **`sin_rat` / `cos_rat`** — tight enclosures when the interval midpoint m
+  (recomputed by the checker from the child interval — no witness fields)
+  satisfies `|m| ≤ 1`: Mathlib `Real.sin_bound` / `cos_bound` fixed-degree
+  midpoint Taylor plus Lipschitz-1 halfwidth widening
+  (`Transcend.sin_range` / `cos_range`, `Runs.sinRat` / `cosRat`).  Arguments
+  centered outside `[-1, 1]` REFUSE — 2πk argument reduction is future work,
+  stated in the variant non-claims.
+* **`atan_rat`** — FULL rational domain via four decidable strategies per
+  endpoint (cap over `piHiQ/2`; `|t| ≤ 1` tan-bracket through rational
+  sin/cos corners; positive- and negative-reciprocal reductions via
+  `Real.arctan_inv_of_pos` / `_of_neg` over the Mathlib 20-digit rational π
+  bounds `pi_gt_d20`/`pi_lt_d20`) — `Transcend.atanLoOK`/`atanHiOK`, proved
+  in `atanLo_sound`/`atanHi_sound`, consumed by `Runs.atanRat`.
+* **`tanh` via composite certification.**  `tanh` is not a grammar token and
+  gains none: the new `jackal-tanh-rat-release` admits exactly
+  `1-2/(exp(2*x)+1)` (mathematically tanh(x); the CONSTANT-numerator division
+  form is chosen so the interval division loses no correlation and stays
+  tight at any width — the naive `(e^{2x}−1)/(e^{2x}+1)` form was measured
+  ~52 wide on [−2,2] and rejected during development).  The producer emits an
+  8-node zero-libm DAG (`num_exact`/`var`/`mul`/`exp_rat`/`add`/`div`/`sub`)
+  whose recorded float fields are EXACT rationals; the receipt binds the
+  composite expression string and the tanh reading is a documented identity,
+  never a checker claim.  Budget `|x| ≤ 20`.
+
+New Lean surface: `JackalIv/Transcend.lean` (rational π bounds, sin/cos/tan
+brackets, arctan strategy soundness), `Gaussian.lean` additions
+(`expDegOKQ`/`expLBQ`/`expUBQ`/`exp_between_general`), four new `Runs`
+constructors + a generalized `expRat` (35 total), matching `checkNode` arms,
+codec `opFields` entries, `releaseNodeOp` allowlist entries, and the
+kernel-reduced inventory lock extended to 25 admitted node ops.  Full
+`lake build`: 17,355 jobs, zero sorry; every headline theorem still audits to
+exactly `[propext, Classical.choice, Quot.sound]`.  One build-infrastructure
+change: `lakefile.toml` sets `maxHeartbeats = 3200000` because
+`runs_of_check`'s fuel induction (35 constructors) exceeds the default
+elaboration budget in a nested context in-file `set_option` does not reach on
+lean4 v4.32.0 — a compile-time resource limit only; the kernel independently
+checks every proof and no trust surface moves.
+
+Producers (`tools/{ln,sin,atan,tanh}_rat_producer.py`, plus the generalized
+`exp_rat_producer.py`) are UNTRUSTED, mirror the checker conditions in
+`fractions.Fraction`, and verify every emitted endpoint against those exact
+conditions before writing a certificate; `math.log`/`math.atan` appear only
+as search seeds, never on any claim path (`tanh`/`exp` producers use no libm
+at all).  Release wrappers `jackal-{ln,sin,cos,atan,tanh}-rat-release` clone
+the v1.4.1 Shape-B TOCTOU discipline; the receipt schema gains variants
+`ln_rat`/`sin_rat`/`cos_rat`/`atan_rat`/`tanh_rat` with per-variant
+assumption/non-claim locks shared verbatim between builder and verifier
+(imported, never re-declared).
+
+Documented enclosure-width residuals (never soundness): sin/cos point
+enclosures carry the fixed-degree Mathlib remainders (`|m|⁵/100`,
+`|m|⁴·5/96`); tan-bracketed atan endpoints near `|x| = 1` are certified to
+~5·10⁻²; ln/exp/sqrt/tanh brackets are ~10⁻⁹-tight or better at defaults.
+
+### Axis 2 — the exact CAS / number-theory lane (`jackal-exact-cert-v1`)
+
+Fourteen new engine commands turn the bigint/rational core into a small
+certifiable computer-algebra surface, every result exact and every compact
+claim carried by a NEW independent certificate family:
+
+* polynomial lane: `canon`, `poly-canon`, `poly-eq` (DECIDED identity over
+  ℚ[x], degree ≤ 64), `poly-gcd` (monic Euclid), `ratfunc-canon` (gcd-reduced
+  P/Q, monic denominator, explicit `denominator-nonzero` side condition);
+* real-algebraic lane: `roots-isolate` (Sturm chains over ℚ, distinct real
+  roots, strict interval separation), `alg-sign`, `alg-cmp` (order decision
+  between isolated algebraic numbers via Sturm-count-preserving bisection +
+  gcd equality detection);
+* number-theory kernel: `xgcd` (Bézout witness), `mod-pow`, `mod-inv`, `crt`
+  (pairwise-coprime, ≤ 16 moduli), `divides`, `prime-cert` (recursive Pratt
+  certificate or composite divisor witness; deterministic-MR prescreen +
+  trial division ≤ 10⁶ + budgeted Brent-rho factoring of n−1; REFUSES beyond
+  budget, never downgrades to a probabilistic verdict).
+
+The certificates are one-line canonical JSON (`schema jackal-exact-cert-v1`,
+sorted keys, no floats, canonical `p/q` tokens) printed as the final
+`exact-cert=` stdout line.  The independent verifier `tools/exact_verify.py`
+(stdlib-only, `python3 -I -S -B`, its OWN parser / polynomial arithmetic /
+Sturm chains / Pratt recursion) re-checks every claim by FULL RECOMPUTATION —
+it never trusts the engine, and its accept line says
+`method=independent-recompute`.  `exact` here means exactly that: exact
+integer/rational computation with an independently re-checkable certificate —
+deliberately NOT a `formal-*` claim; the coverage inventory rows carry
+`allowed_status=exact` and formal language is structurally refused on these
+lanes.  Engine self-test grew 83 → 104 invariants; the black-box oracle suite
+gained `tests/exact_lane_test.py` (2,305 cases against Python
+`pow`/`Fraction`/`math.gcd` and sympy `expand`/`Poly`/`real_roots`/`isprime`,
+including the Carmichael set 561/1105/1729/41041/825265/321197185 and full
+in-test recursive Pratt verification) and `tests/exact_verify_test.py`
+(34 golden positives + 91 single-field tampers, each REJECTING with its
+named class).
+
+### Branch/discontinuity adversarial gate
+
+`tests/branch_discontinuity_test.py` (19/19) witnesses end-to-end — through
+the REAL engine emitter and the REAL Lean checker — that branch decisions are
+exact-comparison decisions: floor crossings widen, point branches decide
+exactly in ℚ, `round(±2.5)` follows the documented half-away convention
+exactly, `sqrt(x²)` on a negative domain encloses |x| (never x), poles and
+`ln(0)` and tan-pole intervals refuse, `(x²−1)/(x−1)` cancels ONLY with a
+recorded side condition while the interval lane refuses the excluded point,
+and no log-product rewriting exists anywhere (canonical trees differ).
+
+### Trust-surface bookkeeping (all mutation-locked)
+
+`receipt_semantic_mutations` grew 33 → 42 (new locks: variant swaps across
+the five new variants, producer-identity/source-identity forgeries,
+fragment/coverage-row forgeries, a stale-epoch lock, and the TCB-op smuggle
+lock: relabeling a pure-ℚ `ln_rat` node to the libm-TCB `ln` op refuses
+`node-op-outside-release-fragment` — exactly mirroring the Lean
+`releaseNodeOp` wildcard).  `cert_mutations_11` M6's uncovered-operator probe
+moved `ln` → `asin` (third generation: `exp` retired v1.4.1, `ln` retired
+v1.5.0 — each fragment extension retires its probe).  The Hermes plugin
+grew 12 → 31 tools (5 new formal + 14 exact-CAS weak adapters), bundle
+17 → 22 logical files.  `verify_evidence.py` re-freezes the immutable
+Gaussian challenge as `gaussian_formal_v150.json` (producer unchanged — the
+challenge certificate is BYTE-IDENTICAL to the v1.3.0 record, re-ACCEPTed by
+the rebuilt checker; `gaussian_formal_v130.json` preserved as history).
+A producer argv defect found by the gates (argparse treats the canonical
+token `-1/2` as an option; plain `-1` was accepted by its negative-number
+heuristic) was fixed producer-side with a value-merging shim so every caller
+form parses identically.
+
+### Frozen v1.5.0 identities
+
+```text
+jackal-native            8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e
+jackal_cert_check        05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a
+jackal_gaussian_check    ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb
+source jackal_calc.anb   34870c66276005272d9ab48a3cc1261ba0e0317a9e45089b1acfb07acc0efd25
+range-proof-digest       2f8ae0bca9fa11c7e9563a35d856c394f1f8f867faeb68f710137931b7851376
+gaussian-proof-digest    af1af9067bdc2569ed0c998b7719dbcb7b929765bc73ce45c0a2358b85f66214
+coverage-inventory       630b8988ef6f8b3385a3451fd3bde08789c0f8eb6e96d816b92ce2469e47c6ec
+plugin_hermes            3ffc077d6631ca5c8760597334c9481a8c4abc575fbd2585ed202679da53eb21
+sqrt_rat_producer        4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926   (unchanged)
+exp_rat_producer         1997ed81dfbd26a6d45a6689c515832bfbae05435d07e3dd2d6f156c57668ec1
+ln_rat_producer          c88eb0153f0ec0ba401597a8945345e621a38df408bfd92a47a4b3abf7985740
+sin_rat_producer         978f8d508c0921b5d8227a24ee7c7b97373a6041e55e4923cd94617a94a061dd
+atan_rat_producer        824916bdb3420986f4a6eed8028760a96477e9e1df2febd03b9ca174216aef26
+tanh_rat_producer        da03b6054dcdd3fe02588ec25fc7c201405e9d8ec5f3ab46ff45b49698ab5eb3
+exact_verifier           2c07e6257ce1524de3e31374371c6d5859dce710767156de2566ec77fa1883a7
+package tarball           491708db3139e45bdd44644c6219e06720d3da839af4e2dc4b00a4f10aca945a  (byte-reproducible across 2 consecutive builds on the final evidence bytes; 79,463,067 bytes — reproducibility is per tree state: regenerating the shipped evidence transcripts between builds legitimately moves the hash)
+```
+
+The engine rebuild chain stays deterministic: before any source edit, the
+committed `jackal_calc.anb` recompiled under the pinned
+`anubis-a733565f237d` to the byte-identical predecessor
+`820c0722…` (instrument validated); the extended source compiles
+reproducibly to `8617ad08…`.
+
+### Gate receipts on the v1.5.0 final bytes
+
+One driver run (`release/tools/run_gates_v150.py`), 32 gates in order, all
+PASS: Lake build (17,355 jobs) · range + Gaussian proof identities (full
+mode, axiom audit `[propext, Classical.choice, Quot.sound]`) · engine
+self-test 104/104 · positive corpus 20/20 released + 3/3 constants refused ·
+negative controls 30/30 · A→B→A 2/2 · 11-category mutations 11/11 (M6 probe
+regenerated) · formal-status gate + inventory-integrity mutation ·
+sqrt 7-case / exp 9-case / ln 8-case / sin 6-case / cos 7-case / atan 7-case
+/ tanh 6-case release tests · Gaussian emitter + checker + 16 mutations +
+receipt round-trip · receipt-semantic mutations 42/42 · plugin smoke S1–S20
+(43 rows, zero skips, all identity-hard) · plugin bundle identity (22
+logical files; every runtime-byte mutation refused) · output-path safety 6/6
+· fail-closed sweep 21/21 with zero formal-* leaks · exact lane 2,305 ·
+seal-audit dogfood battery 83 rows (exact/formal/serialization/branch/
+malformed/tamper) · seal-audit receipt-envelope battery 5 rows ·
+exact-verify 34 positives + 91 tampers · branch/discontinuity 19/19 ·
+evidence adjudicator + re-frozen Gaussian challenge (width
+100387/10²⁴ ≤ tolerance) · black-box acceptance 200/200.  Separately, the
+five adversarial oracle campaigns: parser differential (engine ↔ mechanized
+Lean parser agree; tamper detected) · engine-emitter A→B→A tamper PASS ·
+iv-differential 300 cases seed 20260813 (0 POINT_VIOLATION, 0
+DISJOINT_IMPLEMENTATIONS) · full campaign 990/990 · bound campaign 250 cases
+seed 20260813 (246 bounded + 4 honest refusals, 0 CONTAINMENT_VIOLATION, 0
+WIDTH_VIOLATION).  Fresh-extraction package smoke: 30 cases PASS against the
+byte-reproducible tarball, including one CLI accept case per §490 packaged
+wrapper (ln/sin/cos/atan/tanh), a packaged domain refusal, and one
+emit-plus-independent-reverify receipt round-trip per rational variant
+(sqrt/exp/ln/sin/cos/atan/tanh — all seven).
+
+**Claim boundary.**  No new axioms; no headline theorem renamed; the
+`formal-bounded` acceptance definition is unchanged — the fragment under it
+GREW.  The five new transcendental strategies carry NO libm obligation; the
+`ModelTCB` hypothesis remains exactly what it was (libm facts for the eight
+TCB transcendental node types + ConstTCB for π/e/τ, all still refused from
+release).  The exact CAS lane's `exact` status is an
+independent-recomputation claim, deliberately weaker than `formal-*`, and
+its verifier is fail-closed on unknown kinds/fields/claims.  tanh is
+certified only as its defining composite expression; the engine grammar
+refuses `tanh(x)` everywhere.  sin/cos beyond `|midpoint| ≤ 1`, asin/acos,
+tan, cbrt, log10/log2, hypot/atan2, negative/general powers, and π/e/τ
+constants remain REFUSED from the formal lane.  Algebraic-number ARITHMETIC
+(sums/products of algebraic numbers via resultants) is NOT implemented —
+isolation, sign, and order decisions are.  Universal correctness for
+arbitrary expressions remains NOT claimed and NOT achievable for a general
+calculator.
+
+### Audit addendum — 2026-08-16 post-gate reconciliation (same day)
+
+After the first 30-gate pass, an independent post-gate audit (tree
+reconciliation, engine/Lean/receipt adversarial batteries, interface
+parity, rebuild provenance) reproduced **two packaging defects and zero
+mathematical defects**, then repaired and re-sealed:
+
+- **Packaged §490 wrappers were repo-layout copies.**  `build_package.sh`
+  shipped `jackal-{ln,sin,cos,atan,tanh}-rat-release` verbatim; inside the
+  package they resolved `release/MANIFEST.sha256`, which does not exist
+  there, so every §490 CLI in the *package* refused
+  `status=unavailable reason=manifest-missing` (fail-closed — no wrong
+  result was ever printable).  Repair: the script now EMITS package-layout
+  wrappers from the same self-contained template as the sqrt/exp pair,
+  and `tests/package_smoke.py` grew six cases (one CLI accept per §490
+  wrapper + one packaged domain refusal) so this class cannot silently
+  regress.
+- **Packaged §490 receipt emission was locked out.**  The packaged
+  `isolated_entry.py emit-variant-receipt` admission list was still the
+  v1.4.2 pair (`choices=("sqrt_rat","exp_rat")`), so §490 wrappers inside
+  the package printed `formal-bounded` but exited nonzero on the optional
+  receipt argument (repo-root wrappers were unaffected — they emit via an
+  inline `formal_receipt` call).  Repair: the admission list now mirrors
+  `formal_receipt.RATIONAL_VARIANTS` (the builder's own fail-closed
+  lock), and every emitted wrapper passes `--lower=`/`--upper=`
+  equals-forms so negative rational bounds survive argparse.  Smoke grew
+  five §490 emit-plus-independent-reverify round-trips (19 → 30 rows
+  total).  The tarball identity moved accordingly and was re-frozen
+  after a two-build byte-equality check.
+- **Three stale docstrings** (`tools/formal_receipt.py`,
+  `tools/receipt_verify.py`, `plugin/hermes/server.py`: "twelve tools",
+  "v1.4.2-era counts") reconciled; plugin bundle re-pinned to
+  `3ffc077d…`.  Binaries untouched.
+- **Rebuild provenance re-proven on the final bytes**: fresh
+  `JACKAL_FORCE_SOURCE=1` engine rebuild reproduced `8617ad08…`
+  byte-identically; deleted-and-relinked `jackal_cert_check` /
+  `jackal_gaussian_check` reproduced their pinned hashes.
+- **New standing gates**: `tests/seal_audit_v150.py` (83-row dogfood
+  battery: exact-lane counterexamples, canonical-serialization
+  injectivity probes, formal-fragment containment against 50-digit
+  mpmath oracles, checker/verifier tamper rows) and
+  `tests/seal_audit_receipts_v150.py` (5-row receipt-envelope battery:
+  replay, inward-shrink, endpoint swap, type confusion, coordinated
+  cert+digest tamper) joined the driver — 30 → 32 gates.  Evidence:
+  `release/evidence/seal_audit_v150.json` (sha256 `6f91d76e…`, re-frozen
+  after the deterministic-evidence repair below),
+  `release/evidence/seal_audit_receipts_v150.json` (sha256 `2f59c048…`),
+  both shipped in the package alongside the current
+  `gaussian_formal_v150.json` frozen record.
+- **Documented residuals (not defects)**: integer ingestion normalizes
+  `007`/`-0` to canonical `7`/`0` before certificate emission (emitted
+  tokens stay canonical; `+5`, `5.0`, `0x7`, `abc` refuse) — recorded in
+  the seal-audit battery as the locked expectation; the ln/sin/cos/atan/
+  tanh plugin tools return their enclosure inside the receipt payload
+  (`result.enclosure_lo/hi`) rather than a top-level `enclosure` key like
+  sqrt/exp — a response-shape variance, not a trust-surface difference.
+
+The audit run itself: `GATES: PASS (32 gates)` on the identities frozen
+above, black-box acceptance 200/200 re-run included.
+
+### Audit addendum — 2026-08-16 deterministic-evidence repair (same day)
+
+A post-seal static inspection found two defects in the durable seal-audit
+evidence, both in serialization, neither mathematical:
+
+- **Stale documented hash.**  This file previously recorded
+  `seal_audit_v150.json` as sha256 `14154d9b…`, but the shipped bytes had
+  been superseded by a later same-battery re-run (`f678feb9…`).  The
+  semantic content (83 rows, verdict PASS) was unchanged; the drift was
+  possible because the transcript was not run-to-run reproducible.
+- **Volatile identifiers in evidence bytes.**  Eight rows captured raw
+  Anubis panic banners embedding a per-process thread id
+  (`thread '<unnamed>' (117372970) panicked at src/main.rs:…`), so
+  re-running the identical battery on identical bytes moved the evidence
+  hash even though behavior was byte-identical.
+
+Repair (no acceptance condition touched): `tests/seal_audit_v150.py` now
+scrubs host-volatile identifiers (thread ids, random temp paths) from the
+`observed` transcript field at serialization time — panic messages, source
+locations, return codes, and every PASS/FAIL expectation are preserved;
+row verdicts are computed before scrubbing.  Determinism was then proven
+mechanically: two consecutive full runs from identical engine/checker
+bytes produced byte-identical evidence, sha256
+`6f91d76e8fab6bb82cdbc3976a8feed3a3ab5ae5f193da5c9e40f494a8acce7a`
+(rows=83, failures=0, verdict PASS).  `seal_audit_receipts_v150.json` was
+re-run twice the same way and was already reproducible at its recorded
+`2f59c048…`.  A standing regression gate (`evidence-determinism`) now
+re-runs the battery twice and fails on any hash divergence.
+
+
+## Seal v1.4.2 — 2026-08-15 (predecessor) — variant receipt round-trip landed
 
 The v1.4.1b seal called out one deferred item: extending
 `jackal-formal-receipt-v1` so `jackal_verify_receipt` could round-trip

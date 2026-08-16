@@ -1,0 +1,118 @@
+{
+  "schema": "jackal-unit-registry-v1",
+  "registry_version": "1",
+  "release_epoch": "v1.6.0",
+  "notes": "Offline, exact, audited UCUM-inspired subset. Dimension vector order is [s, m, kg, A, K, mol, cd] (time, length, mass, current, thermodynamic temperature, amount, luminous intensity). Scales are exact rational tokens mapping one unit to the coherent SI unit of its dimension. Affine units define K = scale*x + offset and are restricted to point conversions. Aliases are accepted only at input canonicalization; bundles must carry canonical ids. Quantity-kind distinctions beyond dimension equality (e.g. torque vs energy) are a documented v1 residual.",
+  "dimension_order": ["s", "m", "kg", "A", "K", "mol", "cd"],
+  "units": {
+    "one":   {"dim": [0, 0, 0, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "percent": {"dim": [0, 0, 0, 0, 0, 0, 0], "scale": "1/100", "kind": "linear"},
+    "ppm":   {"dim": [0, 0, 0, 0, 0, 0, 0], "scale": "1/1000000", "kind": "linear"},
+    "rad":   {"dim": [0, 0, 0, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+
+    "s":     {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "ms":    {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+    "us":    {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "1/1000000", "kind": "linear"},
+    "ns":    {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "1/1000000000", "kind": "linear"},
+    "min":   {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "60", "kind": "linear"},
+    "h":     {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "3600", "kind": "linear"},
+    "day":   {"dim": [1, 0, 0, 0, 0, 0, 0], "scale": "86400", "kind": "linear"},
+
+    "m":     {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "mm":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+    "cm":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1/100", "kind": "linear"},
+    "km":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "um":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1/1000000", "kind": "linear"},
+    "nm":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1/1000000000", "kind": "linear"},
+    "in":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "127/5000", "kind": "linear"},
+    "ft":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "381/1250", "kind": "linear"},
+    "yd":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "1143/1250", "kind": "linear"},
+    "mi":    {"dim": [0, 1, 0, 0, 0, 0, 0], "scale": "201168/125", "kind": "linear"},
+
+    "kg":    {"dim": [0, 0, 1, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "g":     {"dim": [0, 0, 1, 0, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+    "mg":    {"dim": [0, 0, 1, 0, 0, 0, 0], "scale": "1/1000000", "kind": "linear"},
+    "tonne": {"dim": [0, 0, 1, 0, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "lb":    {"dim": [0, 0, 1, 0, 0, 0, 0], "scale": "45359237/100000000", "kind": "linear"},
+
+    "A":     {"dim": [0, 0, 0, 1, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "mA":    {"dim": [0, 0, 0, 1, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+
+    "K":     {"dim": [0, 0, 0, 0, 1, 0, 0], "scale": "1", "kind": "linear"},
+    "degC":  {"dim": [0, 0, 0, 0, 1, 0, 0], "scale": "1", "offset": "5463/20", "kind": "affine"},
+    "degF":  {"dim": [0, 0, 0, 0, 1, 0, 0], "scale": "5/9", "offset": "45967/180", "kind": "affine"},
+
+    "mol":   {"dim": [0, 0, 0, 0, 0, 1, 0], "scale": "1", "kind": "linear"},
+    "cd":    {"dim": [0, 0, 0, 0, 0, 0, 1], "scale": "1", "kind": "linear"},
+
+    "Hz":    {"dim": [-1, 0, 0, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "kHz":   {"dim": [-1, 0, 0, 0, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "MHz":   {"dim": [-1, 0, 0, 0, 0, 0, 0], "scale": "1000000", "kind": "linear"},
+    "GHz":   {"dim": [-1, 0, 0, 0, 0, 0, 0], "scale": "1000000000", "kind": "linear"},
+
+    "N":     {"dim": [-2, 1, 1, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "Pa":    {"dim": [-2, -1, 1, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "kPa":   {"dim": [-2, -1, 1, 0, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "bar":   {"dim": [-2, -1, 1, 0, 0, 0, 0], "scale": "100000", "kind": "linear"},
+    "atm":   {"dim": [-2, -1, 1, 0, 0, 0, 0], "scale": "101325", "kind": "linear"},
+
+    "J":     {"dim": [-2, 2, 1, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "kJ":    {"dim": [-2, 2, 1, 0, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "Wh":    {"dim": [-2, 2, 1, 0, 0, 0, 0], "scale": "3600", "kind": "linear"},
+    "kWh":   {"dim": [-2, 2, 1, 0, 0, 0, 0], "scale": "3600000", "kind": "linear"},
+    "eV":    {"dim": [-2, 2, 1, 0, 0, 0, 0], "scale": "801088317/5000000000000000000000000000", "kind": "linear"},
+
+    "W":     {"dim": [-3, 2, 1, 0, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "mW":    {"dim": [-3, 2, 1, 0, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+    "kW":    {"dim": [-3, 2, 1, 0, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "MW":    {"dim": [-3, 2, 1, 0, 0, 0, 0], "scale": "1000000", "kind": "linear"},
+
+    "C":     {"dim": [1, 0, 0, 1, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "V":     {"dim": [-3, 2, 1, -1, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "mV":    {"dim": [-3, 2, 1, -1, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+    "kV":    {"dim": [-3, 2, 1, -1, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "ohm":   {"dim": [-3, 2, 1, -2, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "kohm":  {"dim": [-3, 2, 1, -2, 0, 0, 0], "scale": "1000", "kind": "linear"},
+    "Mohm":  {"dim": [-3, 2, 1, -2, 0, 0, 0], "scale": "1000000", "kind": "linear"},
+    "farad": {"dim": [4, -2, -1, 2, 0, 0, 0], "scale": "1", "kind": "linear"},
+    "uF":    {"dim": [4, -2, -1, 2, 0, 0, 0], "scale": "1/1000000", "kind": "linear"},
+    "nF":    {"dim": [4, -2, -1, 2, 0, 0, 0], "scale": "1/1000000000", "kind": "linear"},
+    "pF":    {"dim": [4, -2, -1, 2, 0, 0, 0], "scale": "1/1000000000000", "kind": "linear"},
+
+    "kmph":  {"dim": [-1, 1, 0, 0, 0, 0, 0], "scale": "5/18", "kind": "linear"},
+    "mph":   {"dim": [-1, 1, 0, 0, 0, 0, 0], "scale": "1397/3125", "kind": "linear"},
+
+    "L":     {"dim": [0, 3, 0, 0, 0, 0, 0], "scale": "1/1000", "kind": "linear"},
+    "mL":    {"dim": [0, 3, 0, 0, 0, 0, 0], "scale": "1/1000000", "kind": "linear"}
+  },
+  "aliases": {
+    "meter": "m", "metre": "m", "meters": "m", "metres": "m",
+    "second": "s", "seconds": "s", "sec": "s",
+    "minute": "min", "minutes": "min",
+    "hour": "h", "hours": "h",
+    "gram": "g", "grams": "g",
+    "kilogram": "kg", "kilograms": "kg",
+    "kelvin": "K",
+    "celsius": "degC",
+    "fahrenheit": "degF",
+    "ampere": "A", "amp": "A",
+    "volt": "V", "volts": "V",
+    "watt": "W", "watts": "W",
+    "joule": "J", "joules": "J",
+    "newton": "N", "newtons": "N",
+    "pascal": "Pa",
+    "hertz": "Hz",
+    "liter": "L", "litre": "L", "liters": "L", "litres": "L",
+    "pound": "lb", "pounds": "lb",
+    "inch": "in", "inches": "in",
+    "foot": "ft", "feet": "ft",
+    "yard": "yd", "yards": "yd",
+    "mile": "mi", "miles": "mi",
+    "Ohm": "ohm", "ohms": "ohm"
+  },
+  "affine_restrictions": [
+    "unit_convert_affine admits point values only (eq or degenerate interval)",
+    "quantities carrying an affine unit refuse add, sub, mul, div, and interval composition",
+    "convert affine to K before arithmetic"
+  ]
+}

@@ -506,13 +506,16 @@ def _make_M5() -> Mutation:
 def _make_M6() -> Mutation:
     """M6 — formal status added to an uncovered operation.
 
-    Poison: hand-forge a row in the coverage inventory promoting `ln`
+    Poison: hand-forge a row in the coverage inventory promoting `asin`
     (uncovered, fail-closed) to `FORMAL`.  The validator's release path
     invokes the formal-status gate, whose live-inventory-integrity check
     recomputes the FORMAL set from `Runs` constructors + engine ops and
     refuses on `inventory-integrity`.  The validator wraps that in
-    `formal-status-refused`.  (Was `exp` prior to v1.4.1; `exp` is now
-    formally covered via `expRat` and no longer a valid uncovered probe.)
+    `formal-status-refused`.  (Was `exp` prior to v1.4.1 — promoted via
+    `expRat`; was `ln` prior to v1.5.0 — promoted via `logRat` §490.  Each
+    fragment extension retires the previous probe operator; `asin` remains
+    outside the zero-libm fragment because Mathlib offers no arcsin partial
+    with a certified rational remainder on the closed domain.)
     """
     base = _fresh_valid_cert()
     orig_inv = INVENTORY.read_bytes()
@@ -520,11 +523,11 @@ def _make_M6() -> Mutation:
     def apply_poison() -> tuple[int, str, str]:
         doc = json.loads(orig_inv.decode("utf-8"))
         for r in doc["rows"]:
-            if r["operator"] == "ln":
+            if r["operator"] == "asin":
                 r["verdict"] = "FORMAL"
                 r["allowed_status"] = "formal-bounded"
                 r["soundness_theorem"] = "request_bound_certified_release"
-                r["runs_constructors"] = ["ln"]
+                r["runs_constructors"] = ["asin"]
                 break
         INVENTORY.write_bytes(json.dumps(doc, sort_keys=True, indent=2).encode("utf-8"))
         try:

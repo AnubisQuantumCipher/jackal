@@ -30,7 +30,7 @@ chmod +x jackal-native
 You should see:
 
 ```text
-self-test: 83/83 Anubis-native invariants pass
+self-test: 104/104 Anubis-native invariants pass
 ```
 
 ### Option B — build from source
@@ -194,8 +194,17 @@ Five wrappers cover the current fragment:
 # Pure-ℚ sqrt (v1.4.0 fragment extension, NO libm on the proof path)
 ./jackal-sqrt-rat-release "sqrt(x)" 2 3
 
-# Pure-ℚ exp on [lo, hi] with lo >= 0 (v1.4.1 fragment extension)
-./jackal-exp-rat-release "exp(x)" 0 1
+# Pure-ℚ exp on any [lo, hi] (general-sign since v1.5.0)
+./jackal-exp-rat-release "exp(x)" -1 1
+
+# Pure-ℚ ln / sin / cos / atan (v1.5.0 §490 fragment extensions)
+./jackal-ln-rat-release "ln(x)" 2 3
+./jackal-sin-rat-release "sin(x)" -1/2 1/2
+./jackal-cos-rat-release "cos(x)" 0 1/2
+./jackal-atan-rat-release "atan(x)" 1 2
+
+# Pure-ℚ tanh via its defining composite (tanh is not a grammar token)
+./jackal-tanh-rat-release "1-2/(exp(2*x)+1)" -2 2
 
 # Zero-libm Gaussian integral: exp(-A*(x-mu)^2) with A an exact rational square
 ./jackal-gaussian-release \
@@ -208,7 +217,7 @@ Five wrappers cover the current fragment:
     --expected-evaluator "$(awk '/^evaluator /{print $3}' release/MANIFEST.sha256)" \
     --expected-checker  "$(awk '/^checker /{print $NF}'   release/MANIFEST.sha256)" \
     --expected-source   "$(awk '/^source /{print $NF}'    release/MANIFEST.sha256)" \
-    --expected-release-epoch v1.4.1 \
+    --expected-release-epoch v1.5.0 \
     --expected-command range-bound-cert \
     --expected-expression 'x^2+1' \
     --expected-input-lo 1 --expected-input-hi 2 \
@@ -230,12 +239,13 @@ covered by the theorem — source parsing, engine faithfulness, executable
 identity, release-wrapper correctness — is validator-enforced from the
 embedded certificate, tested end to end in
 `tests/cert_mutations_11.py` (11 categories) and
-`tests/receipt_semantic_mutations.py` (24 coordinated mutations).
+`tests/receipt_semantic_mutations.py` (42 coordinated mutations).
 
 ## 5c. The Hermes / MCP-style plugin
 
-The bundled `plugin/hermes/jackal_hermes` wraps the same five formal
-wrappers plus seven weaker-lane adapters as tools an MCP-speaking host
+The bundled `plugin/hermes/jackal_hermes` exposes thirty-three tools — the
+ten formal wrappers, twenty-one weaker-lane adapters, and the two v1.6.0
+claim-kernel front doors — that an MCP-speaking host
 can call over stdio JSON-RPC or a small HTTP wrapper.  A recomputed
 bundle hash MUST equal the pinned value in `release/MANIFEST.sha256`
 under `plugin_hermes` before the plugin accepts any request:
@@ -251,15 +261,91 @@ plugin/hermes/jackal_hermes call jackal_verify_receipt \
     "$(< /tmp/formal-receipt.json)"
 ```
 
-Twelve tools total: five proof-carrying (`jackal_range_bound`,
+Thirty-three tools total: ten proof-carrying (`jackal_range_bound`,
 `jackal_gaussian_integral`, `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`,
-`jackal_verify_receipt`) plus seven weaker-lane adapters (`jackal_exact`,
-`jackal_evaluate`, `jackal_diff`, `jackal_integrate`,
-`jackal_integrate_adaptive`, `jackal_integrate_bound`, `jackal_solve`)
+`jackal_ln_rat_bound`, `jackal_sin_rat_bound`, `jackal_cos_rat_bound`,
+`jackal_atan_rat_bound`, `jackal_tanh_rat_bound`, `jackal_verify_receipt`),
+twenty-one weaker-lane adapters — the seven numeric lanes
+(`jackal_exact`, `jackal_evaluate`, `jackal_diff`, `jackal_integrate`,
+`jackal_integrate_adaptive`, `jackal_integrate_bound`, `jackal_solve`) and
+the fourteen exact-CAS lanes (`jackal_canon`, `jackal_poly_canon`,
+`jackal_poly_eq`, `jackal_poly_gcd`, `jackal_ratfunc_canon`,
+`jackal_roots_isolate`, `jackal_alg_sign`, `jackal_alg_cmp`, `jackal_xgcd`,
+`jackal_mod_pow`, `jackal_mod_inv`, `jackal_crt`, `jackal_divides`,
+`jackal_prime_cert`) — plus the two v1.6.0 claim-kernel front doors
+(`jackal_claim`, `jackal_verify_bundle`) —
 that thread through the same pinned engine and return the engine's
 honest inventory-derived class with `formal: false` — status inflation
 is structurally impossible.  See `plugin/hermes/README.md` for the full
 refusal-class table.
+
+
+## 5d. Claim bundles — composing lanes into replayable evidence graphs
+
+v1.6.0 adds an additive evidence kernel over everything above: a
+structured claim request compiles into a content-addressed
+`jackal-claim-bundle-v1` graph whose every node, rule application,
+assurance axis, consequence floor, and rendering is independently
+replayed by a dependency-free verifier.
+
+```bash
+cat > request.json <<'REQ'
+{"schema": "jackal-claim-request-v1",
+ "steps": [
+   {"id": "p", "op": "exact", "command": "mod-pow",
+    "args": ["3", "100", "7"]},
+   {"id": "t", "op": "threshold", "arg": "p", "cmp": "lt",
+    "threshold": "7"},
+   {"id": "d", "op": "decision", "arg": "t", "decision_id": "demo",
+    "action": "proceed", "consequence_class": "decision-boundary"}],
+ "root": "d"}
+REQ
+./jackal-claim --request request.json --emit-bundle bundle.json
+# status=ok  root=<sha256>  rendering.token=render-v1/exact/supplied/...
+
+# Independent replay (semantic pins are YOURS, never copied from the bundle):
+python3 - <<'PY'
+import json, hashlib
+b = json.load(open("bundle.json"))
+rn = next(n for n in b["nodes"] if n["id"] == b["root"])
+json.dump(rn["proposition"], open("root_prop.json", "w"), sort_keys=True)
+c = json.dumps(b["policy"], sort_keys=True, separators=(",", ":"),
+               ensure_ascii=False).encode()
+print(hashlib.sha256(c).hexdigest())
+PY
+./jackal-claim-verify --bundle bundle.json \
+  --expected-release-epoch v1.6.0 \
+  --expected-root-proposition root_prop.json \
+  --expected-policy-sha256 <hex-from-above> \
+  --verification-time-unix "$(date +%s)"
+# claim-verify=verified + full axis vector + non-claims + permitted text
+
+# Tamper with ONE node value and the same replay refuses — a stable
+# reason class, never a downgrade, never a re-render:
+python3 - <<'PY'
+import json
+b = json.load(open("bundle.json"))
+s = json.dumps(b["nodes"][0]["proposition"])
+b["nodes"][0]["proposition"] = json.loads(s.replace('"4"', '"5"', 1))
+json.dump(b, open("tampered.json", "w"), sort_keys=True,
+          separators=(",", ":"), ensure_ascii=False)
+PY
+./jackal-claim-verify --bundle tampered.json \
+  --expected-release-epoch v1.6.0 \
+  --expected-root-proposition root_prop.json \
+  --expected-policy-sha256 <hex-from-above> \
+  --verification-time-unix "$(date +%s)"
+# claim-verify=refused reason=node-id-mismatch
+```
+
+Step ops: `input`, `exact` (engine exact-cert lanes), `enclose` (the
+seven pure-Q formal variants, deterministic lane choice, refuse-not-
+downgrade), `gaussian`, `machine` (w8-w64 two's-complement wrap/checked),
+`interval_add/sub/mul/div`, `threshold`, `decision`, `convert` (exact
+unit registry), `and`, `model`, `passthrough`, `attach`.  The renderer
+never emits a bare VERIFIED: every permitted text names the mathematical
+class, implementation status, input provenance, model conditions,
+margins, and the residual non-claims.
 
 ## 6. Claim cards — answers you can hand to someone else
 

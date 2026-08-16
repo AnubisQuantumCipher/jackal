@@ -1,0 +1,716 @@
+{
+  "coverage_rows": {
+    "abs": "FORMAL",
+    "acos": "REFUSED",
+    "add": "FORMAL",
+    "alg-cmp": "CONDITIONAL",
+    "alg-sign": "CONDITIONAL",
+    "asin": "REFUSED",
+    "atan": "FORMAL",
+    "atan2": "REFUSED",
+    "big-*": "CONDITIONAL",
+    "canon": "CONDITIONAL",
+    "cbrt": "REFUSED",
+    "ceil": "FORMAL",
+    "claim-card": "WEAK",
+    "const": "REFUSED",
+    "cos": "FORMAL",
+    "crt": "CONDITIONAL",
+    "diff": "WEAK",
+    "div": "FORMAL",
+    "divides": "CONDITIONAL",
+    "eval": "WEAK",
+    "exp": "FORMAL",
+    "floor": "FORMAL",
+    "gaussian-exp-square-integral-v1": "FORMAL",
+    "hypot": "REFUSED",
+    "integrate": "WEAK",
+    "integrate-adaptive": "WEAK",
+    "integrate-bound": "CONDITIONAL",
+    "jackal_atan_rat_bound": "FORMAL",
+    "jackal_cos_rat_bound": "FORMAL",
+    "jackal_exp_rat_bound": "FORMAL",
+    "jackal_gaussian_integral": "FORMAL",
+    "jackal_ln_rat_bound": "FORMAL",
+    "jackal_range_bound": "FORMAL",
+    "jackal_sin_rat_bound": "FORMAL",
+    "jackal_sqrt_rat_bound": "FORMAL",
+    "jackal_tanh_rat_bound": "FORMAL",
+    "jackal_verify_receipt:gaussian": "FORMAL",
+    "jackal_verify_receipt:range": "FORMAL",
+    "ln": "FORMAL",
+    "log10": "REFUSED",
+    "log2": "REFUSED",
+    "max": "FORMAL",
+    "min": "FORMAL",
+    "mod": "REFUSED",
+    "mod-inv": "CONDITIONAL",
+    "mod-pow": "CONDITIONAL",
+    "mul": "FORMAL",
+    "neg": "FORMAL",
+    "num": "FORMAL",
+    "poly-canon": "CONDITIONAL",
+    "poly-eq": "CONDITIONAL",
+    "poly-gcd": "CONDITIONAL",
+    "pow": "FORMAL",
+    "pow_general": "REFUSED",
+    "pow_neg": "REFUSED",
+    "prime-cert": "CONDITIONAL",
+    "range-bound": "CONDITIONAL",
+    "rat": "CONDITIONAL",
+    "ratfunc-canon": "CONDITIONAL",
+    "roots-isolate": "CONDITIONAL",
+    "round": "FORMAL",
+    "sin": "FORMAL",
+    "solve": "WEAK",
+    "sqrt": "FORMAL",
+    "sub": "FORMAL",
+    "tan": "REFUSED",
+    "trunc": "FORMAL",
+    "var": "FORMAL",
+    "xgcd": "CONDITIONAL"
+  },
+  "engine_commands": [
+    "add",
+    "alg-cmp",
+    "alg-sign",
+    "band",
+    "big-add",
+    "big-fact",
+    "big-mul",
+    "big-ncr",
+    "big-pow",
+    "bin",
+    "blackbody",
+    "bor",
+    "bxor",
+    "canon",
+    "cbrt",
+    "claim-card",
+    "constants",
+    "convert",
+    "cos",
+    "cross",
+    "crt",
+    "decibel-power",
+    "derivative",
+    "derivative-x3",
+    "describe",
+    "diff",
+    "dilute",
+    "div",
+    "divides",
+    "dot",
+    "eval",
+    "exp",
+    "fact",
+    "gcd",
+    "hex",
+    "hypot",
+    "ideal-gas",
+    "integrate",
+    "integrate-adaptive",
+    "integrate-bound",
+    "integrate-x2",
+    "kinetic",
+    "kinetic-sensitivity",
+    "lcm",
+    "lerp",
+    "linreg",
+    "ln",
+    "log10",
+    "lower-dump",
+    "matrix2",
+    "maturity",
+    "measure-mul",
+    "mod-inv",
+    "mod-pow",
+    "molarity",
+    "mul",
+    "ncr",
+    "norm3",
+    "ohm",
+    "orbit",
+    "parallel-r",
+    "parse-dump",
+    "percent-error",
+    "ph",
+    "photon",
+    "poly-canon",
+    "poly-eq",
+    "poly-gcd",
+    "pow",
+    "prime",
+    "prime-cert",
+    "projectile",
+    "quadratic",
+    "range-bound",
+    "range-bound-cert",
+    "rat",
+    "ratfunc-canon",
+    "relativity",
+    "roots-isolate",
+    "self-test",
+    "shl",
+    "shr",
+    "sin",
+    "sin-deg",
+    "solve",
+    "solve2",
+    "sqrt",
+    "stats",
+    "sub",
+    "tan",
+    "uncertain-ohm",
+    "worksheet",
+    "xgcd"
+  ],
+  "epistemic_classes": [
+    "exact",
+    "checked",
+    "estimated",
+    "bounded",
+    "formal-bounded",
+    "model-based"
+  ],
+  "gate_names_v150": [
+    "lake-build",
+    "proof-identity-range",
+    "proof-identity-gaussian",
+    "engine-self-test",
+    "positive-corpus",
+    "negative-controls",
+    "aba-mutations",
+    "mutations-11",
+    "formal-status-gate",
+    "sqrt-rat-release",
+    "exp-rat-release",
+    "ln-rat-release",
+    "sin-rat-release",
+    "cos-rat-release",
+    "atan-rat-release",
+    "tanh-rat-release",
+    "gaussian-emitter",
+    "gaussian-checker",
+    "gaussian-mutations",
+    "gaussian-receipt",
+    "receipt-semantic-mutations",
+    "plugin-smoke",
+    "plugin-bundle-identity",
+    "output-path-safety",
+    "fail-closed-sweep",
+    "exact-lane",
+    "seal-audit",
+    "seal-audit-receipts",
+    "exact-verify",
+    "branch-discontinuity",
+    "evidence-verify",
+    "black-box-acceptance"
+  ],
+  "legacy_schemas": [
+    "jackal-claim-v1",
+    "jackal-coverage-inventory-v1",
+    "jackal-eval-cert v2",
+    "jackal-exact-cert-v1",
+    "jackal-formal-receipt-v1",
+    "jackal-gaussian-proof-identity-v1",
+    "jackal-hermes-plugin-v1",
+    "jackal-hermes-runtime-bundle-v2",
+    "jackal-iv-model-v1",
+    "jackal-range-proof-identity-v1",
+    "jackal-seal-audit-v1",
+    "jackal-seal-audit-receipts-v1"
+  ],
+  "rational_variants": [
+    "atan_rat",
+    "cos_rat",
+    "exp_rat",
+    "ln_rat",
+    "sin_rat",
+    "sqrt_rat",
+    "tanh_rat"
+  ],
+  "release_epoch": "v1.5.0",
+  "schema": "jackal-compat-floor-v1",
+  "tool_count": 31,
+  "tool_schemas": {
+    "jackal_alg_cmp": {
+      "optional": [],
+      "required": [
+        "a1",
+        "a2",
+        "b1",
+        "b2",
+        "p",
+        "q"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_alg_sign": {
+      "optional": [],
+      "required": [
+        "expression",
+        "point"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_atan_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_canon": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_cos_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_crt": {
+      "optional": [],
+      "required": [
+        "args"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_diff": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "status"
+      ]
+    },
+    "jackal_divides": {
+      "optional": [],
+      "required": [
+        "a",
+        "b"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_evaluate": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "status"
+      ]
+    },
+    "jackal_exact": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_exp_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_gaussian_integral": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo",
+        "tolerance"
+      ],
+      "returns": [
+        "checker_rerun",
+        "detail",
+        "reason",
+        "receipt",
+        "status"
+      ]
+    },
+    "jackal_integrate": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo",
+        "panels"
+      ],
+      "returns": [
+        "fields",
+        "status"
+      ]
+    },
+    "jackal_integrate_adaptive": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo",
+        "tolerance"
+      ],
+      "returns": [
+        "fields",
+        "status"
+      ]
+    },
+    "jackal_integrate_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo",
+        "tolerance"
+      ],
+      "returns": [
+        "fields",
+        "status"
+      ]
+    },
+    "jackal_ln_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_mod_inv": {
+      "optional": [],
+      "required": [
+        "a",
+        "m"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_mod_pow": {
+      "optional": [],
+      "required": [
+        "base",
+        "exp",
+        "mod"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_poly_canon": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_poly_eq": {
+      "optional": [],
+      "required": [
+        "lhs",
+        "rhs"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_poly_gcd": {
+      "optional": [],
+      "required": [
+        "lhs",
+        "rhs"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_prime_cert": {
+      "optional": [],
+      "required": [
+        "n"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_range_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "detail",
+        "reason",
+        "receipt",
+        "status"
+      ]
+    },
+    "jackal_ratfunc_canon": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_roots_isolate": {
+      "optional": [],
+      "required": [
+        "expression"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    },
+    "jackal_sin_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_solve": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "fields",
+        "status"
+      ]
+    },
+    "jackal_sqrt_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_tanh_rat_bound": {
+      "optional": [],
+      "required": [
+        "expression",
+        "input_hi",
+        "input_lo"
+      ],
+      "returns": [
+        "certificate_b64",
+        "certificate_sha256",
+        "checker_verdict",
+        "detail",
+        "enclosure",
+        "identities",
+        "reason",
+        "release_epoch",
+        "status",
+        "theorem_id",
+        "variant"
+      ]
+    },
+    "jackal_verify_receipt": {
+      "optional": [
+        "expected_tolerance"
+      ],
+      "required": [
+        "expected_command",
+        "expected_expression",
+        "expected_input_hi",
+        "expected_input_lo",
+        "expected_release_epoch",
+        "receipt"
+      ],
+      "returns": [
+        "certificate_sha256",
+        "checker_sha256",
+        "detail",
+        "evaluator_sha256",
+        "reason",
+        "receipt_digest_sha256",
+        "status",
+        "verdict"
+      ]
+    },
+    "jackal_xgcd": {
+      "optional": [],
+      "required": [
+        "a",
+        "b"
+      ],
+      "returns": [
+        "engine_output",
+        "fields",
+        "reason",
+        "status"
+      ]
+    }
+  },
+  "wrappers": [
+    "jackal",
+    "jackal-atan-rat-release",
+    "jackal-cert-release",
+    "jackal-cos-rat-release",
+    "jackal-exp-rat-release",
+    "jackal-gaussian-release",
+    "jackal-ln-rat-release",
+    "jackal-receipt-verify",
+    "jackal-sin-rat-release",
+    "jackal-sqrt-rat-release",
+    "jackal-tanh-rat-release"
+  ]
+}

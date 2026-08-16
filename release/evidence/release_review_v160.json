@@ -20,6 +20,16 @@
       "release/claim/SPEC.md is the canonical claim spec filename (mission listed SPEC-v1.md/ASSURANCE.md; assurance matrix lives in SPEC.md section 4; PROVENANCE.md cross-references release/claim/SPEC.md)"
     ]
   },
+  "final_seal": {
+    "aggregate": "GATES: PASS (38 gates); log /private/tmp/jackal-v160-publication-evidence/gates_v160_final_run1.log sha256=e5c58356e9a01964529a2ef71dfbcc227a9e9874801f301cb2c6312be72fe15f",
+    "black_box_acceptance": "200/200 via v1.6 aggregate",
+    "checkpoint_commit": "7d4c26308f800223a864a9c997aa366489c37e8d",
+    "final_package_sha256": "0cdacf56bb83d65454330973280cde7da0b9262d6163ccd7efbbbb47bc88e39a",
+    "final_package_size_bytes": 79519523,
+    "fresh_extraction_smoke": "checksums 0 fails; jackal-native self-test 104/104; sqrt wrapper formal-bounded; jackal-claim status=ok; plugin stdio list_tools = 33 with both claim front doors",
+    "sealed_at": "2026-08-16",
+    "two_build_byte_identical": true
+  },
   "focused_controls": {
     "claim-hostile": "PASS rows=108 failures=0",
     "claim-package-parity": "PASS rows=47 failures=0 (double build byte-identical on current bytes)",

@@ -148,9 +148,9 @@ claim_inference_registry       e7c999c34312288f…
 claim_unit_registry            d2d30dfe2a74d58a…
 plugin_hermes bundle           d94ffbe1f0f40572… (27 runtime logical names)
 package tarball                jackal-v1.6.0-macos-arm64.tar.gz
-                               9e9b0296d5c5c5f3… (79,519,150 bytes,
+                               0cdacf56bb83d654… (79,519,523 bytes,
                                two-build byte equality re-proven on the
-                               final tree)
+                               final publication tree)
 ```
 
 The v1.5.0 package directory and tarball under `release/dist/` remain

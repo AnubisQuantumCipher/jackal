@@ -1,0 +1,48 @@
+{
+  "host": {
+    "arch": "arm64",
+    "kernel": "25.6.0",
+    "macos_build_version": "25G70",
+    "macos_product_version": "26.6"
+  },
+  "non_claims": [
+    "a record for reconstruction, not proof that no other environment reproduces the same bytes",
+    "environment equality is NOT gated: OS/SDK patches do not invalidate the sealed binaries, whose identities are byte-pinned independently"
+  ],
+  "produced_binaries": {
+    "jackal-native": {
+      "bytes": 1829584,
+      "sha256": "20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083"
+    },
+    "jackal_cert_check": {
+      "bytes": 137960320,
+      "sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a"
+    },
+    "jackal_gaussian_check": {
+      "bytes": 137737104,
+      "sha256": "ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb"
+    },
+    "jackal_int_cert_check": {
+      "bytes": 138003872,
+      "sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49"
+    }
+  },
+  "recorded_for": "exact reconstruction of the pinned checker executables",
+  "release_epoch": "v1.7.0",
+  "schema": "jackal-build-environment-v1",
+  "toolchain": {
+    "anubis_compiler_pin": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",
+    "clang_version": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+    "elan_version": "elan 4.2.1 (3d5138e15 2026-03-18)",
+    "lake_manifest_sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4",
+    "lake_version": "Lake version 5.0.0-src+d8b1897 (Lean version 4.33.0)",
+    "lakefile_sha256": "21eef36ea0d9a665622b171dcf1f96460aa250ef214314d766112e01dadf1eaf",
+    "ld_version": "@(#)PROGRAM:ld PROJECT:ld-1267",
+    "lean_toolchain_file": "leanprover/lean4:v4.32.0",
+    "lean_toolchain_file_sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e",
+    "sdk_build_version": "25F70",
+    "sdk_path": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+    "sdk_version": "26.5",
+    "xcode_select_path": "/Applications/Xcode.app/Contents/Developer"
+  }
+}

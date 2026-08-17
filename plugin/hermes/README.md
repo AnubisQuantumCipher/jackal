@@ -1,7 +1,7 @@
-# JACKAL Hermes plugin — proof-carrying range, Gaussian, and pure-ℚ transcendental bounds
+# JACKAL Hermes plugin — proof-carrying range, Gaussian, composed-integral, and pure-ℚ transcendental bounds
 
-A load-bearing Hermes / MCP-style plugin exposing **thirty-three tools** —
-ten proof-carrying formal tools, twenty-one honest weaker-lane adapters
+A load-bearing Hermes / MCP-style plugin exposing **thirty-four tools** —
+eleven proof-carrying formal tools, twenty-one honest weaker-lane adapters
 (status passthrough, never inflated), and the two v1.6.0 claim-kernel
 front doors (`jackal_claim`, `jackal_verify_bundle`).
 
@@ -11,9 +11,10 @@ front doors (`jackal_claim`, `jackal_verify_bundle`).
 |---|---|
 | `jackal_range_bound` | Emits a `jackal-formal-receipt-v1` JSON receipt with the certificate embedded, or a stable refusal class.  Routes through the pinned `jackal-native` evaluator + `jackal_cert_check`. |
 | `jackal_gaussian_integral` | Accepts only canonical `exp(-A*(x-mu)^2)` requests in the theorem-covered fragment, emits a zero-libm formal receipt, and re-runs the pinned Gaussian checker before returning it. |
+| `jackal_integrate_bound_cert` (v1.7.0) | Emits a `status=formal-bounded` composed definite-integral receipt (variant `int_cert`): the untrusted exact-rational producer `tools/int_cert_producer.py` mirrors the engine's adaptive subdivision and emits a `jackal-int-cert v1` certificate, and the compiled Lean-proved `jackal_int_cert_check` (checker pin `jackal-iv-bound-step-v1`) re-checks the whole subdivision tree — theorem `int_cert_sound`.  Certified fragment: `num`/`var`/`neg`/`add`/`sub`/`mul`/`div`/`pow` (exponent 0..4096)/`sin`/`cos`/`abs` in `x`; everything else refuses.  The weaker float lane `jackal_integrate_bound` stays `bounded` (see the weaker-lane table below). |
 | `jackal_sqrt_rat_bound` (v1.4.0) | Emits a pure-ℚ formal-bounded enclosure of `sqrt(x)` on a canonical rational interval.  Producer `tools/sqrt_rat_producer.py` is untrusted; the compiled Lean-proved `jackal_cert_check` validates a rational Newton square bracket.  **NO libm on the proof-decision path.** Admits ONLY the exact form `sqrt(x)`. |
 | `jackal_exp_rat_bound` (v1.4.1; general-sign v1.5.0) | Emits a pure-ℚ formal-bounded enclosure of `exp(x)` on ANY canonical rational interval (negative arguments via the exact reciprocal identity, §490).  Producer `tools/exp_rat_producer.py` is untrusted (uses exact `fractions.Fraction`, never `math.exp`); the compiled Lean-proved `jackal_cert_check` validates sign-aware rational Taylor bounds.  **NO libm on the proof-decision path.** Admits ONLY the exact form `exp(x)`. |
-| `jackal_verify_receipt` | Selects and re-runs the matching pinned range or Gaussian checker over an embedded `jackal-formal-receipt-v1` certificate; returns `verified` or a stable refusal class.  Dispatches on the receipt's `variant` field so `sqrt_rat` and `exp_rat` receipts round-trip verbatim (v1.4.2). |
+| `jackal_verify_receipt` | Selects and re-runs the matching pinned range, Gaussian, or composed-integral (`int_cert`) checker over an embedded `jackal-formal-receipt-v1` certificate; returns `verified` or a stable refusal class.  Dispatches on the receipt's `variant` field so `sqrt_rat` and `exp_rat` receipts round-trip verbatim (v1.4.2), and `int_cert` receipts re-run `jackal_int_cert_check` (v1.7.0). |
 | `jackal_ln_rat_bound` (v1.5.0) | Emits a pure-ℚ formal-bounded enclosure of `ln(x)` on a canonical rational interval with `0 < lo`.  Producer `tools/ln_rat_producer.py` is untrusted; the checker validates the INVERSE exponential bracket (`expUBQ(out_lo) ≤ lo`, `hi ≤ expLBQ(out_hi)`) in ℚ.  **NO libm on the proof-decision path.** Admits ONLY `ln(x)`. |
 | `jackal_sin_rat_bound` (v1.5.0) | Pure-ℚ enclosure of `sin(x)` when the interval midpoint satisfies `|m| ≤ 1`: Mathlib `Real.sin_bound` midpoint Taylor + Lipschitz-1 widening, recomputed by the checker.  **NO libm.** Admits ONLY `sin(x)`. |
 | `jackal_cos_rat_bound` (v1.5.0) | Pure-ℚ enclosure of `cos(x)` (same shape, `Real.cos_bound`).  **NO libm.** Admits ONLY `cos(x)`. |
@@ -41,7 +42,7 @@ destination machine.
 | `jackal_diff` | `diff` — symbolic + numeric check (`checked`) |
 | `jackal_integrate` | `integrate` — fixed Simpson + Richardson (`estimated`) |
 | `jackal_integrate_adaptive` | `integrate-adaptive` — adaptive Simpson (`estimated`) |
-| `jackal_integrate_bound` | `integrate-bound` — certified interval enclosure (`bounded`; NOT formal, conditional on the stated f64/libm rounding model) |
+| `jackal_integrate_bound` | `integrate-bound` — certified interval enclosure (`bounded`; NOT formal, conditional on the stated f64/libm rounding model).  For a Lean-checked `formal-bounded` composed enclosure over the certified fragment, use `jackal_integrate_bound_cert` (formal table above). |
 | `jackal_solve` | `solve` — bisection root with residual + conditioning (`estimated`) |
 | `jackal_canon` | `canon` — canonical s-expression + SHA-256 (`exact`) |
 | `jackal_poly_canon` / `jackal_poly_eq` / `jackal_poly_gcd` / `jackal_ratfunc_canon` | dense ℚ[x] canonical form / decidable identity / monic gcd / P÷Q with side condition (`exact`, `jackal-exact-cert-v1` certificate) |
@@ -76,7 +77,7 @@ three interchangeable frontends — pick the one your Hermes runtime uses:
 * `plugin/hermes/jackal_hermes call <tool> <json-args>` — one-shot
   call, prints the JSON reply to stdout.
 * `plugin/hermes/jackal_hermes http --port 8181` — tiny HTTP server
-  wrapping the same thirty-three tools (POST `/tools/<name>` with a JSON body).
+  wrapping the same thirty-four tools (POST `/tools/<name>` with a JSON body).
 
 ## Bundle identity
 
@@ -130,6 +131,11 @@ label.
     plugin/hermes/jackal_hermes call jackal_gaussian_integral \
         '{"expression":"exp(-10000000000*(x-0.5000123456789)^2)","input_lo":"0","input_hi":"1","tolerance":"1/1000000000000"}'
     # -> {"status":"formal-bounded","checker_rerun":"ACCEPT","receipt":{...}}
+
+    plugin/hermes/jackal_hermes call jackal_integrate_bound_cert \
+        '{"expression":"sin(x)","input_lo":"0","input_hi":"1","tolerance":"1/100"}'
+    # -> {"status":"formal-bounded","checker_rerun":"ACCEPT",
+    #     "receipt":{..."variant":"int_cert"...}}
 
     plugin/hermes/jackal_hermes call jackal_verify_receipt \
         "$(< /tmp/formal-receipt.json)"

@@ -1,10 +1,10 @@
 /-
-JackalIv/ShadowCertCodec.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertCodec.lean — public certified integrate-bound-cert lane (v1.7).
 
 Wire codec for the v1.7 `bound_step` composition artifact
-(`jackal-int-cert shadow-v1`).  Line grammar, one LF per line:
+(`jackal-int-cert v1`).  Line grammar, one LF per line:
 
-  jackal-int-cert shadow-v<n>
+  jackal-int-cert v<n>
   model <str>
   checker <str>
   producer <str-or-empty>
@@ -31,9 +31,9 @@ to the existing proved `Cert.parseCert`.
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
 import JackalIv.CertCodec
-import JackalIv.ShadowCertTypes
+import JackalIv.IntCertTypes
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv
 
@@ -79,9 +79,9 @@ def roleNames (kind : String) : List String :=
 
 /-! ### Line parsers -/
 
-/-- Magic line: `jackal-int-cert shadow-v<n>`. -/
-def parseShadowMagic (line : List Char) : Except String Nat :=
-  match Cert.stripPrefix "jackal-int-cert shadow-v".toList line with
+/-- Magic line: `jackal-int-cert v<n>`. -/
+def parseIntCertMagic (line : List Char) : Except String Nat :=
+  match Cert.stripPrefix "jackal-int-cert v".toList line with
   | some rest => natOr "schema-version" rest
   | none => .error "malformed-artifact:expected-magic"
 
@@ -202,7 +202,7 @@ def parseIntCert (s : String) : Except String (IntHeader × List TreeNode) := do
   match (s.splitOn "\n").map String.toList with
   | lmagic :: lmodel :: lchecker :: lproducer :: lstatus :: lexpr :: lsource ::
       lrequest :: ldegree :: lroot :: loutput :: rest => do
-      let sv ← parseShadowMagic lmagic
+      let sv ← parseIntCertMagic lmagic
       let model ← keyedStr "model" lmodel
       let checker ← keyedStr "checker" lchecker
       let producer ← keyedStr "producer" lproducer
@@ -235,4 +235,4 @@ def parseIntCert (s : String) : Except String (IntHeader × List TreeNode) := do
                 out_lo := out.1, out_hi := out.2 }, tree)
   | _ => .error "malformed-artifact:truncated-header"
 
-end JackalIv.Shadow
+end JackalIv.IntCert

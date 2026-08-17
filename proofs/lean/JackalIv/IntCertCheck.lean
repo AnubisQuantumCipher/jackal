@@ -1,5 +1,5 @@
 /-
-JackalIv/ShadowCertCheck.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertCheck.lean — public certified integrate-bound-cert lane (v1.7).
 
 The COMPUTABLE composition checker for the v1.7 `bound_step` subdivision-tree
 artifact.  Genuinely computable (`ℚ`/`Bool`/`Nat`/`String` only) and
@@ -41,9 +41,9 @@ Design (mission §6.3, §6.4):
 
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
-import JackalIv.ShadowCertTypes
+import JackalIv.IntCertTypes
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv
 
@@ -230,14 +230,14 @@ def checkTreeNode (hdr : IntHeader) (q : QExpr) (tree : List TreeNode)
 def checkHeader (hdr : IntHeader) : Except String Unit := do
   guardE (hdr.schema_version == 1) "stale-identity:schema"
   guardE (hdr.model_const_version == Cert.pinnedModelConst) "stale-identity:model"
-  guardE (hdr.checker_identity == shadowCheckerPin) "stale-identity:checker"
-  guardE (hdr.status_class == shadowStatus) "stale-identity:status"
+  guardE (hdr.checker_identity == intCertCheckerPin) "stale-identity:checker"
+  guardE (hdr.status_class == intCertStatus) "stale-identity:status"
   guardE (decide (0 < hdr.tol)) "invalid-interval:tolerance"
   guardE (decide (hdr.req_lo < hdr.req_hi)) "invalid-interval:request"
   guardE (hdr.degree == 0 || hdr.degree == 2 || hdr.degree == 4)
     "request-mismatch:degree"
 
-/-- The full shadow composition checker. -/
+/-- The full composition checker. -/
 def checkIntCert (hdr : IntHeader) (tree : List TreeNode) :
     Except String Unit := do
   checkHeader hdr
@@ -291,4 +291,4 @@ theorem allE_ok {α : Type} {f : α → Except String Unit} :
       · exact hfy
       · exact allE_ok hrest x hmem
 
-end JackalIv.Shadow
+end JackalIv.IntCert

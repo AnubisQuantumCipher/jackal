@@ -1,11 +1,11 @@
 /-
-JackalIv/ShadowQExpr.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertQExpr.lean — public certified integrate-bound-cert lane (v1.7).
 
 ℚ-valued mirror of the canonical `Syntax.Expr`, with a COMPUTABLE mirror
 differentiator `DQ` of `Deriv.D` and a computable partial reconstruction
 `qexprOf` from evaluation-certificate node lists (`Cert.Node`).
 
-Purpose (v1.7 bound_step shadow mission, roadmap item 4): the composition
+Purpose (v1.7 bound_step composition, roadmap item 4): the composition
 checker must verify — computably — that the embedded derivative-chain
 certificates of a subdivision-tree leaf are certificates for EXACTLY the Lean
 differentiator chain `e, D e, D (D e), …` of the root integrand.  `Deriv.D`
@@ -15,7 +15,7 @@ values under the proved bridges:
   * `embedQ_DQ    : embedQ (DQ q) = Deriv.D (embedQ q)`
   * `qexprOf_embed: qexprOf nodes = some q → Cert.exprOf nodes = some (embedQ q)`
 
-`qexprOf` deliberately covers only the SHADOW FRAGMENT of certificate ops
+`qexprOf` deliberately covers only the CERTIFIED FRAGMENT of certificate ops
 (num_exact / var / neg / add / sub / mul / div / powZero / powEvenPos /
 powOddPos / sin / cos / sin_rat / cos_rat); every other op yields `none`,
 which the composition checker treats as a fail-closed refusal.  This is a
@@ -28,7 +28,7 @@ class; no `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 import JackalIv.CertTypes
 import JackalIv.Deriv
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv
 
@@ -163,7 +163,7 @@ theorem embedQ_DQiter (k : Nat) (q : QExpr) :
 
 /-! ### Bridge 2: partial ℚ-reconstruction from certificate nodes -/
 
-/-- ℚ-mirror of `Cert.buildExpr`, restricted to the SHADOW FRAGMENT ops.
+/-- ℚ-mirror of `Cert.buildExpr`, restricted to the CERTIFIED FRAGMENT ops.
 Any node op outside the fragment yields `none` (fail closed). -/
 def qbuildExpr : Nat → List Cert.Node → Nat → Option QExpr
   | 0, _, _ => none
@@ -200,7 +200,7 @@ def qbuildExpr : Nat → List Cert.Node → Nat → Option QExpr
           | some a, some b => some (.div a b) | _, _ => none
       | _, _ => none
 
-/-- ℚ-mirror of `Cert.exprOf` on the shadow fragment. -/
+/-- ℚ-mirror of `Cert.exprOf` on the certified fragment. -/
 def qexprOf (nodes : List Cert.Node) : Option QExpr :=
   match Cert.rootId nodes with
   | none => none
@@ -219,7 +219,7 @@ theorem qbuild_embed (fuel : Nat) (nodes : List Cert.Node) (id : Nat)
       | some nd =>
           simp only [qbuildExpr, hfind] at hq
           simp only [Cert.buildExpr, hfind]
-          -- Split on the shadow-fragment op arms of the ℚ-mirror.
+          -- Split on the certified-fragment op arms of the ℚ-mirror.
           split at hq
           all_goals (try (simp only [reduceCtorEq] at hq))
           -- num_exact
@@ -337,4 +337,4 @@ theorem qexprOf_embed (nodes : List Cert.Node) (q : QExpr)
       rw [hrid] at hq
       exact qbuild_embed _ nodes rid q hq
 
-end JackalIv.Shadow
+end JackalIv.IntCert

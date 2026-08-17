@@ -1,5 +1,5 @@
 /-
-JackalIv/ShadowCertTypes.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertTypes.lean — public certified integrate-bound-cert lane (v1.7).
 
 Structured schema of the v1.7 `bound_step` COMPOSITION artifact: one complete
 accepted `integrate-bound` subdivision tree, with per-leaf embedded evaluation
@@ -36,19 +36,20 @@ embedded certificate stays in the pure-ℚ fragment).
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
 import JackalIv.CertSound
-import JackalIv.ShadowQExpr
+import JackalIv.IntCertQExpr
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv
 
-/-! ### Pinned shadow identities -/
+/-! ### Pinned lane identities -/
 
-/-- Shadow checker/proof identity pin (mission §6.1 checker identity). -/
-def shadowCheckerPin : String := "jackal-iv-bound-step-shadow-v1"
+/-- Checker/proof identity pin for the integrate-bound-cert lane. -/
+def intCertCheckerPin : String := "jackal-iv-bound-step-v1"
 
-/-- Shadow status class — visibly non-public (mission §7). -/
-def shadowStatus : String := "research-shadow"
+/-- Artifact status class: `bounded` — the artifact never self-inflates;
+`formal-bounded` is derived downstream by the release status gate. -/
+def intCertStatus : String := "bounded"
 
 /-- Engine budget mirror: `bound_step` refuses at entry when the running
 node counter exceeds 60000, so an accepted tree has at most 60001 nodes. -/
@@ -157,4 +158,4 @@ theorem TreeTCB.cert {tree : List TreeNode} {t : TreeNode} {c : EvalCert}
     Cert.ModelTCB c.hdr c.nodes :=
   h t ht c hc
 
-end JackalIv.Shadow
+end JackalIv.IntCert

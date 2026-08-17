@@ -1,0 +1,263 @@
+{
+  "checker_binary_sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49",
+  "non_claims": [
+    "the producer is untrusted; trust lives only in checker acceptance",
+    "producer-vs-engine tree fidelity is differential evidence, not proof",
+    "source-to-native refinement remains OPEN"
+  ],
+  "passed": 31,
+  "producer_sha256": "b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4",
+  "rows": [
+    {
+      "artifact_sha256": "34c881ad4619d7e364711f58bb634c4c2a2a754aa6707b490c2818118745c723",
+      "expected": "accept",
+      "id": "P1-range-leaf",
+      "kind": "positive",
+      "observed": "ACCEPT status=bounded theorem=int_cert_sound checker=jackal-iv-bound-step-v1 output 499999999999999499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999/100000000000000",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "a7695aff113bd0199c4a2fdfef545bacc37d53a60654e9fdafd8be2271159eeb",
+      "expected": "accept",
+      "id": "P2-taylor2-leaf",
+      "kind": "positive",
+      "observed": "ACCEPT status=bounded theorem=int_cert_sound checker=jackal-iv-bound-step-v1 output 106666666666666320106570378314921602690109866538037408645323012024164199829101562499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999346666666666667/",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "00bcdcd116ce8b3848b3c90a93d5850ed390e29796c1c6aa2e43ab864e389907",
+      "expected": "accept",
+      "id": "P3-taylor4-leaf",
+      "kind": "positive",
+      "observed": "ACCEPT status=bounded theorem=int_cert_sound checker=jackal-iv-bound-step-v1 output 2936735069444441109544713457103223235158450239504733525475188571363105438649654388427734374999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999993330000000000000",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "0e2a9b96604cd7a02533cbd7ca2205ea3455dcd227eaafe9603bbb9fe3370ccb",
+      "expected": "accept",
+      "id": "P4-multi-level",
+      "kind": "positive",
+      "observed": "ACCEPT status=bounded theorem=int_cert_sound checker=jackal-iv-bound-step-v1 output 8638020833333305658202669344396507564144686804774586619259935105219483375549316406249999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999937000000000000031",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "be38832d8f4a1c210c247af881a638997a84a954056ba23ea492592d1dfcbab0",
+      "expected": "accept",
+      "id": "P5-signed-sums",
+      "kind": "positive",
+      "observed": "ACCEPT status=bounded theorem=int_cert_sound checker=jackal-iv-bound-step-v1 output 139720517317981643999130114637511681049089411086129347474432682574274622311349958181381225585937499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999998600000000000001/",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "00bcdcd116ce8b3848b3c90a93d5850ed390e29796c1c6aa2e43ab864e389907",
+      "expected": "accept",
+      "id": "P6-fresh-replay",
+      "kind": "positive",
+      "observed": "first='ACCEPT status=bounded theorem=int_cert_sound checker=jackal-iv-bound-step-v1 output 293673506944444110954471345710322323515845023950473352547518857136310543864965438842773437499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999333000000",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "unsupported-expression",
+      "id": "R1-unsupported-expr",
+      "kind": "refusal",
+      "observed": "observed=unsupported-expression",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "budget-exhausted",
+      "id": "R2-budget",
+      "kind": "refusal",
+      "observed": "observed=budget-exhausted",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "cannot-certify",
+      "id": "R3-cannot-certify",
+      "kind": "refusal",
+      "observed": "observed=cannot-certify",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "float-resolution",
+      "id": "R4-float-resolution",
+      "kind": "refusal",
+      "observed": "observed=float-resolution",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "invalid-domain",
+      "id": "R5-reversed-domain",
+      "kind": "refusal",
+      "observed": "observed=invalid-domain",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "tolerance-unmet",
+      "id": "R6-tolerance-unmet",
+      "kind": "refusal",
+      "observed": "observed=tolerance-unmet",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "noncanonical-value",
+      "id": "R7-noncanonical",
+      "kind": "refusal",
+      "observed": "observed=noncanonical-value line='REFUSE reason=noncanonical-value:request-hi'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "request-mismatch",
+      "id": "X1-expr-changed",
+      "kind": "poison",
+      "observed": "observed=request-mismatch line='REFUSE reason=request-mismatch:expr'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "request-mismatch",
+      "id": "X2-bounds-changed",
+      "kind": "poison",
+      "observed": "observed=request-mismatch line='REFUSE reason=request-mismatch:domain'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "policy-violation",
+      "id": "X3-tolerance-changed",
+      "kind": "poison",
+      "observed": "observed=policy-violation line='REFUSE reason=policy-violation:local-tolerance'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "stale-identity",
+      "id": "X4-epoch-changed",
+      "kind": "poison",
+      "observed": "observed=stale-identity line='REFUSE reason=stale-identity:model'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-artifact",
+      "id": "X5a-mode-relabel-wire",
+      "kind": "poison",
+      "observed": "observed=malformed-artifact line='REFUSE reason=malformed-artifact:role-count'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "forged-enclosure",
+      "id": "X5b-mode-relabel-sem",
+      "kind": "poison",
+      "observed": "observed=forged-enclosure line='REFUSE reason=forged-enclosure:lower'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "forged-enclosure",
+      "id": "X6-narrowed-leaf",
+      "kind": "poison",
+      "observed": "observed=forged-enclosure line='REFUSE reason=forged-enclosure:lower'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X7-child-omitted",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='REFUSE reason=malformed-tree:orphan'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X8-child-duplicated",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='REFUSE reason=malformed-tree:shared-child'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "child-partition-mismatch",
+      "id": "X9-child-swapped",
+      "kind": "poison",
+      "observed": "observed=child-partition-mismatch line='REFUSE reason=child-partition-mismatch:left-a'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "child-partition-mismatch",
+      "id": "X10-partition-gap",
+      "kind": "poison",
+      "observed": "observed=child-partition-mismatch line='REFUSE reason=child-partition-mismatch:interior'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "child-partition-mismatch",
+      "id": "X11-partition-overlap",
+      "kind": "poison",
+      "observed": "observed=child-partition-mismatch line='REFUSE reason=child-partition-mismatch:interior'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "forged-parent-sum",
+      "id": "X12-forged-parent",
+      "kind": "poison",
+      "observed": "observed=forged-parent-sum line='REFUSE reason=forged-parent-sum:lower'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X13-orphan-node",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='REFUSE reason=malformed-tree:root-id'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X14-forward-ref",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='REFUSE reason=malformed-tree:child-ref'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X15-root-changed",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='REFUSE reason=malformed-tree:root-id'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "6eb77b54b36664ec228004d080610af342e6e7e04b02b51443ceb1801a91a83e",
+      "expected": "forged-enclosure",
+      "id": "X16-rehash-tamper",
+      "kind": "poison",
+      "observed": "observed=forged-enclosure line='REFUSE reason=forged-enclosure:lower' fresh_sha=6eb77b54b36664ec",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "stale-identity",
+      "id": "X17-stale-checker",
+      "kind": "poison",
+      "observed": "observed=stale-identity line='REFUSE reason=stale-identity:checker'",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-int-cert-matrix-v1",
+  "status": "public",
+  "total": 31
+}

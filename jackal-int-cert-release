@@ -1,0 +1,54 @@
+#!/bin/sh
+# JACKAL v1.7.0 fail-closed formal-release gate — certified composed integral.
+#
+# Emits `status=formal-bounded` ONLY when the int-cert release binder confirms
+# the whole bound chain: exact request commitment (jackal-req-v3-int-cert),
+# exact producer + checker executable identities (pinned in
+# release/MANIFEST.sha256, pre/post-hashed), the proved checker's ACCEPT
+# (theorem int_cert_sound via compiled jackal_int_cert_check), TOCTOU
+# stability, no status escalation, and an independent receipt re-verification.
+# Any break refuses with a stable class and a nonzero exit — never a bounded
+# fallback.  The engine's own float `integrate-bound` lane is a DIFFERENT,
+# weaker lane and never flows through this gate.
+#
+# Usage: jackal-int-cert-release "<expr in x>" <lo> <hi> <tol> <formal-receipt.json>
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PRODUCER="$ROOT/tools/int_cert_producer.py"
+CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_int_cert_check"
+MANIFEST="$ROOT/release/MANIFEST.sha256"
+
+if [ "$#" -ne 5 ]; then
+    echo "usage: jackal-int-cert-release \"<expr in x>\" <lo> <hi> <tol> <formal-receipt.json>" >&2
+    exit 2
+fi
+EXPR="$1"; LO="$2"; HI="$3"; TOL="$4"
+
+if [ ! -f "$MANIFEST" ]; then
+    echo "status=unavailable reason=manifest-missing path=$MANIFEST" >&2
+    exit 3
+fi
+EXPECTED_PRODUCER=$(awk '/^int-cert-producer /{print $3}' "$MANIFEST")
+EXPECTED_CHK=$(awk '/^int-cert-checker /{print $3}' "$MANIFEST")
+EXPECTED_INVENTORY=$(awk '/^coverage-inventory /{print $3}' "$MANIFEST")
+EXPECTED_PROOF_FILE=$(awk '/^int-cert-proof-identity /{print $3}' "$MANIFEST")
+EXPECTED_PROOF_DIGEST=$(awk '/^int-cert-proof-digest /{print $2}' "$MANIFEST")
+if [ -z "$EXPECTED_PRODUCER" ] || [ -z "$EXPECTED_CHK" ] || \
+   [ -z "$EXPECTED_INVENTORY" ] || \
+   [ -z "$EXPECTED_PROOF_FILE" ] || [ -z "$EXPECTED_PROOF_DIGEST" ]; then
+    echo "status=unavailable reason=manifest-incomplete" >&2
+    exit 3
+fi
+
+exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" int-cert \
+    --expression "$EXPR" --lower "$LO" --upper "$HI" --tolerance "$TOL" \
+    --producer "$PRODUCER" --checker "$CHECKER" \
+    --expected-producer "$EXPECTED_PRODUCER" --expected-checker "$EXPECTED_CHK" \
+    --receipt "$5" \
+    --inventory "$ROOT/release/coverage/formal_coverage_inventory.json" \
+    --expected-inventory "$EXPECTED_INVENTORY" \
+    --proof-identity "$ROOT/release/evidence/int_cert_proof_identity.json" \
+    --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
+    --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
+    --release-epoch v1.7.0

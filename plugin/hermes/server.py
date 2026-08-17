@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """JACKAL Hermes plugin — proof-carrying mathematical evidence tool server.
 
-Exposes thirty-three tools (see `tools.json`):
+Exposes thirty-four tools (see `tools.json`):
 
   Formal (proof-carrying, checker-attested):
     * `jackal_range_bound`        emit a `jackal-formal-receipt-v1` receipt
     * `jackal_gaussian_integral`  emit a zero-libm Gaussian formal receipt
+    * `jackal_integrate_bound_cert`  emit a certified composed-integral
+      formal receipt (v1.7 bound_step composition, theorem int_cert_sound,
+      checker jackal_int_cert_check)
     * `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
       `jackal_sin_rat_bound`, `jackal_cos_rat_bound`, `jackal_atan_rat_bound`,
       `jackal_tanh_rat_bound`    pure-Q enclosures via Lean-proved checkers
@@ -117,6 +120,14 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "proofs/lean/.lake/build/bin/jackal_gaussian_check",
             ROOT / "jackal_gaussian_check",
         ]),
+        ("int_cert_producer", [
+            ROOT / "tools/int_cert_producer.py",
+            ROOT / "int_cert_producer.py",
+        ]),
+        ("int_cert_checker", [
+            ROOT / "proofs/lean/.lake/build/bin/jackal_int_cert_check",
+            ROOT / "jackal_int_cert_check",
+        ]),
         ("validator", [
             ROOT / "tests/release_validate.py",
             ROOT / "release_validate.py",
@@ -140,6 +151,10 @@ def _shipped_layout() -> dict[str, Path]:
         ("gaussian_proof_identity", [
             ROOT / "release/evidence/gaussian_proof_identity.json",
             ROOT / "gaussian_proof_identity.json",
+        ]),
+        ("int_cert_proof_identity", [
+            ROOT / "release/evidence/int_cert_proof_identity.json",
+            ROOT / "int_cert_proof_identity.json",
         ]),
         ("sqrt_rat_producer", [
             ROOT / "tools/sqrt_rat_producer.py",
@@ -210,6 +225,7 @@ _EXPECTED_MODULE_PATHS = {
     "receipt_verify": _RUNTIME_FILES["runtime/receipt_verify.py"],
     "formal_status_gate": _RUNTIME_FILES["runtime/formal_status_gate.py"],
     "gaussian_release": _RUNTIME_FILES["runtime/gaussian_release.py"],
+    "int_cert_release": _RUNTIME_FILES["runtime/int_cert_release.py"],
     "formal_receipt": _RUNTIME_FILES["runtime/formal_receipt.py"],
 }
 for _module_name, _expected_path in _EXPECTED_MODULE_PATHS.items():
@@ -224,6 +240,7 @@ import release_validate as rv  # noqa: E402
 import receipt_verify as vr  # noqa: E402
 import formal_status_gate as fsg  # noqa: E402
 import gaussian_release as gr  # noqa: E402
+import int_cert_release as icr  # noqa: E402
 from formal_receipt import (  # noqa: E402
     _operators_in_sexp as sexp_ops,
     build_variant_formal_receipt,
@@ -356,6 +373,18 @@ def _load_pinned_gaussian_ids() -> tuple[str, str]:
         ),
         _manifest_alias(
             {"gaussian-checker", "gaussian_checker"}, "Gaussian checker"
+        ),
+    )
+
+
+def _load_pinned_int_cert_ids() -> tuple[str, str]:
+    """Read the pinned int-cert producer/checker identities (v1.7 lane)."""
+    return (
+        _manifest_alias(
+            {"int-cert-producer", "int_cert_producer"}, "int-cert producer"
+        ),
+        _manifest_alias(
+            {"int-cert-checker", "int_cert_checker"}, "int-cert checker"
         ),
     )
 
@@ -553,6 +582,74 @@ def tool_gaussian_integral(args: dict[str, Any]) -> dict[str, Any]:
     return {"status": "formal-bounded", "checker_rerun": "ACCEPT", "receipt": receipt}
 
 
+def tool_integrate_bound_cert(args: dict[str, Any]) -> dict[str, Any]:
+    """Release one certified composed definite-integral enclosure or refuse.
+
+    v1.7 bound_step composition lane: the untrusted exact-rational producer
+    (tools/int_cert_producer.py) mirrors the engine's `bound_step` and emits a
+    `jackal-int-cert v1` subdivision-tree artifact whose leaves embed ordinary
+    evaluation certificates.  `int_cert_release.release` requires ACCEPT from
+    the independently compiled proved checker `jackal_int_cert_check`
+    (theorem `int_cert_sound`), binds the exact request commitment, and this
+    adapter then re-verifies the emitted receipt end-to-end before returning.
+    The engine's own float `integrate-bound` lane is a different, weaker tool
+    (`jackal_integrate_bound`, status `bounded`) and never flows through here.
+    """
+    _validate_args(args, ["expression", "input_lo", "input_hi", "tolerance"])
+    producer_expected, checker_expected = _load_pinned_int_cert_ids()
+    proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("int-cert")
+
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-int-cert-") as td:
+        receipt_path = Path(td) / "receipt.json"
+        ns = argparse.Namespace(
+            expression=args["expression"],
+            lower=args["input_lo"],
+            upper=args["input_hi"],
+            tolerance=args["tolerance"],
+            producer=str(LAYOUT["int_cert_producer"]),
+            checker=str(LAYOUT["int_cert_checker"]),
+            expected_producer=producer_expected,
+            expected_checker=checker_expected,
+            receipt=str(receipt_path),
+            plugin_sha256=PLUGIN_HASH,
+            release_epoch="v1.7.0",
+            timeout=300,
+        )
+        try:
+            icr.release(ns)
+            receipt = _strict_json_loads(receipt_path.read_bytes())
+            rerun = vr.verify_receipt(
+                receipt=receipt,
+                checker=str(LAYOUT["int_cert_checker"]),
+                expected_evaluator=producer_expected,
+                expected_checker=checker_expected,
+                inventory_path=LAYOUT["inventory"],
+                expected_inventory_sha256=_load_pinned_inventory_id(),
+                proof_identity_path=LAYOUT["int_cert_proof_identity"],
+                expected_proof_identity_file=proof_file_expected,
+                expected_proof_identity_digest=proof_digest_expected,
+                expected_plugin=PLUGIN_HASH,
+                expected_release_epoch="v1.7.0",
+                expected_request={
+                    "command": "integrate-bound-cert",
+                    "expression": args["expression"],
+                    "input_lo": args["input_lo"],
+                    "input_hi": args["input_hi"],
+                    "tolerance": args["tolerance"],
+                },
+            )
+        except icr.Refusal as r:
+            return _refuse(r.cls, r.detail)
+        except vr.ReceiptRefusal as r:
+            return _refuse(r.cls, r.detail)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return _refuse("plugin-int-cert-runtime", f"{type(exc).__name__}: {exc}")
+
+    if rerun.get("verdict") != "ACCEPT":
+        return _refuse("plugin-checker-rerun", str(rerun.get("verdict")))
+    return {"status": "formal-bounded", "checker_rerun": "ACCEPT", "receipt": receipt}
+
+
 # variant -> MANIFEST producer label: the identity bound as `evaluator` in a
 # rational-fragment receipt.  sin_rat and cos_rat share one producer file, so
 # both dispatch to the `sin_rat_producer` pin.
@@ -582,7 +679,7 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(receipt, dict):
         return _refuse("plugin-args-schema", "receipt must be an object")
     cert_schema = receipt.get("certificate", {}).get("schema")
-    if cert_schema == "jackal-gaussian-integral-cert v1":
+    if cert_schema in {"jackal-gaussian-integral-cert v1", "jackal-int-cert v1"}:
         string_keys = [
             "expected_release_epoch", "expected_command", "expected_expression",
             "expected_input_lo", "expected_input_hi", "expected_tolerance",
@@ -602,6 +699,19 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
         ev_expected, ck_expected = _load_pinned_gaussian_ids()
         checker = LAYOUT["gaussian_checker"]
         proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("gaussian")
+        expected_source_val = None
+        expected_request = {
+            "command": args["expected_command"],
+            "expression": args["expected_expression"],
+            "input_lo": args["expected_input_lo"],
+            "input_hi": args["expected_input_hi"],
+            "tolerance": args["expected_tolerance"],
+        }
+    elif cert_schema == "jackal-int-cert v1":
+        ev_expected, ck_expected = _load_pinned_int_cert_ids()
+        checker = LAYOUT["int_cert_checker"]
+        proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("int-cert")
+        expected_source_val = None
         expected_request = {
             "command": args["expected_command"],
             "expression": args["expected_expression"],
@@ -639,13 +749,14 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
             proof_identity_path=(
                 LAYOUT["gaussian_proof_identity"]
                 if cert_schema == "jackal-gaussian-integral-cert v1"
+                else LAYOUT["int_cert_proof_identity"]
+                if cert_schema == "jackal-int-cert v1"
                 else LAYOUT["range_proof_identity"]
             ),
             expected_proof_identity_file=proof_file_expected,
             expected_proof_identity_digest=proof_digest_expected,
             expected_plugin=PLUGIN_HASH,
-            expected_source=(None if cert_schema == "jackal-gaussian-integral-cert v1"
-                             else expected_source_val),
+            expected_source=expected_source_val,
             expected_release_epoch=args["expected_release_epoch"],
             expected_request=expected_request,
         )
@@ -1311,6 +1422,7 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
 TOOLS = {
     "jackal_range_bound":       tool_range_bound,
     "jackal_gaussian_integral": tool_gaussian_integral,
+    "jackal_integrate_bound_cert": tool_integrate_bound_cert,
     "jackal_sqrt_rat_bound":    tool_sqrt_rat_bound,
     "jackal_exp_rat_bound":     tool_exp_rat_bound,
     "jackal_ln_rat_bound":      tool_ln_rat_bound,

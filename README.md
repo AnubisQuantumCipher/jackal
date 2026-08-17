@@ -47,7 +47,7 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
 - **Determinism** — identical input, byte-identical output; claim cards carry SHA-256 fingerprints.
 - **Exactness flags** — `rat` and `big-*` results are exact; `approx=` is labeled IEEE f64;
   the single most common downstream error is a model treating a truncated decimal as exact.
-- **A four-tier assurance ladder for numerical integration** —
+- **A five-tier assurance ladder for numerical integration** —
   `integrate` prints a Richardson *estimate* tagged `assurance=estimate-not-bound(grid-limited)`
   (heuristic; a feature narrower than the grid can evade both grids — verified: a width~0.0007
   Gaussian peak on a 100-panel grid underestimated its own error ~256×);
@@ -56,10 +56,15 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
   `integrate-bound` prints a **conditional enclosure** under the stated f64/libm model;
   `jackal-gaussian-release` adds a distinct **zero-libm formal enclosure** for checker-accepted
   canonical `exp(-A*(x-mu)^2)` requests and refuses every unsupported formal request without
-  downgrade (see "Formal Gaussian integration" below). Bisection ships residuals; symbolic derivatives ship their own
+  downgrade (see "Formal Gaussian integration" below); and `jackal-int-cert-release` (v1.7.0)
+  emits a **Lean-checked composed enclosure** over the certified fragment — the compiled proved
+  checker re-checks the entire subdivision tree (theorem `int_cert_sound`) while `integrate-bound`
+  itself stays conditional/`bounded`. Bisection ships residuals; symbolic derivatives ship their own
   numeric verification line. Only the `rat`/`big-*` lanes are exact.
 - **Machine-readable epistemic classes** — metadata-bearing lanes print `status=` as the first
-  field: `exact` (rat), `bounded` (integrate-bound), `formal-bounded` (proved range/Gaussian release wrappers), `checked` (diff),
+  field: `exact` (rat), `bounded` (integrate-bound), `formal-bounded` (proved range/Gaussian
+  release wrappers, and the certified composed-integral lane `integrate-bound-cert` via
+  `jackal-int-cert-release` — proved composed enclosure, theorem `int_cert_sound`), `checked` (diff),
   `estimated` (integrate, integrate-adaptive, derivative, solve, integrate-x2, derivative-x3),
   `model-based` (claim-card). `jackal maturity` prints the full graded command inventory —
   every lane's class, oracle, evidence, and known residual — so strong evidence in one lane
@@ -153,8 +158,9 @@ checker on this machine** — recomputing the outer digest alone is not
 sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-three
-tools — ten formal (`jackal_range_bound`, `jackal_gaussian_integral`,
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-four
+tools — eleven formal (`jackal_range_bound`, `jackal_gaussian_integral`,
+`jackal_integrate_bound_cert`,
 `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
 `jackal_sin_rat_bound`, `jackal_cos_rat_bound`, `jackal_atan_rat_bound`,
 `jackal_tanh_rat_bound`, `jackal_verify_receipt`), twenty-one weaker-lane
@@ -254,6 +260,7 @@ tokenizer, recursive-descent parser, and evaluator all written in Anubis:
 ./jackal eval "2+3*sin(pi/6)^2"
 ./jackal integrate "sin(x)" 0 3.141592653589793 200   # general Simpson + Richardson error estimate
 ./jackal integrate-bound "sin(x)" 0 3.141592653589793 1e-9   # certified interval enclosure
+./jackal-int-cert-release "sin(x)" 0 1 1/100 receipt.json   # Lean-checked composed integral enclosure (theorem int_cert_sound)
 ./jackal derivative "x^3" 2 0.001                     # central difference + Richardson probe
 ./jackal solve "x^2-2" 1 2         # bisection + residual + first-order root-error estimate
 ```
@@ -353,8 +360,10 @@ How it works, and exactly what it claims:
   [`proofs/lean/JackalIv/Ledger.lean`](proofs/lean/JackalIv/Ledger.lean): libm meeting its
   2-ulp model; the still-fail-closed operators; the bigint/rational lanes (checked in-language by
   the Anubis SMT checker, outside this Lean scope); that the Anubis emitter faithfully produces
-  its certificate (tested, not proven); and the last two bridges — `bound_step` release
-  composition and source→native refinement — which remain **open and unclaimed**. The engine's
+  its certificate (tested, not proven); `bound_step` release composition — now **mechanized for
+  the certificate lane** (v1.7.0: theorem `int_cert_sound`, re-checked by the compiled
+  `jackal_int_cert_check` on every `jackal-int-cert-release` receipt); and the one remaining
+  bridge, source→native refinement, which remains **open and unclaimed**. The engine's
   printed `implementation-tested-not-mechanized` residual therefore stays, accurately: the
   *model* is proven for all inputs, `range-bound-cert` results carry a proof-checked witness, and
   the broader *implementation* is campaign-tested and differential-gated against the model.
@@ -499,6 +508,28 @@ divisor, never a probabilistic verdict labeled exact.  General symbolic
 simplification and equality outside these fragments remain refused, exactly
 as before.
 
+## v1.7.0: certified bound_step composition (additive)
+
+v1.7.0 mechanizes the composed-integral bridge for a dedicated
+certificate lane: `./jackal-int-cert-release "<expr>" <lo> <hi> <tol>
+<receipt.json>` (plugin tool `jackal_integrate_bound_cert`).  The
+producer (`tools/int_cert_producer.py`) is **untrusted**: it mirrors the
+engine's adaptive subdivision in exact rational arithmetic and emits a
+`jackal-int-cert v1` certificate.  The trust anchor is the independently
+compiled Lean-proved checker `jackal_int_cert_check` (checker pin
+`jackal-iv-bound-step-v1`), which re-checks the whole subdivision-tree
+certificate and accepts only under theorem `int_cert_sound`; the
+resulting `jackal-formal-receipt-v1` receipt (variant `int_cert`) is
+`status=formal-bounded`.  Certified fragment:
+`num`/`var`/`neg`/`add`/`sub`/`mul`/`div`/`pow` (exponent 0..4096)/
+`sin`/`cos`/`abs` in `x` — everything else refuses, never downgrades.
+The weaker float lane (`integrate-bound` / `jackal_integrate_bound`,
+`status=bounded`, conditional on the stated f64/libm rounding model) is
+unchanged and never inherits the formal status.  Residual non-claims:
+producer fidelity is tested, not proved (an unfaithful producer can only
+cause refusal, because the checker recomputes everything), and
+source→native refinement remains OPEN.
+
 ## The claim-bundle evidence kernel (v1.6.0, additive)
 
 v1.6.0 turns the engine and its lanes into a typed claim compiler: every
@@ -560,10 +591,15 @@ The kernel is deliberately small and closed:
 - **Interval-composed enclosures cap at `mathematical=bounded`**: hull
   arithmetic is recomputed by the Python verifier, not the Lean checker;
   formal parents keep `formal-bounded` in their own nodes.  The graph
-  never flattens.
+  never flattens.  The v1.7.0 certified composed-integral lane is the
+  exception ONLY as direct receipt evidence — `int_cert` receipts enter
+  the graph at `formal-bounded` through the receipt adapter — while the
+  claim kernel's own hull arithmetic still caps at `bounded`.
 
 Hermes exposes the kernel as two additive tools — `jackal_claim` and
-`jackal_verify_bundle` — alongside the unchanged 31.  Hostile controls
+`jackal_verify_bundle` — alongside the 31 unchanged v1.5.0 tools (33 at
+the v1.6.0 seal; the v1.7.0 `jackal_integrate_bound_cert` brings the
+inventory to thirty-four).  Hostile controls
 (108-row matrix: serialization, graph identity, laundering, units,
 consequence floors, freshness/replay, machine arithmetic, legacy
 compatibility, rendering), A→B→A tamper gates over the seven claim trust
@@ -577,7 +613,7 @@ parity gate ship in `release/evidence/claim_*_v160.json`.
 | Trust and metrology | `claim-card self-test maturity measure-mul uncertain-ohm kinetic-sensitivity` |
 | Expression engine | `eval integrate integrate-adaptive derivative solve` |
 | Certified enclosures | `integrate-bound range-bound` (proven interval bounds, refuse-on-doubt) |
-| Proof-carrying | `range-bound-cert` plus release wrappers `jackal-cert-release`, `jackal-gaussian-release`, and the seven zero-libm fragment wrappers `jackal-{sqrt,exp,ln,sin,cos,atan,tanh}-rat-release` (matching Lean checker required) |
+| Proof-carrying | `range-bound-cert` plus release wrappers `jackal-cert-release`, `jackal-gaussian-release`, `jackal-int-cert-release` (composed integral enclosure, theorem `int_cert_sound`), and the seven zero-libm fragment wrappers `jackal-{sqrt,exp,ln,sin,cos,atan,tanh}-rat-release` (matching Lean checker required) |
 | Provenance | `parse-dump lower-dump` (canonical s-expr of the parse/lowering — drives the Lean parser-correspondence gate) |
 | Symbolic | `diff` (self-verifying d/dx) |
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |

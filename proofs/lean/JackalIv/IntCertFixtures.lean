@@ -1,5 +1,5 @@
 /-
-JackalIv/ShadowCertFixtures.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertFixtures.lean — public certified integrate-bound-cert lane (v1.7).
 
 In-kernel acceptance/refusal twins for the composition checker: tiny concrete
 artifacts whose verdicts reduce under `decide`, pinning the checker's
@@ -11,9 +11,9 @@ is cheap) over `[0, 1]` with tolerance `2`, degree `0`, one range leaf.
 
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
-import JackalIv.ShadowCertCheck
+import JackalIv.IntCertCheck
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv
 
@@ -29,7 +29,7 @@ def fixCert : EvalCert :=
              output_lo := 0
              output_hi := 1
              exe_identity := ""
-             status_class := "research-shadow" }
+             status_class := "bounded" }
     nodes := [{ id := 0, op := "var", children := [], out_lo := 0,
                 out_hi := 1, name := "x" }] }
 
@@ -42,9 +42,9 @@ def fixLeaf : TreeNode :=
 def fixHeader : IntHeader :=
   { schema_version := 1
     model_const_version := Cert.pinnedModelConst
-    checker_identity := shadowCheckerPin
+    checker_identity := intCertCheckerPin
     producer_identity := ""
-    status_class := shadowStatus
+    status_class := intCertStatus
     expr_commitment := "(var x)"
     source_commitment := ""
     req_lo := 0
@@ -61,7 +61,7 @@ NOTE (disclosed toolchain friction): concrete ℚ arithmetic does NOT reduce
 under kernel `decide` at this Mathlib revision (the Field ℚ instance tower
 blocks whnf; even `(1:ℚ) + 2 ≤ 4` fails `decide`), so these twins are
 BUILD-TIME `#guard` probes evaluated by the compiler/interpreter — the same
-evaluation lane as the shadow driver executable — rather than kernel
+evaluation lane as the checker executable — rather than kernel
 theorems.  The checker's SOUNDNESS is the kernel theorem `int_cert_sound`
 (axioms: propext/Classical.choice/Quot.sound); these probes only pin the
 concrete accept/refuse behavior against regressions in `lake build`. -/
@@ -89,7 +89,7 @@ def refusesWithB (hdr : IntHeader) (tree : List TreeNode) (reason : String) :
 -- POISON TWIN (stale identity): a wrong checker pin refuses before any
 -- semantic work.
 #guard refusesWithB
-      { fixHeader with checker_identity := "jackal-iv-bound-step-shadow-v0" }
+      { fixHeader with checker_identity := "jackal-iv-bound-step-v0" }
       [fixLeaf] "stale-identity:checker" 
 
 -- POISON TWIN (tolerance): a released interval wider than the tolerance
@@ -103,4 +103,4 @@ def refusesWithB (hdr : IntHeader) (tree : List TreeNode) (reason : String) :
       [fixLeaf] "invalid-interval:request" 
 
 
-end JackalIv.Shadow
+end JackalIv.IntCert

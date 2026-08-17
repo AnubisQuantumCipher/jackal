@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Shadow-vs-engine differential gate (research-shadow, NON-AUTHORITATIVE).
+"""Engine-vs-producer differential gate (public v1.7 lane).
 
 For each positive fixture, compares three quantities:
 
-  engine  : `./jackal integrate-bound <expr> <lo> <hi> <tol>` printed
-            enclosure (the shipped float lane, via the PINNED jackal-native);
-  shadow  : the shadow producer's artifact released interval (exact ℚ,
-            checker-accepted in the focused matrix);
-  oracle  : mpmath 60-dps evaluation of the true integral.
+  engine   : `./jackal integrate-bound <expr> <lo> <hi> <tol>` printed
+             enclosure (the shipped float lane, via the PINNED jackal-native);
+  producer : the certified lane producer's artifact released interval
+             (exact ℚ, checker-accepted in the focused matrix);
+  oracle   : mpmath 60-dps evaluation of the true integral.
 
-Assertions per case (mission trust boundary D7(iii): mirror fidelity is
-differential evidence, never byte identity — the shadow lane uses Lean-D
+Assertions per case (mission trust boundary D7(iii): producer fidelity is
+differential evidence, never byte identity — the certified lane uses Lean-D
 chains and exact-ℚ acceptance, so trees may differ):
 
   1. oracle ∈ engine enclosure;
-  2. oracle ∈ shadow enclosure;
+  2. oracle ∈ producer enclosure;
   3. the enclosures OVERLAP (they enclose the same real number).
 
-Evidence: research/v170-bound-step-shadow/evidence/differential_engine.json.
+Evidence: release/evidence/int_cert_differential.json.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ from pathlib import Path
 import mpmath
 
 ROOT = Path(__file__).resolve().parent.parent
-EVIDENCE = ROOT / "research" / "v170-bound-step-shadow" / "evidence"
+EVIDENCE = ROOT / "release" / "evidence"
 sys.path.insert(0, str(ROOT / "tools"))
-import bound_step_shadow_producer as bsp  # noqa: E402
+import int_cert_producer as bsp  # noqa: E402
 
 mpmath.mp.dps = 60
 
@@ -72,41 +72,42 @@ def main() -> int:
     ok_all = True
     for name, expr, lo, hi, tol, eargs, oracle_fn, cap in CASES:
         art = bsp.build(expr, lo, hi, tol, degree_cap=cap)
-        s_lo, s_hi = art["out_lo"], art["out_hi"]
+        p_lo, p_hi = art["out_lo"], art["out_hi"]
         e_lo, e_hi, e_line = engine_enclosure(expr, eargs)
         oracle = oracle_fn()
         o = Fraction(str(oracle))
         in_engine = e_lo <= o <= e_hi
-        in_shadow = s_lo <= o <= s_hi
-        overlap = max(e_lo, s_lo) <= min(e_hi, s_hi)
-        ok = in_engine and in_shadow and overlap
+        in_producer = p_lo <= o <= p_hi
+        overlap = max(e_lo, p_lo) <= min(e_hi, p_hi)
+        ok = in_engine and in_producer and overlap
         ok_all &= ok
         rows.append({
             "case": name, "expr": expr,
             "engine": [float(e_lo), float(e_hi)],
-            "shadow": [float(s_lo), float(s_hi)],
+            "producer": [float(p_lo), float(p_hi)],
             "oracle": str(oracle),
             "oracle_in_engine": in_engine,
-            "oracle_in_shadow": in_shadow,
+            "oracle_in_producer": in_producer,
             "enclosures_overlap": overlap,
             "engine_line_head": e_line.split("assurance=")[0][-160:],
             "ok": ok,
         })
         print(f"{'PASS' if ok else 'FAIL'} {name:18s} "
               f"engine=[{float(e_lo):.6g},{float(e_hi):.6g}] "
-              f"shadow=[{float(s_lo):.6g},{float(s_hi):.6g}] "
+              f"producer=[{float(p_lo):.6g},{float(p_hi):.6g}] "
               f"oracle={float(oracle):.6g}")
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "jackal-bound-step-shadow-differential-v1",
-        "status": "research-shadow",
-        "non_claims": ["differential consistency, not byte identity",
-                       "engine lane remains implementation-tested-not-mechanized"],
+        "schema": "jackal-int-cert-differential-v1",
+        "status": "public",
+        "non_claims": ["producer fidelity is differential evidence, not proof",
+                       "engine float lane (integrate-bound) stays status=bounded, "
+                       "implementation-tested-not-mechanized"],
         "rows": rows,
         "passed": sum(1 for r in rows if r["ok"]),
         "total": len(rows),
     }
-    out = EVIDENCE / "differential_engine.json"
+    out = EVIDENCE / "int_cert_differential.json"
     out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
                    encoding="utf-8")
     print(f"TOTAL {payload['passed']}/{payload['total']} evidence={out}")

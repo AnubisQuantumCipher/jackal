@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""JACKAL v1.7 SHADOW gate — bound_step composition artifact matrix.
+"""JACKAL v1.7 gate — integrate-bound-cert composition artifact matrix.
 
-STATUS: research-shadow. NON-AUTHORITATIVE. Not registered in any release gate
-driver. This harness exercises the shadow subdivision-tree certificate lane:
+Exercises the public certified subdivision-tree lane end to end:
 
-  producer : tools/bound_step_shadow_producer.py   (untrusted mirror of bound_step)
-  checker  : proofs/lean/JackalIv/ShadowCertMain.lean  via `lake env lean --run`
-             (compiled/interpreted directly from the PROVED checkIntCert)
+  producer : tools/int_cert_producer.py            (untrusted mirror of bound_step)
+  checker  : proofs/lean/.lake/build/bin/jackal_int_cert_check
+             (compiled directly from the PROVED parseIntCert + checkIntCert)
 
 Matrix (mission §8):
   positive  P1..P6   — range leaf, taylor2 leaf, taylor4 leaf, multi-level tree,
@@ -17,8 +16,8 @@ Matrix (mission §8):
                        refuse at the SEMANTIC layer with the exact reason class.
 
 Every row records expected vs observed refusal class; any mismatch fails the
-gate. Evidence: research/v170-bound-step-shadow/evidence/shadow_matrix.json
-(schema jackal-bound-step-shadow-matrix-v1).
+gate. Evidence: release/evidence/int_cert_matrix.json
+(schema jackal-int-cert-matrix-v1).
 
 Runnable under `python3 -O` (no load-bearing asserts).
 """
@@ -36,13 +35,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAN_DIR = ROOT / "proofs" / "lean"
-PRODUCER = ROOT / "tools" / "bound_step_shadow_producer.py"
-CHECKER_SRC = LEAN_DIR / "JackalIv" / "ShadowCertMain.lean"
-EVIDENCE_DIR = ROOT / "research" / "v170-bound-step-shadow" / "evidence"
+PRODUCER = ROOT / "tools" / "int_cert_producer.py"
+CHECKER_BIN = LEAN_DIR / ".lake" / "build" / "bin" / "jackal_int_cert_check"
+EVIDENCE_DIR = ROOT / "release" / "evidence"
 
-SCHEMA = "jackal-bound-step-shadow-matrix-v1"
-ACCEPT_PREFIX = "SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound"
-REFUSE_PREFIX = "SHADOW-REFUSE reason="
+SCHEMA = "jackal-int-cert-matrix-v1"
+ACCEPT_PREFIX = "ACCEPT status=bounded theorem=int_cert_sound"
+REFUSE_PREFIX = "REFUSE reason="
 
 sys.path.insert(0, str(ROOT / "tools"))
 
@@ -94,10 +93,8 @@ def run_checker(artifact_text: str) -> tuple[int, str, str]:
         path = fh.name
     try:
         proc = subprocess.run(
-            ["lake", "env", "lean", "--run",
-             str(CHECKER_SRC), path],
+            [str(CHECKER_BIN), path],
             capture_output=True, text=True, timeout=CHECK_TIMEOUT,
-            cwd=LEAN_DIR,
         )
         return proc.returncode, proc.stdout or "", proc.stderr or ""
     finally:
@@ -112,7 +109,7 @@ def expect_accept(artifact_text: str) -> tuple[bool, str]:
 
 
 def expect_refuse(artifact_text: str, reason: str) -> tuple[bool, str]:
-    """Checker must exit nonzero with the exact SHADOW-REFUSE reason class."""
+    """Checker must exit nonzero with the exact REFUSE reason class."""
     rc, out, err = run_checker(artifact_text)
     if rc == 0:
         return False, f"ACCEPTED (wanted refuse:{reason}): {out.strip()!r}"
@@ -122,7 +119,7 @@ def expect_refuse(artifact_text: str, reason: str) -> tuple[bool, str]:
         if ln.startswith(REFUSE_PREFIX):
             observed = ln.split(REFUSE_PREFIX, 1)[1].split(":", 1)[0].split()[0]
             return observed == reason, f"observed={observed} line={ln!r}"
-    return False, f"no SHADOW-REFUSE line: rc={rc} err={err.strip()!r}"
+    return False, f"no REFUSE line: rc={rc} err={err.strip()!r}"
 
 
 # --------------------------------------------------------------------------
@@ -166,11 +163,12 @@ def main() -> int:
     if not PRODUCER.is_file():
         print(f"RED: producer missing at {PRODUCER}", file=sys.stderr)
         return 2
-    if not CHECKER_SRC.is_file():
-        print(f"RED: checker main missing at {CHECKER_SRC}", file=sys.stderr)
+    if not CHECKER_BIN.is_file():
+        print(f"RED: compiled checker missing at {CHECKER_BIN} "
+              "(run `lake build jackal_int_cert_check`)", file=sys.stderr)
         return 2
 
-    import bound_step_shadow_producer as bsp  # untrusted producer library
+    import int_cert_producer as bsp  # untrusted producer library
 
     # ---------------- positives ----------------
     # P1 range-only leaf: abs is smooth-refused by the engine's ast_smooth_ok
@@ -381,7 +379,7 @@ def main() -> int:
 
     # X17 stale checker/proof identity pin.
     bad = replace_line(bsp.emit(t4), "checker ",
-                       "checker jackal-iv-bound-step-shadow-v0")
+                       "checker jackal-iv-bound-step-v0")
     ok, det = expect_refuse(bad, "stale-identity")
     record("X17-stale-checker", "poison", "stale-identity", ok, det)
 
@@ -390,20 +388,20 @@ def main() -> int:
     passed = sum(1 for r in RESULTS if r["ok"])
     payload = {
         "schema": SCHEMA,
-        "status": "research-shadow",
+        "status": "public",
         "non_claims": [
-            "non-authoritative shadow evidence",
-            "does not change any public verifier, tool, or acceptance class",
-            "bound_step release composition remains OPEN on the public surface",
+            "the producer is untrusted; trust lives only in checker acceptance",
+            "producer-vs-engine tree fidelity is differential evidence, not proof",
+            "source-to-native refinement remains OPEN",
         ],
         "producer_sha256": hashlib.sha256(PRODUCER.read_bytes()).hexdigest(),
-        "checker_source_sha256":
-            hashlib.sha256(CHECKER_SRC.read_bytes()).hexdigest(),
+        "checker_binary_sha256":
+            hashlib.sha256(CHECKER_BIN.read_bytes()).hexdigest(),
         "rows": RESULTS,
         "total": len(RESULTS),
         "passed": passed,
     }
-    out = EVIDENCE_DIR / "shadow_matrix.json"
+    out = EVIDENCE_DIR / "int_cert_matrix.json"
     out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
                    encoding="utf-8")
     print(f"TOTAL {passed}/{len(RESULTS)}  evidence={out}")

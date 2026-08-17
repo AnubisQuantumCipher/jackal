@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""UNTRUSTED shadow producer — JACKAL v1.7 `bound_step` composition artifacts.
+"""UNTRUSTED certificate producer — JACKAL `integrate-bound-cert` lane (v1.7).
 
-STATUS: research-shadow. NON-AUTHORITATIVE. Not a release tool, not in the
-33-tool public inventory, not pinned in any manifest.
+Public untrusted producer for the certified composed-integral lane, pinned in
+release/MANIFEST.sha256 exactly like the seven `*_rat_producer.py` siblings.
 
 Mirrors the shipped `bound_step` adaptive subdivision (jackal_calc.anb
-fn bound_step, git 19b763e) in exact rational arithmetic and emits a
-`jackal-int-cert shadow-v1` composition artifact whose leaves embed ordinary
-`jackal-eval-cert v2` evaluation certificates.  Trust lives ONLY in the Lean
-checker (`JackalIv/ShadowCertMain.lean`, proved `checkIntCert` +
-`int_cert_sound`); nothing this script computes is evidence by itself.
+fn bound_step) in exact rational arithmetic and emits a
+`jackal-int-cert v1` composition artifact whose leaves embed ordinary
+`jackal-eval-cert v2` evaluation certificates.  Trust lives ONLY in the
+proved Lean checker (compiled `jackal_int_cert_check`, proved `parseIntCert`
++ `checkIntCert` + `int_cert_sound`); nothing this script computes is
+evidence by itself, and a bare producer run is a diagnostic, not a release —
+`jackal-int-cert-release` adds request-commitment and identity binding.
 
 Engine-mirror notes (disclosed divergences, see RESEARCH_SOURCES.md D4-D6):
   * derivative chains are Lean's `Deriv.D` mirror (`DQ`), token-for-token,
@@ -44,11 +46,11 @@ import math
 import sys
 from fractions import Fraction
 
-SCHEMA = "jackal-int-cert shadow-v1"
+SCHEMA = "jackal-int-cert v1"
 EMBEDDED_SCHEMA = "jackal-eval-cert v2"
 MODEL = "jackal-iv-model-v1"
-CHECKER_PIN = "jackal-iv-bound-step-shadow-v1"
-STATUS = "research-shadow"
+CHECKER_PIN = "jackal-iv-bound-step-v1"
+STATUS = "bounded"
 BUDGET = 60000
 DEPTH_CAP = 60
 
@@ -119,7 +121,7 @@ def f64(v: Fraction) -> Fraction:
 
 
 # ---------------------------------------------------------------------------
-# expression parser (engine grammar, shadow fragment)
+# expression parser (engine grammar, certified fragment)
 # ---------------------------------------------------------------------------
 
 FUNCS = ("sin", "cos")
@@ -189,7 +191,7 @@ class Parser:
         while self.peek() in ("*", "/", "%"):
             op = self.next()
             if op == "%":
-                raise Refusal("unsupported-expression", "'%' outside shadow fragment")
+                raise Refusal("unsupported-expression", "'%' outside certified fragment")
             r = self.unary()
             e = ("mul" if op == "*" else "div", e, r)
         return e
@@ -221,12 +223,12 @@ class Parser:
         if t.isdigit():
             if "." in t:
                 raise Refusal("unsupported-expression",
-                              f"non-integer literal {t!r} outside shadow fragment")
+                              f"non-integer literal {t!r} outside certified fragment")
             return ("num", Fraction(int(t)), t)
         if t and t[0].isdigit():
             if "." in t:
                 raise Refusal("unsupported-expression",
-                              f"non-integer literal {t!r} outside shadow fragment")
+                              f"non-integer literal {t!r} outside certified fragment")
             return ("num", Fraction(int(t)), t)
         if t == "x":
             return ("var", "x")
@@ -241,7 +243,7 @@ class Parser:
 
 
 # ---------------------------------------------------------------------------
-# Lean-D mirror (token reuse, exactly Deriv.D / Shadow.DQ)
+# Lean-D mirror (token reuse, exactly Deriv.D / IntCert.DQ)
 # ---------------------------------------------------------------------------
 
 DBAD = ("div", ("num", Fraction(1), "1"), ("num", Fraction(0), "0"))
@@ -280,7 +282,7 @@ def dq(e):
 
 
 def smooth_ok(e) -> bool:
-    """Shadow-fragment mirror of the engine's ast_smooth_ok: every node has a
+    """Certified-fragment mirror of the engine's ast_smooth_ok: every node has a
     D rule (the D-chain never hits DBAD)."""
     tag = e[0]
     if tag in ("num", "var"):
@@ -418,7 +420,7 @@ class CertRun:
             name = e[2][2]
             if n < 0 or n > 4096:
                 raise Refusal("unsupported-expression",
-                              f"exponent {n} outside shadow fragment")
+                              f"exponent {n} outside certified fragment")
             c0, l, u = self.eval(e[1])
             if n == 0:
                 return self.emit("powZero", [c0], (Fraction(1), Fraction(1)),
@@ -457,7 +459,7 @@ class CertRun:
                     return self.emit(f"{name}_rat", [c0], out)
                 return self.emit(name, [c0], (Fraction(-1), Fraction(1)))
             raise Refusal("unsupported-expression",
-                          f"call {name!r} outside shadow fragment")
+                          f"call {name!r} outside certified fragment")
         raise Refusal("unsupported-expression", f"node {tag!r}")
 
 
@@ -614,11 +616,20 @@ def build_leaf_certs(ctx: BoundCtx, kind: str, a: Fraction, b: Fraction) -> list
 # ---------------------------------------------------------------------------
 
 def request_commitment_b64(expr: str, lo: str, hi: str, tol: str) -> str:
-    parts = ["integrate-bound-shadow", expr, lo, hi, tol]
-    framed = b"jackal-int-shadow-v1\x00" + b"|".join(
-        f"{len(p)}:{p}".encode("utf-8") for p in parts)
+    """Injective request commitment, scheme `jackal-req-v3-int-cert`.
+
+    Byte-length framing identical to the gaussian scheme in
+    tools/formal_receipt.py; the release binder and receipt verifier
+    recompute this exact construction over the CANONICAL rationals.
+    """
+    def framed(part: str) -> bytes:
+        raw = part.encode("utf-8")
+        return str(len(raw)).encode() + b":" + raw
+    framing = (b"jackal-req-v3-int-cert\x00" + framed("integrate-bound-cert")
+               + b"|" + framed(expr) + b"|" + framed(lo) + b"|" + framed(hi)
+               + b"|" + framed(tol))
     return base64.b64encode(
-        hashlib.sha256(framed).hexdigest().encode("ascii")).decode("ascii")
+        hashlib.sha256(framing).hexdigest().encode("ascii")).decode("ascii")
 
 
 def build(expr_src: str, lo_text: str, hi_text: str, tol_text: str,
@@ -805,7 +816,7 @@ def _rebuild_leaf(art: dict, node: dict, a: Fraction, b: Fraction) -> None:
 # ---------------------------------------------------------------------------
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="bound_step_shadow_producer",
+    ap = argparse.ArgumentParser(prog="int_cert_producer",
                                  description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
     em = sub.add_parser("emit")

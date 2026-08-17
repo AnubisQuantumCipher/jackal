@@ -1,6 +1,6 @@
 {
   "build_attestation": {
-    "attestation_digest_sha256": "fe55d47466f19c4b8ebc7bf083e471bbd8265ea8e712aff9bb06233edadf8847",
+    "attestation_digest_sha256": "db883c6c0319c53e63730f2a944ae763d04d94b30faed64ab8b7032aae106a3c",
     "authentication": {
       "authenticated": false,
       "scheme": "none",
@@ -9,13 +9,13 @@
     "build_command": [
       "lake",
       "build",
-      "jackal_cert_check"
+      "jackal_int_cert_check"
     ],
     "checker": {
-      "bytes": 137960320,
-      "path": "proofs/lean/.lake/build/bin/jackal_cert_check",
-      "sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
-      "target": "jackal_cert_check"
+      "bytes": 138003872,
+      "path": "proofs/lean/.lake/build/bin/jackal_int_cert_check",
+      "sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49",
+      "target": "jackal_int_cert_check"
     },
     "claim_boundary": "This is reproducibility/build-provenance evidence, not a proof of compiler, linker, operating-system, hardware, or supply-chain correctness.",
     "compiler_observed_for_build_platform": {
@@ -29,7 +29,7 @@
     "inputs": {
       "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
       "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
-      "source_closure_sha256": "8e8f00e71c554b81f63b7e604151e621370ae5cb4fe706d598024f4de1b90c2c",
+      "source_closure_sha256": "73a3d3fbafd39345a8d91bb6cfce8f95892a0ad2969551ec690fbb89e6b54ce2",
       "toolchain_configuration": [
         {
           "path": "proofs/lean/lakefile.toml",
@@ -49,39 +49,36 @@
     "working_directory": "proofs/lean"
   },
   "checker": {
-    "bytes": 137960320,
-    "path": "proofs/lean/.lake/build/bin/jackal_cert_check",
-    "sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
-    "target": "jackal_cert_check"
+    "bytes": 138003872,
+    "path": "proofs/lean/.lake/build/bin/jackal_int_cert_check",
+    "sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49",
+    "target": "jackal_int_cert_check"
   },
   "fragment": {
     "assurance": "formal-bounded",
-    "certificate_magic": "jackal-eval-cert v2",
-    "checker_boolean_definition": "JackalIv.Cert.checkCert",
-    "checker_entrypoint_definition": "runRequestBound",
-    "checker_executable": "jackal_cert_check",
-    "family": "range-request-bound-v1",
-    "lane": "range",
-    "parser_definition": "JackalIv.Cert.parseCert",
+    "certificate_magic": "jackal-int-cert v1",
+    "checker_boolean_definition": "JackalIv.IntCert.checkIntCert",
+    "checker_entrypoint_definition": "main (IntCertMain)",
+    "checker_executable": "jackal_int_cert_check",
+    "family": "integrate-bound-composed-v1",
+    "lane": "int-cert",
+    "parser_definition": "JackalIv.IntCert.parseIntCert",
     "premises_not_discharged_by_checker": [
-      "ModelTCB hdr nodes = LibmModel hdr nodes ∧ ConstTCB nodes",
-      "input interval ordering ((input_lo : ℚ) : ℝ) ≤ (input_hi : ℚ) : ℝ"
+      "TreeTCB tree = Cert.ModelTCB per embedded evaluation certificate"
     ],
-    "request_matcher_definition": "JackalIv.Cert.requestMatches",
-    "runtime_alternate_implementation_boundary": "request acceptance uses no implemented_by definition; two exact dump-only implemented_by attributes elsewhere in the imported closure are pinned",
-    "soundness_theorem": "JackalIv.Cert.request_bound_certified_release",
+    "runtime_alternate_implementation_boundary": "checker acceptance uses no implemented_by definition; two exact dump-only implemented_by attributes elsewhere in the imported closure are pinned",
+    "soundness_theorem": "JackalIv.IntCert.int_cert_sound",
     "theorem_premises": [
-      "requestMatches command rawExpr rawLo rawHi hdr nodes = true (runtime checked)",
-      "checkCert hdr nodes = true (runtime checked)",
-      "ModelTCB hdr nodes",
-      "((hdr.input_lo : ℚ) : ℝ) ≤ ((hdr.input_hi : ℚ) : ℝ)"
+      "checkIntCert hdr tree = .ok () (runtime checked)",
+      "rootQExpr tree = some q (runtime checked by structural pass)",
+      "TreeTCB tree (vacuous on the pure-rational fragment)"
     ]
   },
   "generator": {
     "path": "release/tools/gaussian_proof_identity.py",
     "sha256": "05bfa1709b0968da37b95c3d80c619de003ee4ba6987f6cea2844293fa8e4ccd"
   },
-  "identity_digest_sha256": "5d6a1d70289794a7653cd6d854f1239b9f1de6767bad90aab34cc17fb3f7372e",
+  "identity_digest_sha256": "01d0641e94ce53feb62a5b9667777fe6c526318491f4f3ea157e84d3e90b953e",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {
@@ -102,7 +99,7 @@
           "Classical.choice",
           "Quot.sound"
         ],
-        "theorem": "JackalIv.Cert.request_bound_certified_release"
+        "theorem": "JackalIv.IntCert.int_cert_sound"
       },
       {
         "axioms": [
@@ -110,7 +107,7 @@
           "Classical.choice",
           "Quot.sound"
         ],
-        "theorem": "JackalIv.Cert.requestMatches_true"
+        "theorem": "JackalIv.IntCert.range_leaf_sound"
       },
       {
         "axioms": [
@@ -118,7 +115,7 @@
           "Classical.choice",
           "Quot.sound"
         ],
-        "theorem": "JackalIv.Cert.lowerRaw_toExpr"
+        "theorem": "JackalIv.IntCert.taylor2_leaf_sound"
       },
       {
         "axioms": [
@@ -126,7 +123,39 @@
           "Classical.choice",
           "Quot.sound"
         ],
-        "theorem": "JackalIv.Cert.rawExprOf_toExpr"
+        "theorem": "JackalIv.IntCert.taylor4_leaf_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.IntCert.split_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.IntCert.sem_measurable"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.IntCert.embedQ_DQ"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.IntCert.qexprOf_embed"
       },
       {
         "axioms": [
@@ -135,20 +164,12 @@
           "Quot.sound"
         ],
         "theorem": "JackalIv.Cert.cert_check_sound"
-      },
-      {
-        "axioms": [
-          "propext",
-          "Classical.choice",
-          "Quot.sound"
-        ],
-        "theorem": "JackalIv.parse_lower_encloses"
       }
     ]
   },
-  "schema": "jackal-range-proof-identity-v1",
+  "schema": "jackal-int-cert-proof-identity-v1",
   "source_closure": {
-    "aggregate_sha256": "8e8f00e71c554b81f63b7e604151e621370ae5cb4fe706d598024f4de1b90c2c",
+    "aggregate_sha256": "73a3d3fbafd39345a8d91bb6cfce8f95892a0ad2969551ec690fbb89e6b54ce2",
     "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
     "external_imports": [
       "Mathlib",
@@ -180,15 +201,6 @@
         "sha256": "02cec1630ed5f822f226155e0d4b7c1b62acf056826b03e5e8b191544789b6de"
       },
       {
-        "bytes": 3753,
-        "imports": [
-          "JackalIv.CertRequest"
-        ],
-        "module": "JackalIv.CertCheckMain",
-        "path": "proofs/lean/JackalIv/CertCheckMain.lean",
-        "sha256": "433ef0b15add892020e57932fad5c0b9c376273b132bb94bb293d262ca2a7a8e"
-      },
-      {
         "bytes": 54454,
         "imports": [
           "JackalIv.CertCheck"
@@ -196,17 +208,6 @@
         "module": "JackalIv.CertCodec",
         "path": "proofs/lean/JackalIv/CertCodec.lean",
         "sha256": "66ac121b53dd12ec395dbd88ddf16f726bf3afdb4946f1f4deabee8af001cd9d"
-      },
-      {
-        "bytes": 28768,
-        "imports": [
-          "JackalIv.CertCodec",
-          "JackalIv.CertSound",
-          "JackalIv.Correspondence"
-        ],
-        "module": "JackalIv.CertRequest",
-        "path": "proofs/lean/JackalIv/CertRequest.lean",
-        "sha256": "775e229a0b7e7a799db034f1a147271aa6ec35f6015e13c20f772ee0206a8d3f"
       },
       {
         "bytes": 52899,
@@ -228,25 +229,14 @@
         "sha256": "0f241bce34f817a1f415d9722d0c34652cb4f312b7261d842b4000b23d7b4139"
       },
       {
-        "bytes": 6139,
+        "bytes": 30555,
         "imports": [
-          "JackalIv.Parser",
-          "JackalIv.Lower",
-          "JackalIv.Dump",
-          "JackalIv.Embed"
+          "JackalIv.Syntax",
+          "JackalIv.Taylor"
         ],
-        "module": "JackalIv.Correspondence",
-        "path": "proofs/lean/JackalIv/Correspondence.lean",
-        "sha256": "2b4acd4c904c8069f65a230eabf5bd1cacc0c73d077df650bbf12a24c12b18f3"
-      },
-      {
-        "bytes": 12026,
-        "imports": [
-          "JackalIv.Parser"
-        ],
-        "module": "JackalIv.Dump",
-        "path": "proofs/lean/JackalIv/Dump.lean",
-        "sha256": "3baba94104288e5783c763723f9582a25db40131849a41e743669cfac8445495"
+        "module": "JackalIv.Deriv",
+        "path": "proofs/lean/JackalIv/Deriv.lean",
+        "sha256": "618bce22f169ce7ff4b0f2b53d0148451b0bb3dafb64d2a01b4082560adca77e"
       },
       {
         "bytes": 33040,
@@ -282,13 +272,73 @@
         "sha256": "2aaaaa895141dab699f6cd936639948976e9560c07d015708e02545b02a045fe"
       },
       {
-        "bytes": 17818,
+        "bytes": 13650,
+        "imports": [
+          "JackalIv.IntCertTypes"
+        ],
+        "module": "JackalIv.IntCertCheck",
+        "path": "proofs/lean/JackalIv/IntCertCheck.lean",
+        "sha256": "fc5aa0b43795ab03faac27bbc61703eca474bb6ef2d269b0d1969f528dcddf62"
+      },
+      {
+        "bytes": 10176,
+        "imports": [
+          "JackalIv.CertCodec",
+          "JackalIv.IntCertTypes"
+        ],
+        "module": "JackalIv.IntCertCodec",
+        "path": "proofs/lean/JackalIv/IntCertCodec.lean",
+        "sha256": "82c59bec607d97e3e72a0d251d5efebfd1b4b5641c34ba2fd3798e5d12c23072"
+      },
+      {
+        "bytes": 1965,
+        "imports": [
+          "JackalIv.IntCertCodec",
+          "JackalIv.IntCertCheck",
+          "JackalIv.IntCertSound"
+        ],
+        "module": "JackalIv.IntCertMain",
+        "path": "proofs/lean/JackalIv/IntCertMain.lean",
+        "sha256": "1f3fb7d6d176949dbf67a60c1c84b9170f9727316914de48e23bb774f264b795"
+      },
+      {
+        "bytes": 12823,
         "imports": [
           "JackalIv.Syntax"
         ],
-        "module": "JackalIv.Lower",
-        "path": "proofs/lean/JackalIv/Lower.lean",
-        "sha256": "32d7f453bee0ddc1999b2693f8bb9bdb9706976172e29a120e23aa118409d9f2"
+        "module": "JackalIv.IntCertMeasure",
+        "path": "proofs/lean/JackalIv/IntCertMeasure.lean",
+        "sha256": "5ccae2f48055e00503657dfff16af24d813cd721fc7a789bdb93e39b29331c3f"
+      },
+      {
+        "bytes": 14280,
+        "imports": [
+          "JackalIv.CertTypes",
+          "JackalIv.Deriv"
+        ],
+        "module": "JackalIv.IntCertQExpr",
+        "path": "proofs/lean/JackalIv/IntCertQExpr.lean",
+        "sha256": "91fec5cb08fd9a9cc4bcc2a2486526785a464d469aaee3b7828b599cbc07d87b"
+      },
+      {
+        "bytes": 32742,
+        "imports": [
+          "JackalIv.IntCertCheck",
+          "JackalIv.IntCertMeasure"
+        ],
+        "module": "JackalIv.IntCertSound",
+        "path": "proofs/lean/JackalIv/IntCertSound.lean",
+        "sha256": "309e72d2fae9a98091890a6067fefe70bd19929128db3fc8092a2de1e8f0a8d4"
+      },
+      {
+        "bytes": 6054,
+        "imports": [
+          "JackalIv.CertSound",
+          "JackalIv.IntCertQExpr"
+        ],
+        "module": "JackalIv.IntCertTypes",
+        "path": "proofs/lean/JackalIv/IntCertTypes.lean",
+        "sha256": "72b803a3bdc26e68eb3d27e33e7d914153cd960988b78de78f91ea39fe2d49b9"
       },
       {
         "bytes": 3704,
@@ -317,15 +367,6 @@
         "module": "JackalIv.Pad",
         "path": "proofs/lean/JackalIv/Pad.lean",
         "sha256": "82cce18646e2522695fec7c68796f9a60a85abc20b6bfe1c45dac8070578c5d1"
-      },
-      {
-        "bytes": 23310,
-        "imports": [
-          "JackalIv.Syntax"
-        ],
-        "module": "JackalIv.Parser",
-        "path": "proofs/lean/JackalIv/Parser.lean",
-        "sha256": "fe5d803c7af09e36d1543517921af618351390f49ebbb46f0ecc1f79b2a86cc3"
       },
       {
         "bytes": 11388,
@@ -387,16 +428,7 @@
       }
     ],
     "local_construct_policy": {
-      "allowed_exact_source_lines": [
-        {
-          "construct": "implemented_by",
-          "path": "proofs/lean/JackalIv/Correspondence.lean",
-          "source_lines": [
-            "@[implemented_by Dump.parseSexpImpl]",
-            "@[implemented_by Dump.lowerSexpImpl]"
-          ]
-        }
-      ],
+      "allowed_exact_source_lines": [],
       "forbidden_by_default": [
         "admit",
         "axiom_declaration",
@@ -409,7 +441,7 @@
       ]
     },
     "root_modules": [
-      "JackalIv.CertCheckMain"
+      "JackalIv.IntCertMain"
     ]
   },
   "toolchain": {

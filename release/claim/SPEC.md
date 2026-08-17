@@ -236,6 +236,15 @@ quantifier reasoning, unregistered rules — refuses (`rule-unknown` /
   `in(app("formal.range",[str expr, interval domain]), enclosure)` for
   range/variant receipts, or
   `in(app("formal.gaussian_integral",[str expr, interval domain, rat tol]), enclosure)`.
+  Lane boundary (v1.7.0): the independent bundle replay carries ONE
+  checker/proof-identity pin set (the range lane), so only range-family
+  receipts are admissible as `formal-receipt` evidence payloads today.
+  Certified composed-integral receipts (`variant=int_cert`, theorem
+  `int_cert_sound`) and Gaussian receipts are verified DIRECTLY via
+  `jackal_verify_receipt` / `tools/receipt_verify.py` against their own
+  pinned checkers; admitting them as bundle evidence requires a multi-lane
+  pin extension of the replay contract and is a named residual, never a
+  silent cap bypass.
   Axes: `mathematical=formal-bounded`, `implementation=checker-derived`,
   `input_provenance=supplied`, `model_validity` = per receipt assumptions
   (`assumed` for the f64/model TCB), artifact `content_addressed=true`.
@@ -353,6 +362,10 @@ Never emits bare `VERIFIED`.
 ## 12. Residual non-claims (v1, verbatim in bundles)
 
 - no source-to-native refinement (`source-native-refined` never granted);
+- claim-bundle `formal-receipt` evidence replay is pinned to the range
+  lane: Gaussian and composed-integral (`int_cert`, v1.7.0) receipts are
+  independently verifiable via `jackal_verify_receipt` but not yet
+  admissible inside bundles;
 - no one-time replay prevention without an external nonce store;
 - no probability distributions, confidence levels, independence, or
   calibration inferred from intervals;

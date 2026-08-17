@@ -207,6 +207,18 @@ def _selftest() -> int:
                   **{**base, "theorem_id": "some_other_thm"})
     expect_refuse("request-not-bound", operator="add", requested="formal-bounded",
                   **{**base, "request_bound": False})
+    # v1.7 certified composed-integral lane: the plugin-tool row grants
+    # formal-bounded ONLY under its own theorem id; the weaker float
+    # integrate-bound lane can never inflate.
+    int_base = dict(checker_accepted=True, certificate_sha256="a" * 64,
+                    theorem_id="int_cert_sound", request_bound=True)
+    expect_ok(operator="jackal_integrate_bound_cert", requested="formal-bounded",
+              **int_base)
+    expect_refuse("theorem-id-mismatch", operator="jackal_integrate_bound_cert",
+                  requested="formal-bounded",
+                  **{**int_base, "theorem_id": "request_bound_certified_release"})
+    expect_refuse("not-in-formal-fragment", operator="integrate-bound",
+                  requested="formal-bounded", **int_base)
     # weaker lanes keep their class, never upgraded
     expect_ok(operator="eval", requested="estimated", **base)
     expect_refuse("status-mismatch", operator="eval", requested="exact", **base)

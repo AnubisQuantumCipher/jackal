@@ -66,6 +66,7 @@ from typing import Any, Iterable
 SCHEMA = "jackal-formal-receipt-v1"
 THEOREM_ID = "request_bound_certified_release"
 GAUSSIAN_THEOREM_ID = "gaussian_integral_check_sound"
+INT_CERT_THEOREM_ID = "int_cert_sound"
 
 
 def require_fresh_output(path: str | Path) -> Path:
@@ -159,7 +160,7 @@ NON_CLAIMS = [
     "The Anubis emitter faithfully producing the certificate for its computation is TESTED, not proven",
     "Source parsing correspondence to the shipped parser is differential-gated, not proven",
     "Source-to-native refinement (verified compilation of the Anubis lane) remains OPEN",
-    "bound_step release composition (adaptive integration) remains OPEN",
+    "bound_step composition is mechanized ONLY via the integrate-bound-cert certificate lane (int_cert_sound); the engine's float integrate-bound lane remains implementation-tested-not-mechanized",
     "SHA-256 identifies bytes; it does NOT authenticate an author",
     "The artifact is unsigned and has not received an independent external proof audit",
 ]
@@ -181,6 +182,32 @@ GAUSSIAN_NON_CLAIMS = [
     "The artifact is unsigned and has not received an independent external proof audit",
 ]
 
+INT_CERT_ASSUMPTIONS = [
+    "Composition theorem premise: TreeTCB tree = Cert.ModelTCB per embedded evaluation certificate (vacuous on the pure-rational fragment)",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_int_cert_check",
+    "Canonical exact-rational artifact codec (parseIntCert) compiled into jackal_int_cert_check",
+    "The pinned certificate producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+INT_CERT_NON_CLAIMS = [
+    "NOT universal correctness across all integrands or integration algorithms",
+    "Only the certified fragment num/var/neg/add/sub/mul/div/pow(0..4096)/sin/cos/abs in x is admitted; everything else FAILS CLOSED",
+    "The Python certificate producer is untrusted; formal release requires independent checker ACCEPT",
+    "Producer-vs-engine bound_step tree fidelity is differential-tested, not proven; certified derivative chains are Lean's D (no simplify_bound interleave)",
+    "The engine's own float integrate-bound lane remains bounded / implementation-tested-not-mechanized",
+    "Source-to-native refinement (verified compilation of the Anubis lane) remains OPEN",
+    "SHA-256 identifies bytes; it does NOT authenticate an author",
+    "The artifact is unsigned and has not received an independent external proof audit",
+]
+
+# Operators admissible inside jackal-int-cert artifacts (the certified
+# bound_step fragment); shared with receipt_verify.py.
+INT_CERT_ADMITTED_OPERATORS = frozenset({
+    "num", "var", "neg", "add", "sub", "mul", "div", "pow", "sin", "cos",
+    "abs",
+})
+
 # Variant identifiers ship inside the envelope so the verifier can dispatch
 # without inferring from the cert schema alone (every rational-fragment
 # variant uses `jackal-eval-cert v2`, same as the general range lane, so a
@@ -188,6 +215,7 @@ GAUSSIAN_NON_CLAIMS = [
 # identity shape and admitted-operator lock).
 RANGE_VARIANT = "range"
 GAUSSIAN_VARIANT = "gaussian"
+INT_CERT_VARIANT = "int_cert"
 SQRT_RAT_VARIANT = "sqrt_rat"
 EXP_RAT_VARIANT = "exp_rat"
 LN_RAT_VARIANT = "ln_rat"
@@ -200,7 +228,7 @@ RATIONAL_VARIANTS = {
     LN_RAT_VARIANT, SIN_RAT_VARIANT, COS_RAT_VARIANT, ATAN_RAT_VARIANT,
     TANH_RAT_VARIANT,
 }
-ALL_VARIANTS = {RANGE_VARIANT, GAUSSIAN_VARIANT} | RATIONAL_VARIANTS
+ALL_VARIANTS = {RANGE_VARIANT, GAUSSIAN_VARIANT, INT_CERT_VARIANT} | RATIONAL_VARIANTS
 
 # The exact tanh-defining expression admitted by the tanh_rat composite
 # variant.  tanh is not an engine grammar token.  The form 1-2/(exp(2x)+1)
@@ -552,6 +580,22 @@ def gaussian_request_commitment_b64(cmd: str, expr: str, lo: str, hi: str,
     return base64.b64encode(hashlib.sha256(framing).hexdigest().encode()).decode()
 
 
+def int_cert_request_commitment_b64(cmd: str, expr: str, lo: str, hi: str,
+                                    tolerance: str) -> str:
+    """Injective commitment for certified composed-integral requests.
+
+    Scheme `jackal-req-v3-int-cert`; byte-length framing identical to the
+    gaussian scheme.  The untrusted producer embeds this exact construction
+    as the artifact `source` field, so binder and verifier can bind the
+    certificate to the caller's request."""
+    def framed(part: str) -> bytes:
+        raw = part.encode("utf-8")
+        return str(len(raw)).encode() + b":" + raw
+    framing = (b"jackal-req-v3-int-cert\x00" + framed(cmd) + b"|" + framed(expr)
+               + b"|" + framed(lo) + b"|" + framed(hi) + b"|" + framed(tolerance))
+    return base64.b64encode(hashlib.sha256(framing).hexdigest().encode()).decode()
+
+
 def _operators_in_sexp(sexp: str) -> set[str]:
     """Recover the operator/leaf tags emitted by the engine's `ast_sexp`.
 
@@ -587,9 +631,11 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
         line = raw.strip()
         if not line:
             continue
-        if line.startswith("node ") or line == "end":
+        if line.startswith("node ") or line.startswith("tree ") \
+                or line.startswith("cert ") or line == "end":
             break
-        if line in {"jackal-eval-cert v2", "jackal-gaussian-integral-cert v1"}:
+        if line in {"jackal-eval-cert v2", "jackal-gaussian-integral-cert v1",
+                    "jackal-int-cert v1"}:
             hdr["schema"] = line
             continue
         parts = line.split(" ", 1)
@@ -741,6 +787,80 @@ def build_gaussian_formal_receipt(*, release_epoch: str, request: dict[str, str]
         "checker": {"verdict": "ACCEPT", "reverify_required": True},
         "assumptions": list(GAUSSIAN_ASSUMPTIONS),
         "non_claims": list(GAUSSIAN_NON_CLAIMS),
+    }
+    receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
+    return receipt
+
+
+def build_int_cert_formal_receipt(*, release_epoch: str, request: dict[str, str],
+                                  enclosure: tuple[str, str], cert_bytes: bytes,
+                                  producer_sha256: str, checker_sha256: str,
+                                  canonical_lo: str, canonical_hi: str,
+                                  canonical_tolerance: str,
+                                  request_commitment_b64: str,
+                                  coverage_inventory_sha256: str,
+                                  proof_identity: dict[str, Any],
+                                  plugin_sha256: str | None = None,
+                                  emitted_at_unix: int | None = None) -> dict[str, Any]:
+    """Assemble the certified composed-integral (`int_cert`) variant of
+    jackal-formal-receipt-v1 (v1.7 bound_step composition lane)."""
+    hdr = _parse_cert_header(cert_bytes)
+    sexp = hdr.get("expr", "")
+    expr_ops = _operators_in_sexp(sexp) if sexp else set()
+    receipt: dict[str, Any] = {
+        "schema": SCHEMA,
+        "variant": INT_CERT_VARIANT,
+        "release_epoch": release_epoch,
+        "emitted_at_unix": int(emitted_at_unix if emitted_at_unix is not None else time.time()),
+        "request": {
+            "command": request["command"],
+            "expression": request["expression"],
+            "input_lo": request["input_lo"],
+            "input_hi": request["input_hi"],
+            "tolerance": request["tolerance"],
+            "canonical_lo": canonical_lo,
+            "canonical_hi": canonical_hi,
+            "canonical_tolerance": canonical_tolerance,
+            "request_commitment_scheme": "jackal-req-v3-int-cert",
+            "request_commitment_b64": request_commitment_b64,
+        },
+        "result": {
+            "status": "formal-bounded",
+            "enclosure_lo": enclosure[0],
+            "enclosure_hi": enclosure[1],
+            "cert_status": "bounded",
+        },
+        "certificate": {
+            "schema": hdr.get("schema", ""),
+            "model_const_version": hdr.get("model", ""),
+            "sexp": sexp,
+            "bytes_b64": base64.b64encode(cert_bytes).decode("ascii"),
+            "sha256": sha256_hex(cert_bytes),
+        },
+        "identities": {
+            "evaluator_sha256": producer_sha256,
+            "producer_sha256": producer_sha256,
+            "checker_sha256": checker_sha256,
+            "plugin_sha256": plugin_sha256,
+            "source_anb_sha256": None,
+        },
+        "theorem": {
+            "id": INT_CERT_THEOREM_ID,
+            "lean_kernel_axioms": sorted(set(LEAN_KERNEL_AXIOMS)),
+        },
+        "proof_identity": proof_identity,
+        "fragment": {
+            "admitted_operators": sorted(INT_CERT_ADMITTED_OPERATORS),
+            "expression_operators": sorted(expr_ops),
+            "coverage_row_ids": ["jackal_integrate_bound_cert"],
+            "coverage_inventory_sha256": coverage_inventory_sha256,
+            "unsupported_refused": [
+                "every expression outside the certified bound_step fragment"
+            ],
+        },
+        "checker": {"verdict": "ACCEPT", "reverify_required": True},
+        "assumptions": list(INT_CERT_ASSUMPTIONS),
+        "non_claims": list(INT_CERT_NON_CLAIMS),
     }
     receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
     return receipt

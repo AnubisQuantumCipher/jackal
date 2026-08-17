@@ -1,5 +1,5 @@
 /-
-JackalIv/ShadowCertSound.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertSound.lean — public certified integrate-bound-cert lane (v1.7).
 
 Soundness of the v1.7 `bound_step` composition checker: an artifact the
 checker accepts encloses the exact integral of the (embedded) integrand over
@@ -18,7 +18,7 @@ Proof architecture (mission §6.3), reusing the existing stack verbatim:
     embedded certificate into a `Runs` derivation; `runs_encloses` yields
     `DefinedOn` + pointwise enclosure.
   * range leaves   — measurable + bounded ⇒ integrable, constant-bound
-    integral estimate (`ShadowMeasure`).
+    integral estimate (`IntCertMeasure`).
   * taylor leaves  — `Deriv.taylor2/4_enclosure_of_evaluable` with the exact
     real midpoint bound obtained by instantiating the midpoint certificate's
     `runs_encloses` at `(a+b)/2` (checked to lie inside its input interval).
@@ -32,10 +32,10 @@ casts; no float reasoning appears (design decision D3/D5, RESEARCH_SOURCES).
 
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
-import JackalIv.ShadowCertCheck
-import JackalIv.ShadowMeasure
+import JackalIv.IntCertCheck
+import JackalIv.IntCertMeasure
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv MeasureTheory Set
 
@@ -421,11 +421,11 @@ private theorem runs_of_embedded {hdr : IntHeader} {q : QExpr} {t : TreeNode}
 /-! ### The composition soundness theorem -/
 
 set_option maxHeartbeats 1600000 in
-/-- **`bound_step` composition soundness (SHADOW)** — an artifact accepted by
+/-- **`bound_step` composition soundness** — an artifact accepted by
 `checkIntCert` yields a genuine enclosure of the exact integral of the
 reconstructed integrand over the requested interval, under the named
-`TreeTCB`.  This mechanizes roadmap item (4)'s composition in
-non-authoritative shadow mode: every leaf premise flows through the existing
+`TreeTCB`.  This mechanizes roadmap item (4)'s composition for the public
+certified lane: every leaf premise flows through the existing
 `cert_check_sound` / `runs_encloses` / Taylor bridges, and subdivision
 composes by exact partition + interval addition. -/
 theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
@@ -670,7 +670,7 @@ theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
     exact ⟨hrootInv.1, le_trans hrel1 hrootInv.2.1,
       le_trans hrootInv.2.2 hrel2⟩
 
-/-! ### Axiom audit — the shadow flagship theorems -/
+/-! ### Axiom audit — the lane flagship theorems -/
 
 #print axioms int_cert_sound
 #print axioms range_leaf_sound
@@ -681,4 +681,4 @@ theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
 #print axioms embedQ_DQ
 #print axioms qexprOf_embed
 
-end JackalIv.Shadow
+end JackalIv.IntCert

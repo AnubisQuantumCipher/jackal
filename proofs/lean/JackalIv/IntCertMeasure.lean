@@ -1,5 +1,5 @@
 /-
-JackalIv/ShadowMeasure.lean — SHADOW (research-shadow, NON-AUTHORITATIVE).
+JackalIv/IntCertMeasure.lean — public certified integrate-bound-cert lane (v1.7).
 
 Measurability of the canonical semantics `sem e` for EVERY expression, plus
 bounded-integrability and constant-bound integral estimates.
@@ -19,7 +19,7 @@ No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
 import JackalIv.Syntax
 
-namespace JackalIv.Shadow
+namespace JackalIv.IntCert
 
 open JackalIv MeasureTheory Set
 
@@ -279,4 +279,4 @@ theorem integral_bounds_of_encloses {f : ℝ → ℝ} {a b lo hi : ℝ}
       hint intervalIntegrable_const (fun x hx => (henc x hx).2)
     simpa [intervalIntegral.integral_const, smul_eq_mul] using h
 
-end JackalIv.Shadow
+end JackalIv.IntCert

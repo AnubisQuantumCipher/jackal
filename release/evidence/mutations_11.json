@@ -1,6 +1,6 @@
 {
   "checker_sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
-  "evaluator_sha256": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
+  "evaluator_sha256": "20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083",
   "harness": "cert_mutations_11.py",
   "mutations": [
     {
@@ -229,12 +229,12 @@
       "description": "plugin bundle hash MUST equal pinned plugin_hermes value at startup",
       "gate": "M11-plugin-binary-replaced",
       "restore_hash_verified": true,
-      "source_hash_mutated": "d4960e95c430994413819261cbeaec7c644fdc55bfb9786eecf39c9a7dbe32e3",
-      "source_hash_post": "3f4648393df61dde21de40eb907b8781534f990be8a285e469ad239d6d1cbf0b",
-      "source_hash_pre": "3f4648393df61dde21de40eb907b8781534f990be8a285e469ad239d6d1cbf0b",
+      "source_hash_mutated": "842086209a56f53a87fee41527a457a7b532559997e651567dc6864c8fbd70c0",
+      "source_hash_post": "4d67ae76edee3f771ced809520ed6df873c77def8cf410eb79145d61af1009b8",
+      "source_hash_pre": "4d67ae76edee3f771ced809520ed6df873c77def8cf410eb79145d61af1009b8",
       "target_file": "plugin/hermes/server.py"
     }
   ],
-  "plugin_hermes_sha256": "6192beccdc71f207f2c7114bbdc70bdd9bc880ee2e2b6f629d0dc426514b3b7b",
+  "plugin_hermes_sha256": "d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9accc247a3274b",
   "release_epoch": "v1.3.0"
 }

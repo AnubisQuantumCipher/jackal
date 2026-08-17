@@ -65,7 +65,7 @@ A few outputs worth pausing on:
 
 ```text
 $ ./jackal rat "0.1 + 0.2"
-status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004
+status=exact parsed=0.1+0.2 exact=3/10 approx=0.3
 ```
 
 `exact=3/10` is the truth; `approx=` is what IEEE floating point makes of the

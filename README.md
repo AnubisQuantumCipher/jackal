@@ -412,7 +412,7 @@ which makes float error *visible*:
 
 ```bash
 ./jackal rat "0.1 + 0.2"
-# status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004
+# status=exact parsed=0.1+0.2 exact=3/10 approx=0.3
 
 ./jackal rat "123456789123456789/987654321987654321 + 1/3"
 # status=exact parsed=... exact=150891632/329218107 approx=0.4583333321942708

@@ -24,3 +24,11 @@ import JackalIv.Gaussian
 import JackalIv.GaussianIntegral
 import JackalIv.GaussianCert
 import JackalIv.Ledger
+-- v1.7 SHADOW lane (research-shadow, NON-AUTHORITATIVE): bound_step
+-- subdivision-tree composition. Additive; reachable from no release-lane
+-- root module (range/gaussian proof-identity closures are unaffected).
+import JackalIv.ShadowQExpr
+import JackalIv.ShadowCertTypes
+import JackalIv.ShadowCertCheck
+import JackalIv.ShadowMeasure
+import JackalIv.ShadowCertSound

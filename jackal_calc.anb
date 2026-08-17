@@ -2158,6 +2158,25 @@ fn rat_to_text(r) {
     return sign + big_to_text(r.num) + "/" + big_to_text(r.den);
 }
 
+// approx= is a RENDERING of the final normalized exact rational — never an
+// independently computed float path (issue #4: algebraically equivalent
+// unsimplified inputs took a different f64 evaluation route and could print
+// a decimal inconsistent with exact=).  Exact long division to >= 30
+// significant digits, then ONE correctly-rounded decimal->f64 parse; the
+// float64 range guard in the `rat` command keeps the fail-closed
+// "not-representable-in-float64" behavior, now decided from the exact value.
+fn rat_to_f64(r) {
+    if big_is_zero(r.num) { return 0.0; }
+    let s = 30 + len(big_to_text(r.den));
+    let scaled = big_divmod(big_mul(r.num, big_pow([10], s)), r.den);
+    let text = big_to_text(scaled.quotient) + "e-" + str(s);
+    if r.neg { text = "-" + text; }
+    match parse_float_opt(text) {
+        Some(v) => v,
+        None => panic("rat: internal approx rendering parse failed; fail closed"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // JACKAL PROOF-CARRYING CERTIFIED EVALUATOR (range-bound-cert).
 // An EXACT-RATIONAL interval evaluation over the expression tree that emits a
@@ -4629,7 +4648,10 @@ fn main() uses(io.print) {
         require_arity(argv, 2);
         let ast = parse_ast(argv[1]);
         let exact = rat_eval_ast(ast);
-        let approx = eval_ast(ast, {});
+        // approx= derives from the FINAL normalized exact rational (issue #4):
+        // algebraically equivalent inputs now print identical decimals by
+        // construction.  The honest independent-f64-evaluation lane is `eval`.
+        let approx = rat_to_f64(exact);
         let approx_text = "not-representable-in-float64";
         if approx == approx && approx <= 1.7976931348623157e308 && approx >= -1.7976931348623157e308 {
             approx_text = number_text(approx);

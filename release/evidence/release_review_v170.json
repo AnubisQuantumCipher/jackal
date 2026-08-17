@@ -1,0 +1,78 @@
+{
+  "baseline_commit": "80f0733d6dba89ec7e119f95c418f7827c8233d1",
+  "final_seal": {
+    "aggregate": "GATES: PASS (43 gates)",
+    "double_build": "byte-identical",
+    "final_package_sha256": "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e",
+    "package": "jackal-v1.7.0-macos-arm64.tar.gz",
+    "size_bytes": 118862060
+  },
+  "gates": {
+    "aggregate": "GATES: PASS (43 gates)",
+    "driver": "release/tools/run_gates_v170.py",
+    "highlights": {
+      "black-box-acceptance": "TOTAL 202/202 (includes issue #4 simplified-vs-unsimplified regression pair)",
+      "claim-hostile": "108 rows, 0 failures",
+      "claim-package-parity": "49/49 over the v1.7.0 package (double build byte-identical)",
+      "compat-floor": "COMPAT_FLOOR_PASS frozen_tools=31 live_tools=34 frozen_gates=32 errors=0",
+      "evidence-determinism": "EVIDENCE_DETERMINISM_PASS failures=0",
+      "int-cert-aba": "PASS: tolerance guard load-bearing (poison admitted under B, exe rebuilt); enclosure guard PROOF-load-bearing (B-strong does not compile); full-lib #guard twin fires under B; bytes restored hash-verified",
+      "int-cert-differential": "5/5 (mpmath 60-dps oracle inside engine AND producer enclosures)",
+      "int-cert-matrix": "31/31 (6 positive, 7 refusal, 18 semantic poisons) against the compiled checker",
+      "int-cert-release": "0 failures (wrapper end-to-end, receipt reverify, tamper refusals, oracle containment)",
+      "mutations-11": "11/11 (needles unique after int_cert _ic_refuse alias)",
+      "parser-differential": "checked=78 failures=0",
+      "proof-identity-int-cert": "PASS identity 01d0641e94ce53feb62a5b9667777fe6c526318491f4f3ea157e84d3e90b953e"
+    }
+  },
+  "identities": {
+    "checker_sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
+    "compiler_pin": "anubis-a733565f237d",
+    "coverage_inventory_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+    "evaluator_sha256": "20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083",
+    "gaussian_checker_sha256": "ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb",
+    "int_cert_checker_sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49",
+    "int_cert_producer_sha256": "b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4",
+    "package_bytes": 118862060,
+    "package_sha256": "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e",
+    "plugin_hermes_bundle": "d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9accc247a3274b",
+    "source_anb_sha256": "638d28dc9811bb9359af27a1bcc5427717cdf894902011fbb230dc18bac63776"
+  },
+  "notable_reconciliations": [
+    "range and gaussian checker binaries reproduced byte-identical after the lakefile edit (05c3518b\u2026, ccac690b\u2026) \u2014 the only new binary is jackal_int_cert_check",
+    "baseline rebuild of the UNMODIFIED engine source reproduced the v1.6.0 evaluator 8617ad08\u2026 byte-identically before applying the issue #4 fix (instrument validated)",
+    "gaussian evidence re-frozen for the new inventory identity (gaussian_formal_v170.json; v150/v130 preserved as history)",
+    "frozen v1.6.0 claim admission fixture replays green offline (registry byte-identical, pin e7c999c3\u2026)"
+  ],
+  "predecessor": "release_review_v160.json",
+  "residuals_non_claims": [
+    "no universal soundness outside admitted fragments",
+    "no source-to-native formal refinement claim (roadmap item 5 remains OPEN)",
+    "no end-to-end formally verified executable claim",
+    "int-cert producer fidelity to the shipped engine bound_step is differential-tested, not proved; certified derivative chains are Lean's D (no simplify_bound interleave)",
+    "the engine's float integrate-bound lane remains bounded / implementation-tested-not-mechanized",
+    "claim-bundle formal-receipt evidence replay remains pinned to the range lane; gaussian and int_cert receipts verify directly via jackal_verify_receipt, not yet inside bundles",
+    "rat approx= is a presentation rendering of the exact rational (issue #4 fixed); it is not a correctly-rounded-proof claim",
+    "SHA-256 identifies bytes; it does not authenticate an author"
+  ],
+  "review_epoch": "v1.7.0",
+  "reviewed_at": "2026-08-17",
+  "reviewer": "current-tree release audit (v1.7.0 completion wave)",
+  "schema": "jackal-release-review-v1",
+  "scope": [
+    "certified bound_step composition lane (integrate-bound-cert): Lean stack, compiled checker, producer, release binder, wrapper, receipt variant, plugin tool #34",
+    "rat approx= presentation fix (issue #4): approx derives from the final normalized exact rational",
+    "identity re-pins: evaluator/source (engine fix), range+gaussian+int-cert proof identities (lakefile), coverage inventory, plugin bundle",
+    "documentation + migration surfaces (README, GETTING-STARTED, plugin README, MIGRATION-v1.7.0, SPEC lane-boundary notes)"
+  ],
+  "tool_inventory": {
+    "claim_front_doors": 2,
+    "count": 34,
+    "formal_lanes": 11,
+    "new_v170": [
+      "jackal_integrate_bound_cert"
+    ],
+    "weaker_lanes": 21
+  },
+  "verdict": "APPROVE"
+}

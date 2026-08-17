@@ -23,36 +23,39 @@ jobs:
           lake-package-directory: proofs/lean
           auto-config: false
           build: true
-          build-args: jackal_gaussian_check jackal_cert_check
+          build-args: jackal_gaussian_check jackal_cert_check jackal_int_cert_check
           test: false
 
       - name: Verify proof identities and exact theorem axiom sets
         run: |
           python3 release/tools/gaussian_proof_identity.py check --lane gaussian --proof-only
           python3 release/tools/gaussian_proof_identity.py check --lane range --proof-only
+          python3 release/tools/gaussian_proof_identity.py check --lane int-cert --proof-only
 
       # The committed checker hashes are for the recorded macOS/arm64 builds.
       # A release seal must additionally run the full, platform-matching gate:
       # python3 release/tools/gaussian_proof_identity.py check --lane gaussian
       # python3 release/tools/gaussian_proof_identity.py check --lane range
+      # python3 release/tools/gaussian_proof_identity.py check --lane int-cert
 
   claim-kernel-admission:
-    name: v1.6.0 claim-kernel admission and surface locks (engine-free)
+    name: claim-kernel admission and surface locks (engine-free)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Mechanical 33-tool inventory lock
+      - name: Mechanical 34-tool inventory lock
         run: |
           python3 - <<'PY'
           import json
           tools = json.load(open("plugin/hermes/tools.json"))["tools"]
           names = sorted(t["name"] for t in tools)
-          assert len(names) == 33, f"expected 33 tools, found {len(names)}"
+          assert len(names) == 34, f"expected 34 tools, found {len(names)}"
           assert "jackal_claim" in names and "jackal_verify_bundle" in names
-          print(f"33-tool inventory locked: {len(names)} tools")
+          assert "jackal_integrate_bound_cert" in names
+          print(f"34-tool inventory locked: {len(names)} tools")
           PY
 
       - name: v1.5.0 compatibility floor (additive-only surface lock)
@@ -64,5 +67,5 @@ jobs:
       # Scope: this job replays the committed exact-lane claim fixture
       # through the dependency-free verifier with caller-supplied pins and
       # proves one semantic tamper refuses.  It does NOT run the macOS-only
-      # engine, the Lean-checked formal lanes, or the full 38-gate local
+      # engine, the Lean-checked formal lanes, or the full 43-gate local
       # aggregate — those are sealed locally and recorded in PROVENANCE.md.

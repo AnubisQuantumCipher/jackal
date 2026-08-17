@@ -116,9 +116,9 @@
       "ok": true
     },
     {
-      "expect": "bundle.digest=e7fc3ce8f7f76adb",
+      "expect": "bundle.digest=8f0a2cd589593782",
       "id": "S-canonical-roundtrip",
-      "observed": "claim-verify=verified bundle.digest=e7fc3ce8f7f76adbe8852293a8e5af58cb309179b8317c9eee6484f514b02a33 root=f46e24dbd70ad7434f7c4048fb0ac01c239b068c3769915ca785e1",
+      "observed": "claim-verify=verified bundle.digest=8f0a2cd5895937823d2d463f24a00ee4c6eb746b0750b2a36a3ce4e53688ee4c root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
       "ok": true
     },
     {
@@ -646,7 +646,7 @@
     {
       "expect": "rendering with conditions",
       "id": "R-pos-conditions-present",
-      "observed": "claim-verify=verified bundle.digest=e7fc3ce8f7f76adbe8852293a8e5af58cb309179b8317c9eee6484f514b02a33 root=f46e24dbd70ad7434f7c4048fb0ac01c239b068c3769915ca785e1",
+      "observed": "claim-verify=verified bundle.digest=8f0a2cd5895937823d2d463f24a00ee4c6eb746b0750b2a36a3ce4e53688ee4c root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
       "ok": true
     }
   ],

@@ -71,9 +71,11 @@ from typing import Any
 if "formal_receipt" not in sys.modules:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 from formal_receipt import (  # noqa: E402
-    SCHEMA, THEOREM_ID, GAUSSIAN_THEOREM_ID, LEAN_KERNEL_AXIOMS,
+    SCHEMA, THEOREM_ID, GAUSSIAN_THEOREM_ID, INT_CERT_THEOREM_ID,
+    LEAN_KERNEL_AXIOMS,
     MODEL_ASSUMPTIONS, NON_CLAIMS, GAUSSIAN_ASSUMPTIONS,
-    GAUSSIAN_NON_CLAIMS,
+    GAUSSIAN_NON_CLAIMS, INT_CERT_ASSUMPTIONS, INT_CERT_NON_CLAIMS,
+    INT_CERT_ADMITTED_OPERATORS, INT_CERT_VARIANT,
     RANGE_VARIANT, GAUSSIAN_VARIANT, SQRT_RAT_VARIANT, EXP_RAT_VARIANT,
     LN_RAT_VARIANT, SIN_RAT_VARIANT, COS_RAT_VARIANT, ATAN_RAT_VARIANT,
     TANH_RAT_VARIANT,
@@ -89,6 +91,7 @@ from formal_receipt import (  # noqa: E402
     canonical_rat as _shared_canonical_rat,
     request_commitment_b64 as _shared_request_commitment_b64,
     gaussian_request_commitment_b64 as _shared_gaussian_request_commitment_b64,
+    int_cert_request_commitment_b64 as _shared_int_cert_request_commitment_b64,
     receipt_variant,
 )
 
@@ -96,7 +99,10 @@ from formal_receipt import (  # noqa: E402
 MODEL_CONST = "jackal-iv-model-v1"
 CERT_SCHEMA = "jackal-eval-cert v2"
 GAUSSIAN_CERT_SCHEMA = "jackal-gaussian-integral-cert v1"
+INT_CERT_CERT_SCHEMA = "jackal-int-cert v1"
+INT_CERT_CHECKER_PIN = "jackal-iv-bound-step-v1"
 MAX_CERTIFICATE_BYTES = 1 << 20
+MAX_INT_CERT_BYTES = 8 << 20
 MAX_HEADER_FIELD_BYTES = 1 << 16
 
 
@@ -304,9 +310,10 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
     for line in text.split("\n"):
         if not line:
             continue
-        if line.startswith("node ") or line == "end":
+        if line.startswith("node ") or line.startswith("tree ") \
+                or line.startswith("cert ") or line == "end":
             break
-        if line in {CERT_SCHEMA, GAUSSIAN_CERT_SCHEMA}:
+        if line in {CERT_SCHEMA, GAUSSIAN_CERT_SCHEMA, INT_CERT_CERT_SCHEMA}:
             if "schema" in hdr:
                 raise ReceiptRefusal("cert-header-duplicate", "schema")
             hdr["schema"] = line
@@ -374,6 +381,21 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     if not isinstance(cert, dict):
         raise ReceiptRefusal("certificate-schema", "not an object")
     cert_schema = cert.get("schema")
+    if cert_schema == INT_CERT_CERT_SCHEMA or variant == INT_CERT_VARIANT:
+        return _verify_int_cert_receipt(
+            receipt=receipt, checker=checker,
+            expected_evaluator=expected_evaluator,
+            expected_checker=expected_checker,
+            inventory_path=inventory_path,
+            expected_inventory_sha256=expected_inventory_sha256,
+            proof_identity_path=proof_identity_path,
+            expected_proof_identity_file=expected_proof_identity_file,
+            expected_proof_identity_digest=expected_proof_identity_digest,
+            expected_plugin=expected_plugin,
+            expected_source=expected_source,
+            expected_release_epoch=expected_release_epoch,
+            expected_request=expected_request,
+        )
     if cert_schema not in {CERT_SCHEMA, GAUSSIAN_CERT_SCHEMA}:
         raise ReceiptRefusal("cert-schema", str(cert_schema))
     is_gaussian = cert_schema == GAUSSIAN_CERT_SCHEMA
@@ -948,6 +970,446 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     }
 
 
+def _ic_refuse(cls: str, detail: str = "") -> ReceiptRefusal:
+    """Constructor alias for the int_cert lane's refusals.
+
+    The v1.5.0 mutation gate (tests/cert_mutations_11.py) disables the MAIN
+    range/gaussian pipeline's guard lines by unique source needles of the
+    form `raise ReceiptRefusal("<class>"...)`.  The int_cert lane reuses the
+    same stable class strings, so its raises go through this alias to keep
+    every needle unique to the guard the gate targets.  The int_cert lane's
+    own guards are load-bearing-tested by tests/int_cert_release_test.py,
+    tests/int_cert_matrix_test.py, and plugin smoke S21.
+    """
+    return ReceiptRefusal(cls, detail)
+
+
+def _verify_int_cert_receipt(*, receipt: dict, checker: str,
+                             expected_evaluator: str, expected_checker: str,
+                             inventory_path: Path | None,
+                             expected_inventory_sha256: str | None,
+                             proof_identity_path: Path | None,
+                             expected_proof_identity_file: str | None,
+                             expected_proof_identity_digest: str | None,
+                             expected_plugin: str | None,
+                             expected_source: str | None,
+                             expected_release_epoch: str | None,
+                             expected_request: dict[str, str] | None) -> dict:
+    """R1..R11 pipeline for the certified composed-integral (int_cert) lane.
+
+    Mirrors the gaussian discipline: producer-based lane (no jackal-native
+    on the proof path), tolerance-bearing request, single-argument checker
+    whose ACCEPT line echoes the authoritative `output <lo> <hi>`.
+    """
+    variant = receipt_variant(receipt)
+    if variant != INT_CERT_VARIANT:
+        raise _ic_refuse("variant-cert-schema",
+                             f"variant {variant!r} incompatible with cert schema "
+                             f"{INT_CERT_CERT_SCHEMA!r}")
+    cert = receipt.get("certificate", {})
+    if not isinstance(cert, dict):
+        raise _ic_refuse("certificate-schema", "not an object")
+    if cert.get("schema") != INT_CERT_CERT_SCHEMA:
+        raise _ic_refuse("cert-schema", str(cert.get("schema")))
+    expected_cert_keys = {"schema", "model_const_version", "sexp", "bytes_b64", "sha256"}
+    if set(cert) != expected_cert_keys:
+        raise _ic_refuse(
+            "certificate-schema", str(sorted(set(cert) ^ expected_cert_keys))
+        )
+    if cert.get("model_const_version") != MODEL_CONST:
+        raise _ic_refuse("model-const-version", str(cert.get("model_const_version")))
+    thm = receipt.get("theorem", {})
+    if not isinstance(thm, dict) or set(thm) != {"id", "lean_kernel_axioms"}:
+        keys = sorted(thm) if isinstance(thm, dict) else type(thm).__name__
+        raise _ic_refuse("theorem-schema", str(keys))
+    if thm.get("id") != INT_CERT_THEOREM_ID:
+        raise _ic_refuse("theorem-id", str(thm.get("id")))
+    lka = sorted(set(thm.get("lean_kernel_axioms") or []))
+    if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
+        raise _ic_refuse("theorem-axioms", str(lka))
+    if receipt.get("assumptions") != INT_CERT_ASSUMPTIONS:
+        raise _ic_refuse("receipt-assumptions", "mandatory assumptions changed")
+    if receipt.get("non_claims") != INT_CERT_NON_CLAIMS:
+        raise _ic_refuse("receipt-non-claims", "mandatory non-claims changed")
+    if receipt.get("checker") != {"verdict": "ACCEPT", "reverify_required": True}:
+        raise _ic_refuse("receipt-checker-policy", str(receipt.get("checker")))
+
+    req = receipt.get("request", {})
+    if not isinstance(req, dict):
+        raise _ic_refuse("request-schema", "not an object")
+    required_request = ["command", "expression", "input_lo", "input_hi",
+                        "canonical_lo", "canonical_hi", "request_commitment_b64",
+                        "tolerance", "canonical_tolerance",
+                        "request_commitment_scheme"]
+    if set(req) != set(required_request):
+        raise _ic_refuse("request-schema", str(sorted(set(req) ^ set(required_request))))
+    for key in required_request:
+        if not isinstance(req.get(key), str) or not req[key]:
+            raise _ic_refuse("request-field-missing", key)
+    if not isinstance(expected_request, dict):
+        raise _ic_refuse("expected-context-missing", "request")
+    expected_keys = {"command", "expression", "input_lo", "input_hi", "tolerance"}
+    if set(expected_request) != expected_keys:
+        raise _ic_refuse(
+            "expected-request-schema",
+            str(sorted(set(expected_request) ^ expected_keys)),
+        )
+    for key in sorted(expected_keys):
+        if not isinstance(expected_request.get(key), str):
+            raise _ic_refuse("expected-request-field", key)
+        if req[key] != expected_request[key]:
+            raise _ic_refuse("expected-request-mismatch", f"key {key}")
+    if req["command"] != "integrate-bound-cert":
+        raise _ic_refuse("request-command", req["command"])
+
+    # R3 — canonical rationals recomputed
+    if _canonical_rat(req["input_lo"]) != req["canonical_lo"]:
+        raise _ic_refuse("request-canonical-lo",
+                             f"{_canonical_rat(req['input_lo'])} != {req['canonical_lo']}")
+    if _canonical_rat(req["input_hi"]) != req["canonical_hi"]:
+        raise _ic_refuse("request-canonical-hi",
+                             f"{_canonical_rat(req['input_hi'])} != {req['canonical_hi']}")
+    if _canonical_rat(req["tolerance"]) != req["canonical_tolerance"]:
+        raise _ic_refuse("request-canonical-tolerance",
+                             f"{_canonical_rat(req['tolerance'])} != {req['canonical_tolerance']}")
+    if Fraction(req["canonical_lo"]) >= Fraction(req["canonical_hi"]):
+        raise _ic_refuse("request-domain", "int-cert lower must be below upper")
+    if Fraction(req["canonical_tolerance"]) <= 0:
+        raise _ic_refuse("request-tolerance", "must be positive")
+
+    # R2 — recomputed request commitment binds envelope AND certificate
+    if req["request_commitment_scheme"] != "jackal-req-v3-int-cert":
+        raise _ic_refuse("request-commitment-scheme", req["request_commitment_scheme"])
+    recomputed = _shared_int_cert_request_commitment_b64(
+        req["command"], req["expression"], req["canonical_lo"],
+        req["canonical_hi"], req["canonical_tolerance"])
+    if recomputed != req["request_commitment_b64"]:
+        raise _ic_refuse("request-commitment-outer",
+                             f"recomputed {recomputed} != receipt {req['request_commitment_b64']}")
+
+    # R4 — certificate bytes SHA-256 and size caps
+    try:
+        cert_bytes = base64.b64decode(cert["bytes_b64"].encode("ascii"), validate=True)
+    except Exception as e:  # noqa: BLE001
+        raise _ic_refuse("cert-bytes-encoding", str(e)) from e
+    if not cert_bytes or len(cert_bytes) > MAX_INT_CERT_BYTES:
+        raise _ic_refuse(
+            "cert-size", f"{len(cert_bytes)} bytes (limit {MAX_INT_CERT_BYTES})"
+        )
+    if any(len(line) > MAX_HEADER_FIELD_BYTES for line in cert_bytes.splitlines()):
+        raise _ic_refuse("cert-field-size", f"line exceeds {MAX_HEADER_FIELD_BYTES} bytes")
+    computed = sha256_hex(cert_bytes)
+    if computed != cert.get("sha256"):
+        raise _ic_refuse("cert-sha256",
+                             f"recomputed {computed} != receipt {cert.get('sha256')}")
+
+    hdr = _parse_cert_header(cert_bytes)
+    if hdr.get("schema") != INT_CERT_CERT_SCHEMA:
+        raise _ic_refuse("cert-schema-bytes", str(hdr.get("schema")))
+    if hdr.get("model") != MODEL_CONST:
+        raise _ic_refuse("cert-model-bytes", str(hdr.get("model")))
+    if hdr.get("checker") != INT_CERT_CHECKER_PIN:
+        raise _ic_refuse("cert-checker-bytes", str(hdr.get("checker")))
+    if hdr.get("status") != "bounded":
+        raise _ic_refuse("cert-status-bytes", str(hdr.get("status")))
+    if hdr.get("source") != recomputed:
+        raise _ic_refuse("request-commitment-cert",
+                             f"cert source {hdr.get('source')} != recomputed {recomputed}")
+    if hdr.get("expr") != cert.get("sexp"):
+        raise _ic_refuse("cert-sexpression", "receipt copy differs from certificate")
+    expected_req_line = (f"{req['canonical_lo']} {req['canonical_hi']} "
+                         f"{req['canonical_tolerance']}")
+    if hdr.get("request") != expected_req_line:
+        raise _ic_refuse(
+            "request-vs-int-cert",
+            f"request: {hdr.get('request')!r} != {expected_req_line!r}",
+        )
+
+    # R5 — identities (producer-based lane: evaluator == producer)
+    ids = receipt.get("identities", {})
+    if not isinstance(ids, dict):
+        raise _ic_refuse("identity-schema", "not an object")
+    required_identity_keys = {
+        "evaluator_sha256", "producer_sha256", "checker_sha256",
+        "plugin_sha256", "source_anb_sha256",
+    }
+    if set(ids) != required_identity_keys:
+        raise _ic_refuse(
+            "identity-schema", str(sorted(set(ids) ^ required_identity_keys))
+        )
+    for label, expected, present in (
+        ("evaluator", expected_evaluator, ids.get("evaluator_sha256")),
+        ("checker",   expected_checker,   ids.get("checker_sha256")),
+    ):
+        if not _valid_hex(expected or ""):
+            raise _ic_refuse(f"expected-{label}-malformed", str(expected))
+        if present != expected:
+            raise _ic_refuse(f"{label}-identity", f"receipt {present} != expected {expected}")
+    if ids.get("producer_sha256") != expected_evaluator:
+        raise _ic_refuse(
+            "producer-identity",
+            f"receipt {ids.get('producer_sha256')} != expected {expected_evaluator}",
+        )
+    if ids.get("source_anb_sha256") is not None:
+        raise _ic_refuse("variant-source-identity",
+                             str(ids.get("source_anb_sha256")))
+    if expected_source is not None:
+        raise _ic_refuse("expected-source-unexpected", expected_source)
+    if hdr.get("producer") != ids.get("producer_sha256"):
+        raise _ic_refuse(
+            "producer-vs-certificate",
+            f"cert {hdr.get('producer')} != receipt {ids.get('producer_sha256')}",
+        )
+    if expected_plugin is not None:
+        if not _valid_hex(expected_plugin):
+            raise _ic_refuse("expected-plugin-malformed", expected_plugin)
+        if ids.get("plugin_sha256") != expected_plugin:
+            raise _ic_refuse("plugin-identity", f"receipt {ids.get('plugin_sha256')} != expected {expected_plugin}")
+    elif ids.get("plugin_sha256") is not None:
+        raise _ic_refuse("expected-plugin-missing", "receipt is plugin-bound")
+
+    # Proof identity binding
+    if receipt.get("schema") != SCHEMA:
+        raise _ic_refuse("receipt-schema", str(receipt.get("schema")))
+    if not isinstance(expected_release_epoch, str) or not expected_release_epoch:
+        raise _ic_refuse("expected-context-missing", "release_epoch")
+    if receipt.get("release_epoch") != expected_release_epoch:
+        raise _ic_refuse(
+            "release-epoch",
+            f"receipt {receipt.get('release_epoch')!r} != expected {expected_release_epoch!r}",
+        )
+    if type(receipt.get("emitted_at_unix")) is not int or receipt["emitted_at_unix"] < 0:
+        raise _ic_refuse("receipt-emitted-at", str(receipt.get("emitted_at_unix")))
+    proof_binding = receipt.get("proof_identity")
+    if not isinstance(proof_binding, dict) or set(proof_binding) != \
+            PROOF_IDENTITY_BINDING_KEYS:
+        raise _ic_refuse("proof-identity-schema", "missing/extra binding fields")
+    if proof_identity_path is None:
+        raise _ic_refuse("proof-identity-required", "")
+    try:
+        observed_proof = load_proof_identity_binding(proof_identity_path)
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise _ic_refuse("proof-identity-unreadable", str(exc)) from exc
+    if proof_binding != observed_proof:
+        raise _ic_refuse("proof-identity-mismatch", "receipt != caller-supplied record")
+    if not _valid_hex(expected_proof_identity_file or ""):
+        raise _ic_refuse(
+            "expected-proof-file-malformed", str(expected_proof_identity_file)
+        )
+    if not _valid_hex(expected_proof_identity_digest or ""):
+        raise _ic_refuse(
+            "expected-proof-digest-malformed", str(expected_proof_identity_digest)
+        )
+    if proof_binding["file_sha256"] != expected_proof_identity_file:
+        raise _ic_refuse(
+            "proof-identity-file",
+            f"record {proof_binding['file_sha256']} != expected {expected_proof_identity_file}",
+        )
+    if proof_binding["identity_digest_sha256"] != expected_proof_identity_digest:
+        raise _ic_refuse(
+            "proof-identity-digest",
+            f"record {proof_binding['identity_digest_sha256']} != expected "
+            f"{expected_proof_identity_digest}",
+        )
+    if proof_binding["schema"] != "jackal-int-cert-proof-identity-v1":
+        raise _ic_refuse("proof-identity-lane", proof_binding["schema"])
+    if proof_binding["soundness_theorem"] != "JackalIv.IntCert.int_cert_sound":
+        raise _ic_refuse("proof-identity-theorem", proof_binding["soundness_theorem"])
+    if proof_binding["checker_sha256"] != expected_checker:
+        raise _ic_refuse("proof-identity-checker", proof_binding["checker_sha256"])
+    if proof_binding["authenticated"] is not False:
+        raise _ic_refuse("proof-identity-authentication", "must state false")
+
+    # R6 — checker executable identity
+    chk_real = _resolve_executable(checker)
+    chk_pre = _sha256_file(chk_real)
+    if chk_pre != ids.get("checker_sha256"):
+        raise _ic_refuse("checker-binary-mismatch", f"file {chk_pre} != receipt {ids.get('checker_sha256')}")
+
+    # R8 — outer digest
+    recomputed_digest = recompute_receipt_digest(receipt)
+    if recomputed_digest != receipt.get("receipt_digest_sha256"):
+        raise _ic_refuse("receipt-digest", f"recomputed {recomputed_digest} != receipt {receipt.get('receipt_digest_sha256')}")
+
+    # R7 — RE-RUN the proved checker on the exact rehydrated bytes.
+    accept_prefix = (
+        b"ACCEPT status=bounded theorem=int_cert_sound "
+        b"checker=jackal-iv-bound-step-v1 output "
+    )
+    with tempfile.TemporaryDirectory(prefix="jackal-int-cert-verify-") as td:
+        cert_path = os.path.join(td, "rehydrated.jic")
+        fd = os.open(cert_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, cert_bytes)
+        finally:
+            os.close(fd)
+        try:
+            cproc = subprocess.run(
+                [chk_real, cert_path], capture_output=True, text=False, timeout=3600
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise _ic_refuse("checker-timeout", str(exc)) from exc
+        except OSError as exc:
+            raise _ic_refuse("checker-exec-failed", str(exc)) from exc
+        stdout_bytes = cproc.stdout
+        if cproc.returncode != 0 or not stdout_bytes.startswith(accept_prefix) \
+                or not stdout_bytes.endswith(b"\n"):
+            raise _ic_refuse(
+                "checker-rejected-on-rerun",
+                (cproc.stderr or stdout_bytes)[:200].decode("utf-8", errors="replace"),
+            )
+        tail = stdout_bytes[len(accept_prefix):-1]
+        try:
+            lo_bytes, hi_bytes = tail.split(b" ", 1)
+            if b" " in hi_bytes:
+                raise ValueError("extra tokens after checker output_hi")
+            checker_output_lo = lo_bytes.decode("ascii")
+            checker_output_hi = hi_bytes.decode("ascii")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise _ic_refuse("checker-accept-malformed", str(exc)) from exc
+        chk_post = _sha256_file(chk_real)
+        if chk_post != chk_pre:
+            raise _ic_refuse("checker-toctou", "checker binary changed during rerun")
+
+    # R9 — coverage inventory, digest-bound
+    if inventory_path is None:
+        raise _ic_refuse("coverage-inventory-required", "")
+    inv_path = Path(inventory_path)
+    try:
+        inv_bytes = inv_path.read_bytes()
+        doc = _strict_json_bytes(inv_bytes)
+    except Exception as exc:  # noqa: BLE001
+        raise _ic_refuse("coverage-inventory-unreadable", str(exc)) from exc
+    if not isinstance(doc, dict) or set(doc) != {
+        "schema", "formal_fragment", "refused_from_formal", "rows"
+    }:
+        keys = sorted(doc) if isinstance(doc, dict) else type(doc).__name__
+        raise _ic_refuse("coverage-inventory-fields", str(keys))
+    if doc.get("schema") != "jackal-coverage-inventory-v1":
+        raise _ic_refuse("coverage-inventory-schema", str(doc.get("schema")))
+    row_list = doc.get("rows")
+    if not isinstance(row_list, list) or not row_list:
+        raise _ic_refuse("coverage-inventory-rows", "empty/malformed")
+    rows: dict[str, dict] = {}
+    for row in row_list:
+        key = row.get("operator") if isinstance(row, dict) else None
+        if not isinstance(key, str) or not key or key in rows:
+            raise _ic_refuse("coverage-inventory-duplicate", str(key))
+        rows[key] = row
+    inventory_sha = hashlib.sha256(inv_bytes).hexdigest()
+    if not _valid_hex(expected_inventory_sha256 or ""):
+        raise _ic_refuse(
+            "expected-inventory-malformed", str(expected_inventory_sha256)
+        )
+    if inventory_sha != expected_inventory_sha256:
+        raise _ic_refuse(
+            "coverage-inventory-expected",
+            f"observed {inventory_sha} != expected {expected_inventory_sha256}",
+        )
+    frag = receipt.get("fragment", {})
+    if not isinstance(frag, dict):
+        raise _ic_refuse("fragment-schema", "not an object")
+    required_fragment_keys = {
+        "admitted_operators", "expression_operators", "coverage_row_ids",
+        "coverage_inventory_sha256", "unsupported_refused",
+    }
+    if set(frag) != required_fragment_keys:
+        raise _ic_refuse(
+            "fragment-schema", str(sorted(set(frag) ^ required_fragment_keys))
+        )
+    if frag.get("coverage_inventory_sha256") != inventory_sha:
+        raise _ic_refuse(
+            "coverage-inventory-identity",
+            f"receipt {frag.get('coverage_inventory_sha256')} != observed {inventory_sha}",
+        )
+    admitted = set(frag.get("admitted_operators") or [])
+    expr_ops = set(frag.get("expression_operators") or [])
+    if not expr_ops:
+        raise _ic_refuse("no-expression-operators", "")
+    rederived = _operators_in_sexp(hdr.get("expr", ""))
+    if rederived != expr_ops:
+        raise _ic_refuse("operators-vs-certificate", f"receipt {sorted(expr_ops)} != cert-derived {sorted(rederived)}")
+    if admitted != set(INT_CERT_ADMITTED_OPERATORS):
+        raise _ic_refuse(
+            "fragment-admitted",
+            f"receipt {sorted(admitted)} != lane {sorted(INT_CERT_ADMITTED_OPERATORS)}"
+        )
+    if frag.get("coverage_row_ids") != ["jackal_integrate_bound_cert"]:
+        raise _ic_refuse("coverage-row-set", str(frag.get("coverage_row_ids")))
+    if frag.get("unsupported_refused") != [
+        "every expression outside the certified bound_step fragment"
+    ]:
+        raise _ic_refuse("fragment-refusal-set", str(frag.get("unsupported_refused")))
+    stray = sorted(expr_ops - admitted)
+    if stray:
+        raise _ic_refuse("operator-outside-fragment", str(stray))
+    lane_row = rows.get("jackal_integrate_bound_cert")
+    if lane_row is None:
+        raise _ic_refuse("coverage-row-missing", "jackal_integrate_bound_cert")
+    if lane_row.get("verdict") != "FORMAL":
+        raise _ic_refuse("coverage-row-not-formal", "jackal_integrate_bound_cert")
+    if lane_row.get("soundness_theorem") != INT_CERT_THEOREM_ID:
+        raise _ic_refuse("coverage-row-theorem-mismatch",
+                             f"jackal_integrate_bound_cert:{lane_row.get('soundness_theorem')}")
+    # Every operator this artifact touches must still be FORMAL in the
+    # underlying per-operator inventory (mask-proofing, same rule as the
+    # rational variants).
+    for op_name in sorted(expr_ops):
+        op_row = rows.get(op_name)
+        if op_row is None or op_row.get("verdict") != "FORMAL":
+            raise _ic_refuse(
+                "variant-operator-row",
+                f"{op_name} operator row must be FORMAL for int_cert lane")
+
+    # Result status
+    res = receipt.get("result", {})
+    if not isinstance(res, dict):
+        raise _ic_refuse("result-schema", "not an object")
+    required_result_keys = {"status", "enclosure_lo", "enclosure_hi", "cert_status"}
+    if set(res) != required_result_keys:
+        raise _ic_refuse("result-schema", str(sorted(set(res) ^ required_result_keys)))
+    if res.get("status") != "formal-bounded":
+        raise _ic_refuse("result-status", str(res.get("status")))
+    if res.get("cert_status") != "bounded":
+        raise _ic_refuse("result-cert-status", str(res.get("cert_status")))
+    if not isinstance(res.get("enclosure_lo"), str) or not isinstance(res.get("enclosure_hi"), str):
+        raise _ic_refuse("result-enclosure-format", "")
+    canonical_result_lo = _canonical_rat(res["enclosure_lo"])
+    canonical_result_hi = _canonical_rat(res["enclosure_hi"])
+    if canonical_result_lo != res["enclosure_lo"]:
+        raise _ic_refuse("result-enclosure-canonical", "lower")
+    if canonical_result_hi != res["enclosure_hi"]:
+        raise _ic_refuse("result-enclosure-canonical", "upper")
+    if Fraction(canonical_result_lo) > Fraction(canonical_result_hi):
+        raise _ic_refuse("result-enclosure-order", "lower exceeds upper")
+    # Checker echo is the load-bearing enclosure; header re-parse must agree.
+    hdr_out = hdr.get("output", "")
+    h_parts = hdr_out.split(" ", 1) if hdr_out else []
+    if len(h_parts) != 2 or _canonical_rat(h_parts[0]) != _canonical_rat(checker_output_lo) \
+            or _canonical_rat(h_parts[1]) != _canonical_rat(checker_output_hi):
+        raise _ic_refuse("checker-echo-header-divergence",
+                             f"header {hdr_out!r} != checker echo {checker_output_lo} {checker_output_hi}")
+    if _canonical_rat(checker_output_lo) != canonical_result_lo:
+        raise _ic_refuse("enclosure-lo-mismatch", f"checker {_canonical_rat(checker_output_lo)} != receipt {canonical_result_lo}")
+    if _canonical_rat(checker_output_hi) != canonical_result_hi:
+        raise _ic_refuse("enclosure-hi-mismatch", f"checker {_canonical_rat(checker_output_hi)} != receipt {canonical_result_hi}")
+
+    return {
+        "verdict": "ACCEPT",
+        "receipt_digest_sha256": recomputed_digest,
+        "certificate_sha256": computed,
+        "checker_sha256": chk_pre,
+        "evaluator_sha256": ids["evaluator_sha256"],
+        "plugin_sha256": ids.get("plugin_sha256"),
+        "request_commitment": recomputed,
+        "coverage_inventory_sha256": inventory_sha,
+        "proof_identity_file_sha256": proof_binding["file_sha256"],
+        "proof_identity_digest_sha256": proof_binding["identity_digest_sha256"],
+        "expression_operators": sorted(expr_ops),
+        "enclosure": [res["enclosure_lo"], res["enclosure_hi"]],
+    }
+
+
 def _cli() -> int:
     if not (sys.flags.isolated and sys.flags.no_site):
         print(
@@ -1000,10 +1462,11 @@ def _cli() -> int:
             "input_lo": args.expected_input_lo,
             "input_hi": args.expected_input_hi,
         }
-        is_gaussian = (
-            receipt.get("certificate", {}).get("schema") == GAUSSIAN_CERT_SCHEMA
-        )
-        if is_gaussian:
+        cert_schema_cli = receipt.get("certificate", {}).get("schema")
+        needs_tolerance = cert_schema_cli in {
+            GAUSSIAN_CERT_SCHEMA, INT_CERT_CERT_SCHEMA
+        }
+        if needs_tolerance:
             if args.expected_tolerance is None:
                 raise ReceiptRefusal("expected-context-missing", "tolerance")
             expected_request["tolerance"] = args.expected_tolerance

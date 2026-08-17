@@ -1,6 +1,6 @@
 {
   "build_attestation": {
-    "attestation_digest_sha256": "462f2d70a974a5ca1a6e2782d9487061e6906e5fe26ff62754caaf61082b9e0b",
+    "attestation_digest_sha256": "0053898b354b7598a42b40f394a2e6d0946641dedc999707c3c00b76969bbac2",
     "authentication": {
       "authenticated": false,
       "scheme": "none",
@@ -33,7 +33,7 @@
       "toolchain_configuration": [
         {
           "path": "proofs/lean/lakefile.toml",
-          "sha256": "98f63244072e8bbe2d6c1384da26781bb40824a33f68272bb0c60ec7de0a759a"
+          "sha256": "21eef36ea0d9a665622b171dcf1f96460aa250ef214314d766112e01dadf1eaf"
         },
         {
           "path": "proofs/lean/lake-manifest.json",
@@ -72,9 +72,9 @@
   },
   "generator": {
     "path": "release/tools/gaussian_proof_identity.py",
-    "sha256": "d6142c21aeb27fb1f7a215b7d2c8629316ebd17740875ffd7593a09efdf69847"
+    "sha256": "05bfa1709b0968da37b95c3d80c619de003ee4ba6987f6cea2844293fa8e4ccd"
   },
-  "identity_digest_sha256": "af1af9067bdc2569ed0c998b7719dbcb7b929765bc73ce45c0a2358b85f66214",
+  "identity_digest_sha256": "828ed69d9e04784e1f750536ebe8c12f4563dd62a37a85397f2aa08769fce1fd",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {
@@ -352,7 +352,7 @@
     "configuration_files": [
       {
         "path": "proofs/lean/lakefile.toml",
-        "sha256": "98f63244072e8bbe2d6c1384da26781bb40824a33f68272bb0c60ec7de0a759a"
+        "sha256": "21eef36ea0d9a665622b171dcf1f96460aa250ef214314d766112e01dadf1eaf"
       },
       {
         "path": "proofs/lean/lake-manifest.json",

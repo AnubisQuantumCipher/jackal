@@ -24,3 +24,13 @@ import JackalIv.Gaussian
 import JackalIv.GaussianIntegral
 import JackalIv.GaussianCert
 import JackalIv.Ledger
+-- v1.7 certified integrate-bound-cert lane: bound_step subdivision-tree
+-- composition (roadmap item 4).  Additive; compiled as the pinned
+-- `jackal_int_cert_check` executable via JackalIv.IntCertMain.
+import JackalIv.IntCertQExpr
+import JackalIv.IntCertTypes
+import JackalIv.IntCertCheck
+import JackalIv.IntCertMeasure
+import JackalIv.IntCertSound
+import JackalIv.IntCertCodec
+import JackalIv.IntCertFixtures

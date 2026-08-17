@@ -69,11 +69,13 @@ def _run_target(mode: str, argv: list[str]) -> int:
         ("receipt_verify", _path(root, repo, "tools/receipt_verify.py", "receipt_verify.py")),
         ("release_validate", _path(root, repo, "tests/release_validate.py", "release_validate.py")),
         ("gaussian_release", _path(root, repo, "tools/gaussian_release.py", "gaussian_release.py")),
+        ("int_cert_release", _path(root, repo, "tools/int_cert_release.py", "int_cert_release.py")),
     ]
     targets: dict[str, Path] = {
         "range": project_modules[4][1],
         "gaussian": project_modules[5][1],
         "verify": project_modules[3][1],
+        "int-cert": project_modules[6][1],
         "plugin": root / "plugin/hermes/server.py",
     }
     if mode == "emit-variant-receipt":
@@ -168,7 +170,7 @@ def _emit_variant_receipt(argv: list[str]) -> int:
 
 def main(argv: list[str]) -> int:
     if not argv:
-        print("usage: isolated_entry.py <range|gaussian|verify|plugin|emit-variant-receipt> [args...]", file=sys.stderr)
+        print("usage: isolated_entry.py <range|gaussian|int-cert|verify|plugin|emit-variant-receipt> [args...]", file=sys.stderr)
         return 64
     try:
         return _run_target(argv[0], argv[1:])

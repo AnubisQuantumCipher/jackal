@@ -27,10 +27,13 @@ EXPECTED_LOGICAL_NAMES = {
     "runtime/formal_coverage_inventory.json",
     "runtime/range_proof_identity.json",
     "runtime/gaussian_proof_identity.json",
+    "runtime/int_cert_proof_identity.json",
     "runtime/formal_receipt.py",
     "runtime/formal_status_gate.py",
     "runtime/gaussian_certificate.py",
     "runtime/gaussian_release.py",
+    "runtime/int_cert_producer.py",
+    "runtime/int_cert_release.py",
     "runtime/isolated_entry.py",
     "runtime/receipt_verify.py",
     "runtime/release_validate.py",
@@ -58,10 +61,13 @@ PACKAGE_DESTINATIONS = {
     "runtime/formal_coverage_inventory.json": "formal_coverage_inventory.json",
     "runtime/range_proof_identity.json": "range_proof_identity.json",
     "runtime/gaussian_proof_identity.json": "gaussian_proof_identity.json",
+    "runtime/int_cert_proof_identity.json": "int_cert_proof_identity.json",
     "runtime/formal_receipt.py": "formal_receipt.py",
     "runtime/formal_status_gate.py": "formal_status_gate.py",
     "runtime/gaussian_certificate.py": "gaussian_certificate.py",
     "runtime/gaussian_release.py": "gaussian_release.py",
+    "runtime/int_cert_producer.py": "int_cert_producer.py",
+    "runtime/int_cert_release.py": "int_cert_release.py",
     "runtime/isolated_entry.py": "isolated_entry.py",
     "runtime/receipt_verify.py": "receipt_verify.py",
     "runtime/release_validate.py": "release_validate.py",
@@ -89,8 +95,8 @@ def main() -> int:
     repo_files = resolve_runtime_files(PLUGIN_DIR)
     require(set(repo_files) == EXPECTED_LOGICAL_NAMES,
             f"runtime logical-name drift: {sorted(repo_files)}")
-    require(len(EXPECTED_LOGICAL_NAMES) == 27,
-            f"expected 27 runtime logical names, declared {len(EXPECTED_LOGICAL_NAMES)}")
+    require(len(EXPECTED_LOGICAL_NAMES) == 30,
+            f"expected 30 runtime logical names, declared {len(EXPECTED_LOGICAL_NAMES)}")
     repo_hash = compute_bundle_hash(PLUGIN_DIR)
 
     with tempfile.TemporaryDirectory(prefix="jackal-plugin-identity-") as td:
@@ -120,6 +126,8 @@ def main() -> int:
                 package_root / "jackal_cert_check",
             ROOT / "proofs/lean/.lake/build/bin/jackal_gaussian_check":
                 package_root / "jackal_gaussian_check",
+            ROOT / "proofs/lean/.lake/build/bin/jackal_int_cert_check":
+                package_root / "jackal_int_cert_check",
         }
         for source, destination in package_artifacts.items():
             shutil.copy2(source, destination)

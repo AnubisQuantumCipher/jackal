@@ -118,6 +118,49 @@ LANES = {
             }
         },
     ),
+    "int-cert": LaneConfig(
+        schema="jackal-int-cert-proof-identity-v1",
+        identity_name="int_cert_proof_identity.json",
+        checker_path="proofs/lean/.lake/build/bin/jackal_int_cert_check",
+        checker_target="jackal_int_cert_check",
+        root_modules=("JackalIv.IntCertMain",),
+        fragment={
+            "assurance": "formal-bounded",
+            "certificate_magic": "jackal-int-cert v1",
+            "checker_boolean_definition": "JackalIv.IntCert.checkIntCert",
+            "checker_entrypoint_definition": "main (IntCertMain)",
+            "checker_executable": "jackal_int_cert_check",
+            "family": "integrate-bound-composed-v1",
+            "lane": "int-cert",
+            "parser_definition": "JackalIv.IntCert.parseIntCert",
+            "runtime_alternate_implementation_boundary": (
+                "checker acceptance uses no implemented_by definition; two exact "
+                "dump-only implemented_by attributes elsewhere in the imported "
+                "closure are pinned"
+            ),
+            "soundness_theorem": "JackalIv.IntCert.int_cert_sound",
+            "theorem_premises": [
+                "checkIntCert hdr tree = .ok () (runtime checked)",
+                "rootQExpr tree = some q (runtime checked by structural pass)",
+                "TreeTCB tree (vacuous on the pure-rational fragment)",
+            ],
+            "premises_not_discharged_by_checker": [
+                "TreeTCB tree = Cert.ModelTCB per embedded evaluation certificate",
+            ],
+        },
+        theorems=(
+            "JackalIv.IntCert.int_cert_sound",
+            "JackalIv.IntCert.range_leaf_sound",
+            "JackalIv.IntCert.taylor2_leaf_sound",
+            "JackalIv.IntCert.taylor4_leaf_sound",
+            "JackalIv.IntCert.split_sound",
+            "JackalIv.IntCert.sem_measurable",
+            "JackalIv.IntCert.embedQ_DQ",
+            "JackalIv.IntCert.qexprOf_embed",
+            "JackalIv.Cert.cert_check_sound",
+        ),
+        allowed_local_constructs={},
+    ),
 }
 
 

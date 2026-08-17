@@ -190,8 +190,14 @@ within δlib=2⁻⁵¹ relative + σ0 absolute:
     (c) the canonical ℚ codec and the Lean compiler/runtime that builds
     `jackal_cert_check` are in the TCB.
   - `bound_step`'s release-policy composition over `runs_encloses` + the Taylor
-    bridges remains OPEN, and source → native refinement (verified compilation
-    of the Anubis lane) remains OPEN — see the roadmap items (4)–(5).
+    bridges is now MECHANIZED for the certificate lane (`int_cert_sound`,
+    `IntCertSound.lean` — subdivision-tree artifact, proved computable
+    `checkIntCert`, compiled `jackal_int_cert_check`), with the same class of
+    residuals as (b)-(c) above: producer faithfulness to the shipped engine's
+    `bound_step` control flow is enforced by testing (31-row matrix + engine
+    differential), and the `jackal-int-cert` codec + Lean runtime are in the
+    TCB.  Source → native refinement (verified compilation of the Anubis
+    lane) remains OPEN — see roadmap item (5).
 * Differentiator coverage gaps (`Deriv.lean` header): `deriv()` rules for
   tan, asin, acos, cbrt, log10, log2, hypot, atan2 and the non-integer /
   general-exponent power lanes are not modeled by `D` (nodes outside `D`'s
@@ -240,9 +246,16 @@ bridge (`CertTypes`/`CertCheck`/`CertSound`/`CertCodec`, `cert_check_sound`,
 compiled checker `jackal_cert_check`, `range-bound-cert` emitter, fail-closed
 `jackal-cert-release`): an accepted certificate for the exact-ℚ fragment
 mechanically induces a `Runs` derivation, so the actual evaluator's certified
-release carries a checker-verified witness; (4) compose `bound_step`'s
-acceptance policy over `runs_encloses` + the Taylor bridges; (5) source-to-native
-refinement (verified compilation for the Anubis lane). Until (4)–(5) exist, the
+release carries a checker-verified witness; (4) DONE (v1.7) — `bound_step`'s
+acceptance policy composed over `runs_encloses` + the Taylor bridges
+(`IntCertTypes`/`IntCertCheck`/`IntCertSound`/`IntCertCodec`,
+`int_cert_sound`, compiled checker `jackal_int_cert_check`, untrusted
+producer `tools/int_cert_producer.py`, fail-closed `jackal-int-cert-release`):
+an accepted `jackal-int-cert` subdivision-tree artifact mechanically induces
+per-leaf `Runs` derivations plus exact-partition interval-sum composition, so
+the certified integrate-bound-cert release carries a checker-verified
+enclosure of the requested definite integral; (5) source-to-native
+refinement (verified compilation for the Anubis lane). Until (5) exists, the
 strongest honest claim is UNIVERSAL CORRECTNESS OVER THE PRECISELY ADMITTED
 CERTIFIED FRAGMENT AND ITS STATED TCB — never "universal correctness"
 unqualified, and never all of mathematics.
@@ -282,6 +295,7 @@ import JackalIv.Solve
 import JackalIv.Parser
 import JackalIv.Lower
 import JackalIv.Correspondence
+import JackalIv.IntCertSound
 
 namespace JackalIv
 
@@ -332,5 +346,16 @@ namespace JackalIv
 #print axioms lower_preserves_defined
 #print axioms parse_lower_denotes
 #print axioms parse_lower_encloses
+-- v1.7 certified integrate-bound-cert lane (bound_step composition, roadmap #4)
+#print axioms IntCert.int_cert_sound
+#print axioms IntCert.range_leaf_sound
+#print axioms IntCert.taylor2_leaf_sound
+#print axioms IntCert.taylor4_leaf_sound
+#print axioms IntCert.split_sound
+#print axioms IntCert.sem_measurable
+#print axioms IntCert.embedQ_DQ
+#print axioms IntCert.embedQ_DQiter
+#print axioms IntCert.qexprOf_embed
+#print axioms IntCert.qbuild_embed
 
 end JackalIv

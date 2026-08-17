@@ -20,7 +20,7 @@ binary and its pinned bundle hash.  Verifies:
   S7  jackal_verify_receipt refuses a receipt with the outer digest
       recomputed but the enclosure tampered (cross-check gate).
   S8  stdio JSON-RPC transport handles list_tools + tool calls with
-      correct id/jsonrpc/result shape (12 tools listed) and drives the
+      correct id/jsonrpc/result shape (34 tools listed) and drives the
       same refusals.
   S9  jackal_gaussian_integral emits + reverifies a Gaussian receipt.
   S10 jackal_gaussian_integral refuses unsupported non-canonical Gaussians.
@@ -36,6 +36,15 @@ binary and its pinned bundle hash.  Verifies:
       (v1.4.1 fragment extension via the pinned Python producer).
   S16 jackal_sqrt_rat_bound / jackal_exp_rat_bound refuse non-admitted
       expressions and negative lowers fail-closed.
+  S21 jackal_integrate_bound_cert emits a formal-bounded certified
+      composed-integral receipt (variant int_cert, theorem int_cert_sound)
+      for sin(x) on [0,1] tol 1/100, round-trips through
+      jackal_verify_receipt, and refuses a semantic enclosure tamper
+      (v1.7.0 composed bound_step lane).
+  S22 jackal_integrate_bound_cert refuses out-of-fragment expressions
+      (tan/exp/sqrt), and the weaker float lane jackal_integrate_bound
+      answers the same sin(x) request with status `bounded`, never
+      formal-*.
 
 Writes an evidence transcript (JSONL) to `release/evidence/plugin_smoke.jsonl`.
 """
@@ -76,6 +85,15 @@ GAUSSIAN_CONTEXT = {
     "expected_input_lo": "0",
     "expected_input_hi": "1",
     "expected_tolerance": "1/1000000000000",
+}
+INT_CERT_EXPR = "sin(x)"
+INT_CERT_CONTEXT = {
+    "expected_release_epoch": "v1.7.0",
+    "expected_command": "integrate-bound-cert",
+    "expected_expression": INT_CERT_EXPR,
+    "expected_input_lo": "0",
+    "expected_input_hi": "1",
+    "expected_tolerance": "1/100",
 }
 
 
@@ -283,6 +301,8 @@ def s8_stdio_transport() -> bool:
         "jackal_crt", "jackal_divides", "jackal_prime_cert",
         # v1.6.0 additive claim-kernel front door (31 -> 33)
         "jackal_claim", "jackal_verify_bundle",
+        # v1.7.0 certified composed-integral formal lane (33 -> 34)
+        "jackal_integrate_bound_cert",
     }
     ok_list = set(listed) == expected_tools and len(listed) == len(expected_tools)
     ok_ok = idx.get("OK", {}).get("result", {}).get("status") == "formal-bounded"
@@ -636,6 +656,87 @@ def s20_prime_cert_composite() -> bool:
     return ok
 
 
+def s21_int_cert_emit_and_reverify() -> bool:
+    """v1.7.0 certified composed-integral lane: sin(x) on [0,1] at tol 1/100
+    emits a formal-bounded `int_cert` receipt (theorem int_cert_sound),
+    round-trips through jackal_verify_receipt, and a semantic enclosure
+    tamper (recomputed outer digest) still refuses."""
+    request = {
+        "expression": INT_CERT_EXPR,
+        "input_lo": "0",
+        "input_hi": "1",
+        "tolerance": "1/100",
+    }
+    code, obj = _call("jackal_integrate_bound_cert", request)
+    if _pending(obj):
+        record_pending("S21-int-cert-emit-rerun", obj)
+        return True
+    emitted = (code == 0 and obj.get("status") == "formal-bounded"
+               and obj.get("checker_rerun") == "ACCEPT")
+    receipt = obj.get("receipt") if emitted else None
+    if not isinstance(receipt, dict):
+        record("S21-int-cert-emit-rerun", False, f"status={obj.get('status')}")
+        return False
+    shape_ok = (receipt.get("variant") == "int_cert"
+                and receipt.get("theorem", {}).get("id") == "int_cert_sound")
+    verify_code, verified = _call(
+        "jackal_verify_receipt", {"receipt": receipt, **INT_CERT_CONTEXT}
+    )
+    round_trip_ok = (verify_code == 0 and verified.get("status") == "verified"
+                     and verified.get("verdict") == "ACCEPT")
+    tampered = copy.deepcopy(receipt)
+    tampered["result"]["enclosure_hi"] = "99999"
+    tampered["receipt_digest_sha256"] = recompute_receipt_digest(tampered)
+    tamper_code, tamper_obj = _call(
+        "jackal_verify_receipt", {"receipt": tampered, **INT_CERT_CONTEXT}
+    )
+    tamper_refused = (tamper_code != 0
+                      and tamper_obj.get("status") == "refused")
+    ok = shape_ok and round_trip_ok and tamper_refused
+    record("S21-int-cert-emit-rerun", ok,
+           f"emit={obj.get('checker_rerun')} variant={receipt.get('variant')} "
+           f"theorem={receipt.get('theorem', {}).get('id')} "
+           f"verify={verified.get('status')} "
+           f"tamper_reason={tamper_obj.get('reason')}")
+    return ok
+
+
+def s22_int_cert_refusals_and_weak_honesty() -> bool:
+    """v1.7.0 composed-integral lane refuses out-of-fragment expressions with
+    a stable class (asserted on status only; the named reason is recorded in
+    the evidence row note), and the weaker float lane answers the SAME
+    sin(x) request with status `bounded` — never formal-*."""
+    all_ok = True
+    for expr in ("tan(x)", "exp(x)", "sqrt(x)"):
+        code, obj = _call("jackal_integrate_bound_cert", {
+            "expression": expr, "input_lo": "0", "input_hi": "1",
+            "tolerance": "1/10",
+        })
+        if _pending(obj):
+            record_pending(f"S22-int-cert-refuse:{expr}", obj)
+            continue
+        refused = code != 0 and obj.get("status") == "refused"
+        formal_leak = obj.get("status") == "formal-bounded"
+        ok = refused and not formal_leak
+        record(f"S22-int-cert-refuse:{expr}", ok,
+               f"status={obj.get('status')} reason={obj.get('reason')}")
+        all_ok = all_ok and ok
+    code, obj = _call("jackal_integrate_bound", {
+        "expression": INT_CERT_EXPR, "input_lo": "0", "input_hi": "1",
+        "tolerance": "1e-2",
+    })
+    if _pending(obj):
+        record_pending("S22-weak-lane-honest:jackal_integrate_bound", obj)
+        return all_ok
+    status = obj.get("status")
+    formal_leak = isinstance(status, str) and status.startswith("formal")
+    weak_ok = (code == 0 and status == "bounded" and not formal_leak
+               and obj.get("formal") is False)
+    record("S22-weak-lane-honest:jackal_integrate_bound", weak_ok,
+           f"status={status} formal={obj.get('formal')}")
+    return all_ok and weak_ok
+
+
 def main() -> int:
     if not PLUGIN.exists():
         print(f"plugin-not-installed: {PLUGIN}", file=sys.stderr)
@@ -684,6 +785,8 @@ def main() -> int:
     results.append(s18_tanh_rat_bound())
     results.append(s19_xgcd_exact_cert())
     results.append(s20_prime_cert_composite())
+    results.append(s21_int_cert_emit_and_reverify())
+    results.append(s22_int_cert_refusals_and_weak_honesty())
 
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     EVIDENCE.write_text("\n".join(json.dumps(r, sort_keys=True) for r in ROWS) + "\n")

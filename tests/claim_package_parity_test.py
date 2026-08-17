@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""v1.6.0 package parity + fresh-extraction gate (mission §13 Phase 7,
-dogfood §15.10).
+"""v1.7.0 package parity + fresh-extraction gate (mission §13 Phase 7,
+dogfood §15.10; re-pointed at the live epoch builder each seal).
 
-1. Builds the v1.6.0 package TWICE from identical tree/evidence bytes and
+1. Builds the v1.7.0 package TWICE from identical tree/evidence bytes and
    requires bit-for-bit tarball equality.
 2. Fresh-extracts the tarball into a bounded temp sandbox (deterministic
    cleanup; no repository fallback).
-3. Exercises EVERY tool: all 33 plugin tools through the packaged plugin
-   `call` frontend (31 existing + 2 new), plus the 11 shell wrappers
-   (9 existing release wrappers, jackal-claim, jackal-claim-verify).
+3. Exercises EVERY tool: all 34 plugin tools through the packaged plugin
+   `call` frontend (33 v1.6.0 + jackal_integrate_bound_cert), plus the 12
+   shell wrappers (10 release wrappers, jackal-claim, jackal-claim-verify).
 4. Proves three-way parity: the same claim request through the repo CLI,
    the fresh package CLI, and the plugin returns the SAME canonical root
    hash and bundle digest, and the same policy verdict on replay.
@@ -26,9 +26,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILDER = ROOT / "release/build_package_v160.sh"
-TARBALL = ROOT / "release/dist/jackal-v1.6.0-macos-arm64.tar.gz"
-PKG_NAME = "jackal-v1.6.0-macos-arm64"
+BUILDER = ROOT / "release/build_package_v170.sh"
+TARBALL = ROOT / "release/dist/jackal-v1.7.0-macos-arm64.tar.gz"
+PKG_NAME = "jackal-v1.7.0-macos-arm64"
 
 ROWS: list[dict] = []
 
@@ -69,6 +69,9 @@ PLUGIN_CASES: list[tuple[str, dict, set[str]]] = [
     ("jackal_gaussian_integral",
      {"expression": GAUSSIAN_EXPR, "input_lo": "0", "input_hi": "1",
       "tolerance": "1/1000000000000"}, {"formal-bounded"}),
+    ("jackal_integrate_bound_cert",
+     {"expression": "sin(x)", "input_lo": "0", "input_hi": "1",
+      "tolerance": "1/100"}, {"formal-bounded"}),
     ("jackal_sqrt_rat_bound", {"expression": "sqrt(x)", "input_lo": "2",
                                "input_hi": "3"}, {"formal-bounded"}),
     ("jackal_exp_rat_bound", {"expression": "exp(x)", "input_lo": "0",
@@ -185,7 +188,7 @@ def main() -> int:
                and "FAILED" not in (sums.stdout or ""),
                "all files verify", (sums.stdout or "")[-80:])
 
-        # --- every plugin tool (31 existing + 2 new) -----------------
+        # --- every plugin tool (33 v1.6.0 + 1 new v1.7.0) ------------
         for tool, arguments, allowed in PLUGIN_CASES:
             doc = plugin_call(pkg, tool, arguments)
             record(f"pkg-tool-{tool}", doc.get("status") in allowed,
@@ -213,8 +216,10 @@ def main() -> int:
             record("pkg-tool-jackal_verify_receipt", False,
                    "receipt available", "range_bound returned no receipt")
 
-        # --- shell wrappers (existing 9 + new 2) ---------------------
+        # --- shell wrappers (10 release wrappers + 2 claim) ----------
         wrapper_cases = [
+            ("jackal-int-cert-release",
+             ["sin(x)", "0", "1", "1/100", "int-cert-parity-receipt.json"]),
             ("jackal-sqrt-rat-release", ["sqrt(x)", "2", "3"]),
             ("jackal-exp-rat-release", ["exp(x)", "0", "1"]),
             ("jackal-ln-rat-release", ["ln(x)", "2", "3"]),

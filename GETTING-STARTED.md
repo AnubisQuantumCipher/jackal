@@ -65,7 +65,7 @@ A few outputs worth pausing on:
 
 ```text
 $ ./jackal rat "0.1 + 0.2"
-status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004
+status=exact parsed=0.1+0.2 exact=3/10 approx=0.3
 ```
 
 `exact=3/10` is the truth; `approx=` is what IEEE floating point makes of the
@@ -185,7 +185,7 @@ evaluator + checker + producer identities (pinned in
 and no status escalation.  Any break refuses with a stable class — never
 a bounded fallback.
 
-Five wrappers cover the current fragment:
+The release wrappers cover the current fragment:
 
 ```bash
 # General range-bound on the arithmetic+trig+integer-pow fragment
@@ -210,6 +210,9 @@ Five wrappers cover the current fragment:
 ./jackal-gaussian-release \
     'exp(-10000000000*(x-0.5000123456789)^2)' \
     0 1 1/1000000000000 gaussian-receipt.json
+
+# Lean-checked composed integral enclosure (v1.7.0, theorem int_cert_sound)
+./jackal-int-cert-release "sin(x)" 0 1 1/100 receipt.json
 
 # Independent re-verification of an emitted receipt (re-runs the pinned checker)
 ./jackal-receipt-verify --receipt receipt.json \
@@ -243,8 +246,8 @@ embedded certificate, tested end to end in
 
 ## 5c. The Hermes / MCP-style plugin
 
-The bundled `plugin/hermes/jackal_hermes` exposes thirty-three tools — the
-ten formal wrappers, twenty-one weaker-lane adapters, and the two v1.6.0
+The bundled `plugin/hermes/jackal_hermes` exposes thirty-four tools — the
+eleven formal wrappers, twenty-one weaker-lane adapters, and the two v1.6.0
 claim-kernel front doors — that an MCP-speaking host
 can call over stdio JSON-RPC or a small HTTP wrapper.  A recomputed
 bundle hash MUST equal the pinned value in `release/MANIFEST.sha256`
@@ -261,8 +264,9 @@ plugin/hermes/jackal_hermes call jackal_verify_receipt \
     "$(< /tmp/formal-receipt.json)"
 ```
 
-Thirty-three tools total: ten proof-carrying (`jackal_range_bound`,
-`jackal_gaussian_integral`, `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`,
+Thirty-four tools total: eleven proof-carrying (`jackal_range_bound`,
+`jackal_gaussian_integral`, `jackal_integrate_bound_cert`,
+`jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`,
 `jackal_ln_rat_bound`, `jackal_sin_rat_bound`, `jackal_cos_rat_bound`,
 `jackal_atan_rat_bound`, `jackal_tanh_rat_bound`, `jackal_verify_receipt`),
 twenty-one weaker-lane adapters — the seven numeric lanes

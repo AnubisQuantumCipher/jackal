@@ -1,8 +1,8 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.6.0",
-  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the v1.6.0 claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles.",
+  "version": "v1.7.0",
+  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles.  v1.7.0 adds the certified bound_step composition lane (jackal_integrate_bound_cert, theorem int_cert_sound).",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
@@ -96,6 +96,18 @@
       "../../tools/exact_verify.py",
       "../../exact_verify.py"
     ],
+    "runtime/int_cert_producer.py": [
+      "../../tools/int_cert_producer.py",
+      "../../int_cert_producer.py"
+    ],
+    "runtime/int_cert_release.py": [
+      "../../tools/int_cert_release.py",
+      "../../int_cert_release.py"
+    ],
+    "runtime/int_cert_proof_identity.json": [
+      "../../release/evidence/int_cert_proof_identity.json",
+      "../../int_cert_proof_identity.json"
+    ],
     "runtime/claim_kernel.py": [
       "../../tools/claim_kernel.py",
       "../../claim_kernel.py"
@@ -158,8 +170,29 @@
       }
     },
     {
+      "name": "jackal_integrate_bound_cert",
+      "description": "Emit a certified composed definite-integral formal receipt (v1.7 bound_step composition): untrusted exact-rational producer mirrors the engine's adaptive subdivision, the pinned Lean-proved jackal_int_cert_check re-checks the whole subdivision-tree certificate (theorem int_cert_sound), and the receipt is independently re-verified before returning. Certified fragment: num/var/neg/add/sub/mul/div/pow(0..4096)/sin/cos/abs in x. Everything else refuses. The weaker float lane jackal_integrate_bound stays status=bounded and is NOT this tool.",
+      "arguments": {
+        "expression": {"type": "string", "required": true,
+                       "help": "Integrand in the single variable x, restricted to the certified fragment (num/var/neg/add/sub/mul/div/pow/sin/cos/abs)."},
+        "input_lo":   {"type": "string", "required": true,
+                       "help": "Integration lower bound as an integer or reduced canonical rational (e.g. '0', '2/3')."},
+        "input_hi":   {"type": "string", "required": true,
+                       "help": "Integration upper bound as a canonical rational, strictly above input_lo."},
+        "tolerance":  {"type": "string", "required": true,
+                       "help": "Maximum enclosure width as a positive canonical rational (e.g. '1/100')."}
+      },
+      "returns": {
+        "status": "formal-bounded | refused",
+        "checker_rerun": "ACCEPT on success",
+        "receipt": "jackal-formal-receipt-v1 object (variant int_cert) on success",
+        "reason":  "stable refusal class on refusal",
+        "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
       "name": "jackal_verify_receipt",
-      "description": "Re-run the matching pinned Lean-proved range or Gaussian checker over an embedded certificate.",
+      "description": "Re-run the matching pinned Lean-proved range, Gaussian, or composed-integral (int_cert) checker over an embedded certificate.",
       "arguments": {
         "receipt": {"type": "object", "required": true,
                     "help": "A jackal-formal-receipt-v1 JSON document."},
@@ -174,7 +207,7 @@
         "expected_input_hi": {"type": "string", "required": true,
                     "help": "Exact raw upper-bound token supplied by the caller."},
         "expected_tolerance": {"type": "string", "required": false,
-                    "help": "Exact raw tolerance token; required for Gaussian receipts and forbidden for range receipts."}
+                    "help": "Exact raw tolerance token; required for Gaussian and int_cert receipts and forbidden for range receipts."}
       },
       "returns": {
         "status": "verified | refused",
@@ -431,7 +464,7 @@
     },
     {
       "name": "jackal_integrate_bound",
-      "description": "Certified interval enclosure of an integral (status=bounded). CONDITIONAL on the stated f64/libm rounding model; implementation campaign-tested, NOT mechanized. Never labeled formal.",
+      "description": "Certified interval enclosure of an integral (status=bounded). CONDITIONAL on the stated f64/libm rounding model; implementation campaign-tested, NOT mechanized. Never labeled formal. For a Lean-checked formal-bounded composed enclosure over the certified fragment, use jackal_integrate_bound_cert instead.",
       "arguments": {
         "expression": {"type": "string", "required": true, "help": "Integrand in x."},
         "input_lo":   {"type": "string", "required": true, "help": "Lower limit."},

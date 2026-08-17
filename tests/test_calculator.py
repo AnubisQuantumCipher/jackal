@@ -67,15 +67,30 @@ CASES = [
     (["projectile", "20", "45", "9.80665"], "range=40.78864851911713 m time=2.8841929963302353 s max-height=10.19716212977928 m"),
     (["self-test"], "self-test: 104/104 Anubis-native invariants pass"),
     # Exact rational engine (echoes its parsed form, per the transcription-check
-    # discipline; status=exact is the machine-readable epistemic class)
-    (["rat", "0.1 + 0.2"], "status=exact parsed=0.1+0.2 exact=3/10 approx=0.30000000000000004"),
+    # discipline; status=exact is the machine-readable epistemic class).
+    # approx= is a RENDERING of the final normalized exact rational (issue #4,
+    # v1.7.0): it can never disagree with exact= by construction.  The honest
+    # independent IEEE-f64 evaluation of the input expression is the `eval`
+    # lane, not `rat approx=`.
+    (["rat", "0.1 + 0.2"], "status=exact parsed=0.1+0.2 exact=3/10 approx=0.3"),
     (["rat", "1/3 + 1/6"], "status=exact parsed=1/3+1/6 exact=1/2 approx=0.5"),
-    # approx is the honest IEEE f64 value of pow(2/3, -2) — NOT 2.25; the exact
-    # field 9/4 is the true answer, and that discrepancy is the feature.
-    (["rat", "(2/3)^-2"], "status=exact parsed=(2/3)^-2 exact=9/4 approx=2.2500000000000004"),
+    (["rat", "(2/3)^-2"], "status=exact parsed=(2/3)^-2 exact=9/4 approx=2.25"),
     (["rat", "1/3 - 1/3"], "status=exact parsed=1/3-1/3 exact=0 approx=0"),
     (["rat", "-3/9"], "status=exact parsed=-3/9 exact=-1/3 approx=-0.3333333333333333"),
     (["rat", "2.5e1 * 2"], "status=exact parsed=2.5e1*2 exact=50 approx=50"),
+    # Issue #4 regression: a simplified fraction and an algebraically
+    # equivalent unsimplified subtraction MUST print the identical exact=
+    # AND the identical approx= rendering (the old float-path approx printed
+    # 0.000000000000000010191500421363742 for the subtraction form).
+    (["rat", "10038659/1000000000000000000000000"],
+     "status=exact parsed=10038659/1000000000000000000000000"
+     " exact=10038659/1000000000000000000000000"
+     " approx=0.000000000000000010038659"),
+    (["rat", "22155673136319/12500000000000000 - 1772453850905509961341/1000000000000000000000000"],
+     "status=exact"
+     " parsed=22155673136319/12500000000000000-1772453850905509961341/1000000000000000000000000"
+     " exact=10038659/1000000000000000000000000"
+     " approx=0.000000000000000010038659"),
     # Worksheet: variables persist across semicolon-separated statements
     (["worksheet", "a = 5; b = a^2; a+b"], "a = 5\nb = 25\n30"),
     (["worksheet", "r0 = 2; area = pi*r0^2"], "r0 = 2\narea = 12.566370614359172"),

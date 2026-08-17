@@ -970,6 +970,20 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     }
 
 
+def _ic_refuse(cls: str, detail: str = "") -> ReceiptRefusal:
+    """Constructor alias for the int_cert lane's refusals.
+
+    The v1.5.0 mutation gate (tests/cert_mutations_11.py) disables the MAIN
+    range/gaussian pipeline's guard lines by unique source needles of the
+    form `raise ReceiptRefusal("<class>"...)`.  The int_cert lane reuses the
+    same stable class strings, so its raises go through this alias to keep
+    every needle unique to the guard the gate targets.  The int_cert lane's
+    own guards are load-bearing-tested by tests/int_cert_release_test.py,
+    tests/int_cert_matrix_test.py, and plugin smoke S21.
+    """
+    return ReceiptRefusal(cls, detail)
+
+
 def _verify_int_cert_receipt(*, receipt: dict, checker: str,
                              expected_evaluator: str, expected_checker: str,
                              inventory_path: Path | None,
@@ -989,124 +1003,124 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
     """
     variant = receipt_variant(receipt)
     if variant != INT_CERT_VARIANT:
-        raise ReceiptRefusal("variant-cert-schema",
+        raise _ic_refuse("variant-cert-schema",
                              f"variant {variant!r} incompatible with cert schema "
                              f"{INT_CERT_CERT_SCHEMA!r}")
     cert = receipt.get("certificate", {})
     if not isinstance(cert, dict):
-        raise ReceiptRefusal("certificate-schema", "not an object")
+        raise _ic_refuse("certificate-schema", "not an object")
     if cert.get("schema") != INT_CERT_CERT_SCHEMA:
-        raise ReceiptRefusal("cert-schema", str(cert.get("schema")))
+        raise _ic_refuse("cert-schema", str(cert.get("schema")))
     expected_cert_keys = {"schema", "model_const_version", "sexp", "bytes_b64", "sha256"}
     if set(cert) != expected_cert_keys:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "certificate-schema", str(sorted(set(cert) ^ expected_cert_keys))
         )
     if cert.get("model_const_version") != MODEL_CONST:
-        raise ReceiptRefusal("model-const-version", str(cert.get("model_const_version")))
+        raise _ic_refuse("model-const-version", str(cert.get("model_const_version")))
     thm = receipt.get("theorem", {})
     if not isinstance(thm, dict) or set(thm) != {"id", "lean_kernel_axioms"}:
         keys = sorted(thm) if isinstance(thm, dict) else type(thm).__name__
-        raise ReceiptRefusal("theorem-schema", str(keys))
+        raise _ic_refuse("theorem-schema", str(keys))
     if thm.get("id") != INT_CERT_THEOREM_ID:
-        raise ReceiptRefusal("theorem-id", str(thm.get("id")))
+        raise _ic_refuse("theorem-id", str(thm.get("id")))
     lka = sorted(set(thm.get("lean_kernel_axioms") or []))
     if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
-        raise ReceiptRefusal("theorem-axioms", str(lka))
+        raise _ic_refuse("theorem-axioms", str(lka))
     if receipt.get("assumptions") != INT_CERT_ASSUMPTIONS:
-        raise ReceiptRefusal("receipt-assumptions", "mandatory assumptions changed")
+        raise _ic_refuse("receipt-assumptions", "mandatory assumptions changed")
     if receipt.get("non_claims") != INT_CERT_NON_CLAIMS:
-        raise ReceiptRefusal("receipt-non-claims", "mandatory non-claims changed")
+        raise _ic_refuse("receipt-non-claims", "mandatory non-claims changed")
     if receipt.get("checker") != {"verdict": "ACCEPT", "reverify_required": True}:
-        raise ReceiptRefusal("receipt-checker-policy", str(receipt.get("checker")))
+        raise _ic_refuse("receipt-checker-policy", str(receipt.get("checker")))
 
     req = receipt.get("request", {})
     if not isinstance(req, dict):
-        raise ReceiptRefusal("request-schema", "not an object")
+        raise _ic_refuse("request-schema", "not an object")
     required_request = ["command", "expression", "input_lo", "input_hi",
                         "canonical_lo", "canonical_hi", "request_commitment_b64",
                         "tolerance", "canonical_tolerance",
                         "request_commitment_scheme"]
     if set(req) != set(required_request):
-        raise ReceiptRefusal("request-schema", str(sorted(set(req) ^ set(required_request))))
+        raise _ic_refuse("request-schema", str(sorted(set(req) ^ set(required_request))))
     for key in required_request:
         if not isinstance(req.get(key), str) or not req[key]:
-            raise ReceiptRefusal("request-field-missing", key)
+            raise _ic_refuse("request-field-missing", key)
     if not isinstance(expected_request, dict):
-        raise ReceiptRefusal("expected-context-missing", "request")
+        raise _ic_refuse("expected-context-missing", "request")
     expected_keys = {"command", "expression", "input_lo", "input_hi", "tolerance"}
     if set(expected_request) != expected_keys:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "expected-request-schema",
             str(sorted(set(expected_request) ^ expected_keys)),
         )
     for key in sorted(expected_keys):
         if not isinstance(expected_request.get(key), str):
-            raise ReceiptRefusal("expected-request-field", key)
+            raise _ic_refuse("expected-request-field", key)
         if req[key] != expected_request[key]:
-            raise ReceiptRefusal("expected-request-mismatch", f"key {key}")
+            raise _ic_refuse("expected-request-mismatch", f"key {key}")
     if req["command"] != "integrate-bound-cert":
-        raise ReceiptRefusal("request-command", req["command"])
+        raise _ic_refuse("request-command", req["command"])
 
     # R3 — canonical rationals recomputed
     if _canonical_rat(req["input_lo"]) != req["canonical_lo"]:
-        raise ReceiptRefusal("request-canonical-lo",
+        raise _ic_refuse("request-canonical-lo",
                              f"{_canonical_rat(req['input_lo'])} != {req['canonical_lo']}")
     if _canonical_rat(req["input_hi"]) != req["canonical_hi"]:
-        raise ReceiptRefusal("request-canonical-hi",
+        raise _ic_refuse("request-canonical-hi",
                              f"{_canonical_rat(req['input_hi'])} != {req['canonical_hi']}")
     if _canonical_rat(req["tolerance"]) != req["canonical_tolerance"]:
-        raise ReceiptRefusal("request-canonical-tolerance",
+        raise _ic_refuse("request-canonical-tolerance",
                              f"{_canonical_rat(req['tolerance'])} != {req['canonical_tolerance']}")
     if Fraction(req["canonical_lo"]) >= Fraction(req["canonical_hi"]):
-        raise ReceiptRefusal("request-domain", "int-cert lower must be below upper")
+        raise _ic_refuse("request-domain", "int-cert lower must be below upper")
     if Fraction(req["canonical_tolerance"]) <= 0:
-        raise ReceiptRefusal("request-tolerance", "must be positive")
+        raise _ic_refuse("request-tolerance", "must be positive")
 
     # R2 — recomputed request commitment binds envelope AND certificate
     if req["request_commitment_scheme"] != "jackal-req-v3-int-cert":
-        raise ReceiptRefusal("request-commitment-scheme", req["request_commitment_scheme"])
+        raise _ic_refuse("request-commitment-scheme", req["request_commitment_scheme"])
     recomputed = _shared_int_cert_request_commitment_b64(
         req["command"], req["expression"], req["canonical_lo"],
         req["canonical_hi"], req["canonical_tolerance"])
     if recomputed != req["request_commitment_b64"]:
-        raise ReceiptRefusal("request-commitment-outer",
+        raise _ic_refuse("request-commitment-outer",
                              f"recomputed {recomputed} != receipt {req['request_commitment_b64']}")
 
     # R4 — certificate bytes SHA-256 and size caps
     try:
         cert_bytes = base64.b64decode(cert["bytes_b64"].encode("ascii"), validate=True)
     except Exception as e:  # noqa: BLE001
-        raise ReceiptRefusal("cert-bytes-encoding", str(e)) from e
+        raise _ic_refuse("cert-bytes-encoding", str(e)) from e
     if not cert_bytes or len(cert_bytes) > MAX_INT_CERT_BYTES:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "cert-size", f"{len(cert_bytes)} bytes (limit {MAX_INT_CERT_BYTES})"
         )
     if any(len(line) > MAX_HEADER_FIELD_BYTES for line in cert_bytes.splitlines()):
-        raise ReceiptRefusal("cert-field-size", f"line exceeds {MAX_HEADER_FIELD_BYTES} bytes")
+        raise _ic_refuse("cert-field-size", f"line exceeds {MAX_HEADER_FIELD_BYTES} bytes")
     computed = sha256_hex(cert_bytes)
     if computed != cert.get("sha256"):
-        raise ReceiptRefusal("cert-sha256",
+        raise _ic_refuse("cert-sha256",
                              f"recomputed {computed} != receipt {cert.get('sha256')}")
 
     hdr = _parse_cert_header(cert_bytes)
     if hdr.get("schema") != INT_CERT_CERT_SCHEMA:
-        raise ReceiptRefusal("cert-schema-bytes", str(hdr.get("schema")))
+        raise _ic_refuse("cert-schema-bytes", str(hdr.get("schema")))
     if hdr.get("model") != MODEL_CONST:
-        raise ReceiptRefusal("cert-model-bytes", str(hdr.get("model")))
+        raise _ic_refuse("cert-model-bytes", str(hdr.get("model")))
     if hdr.get("checker") != INT_CERT_CHECKER_PIN:
-        raise ReceiptRefusal("cert-checker-bytes", str(hdr.get("checker")))
+        raise _ic_refuse("cert-checker-bytes", str(hdr.get("checker")))
     if hdr.get("status") != "bounded":
-        raise ReceiptRefusal("cert-status-bytes", str(hdr.get("status")))
+        raise _ic_refuse("cert-status-bytes", str(hdr.get("status")))
     if hdr.get("source") != recomputed:
-        raise ReceiptRefusal("request-commitment-cert",
+        raise _ic_refuse("request-commitment-cert",
                              f"cert source {hdr.get('source')} != recomputed {recomputed}")
     if hdr.get("expr") != cert.get("sexp"):
-        raise ReceiptRefusal("cert-sexpression", "receipt copy differs from certificate")
+        raise _ic_refuse("cert-sexpression", "receipt copy differs from certificate")
     expected_req_line = (f"{req['canonical_lo']} {req['canonical_hi']} "
                          f"{req['canonical_tolerance']}")
     if hdr.get("request") != expected_req_line:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "request-vs-int-cert",
             f"request: {hdr.get('request')!r} != {expected_req_line!r}",
         )
@@ -1114,13 +1128,13 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
     # R5 — identities (producer-based lane: evaluator == producer)
     ids = receipt.get("identities", {})
     if not isinstance(ids, dict):
-        raise ReceiptRefusal("identity-schema", "not an object")
+        raise _ic_refuse("identity-schema", "not an object")
     required_identity_keys = {
         "evaluator_sha256", "producer_sha256", "checker_sha256",
         "plugin_sha256", "source_anb_sha256",
     }
     if set(ids) != required_identity_keys:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "identity-schema", str(sorted(set(ids) ^ required_identity_keys))
         )
     for label, expected, present in (
@@ -1128,94 +1142,94 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
         ("checker",   expected_checker,   ids.get("checker_sha256")),
     ):
         if not _valid_hex(expected or ""):
-            raise ReceiptRefusal(f"expected-{label}-malformed", str(expected))
+            raise _ic_refuse(f"expected-{label}-malformed", str(expected))
         if present != expected:
-            raise ReceiptRefusal(f"{label}-identity", f"receipt {present} != expected {expected}")
+            raise _ic_refuse(f"{label}-identity", f"receipt {present} != expected {expected}")
     if ids.get("producer_sha256") != expected_evaluator:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "producer-identity",
             f"receipt {ids.get('producer_sha256')} != expected {expected_evaluator}",
         )
     if ids.get("source_anb_sha256") is not None:
-        raise ReceiptRefusal("variant-source-identity",
+        raise _ic_refuse("variant-source-identity",
                              str(ids.get("source_anb_sha256")))
     if expected_source is not None:
-        raise ReceiptRefusal("expected-source-unexpected", expected_source)
+        raise _ic_refuse("expected-source-unexpected", expected_source)
     if hdr.get("producer") != ids.get("producer_sha256"):
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "producer-vs-certificate",
             f"cert {hdr.get('producer')} != receipt {ids.get('producer_sha256')}",
         )
     if expected_plugin is not None:
         if not _valid_hex(expected_plugin):
-            raise ReceiptRefusal("expected-plugin-malformed", expected_plugin)
+            raise _ic_refuse("expected-plugin-malformed", expected_plugin)
         if ids.get("plugin_sha256") != expected_plugin:
-            raise ReceiptRefusal("plugin-identity", f"receipt {ids.get('plugin_sha256')} != expected {expected_plugin}")
+            raise _ic_refuse("plugin-identity", f"receipt {ids.get('plugin_sha256')} != expected {expected_plugin}")
     elif ids.get("plugin_sha256") is not None:
-        raise ReceiptRefusal("expected-plugin-missing", "receipt is plugin-bound")
+        raise _ic_refuse("expected-plugin-missing", "receipt is plugin-bound")
 
     # Proof identity binding
     if receipt.get("schema") != SCHEMA:
-        raise ReceiptRefusal("receipt-schema", str(receipt.get("schema")))
+        raise _ic_refuse("receipt-schema", str(receipt.get("schema")))
     if not isinstance(expected_release_epoch, str) or not expected_release_epoch:
-        raise ReceiptRefusal("expected-context-missing", "release_epoch")
+        raise _ic_refuse("expected-context-missing", "release_epoch")
     if receipt.get("release_epoch") != expected_release_epoch:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "release-epoch",
             f"receipt {receipt.get('release_epoch')!r} != expected {expected_release_epoch!r}",
         )
     if type(receipt.get("emitted_at_unix")) is not int or receipt["emitted_at_unix"] < 0:
-        raise ReceiptRefusal("receipt-emitted-at", str(receipt.get("emitted_at_unix")))
+        raise _ic_refuse("receipt-emitted-at", str(receipt.get("emitted_at_unix")))
     proof_binding = receipt.get("proof_identity")
     if not isinstance(proof_binding, dict) or set(proof_binding) != \
             PROOF_IDENTITY_BINDING_KEYS:
-        raise ReceiptRefusal("proof-identity-schema", "missing/extra binding fields")
+        raise _ic_refuse("proof-identity-schema", "missing/extra binding fields")
     if proof_identity_path is None:
-        raise ReceiptRefusal("proof-identity-required", "")
+        raise _ic_refuse("proof-identity-required", "")
     try:
         observed_proof = load_proof_identity_binding(proof_identity_path)
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
-        raise ReceiptRefusal("proof-identity-unreadable", str(exc)) from exc
+        raise _ic_refuse("proof-identity-unreadable", str(exc)) from exc
     if proof_binding != observed_proof:
-        raise ReceiptRefusal("proof-identity-mismatch", "receipt != caller-supplied record")
+        raise _ic_refuse("proof-identity-mismatch", "receipt != caller-supplied record")
     if not _valid_hex(expected_proof_identity_file or ""):
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "expected-proof-file-malformed", str(expected_proof_identity_file)
         )
     if not _valid_hex(expected_proof_identity_digest or ""):
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "expected-proof-digest-malformed", str(expected_proof_identity_digest)
         )
     if proof_binding["file_sha256"] != expected_proof_identity_file:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "proof-identity-file",
             f"record {proof_binding['file_sha256']} != expected {expected_proof_identity_file}",
         )
     if proof_binding["identity_digest_sha256"] != expected_proof_identity_digest:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "proof-identity-digest",
             f"record {proof_binding['identity_digest_sha256']} != expected "
             f"{expected_proof_identity_digest}",
         )
     if proof_binding["schema"] != "jackal-int-cert-proof-identity-v1":
-        raise ReceiptRefusal("proof-identity-lane", proof_binding["schema"])
+        raise _ic_refuse("proof-identity-lane", proof_binding["schema"])
     if proof_binding["soundness_theorem"] != "JackalIv.IntCert.int_cert_sound":
-        raise ReceiptRefusal("proof-identity-theorem", proof_binding["soundness_theorem"])
+        raise _ic_refuse("proof-identity-theorem", proof_binding["soundness_theorem"])
     if proof_binding["checker_sha256"] != expected_checker:
-        raise ReceiptRefusal("proof-identity-checker", proof_binding["checker_sha256"])
+        raise _ic_refuse("proof-identity-checker", proof_binding["checker_sha256"])
     if proof_binding["authenticated"] is not False:
-        raise ReceiptRefusal("proof-identity-authentication", "must state false")
+        raise _ic_refuse("proof-identity-authentication", "must state false")
 
     # R6 — checker executable identity
     chk_real = _resolve_executable(checker)
     chk_pre = _sha256_file(chk_real)
     if chk_pre != ids.get("checker_sha256"):
-        raise ReceiptRefusal("checker-binary-mismatch", f"file {chk_pre} != receipt {ids.get('checker_sha256')}")
+        raise _ic_refuse("checker-binary-mismatch", f"file {chk_pre} != receipt {ids.get('checker_sha256')}")
 
     # R8 — outer digest
     recomputed_digest = recompute_receipt_digest(receipt)
     if recomputed_digest != receipt.get("receipt_digest_sha256"):
-        raise ReceiptRefusal("receipt-digest", f"recomputed {recomputed_digest} != receipt {receipt.get('receipt_digest_sha256')}")
+        raise _ic_refuse("receipt-digest", f"recomputed {recomputed_digest} != receipt {receipt.get('receipt_digest_sha256')}")
 
     # R7 — RE-RUN the proved checker on the exact rehydrated bytes.
     accept_prefix = (
@@ -1234,13 +1248,13 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
                 [chk_real, cert_path], capture_output=True, text=False, timeout=3600
             )
         except subprocess.TimeoutExpired as exc:
-            raise ReceiptRefusal("checker-timeout", str(exc)) from exc
+            raise _ic_refuse("checker-timeout", str(exc)) from exc
         except OSError as exc:
-            raise ReceiptRefusal("checker-exec-failed", str(exc)) from exc
+            raise _ic_refuse("checker-exec-failed", str(exc)) from exc
         stdout_bytes = cproc.stdout
         if cproc.returncode != 0 or not stdout_bytes.startswith(accept_prefix) \
                 or not stdout_bytes.endswith(b"\n"):
-            raise ReceiptRefusal(
+            raise _ic_refuse(
                 "checker-rejected-on-rerun",
                 (cproc.stderr or stdout_bytes)[:200].decode("utf-8", errors="replace"),
             )
@@ -1252,90 +1266,90 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
             checker_output_lo = lo_bytes.decode("ascii")
             checker_output_hi = hi_bytes.decode("ascii")
         except (ValueError, UnicodeDecodeError) as exc:
-            raise ReceiptRefusal("checker-accept-malformed", str(exc)) from exc
+            raise _ic_refuse("checker-accept-malformed", str(exc)) from exc
         chk_post = _sha256_file(chk_real)
         if chk_post != chk_pre:
-            raise ReceiptRefusal("checker-toctou", "checker binary changed during rerun")
+            raise _ic_refuse("checker-toctou", "checker binary changed during rerun")
 
     # R9 — coverage inventory, digest-bound
     if inventory_path is None:
-        raise ReceiptRefusal("coverage-inventory-required", "")
+        raise _ic_refuse("coverage-inventory-required", "")
     inv_path = Path(inventory_path)
     try:
         inv_bytes = inv_path.read_bytes()
         doc = _strict_json_bytes(inv_bytes)
     except Exception as exc:  # noqa: BLE001
-        raise ReceiptRefusal("coverage-inventory-unreadable", str(exc)) from exc
+        raise _ic_refuse("coverage-inventory-unreadable", str(exc)) from exc
     if not isinstance(doc, dict) or set(doc) != {
         "schema", "formal_fragment", "refused_from_formal", "rows"
     }:
         keys = sorted(doc) if isinstance(doc, dict) else type(doc).__name__
-        raise ReceiptRefusal("coverage-inventory-fields", str(keys))
+        raise _ic_refuse("coverage-inventory-fields", str(keys))
     if doc.get("schema") != "jackal-coverage-inventory-v1":
-        raise ReceiptRefusal("coverage-inventory-schema", str(doc.get("schema")))
+        raise _ic_refuse("coverage-inventory-schema", str(doc.get("schema")))
     row_list = doc.get("rows")
     if not isinstance(row_list, list) or not row_list:
-        raise ReceiptRefusal("coverage-inventory-rows", "empty/malformed")
+        raise _ic_refuse("coverage-inventory-rows", "empty/malformed")
     rows: dict[str, dict] = {}
     for row in row_list:
         key = row.get("operator") if isinstance(row, dict) else None
         if not isinstance(key, str) or not key or key in rows:
-            raise ReceiptRefusal("coverage-inventory-duplicate", str(key))
+            raise _ic_refuse("coverage-inventory-duplicate", str(key))
         rows[key] = row
     inventory_sha = hashlib.sha256(inv_bytes).hexdigest()
     if not _valid_hex(expected_inventory_sha256 or ""):
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "expected-inventory-malformed", str(expected_inventory_sha256)
         )
     if inventory_sha != expected_inventory_sha256:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "coverage-inventory-expected",
             f"observed {inventory_sha} != expected {expected_inventory_sha256}",
         )
     frag = receipt.get("fragment", {})
     if not isinstance(frag, dict):
-        raise ReceiptRefusal("fragment-schema", "not an object")
+        raise _ic_refuse("fragment-schema", "not an object")
     required_fragment_keys = {
         "admitted_operators", "expression_operators", "coverage_row_ids",
         "coverage_inventory_sha256", "unsupported_refused",
     }
     if set(frag) != required_fragment_keys:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "fragment-schema", str(sorted(set(frag) ^ required_fragment_keys))
         )
     if frag.get("coverage_inventory_sha256") != inventory_sha:
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "coverage-inventory-identity",
             f"receipt {frag.get('coverage_inventory_sha256')} != observed {inventory_sha}",
         )
     admitted = set(frag.get("admitted_operators") or [])
     expr_ops = set(frag.get("expression_operators") or [])
     if not expr_ops:
-        raise ReceiptRefusal("no-expression-operators", "")
+        raise _ic_refuse("no-expression-operators", "")
     rederived = _operators_in_sexp(hdr.get("expr", ""))
     if rederived != expr_ops:
-        raise ReceiptRefusal("operators-vs-certificate", f"receipt {sorted(expr_ops)} != cert-derived {sorted(rederived)}")
+        raise _ic_refuse("operators-vs-certificate", f"receipt {sorted(expr_ops)} != cert-derived {sorted(rederived)}")
     if admitted != set(INT_CERT_ADMITTED_OPERATORS):
-        raise ReceiptRefusal(
+        raise _ic_refuse(
             "fragment-admitted",
             f"receipt {sorted(admitted)} != lane {sorted(INT_CERT_ADMITTED_OPERATORS)}"
         )
     if frag.get("coverage_row_ids") != ["jackal_integrate_bound_cert"]:
-        raise ReceiptRefusal("coverage-row-set", str(frag.get("coverage_row_ids")))
+        raise _ic_refuse("coverage-row-set", str(frag.get("coverage_row_ids")))
     if frag.get("unsupported_refused") != [
         "every expression outside the certified bound_step fragment"
     ]:
-        raise ReceiptRefusal("fragment-refusal-set", str(frag.get("unsupported_refused")))
+        raise _ic_refuse("fragment-refusal-set", str(frag.get("unsupported_refused")))
     stray = sorted(expr_ops - admitted)
     if stray:
-        raise ReceiptRefusal("operator-outside-fragment", str(stray))
+        raise _ic_refuse("operator-outside-fragment", str(stray))
     lane_row = rows.get("jackal_integrate_bound_cert")
     if lane_row is None:
-        raise ReceiptRefusal("coverage-row-missing", "jackal_integrate_bound_cert")
+        raise _ic_refuse("coverage-row-missing", "jackal_integrate_bound_cert")
     if lane_row.get("verdict") != "FORMAL":
-        raise ReceiptRefusal("coverage-row-not-formal", "jackal_integrate_bound_cert")
+        raise _ic_refuse("coverage-row-not-formal", "jackal_integrate_bound_cert")
     if lane_row.get("soundness_theorem") != INT_CERT_THEOREM_ID:
-        raise ReceiptRefusal("coverage-row-theorem-mismatch",
+        raise _ic_refuse("coverage-row-theorem-mismatch",
                              f"jackal_integrate_bound_cert:{lane_row.get('soundness_theorem')}")
     # Every operator this artifact touches must still be FORMAL in the
     # underlying per-operator inventory (mask-proofing, same rule as the
@@ -1343,42 +1357,42 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
     for op_name in sorted(expr_ops):
         op_row = rows.get(op_name)
         if op_row is None or op_row.get("verdict") != "FORMAL":
-            raise ReceiptRefusal(
+            raise _ic_refuse(
                 "variant-operator-row",
                 f"{op_name} operator row must be FORMAL for int_cert lane")
 
     # Result status
     res = receipt.get("result", {})
     if not isinstance(res, dict):
-        raise ReceiptRefusal("result-schema", "not an object")
+        raise _ic_refuse("result-schema", "not an object")
     required_result_keys = {"status", "enclosure_lo", "enclosure_hi", "cert_status"}
     if set(res) != required_result_keys:
-        raise ReceiptRefusal("result-schema", str(sorted(set(res) ^ required_result_keys)))
+        raise _ic_refuse("result-schema", str(sorted(set(res) ^ required_result_keys)))
     if res.get("status") != "formal-bounded":
-        raise ReceiptRefusal("result-status", str(res.get("status")))
+        raise _ic_refuse("result-status", str(res.get("status")))
     if res.get("cert_status") != "bounded":
-        raise ReceiptRefusal("result-cert-status", str(res.get("cert_status")))
+        raise _ic_refuse("result-cert-status", str(res.get("cert_status")))
     if not isinstance(res.get("enclosure_lo"), str) or not isinstance(res.get("enclosure_hi"), str):
-        raise ReceiptRefusal("result-enclosure-format", "")
+        raise _ic_refuse("result-enclosure-format", "")
     canonical_result_lo = _canonical_rat(res["enclosure_lo"])
     canonical_result_hi = _canonical_rat(res["enclosure_hi"])
     if canonical_result_lo != res["enclosure_lo"]:
-        raise ReceiptRefusal("result-enclosure-canonical", "lower")
+        raise _ic_refuse("result-enclosure-canonical", "lower")
     if canonical_result_hi != res["enclosure_hi"]:
-        raise ReceiptRefusal("result-enclosure-canonical", "upper")
+        raise _ic_refuse("result-enclosure-canonical", "upper")
     if Fraction(canonical_result_lo) > Fraction(canonical_result_hi):
-        raise ReceiptRefusal("result-enclosure-order", "lower exceeds upper")
+        raise _ic_refuse("result-enclosure-order", "lower exceeds upper")
     # Checker echo is the load-bearing enclosure; header re-parse must agree.
     hdr_out = hdr.get("output", "")
     h_parts = hdr_out.split(" ", 1) if hdr_out else []
     if len(h_parts) != 2 or _canonical_rat(h_parts[0]) != _canonical_rat(checker_output_lo) \
             or _canonical_rat(h_parts[1]) != _canonical_rat(checker_output_hi):
-        raise ReceiptRefusal("checker-echo-header-divergence",
+        raise _ic_refuse("checker-echo-header-divergence",
                              f"header {hdr_out!r} != checker echo {checker_output_lo} {checker_output_hi}")
     if _canonical_rat(checker_output_lo) != canonical_result_lo:
-        raise ReceiptRefusal("enclosure-lo-mismatch", f"checker {_canonical_rat(checker_output_lo)} != receipt {canonical_result_lo}")
+        raise _ic_refuse("enclosure-lo-mismatch", f"checker {_canonical_rat(checker_output_lo)} != receipt {canonical_result_lo}")
     if _canonical_rat(checker_output_hi) != canonical_result_hi:
-        raise ReceiptRefusal("enclosure-hi-mismatch", f"checker {_canonical_rat(checker_output_hi)} != receipt {canonical_result_hi}")
+        raise _ic_refuse("enclosure-hi-mismatch", f"checker {_canonical_rat(checker_output_hi)} != receipt {canonical_result_hi}")
 
     return {
         "verdict": "ACCEPT",

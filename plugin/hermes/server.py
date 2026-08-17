@@ -401,9 +401,15 @@ def _load_pinned_inventory_id() -> str:
 
 
 def _load_pinned_proof_ids(lane: str) -> tuple[str, str]:
-    """Read exact proof-identity file and internal-digest pins."""
-    file_labels = {f"{lane}-proof-identity", f"{lane}_proof_identity"}
-    digest_labels = {f"{lane}-proof-digest", f"{lane}_proof_digest"}
+    """Read exact proof-identity file and internal-digest pins.
+
+    Repo manifests use fully hyphenated labels; package manifests use fully
+    underscored labels.  Lane tokens containing a hyphen (`int-cert`) must
+    normalize consistently in BOTH spellings — never a mixed separator.
+    """
+    lane_us = lane.replace("-", "_")
+    file_labels = {f"{lane}-proof-identity", f"{lane_us}_proof_identity"}
+    digest_labels = {f"{lane}-proof-digest", f"{lane_us}_proof_digest"}
     return (
         _manifest_alias(file_labels, f"{lane} proof identity"),
         _manifest_alias(digest_labels, f"{lane} proof digest"),

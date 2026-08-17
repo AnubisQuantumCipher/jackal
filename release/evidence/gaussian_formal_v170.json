@@ -1,0 +1,51 @@
+{
+  "challenge": {
+    "expression": "exp(-10000000000*(x-0.5000123456789)^2)",
+    "lower": "0",
+    "tolerance": "1/1000000000000",
+    "upper": "1"
+  },
+  "coverage_inventory_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+  "executed_controls": {
+    "checker_mutations_rejected": 16,
+    "formal_receipt_checker_rerun": "PASS",
+    "formal_status_inventory_mutation": "PASS",
+    "fresh_package_smoke": "PASS",
+    "standalone_plugin_v2_2": "PASS",
+    "unsupported_exp_refusal_without_downgrade": "PASS"
+  },
+  "family": "gaussian-exp-square-integral-v1",
+  "identities": {
+    "checker_sha256": "ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb",
+    "coverage_inventory_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+    "producer_sha256": "20c24622b786940a8e82198f2364fb7593e761902fa0736289b179642f1e4306"
+  },
+  "non_claims": [
+    "No unrestricted correctness claim for arbitrary expressions or integration.",
+    "No formal support for generic exp, non-square amplitude, or uncovered domains.",
+    "Receipt digest equality alone is not mathematical proof; verification reruns the pinned checker.",
+    "The macOS artifact is unsigned/ad-hoc and SHA-256 does not authenticate authorship.",
+    "Independent external audit remains pending."
+  ],
+  "note": "v1.7.0 re-freeze: the int-cert lane promotion added coverage rows, so the coverage inventory carries a new identity.  Producer, checker, challenge, and observed certificate are BYTE-IDENTICAL to the v1.5.0 record; gaussian_formal_v150.json is preserved as history and this file binds the live identities.",
+  "observed_result": {
+    "certificate_sha256": "2cabe33bdd8e04eeb0461de5f0138436c2b4665f8b2195188875f59ee767fdec",
+    "lower": "17724538509055099613/1000000000000000000000000",
+    "status": "formal-bounded",
+    "upper": "22155673136319/1250000000000000000",
+    "width": "100387/1000000000000000000000000"
+  },
+  "predecessor": "gaussian_formal_v150.json",
+  "proof": {
+    "lean_kernel_axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "libm_used_by_formal_checker": false,
+    "method": "gaussian-total-minus-tails-v1",
+    "theorem": "gaussian_integral_check_sound"
+  },
+  "release_epoch": "v1.7.0",
+  "schema": "jackal-gaussian-formal-evidence-v1"
+}

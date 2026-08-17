@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""v1.5.0 compatibility-floor snapshot (mechanical, no hand counts).
+"""Compatibility-floor snapshots (mechanical, no hand counts).
+
+v1.7.1: TWO frozen floors are enforced additively — the historical v1.5.0
+floor (31 tools / 32 gates, byte-frozen) and the v1.7.0 floor (34 tools /
+43 gates).  `--check` verifies the live surface is a superset of BOTH.
+The v1.5.0 snapshot is never rewritten; `--freeze-v170` (re)writes only the
+v1.7.0 snapshot.  A bare invocation refuses instead of overwriting history.
 
 Extracts the complete backward-compatibility surface that the v1.6
 evidence-kernel epoch must preserve:
@@ -30,6 +36,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FROZEN = ROOT / "release/compat/v150_floor.json"
+FROZEN_V170 = ROOT / "release/compat/v170_floor.json"
 
 EPISTEMIC_CLASSES = [
     "exact", "checked", "estimated", "bounded", "formal-bounded",
@@ -84,6 +91,12 @@ def _gate_names() -> list[str]:
     return re.findall(r'\(\s*"([a-z0-9-]+)"\s*,', body)
 
 
+def _gate_names_v170() -> list[str]:
+    sys.path.insert(0, str(ROOT / "release/tools"))
+    import run_gates_v170  # noqa: PLC0415
+    return [name for name, _cmd, _t in run_gates_v170.GATES]
+
+
 def _variants() -> list[str]:
     sys.path.insert(0, str(ROOT / "tools"))
     import formal_receipt  # noqa: PLC0415
@@ -100,10 +113,17 @@ def _coverage_rows() -> dict[str, str]:
             for row in rows}
 
 
-def snapshot() -> dict:
+def snapshot(epoch: str = "v1.5.0") -> dict:
+    doc = _snapshot_body(epoch)
+    if epoch != "v1.5.0":
+        doc["gate_names_v170"] = _gate_names_v170()
+    return doc
+
+
+def _snapshot_body(epoch: str) -> dict:
     return {
         "schema": "jackal-compat-floor-v1",
-        "release_epoch": "v1.5.0",
+        "release_epoch": epoch,
         "tool_schemas": _tool_schemas(),
         "tool_count": len(_tool_schemas()),
         "engine_commands": _engine_commands(),
@@ -119,6 +139,11 @@ def snapshot() -> dict:
 def check(live: dict, frozen: dict) -> list[str]:
     """Additive-only diff: every frozen entry must survive unchanged."""
     errors: list[str] = []
+    if "gate_names_v170" in frozen:
+        if live.get("gate_names_v170") != frozen["gate_names_v170"]:
+            errors.append(
+                "v170-gate-list-changed: frozen "
+                f"{frozen['gate_names_v170']} != live {live.get('gate_names_v170')}")
     for name, spec in frozen["tool_schemas"].items():
         got = live["tool_schemas"].get(name)
         if got is None:
@@ -160,27 +185,42 @@ def check(live: dict, frozen: dict) -> list[str]:
 
 
 def main() -> int:
-    live = snapshot()
     if "--check" in sys.argv:
+        live = snapshot("v1.7.0")
         if not FROZEN.exists():
-            print("COMPAT_FLOOR_FAIL frozen snapshot missing")
+            print("COMPAT_FLOOR_FAIL frozen v1.5.0 snapshot missing")
+            return 1
+        if not FROZEN_V170.exists():
+            print("COMPAT_FLOOR_FAIL frozen v1.7.0 snapshot missing")
             return 1
         frozen = json.loads(FROZEN.read_text())
+        frozen170 = json.loads(FROZEN_V170.read_text())
         errors = check(live, frozen)
-        for err in errors:
+        errors170 = check(live, frozen170)
+        for err in errors + errors170:
             print(f"FAIL {err}")
-        print(f"COMPAT_FLOOR_{'PASS' if not errors else 'FAIL'} "
+        total = len(errors) + len(errors170)
+        print(f"COMPAT_FLOOR_{'PASS' if not total else 'FAIL'} "
               f"frozen_tools={frozen['tool_count']} "
               f"live_tools={live['tool_count']} "
               f"frozen_gates={len(frozen['gate_names_v150'])} "
-              f"errors={len(errors)}")
-        return 1 if errors else 0
-    FROZEN.parent.mkdir(parents=True, exist_ok=True)
-    FROZEN.write_text(json.dumps(live, indent=2, sort_keys=True) + "\n")
-    print(f"froze {FROZEN} tools={live['tool_count']} "
-          f"gates={len(live['gate_names_v150'])} "
-          f"commands={len(live['engine_commands'])}")
-    return 0
+              f"errors={len(errors)} "
+              f"v170_frozen_tools={frozen170['tool_count']} "
+              f"v170_frozen_gates={len(frozen170['gate_names_v170'])} "
+              f"v170_errors={len(errors170)}")
+        return 1 if total else 0
+    if "--freeze-v170" in sys.argv:
+        live = snapshot("v1.7.0")
+        FROZEN_V170.parent.mkdir(parents=True, exist_ok=True)
+        FROZEN_V170.write_text(json.dumps(live, indent=2, sort_keys=True) + "\n")
+        print(f"froze {FROZEN_V170} tools={live['tool_count']} "
+              f"gates={len(live['gate_names_v170'])} "
+              f"commands={len(live['engine_commands'])}")
+        return 0
+    print("usage: compat_floor.py --check | --freeze-v170\n"
+          "(the historical v1.5.0 floor is byte-frozen and never rewritten)",
+          file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

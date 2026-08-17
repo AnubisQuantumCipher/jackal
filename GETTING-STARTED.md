@@ -12,16 +12,22 @@ This guide takes you from install to reading your first certified result.
 
 ## 1. Install
 
-### Option A — download the release binary (Apple Silicon macOS)
+### Option A — download the release package (Apple Silicon macOS)
 
-Grab `jackal-native` from the [latest GitHub release](../../releases/latest),
-verify its checksum against the one published in
-[`PROVENANCE.md`](PROVENANCE.md), and drop it next to the launcher:
+The GitHub release ships one sealed package,
+`jackal-v1.7.0-macos-arm64.tar.gz`; the `jackal-native` binary lives INSIDE
+it, next to every pinned checker and wrapper. Verify the tarball against the
+release `SHA256SUMS`, extract it, and check the binary against
+[`PROVENANCE.md`](PROVENANCE.md):
 
 ```bash
 git clone https://github.com/AnubisQuantumCipher/jackal.git
 cd jackal
-# download jackal-native from the Releases page into this directory, then:
+# download jackal-v1.7.0-macos-arm64.tar.gz (+ SHA256SUMS) from the
+# Releases page into this directory, then:
+shasum -a 256 -c SHA256SUMS --ignore-missing
+tar -xzf jackal-v1.7.0-macos-arm64.tar.gz
+cp jackal-v1.7.0-macos-arm64/jackal-native .
 shasum -a 256 jackal-native        # compare against PROVENANCE.md
 chmod +x jackal-native
 ./jackal self-test

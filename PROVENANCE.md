@@ -8,7 +8,102 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
-## Seal v1.6.0 — 2026-08-16 (current) — claim-bundle evidence kernel: typed claim compiler over the intact v1.5.0 floor
+## Seal v1.7.0 — 2026-08-17 (current) — certified bound_step composition: the integrate-bound-cert lane + the rat approx= presentation fix
+
+An additive epoch over the intact v1.6.0 surface: Ledger roadmap item (4)
+— `bound_step`'s acceptance-policy composition over `runs_encloses` + the
+Taylor bridges — is now MECHANIZED for the certificate lane, shipped as a
+public proof-carrying tool.  The engine's own float `integrate-bound`
+lane stays `bounded`/CONDITIONAL and never inherits formal language.
+
+### What landed
+
+- **Lean composition stack** (`proofs/lean/JackalIv/IntCert*.lean`,
+  promoted verbatim from the audited v1.7 shadow mechanization at
+  `1c2702ec`, PR #3): flagship `int_cert_sound` — an artifact accepted by
+  the proved computable `checkIntCert` yields a genuine enclosure of the
+  exact integral of the reconstructed integrand under the named
+  `TreeTCB`; leaf lemmas `range/taylor2/taylor4_leaf_sound`,
+  `split_sound`, `sem_measurable`, and the ℚ-mirror differentiator
+  bridges `embedQ_DQ`/`qexprOf_embed`.  `#print axioms` (Ledger.lean):
+  every promoted theorem reports exactly
+  `[propext, Classical.choice, Quot.sound]`.
+- **Fourth pinned checker executable** `jackal_int_cert_check`
+  (`c858e3bfc0ff2809…`), compiled from the proved
+  `parseIntCert` + `checkIntCert` (no `native_decide`, no
+  `@[implemented_by]` on the path).  The lakefile edit re-pinned both
+  existing proof identities; the range and gaussian checker binaries
+  reproduced BYTE-IDENTICAL (`05c3518b…`, `ccac690b…`).
+- **Untrusted producer** `tools/int_cert_producer.py`
+  (`b4240fdac3c77b2a…`): exact-rational mirror of the shipped
+  `bound_step` (float midpoints, exact-ℚ acceptance, budget 60000,
+  depth 60), emitting `jackal-int-cert v1` subdivision-tree artifacts
+  whose leaves embed ordinary `jackal-eval-cert v2` certificates.
+  Identity-pinned like the seven `*_rat` producers; trust lives ONLY in
+  checker acceptance.
+- **Fail-closed release lane**: `tools/int_cert_release.py` +
+  `./jackal-int-cert-release "<expr>" <lo> <hi> <tol> <receipt.json>` —
+  request commitment `jackal-req-v3-int-cert`, producer/checker identity
+  pins with TOCTOU stability, checker-echo binding, formal-status
+  derivation against the digest-bound coverage inventory, receipt
+  variant `int_cert` (theorem `int_cert_sound`), and independent
+  re-verification before success.
+- **34th plugin tool** `jackal_integrate_bound_cert` +
+  `jackal_verify_receipt` int_cert mode (`expected_tolerance` required,
+  like gaussian); coverage rows `integrate-bound-composed-v1`,
+  `jackal_integrate_bound_cert`, `jackal_verify_receipt:int_cert` — all
+  FORMAL under `int_cert_sound`.
+- **`rat` approx= fix (issue #4)**: `approx=` is now a RENDERING of the
+  final normalized exact rational (exact long division to ≥30
+  significant digits + one correctly-rounded decimal→f64 parse), never
+  an independently computed float path; algebraically equivalent inputs
+  print identical decimals by construction.  Presentation layer only —
+  certified lanes, exact engine, and checkers untouched.  Evaluator
+  rebuilt via the pinned Anubis compiler (`a733565f…`); the baseline
+  rebuild of the UNMODIFIED source first reproduced the v1.6.0 binary
+  `8617ad08…` byte-identically, so the binary delta is exactly the fix.
+
+### Sealed identities
+
+```text
+package    jackal-v1.7.0-macos-arm64.tar.gz  21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e  (118862060 bytes)
+evaluator  jackal-native                     20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083
+source     jackal_calc.anb                   638d28dc9811bb9359af27a1bcc5427717cdf894902011fbb230dc18bac63776
+checker    jackal_cert_check                 05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a
+gaussian   jackal_gaussian_check             ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb
+int-cert   jackal_int_cert_check             c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49
+producer   tools/int_cert_producer.py        b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4
+inventory  formal_coverage_inventory.json    18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6
+plugin     plugin_hermes bundle              d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9accc247a3274b
+```
+
+### Gates (2026-08-17, this worktree, exact bytes of the seal)
+
+`python3 release/tools/run_gates_v170.py` → **GATES: PASS (43 gates)** =
+the full v1.5.0 32-gate suite (incl. black-box **202/202** with the
+issue #4 regression pair, parser differential 78/78) + the six v1.6.0
+claim gates (hostile 108, dogfood 16, ABA 7 layers, package parity
+49/49 over the v1.7.0 package, compat floor `frozen_tools=31
+live_tools=34`, evidence determinism) + the five new v1.7.0 gates:
+int-cert matrix **31/31** (6 positive, 7 refusal, 18 semantic poisons),
+int-cert A→B→A against the COMPILED checker (tolerance guard
+load-bearing; enclosure guards PROOF-load-bearing — disabling them does
+not compile), engine differential **5/5** (mpmath oracle inside both
+enclosures), int-cert release lane end-to-end, and the int-cert proof
+identity check.  Double package build: byte-identical tarball.
+
+### Residual non-claims (unchanged discipline)
+
+- The producer is untrusted; its fidelity to the shipped engine's
+  `bound_step` control flow is differential-tested, never proved.
+- Source→native refinement (verified compilation of the Anubis lane)
+  remains OPEN — the last roadmap bridge (5).
+- Claim-bundle `formal-receipt` evidence replay stays pinned to the
+  range lane; gaussian and int_cert receipts verify directly via
+  `jackal_verify_receipt`, not yet inside bundles (SPEC §6/§12).
+- SHA-256 identifies bytes; it does not authenticate an author.
+
+## Seal v1.6.0 — 2026-08-16 — claim-bundle evidence kernel: typed claim compiler over the intact v1.5.0 floor
 
 An additive epoch: the v1.5.0 engine, exact-CAS surface, formal
 fragments, receipt formats, CLI commands, and all 31 Hermes tools are

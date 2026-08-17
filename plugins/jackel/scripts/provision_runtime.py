@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import ctypes
 import errno
 import hashlib
@@ -40,8 +41,10 @@ MAX_RUNTIME_ENTRIES = MAX_ARCHIVE_MEMBERS + 2
 MAX_RUNTIME_DEPTH = 64
 MAX_RUNTIME_PATH_BYTES = 4096
 MAX_RUNTIME_MANIFEST_BYTES = 8 * 1024 * 1024
+MAX_INSTALLED_METADATA_BYTES = 16 * 1024
 DOWNLOAD_CHUNK_SIZE = 64 * 1024
 NETWORK_TIMEOUT = 30.0
+DOWNLOAD_TOTAL_TIMEOUT = 300.0
 SELFTEST_TIMEOUT = 30.0
 SELFTEST_OUTPUT_LIMIT = 64 * 1024
 SNAPSHOT_BYTE_LIMIT = EXTRACTED_SIZE + 1024 * 1024
@@ -120,6 +123,41 @@ def _valid_digest(digest: str) -> bool:
     return isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest, re.ASCII) is not None
 
 
+@contextlib.contextmanager
+def _hard_download_deadline(total_timeout: float):
+    try:
+        previous_timer = signal.getitimer(signal.ITIMER_REAL)
+        previous_handler = signal.getsignal(signal.SIGALRM)
+    except (AttributeError, OSError, ValueError) as error:
+        raise ProvisionError("download deadline control is unavailable") from error
+    if previous_timer != (0.0, 0.0):
+        raise ProvisionError("download deadline timer is already in use")
+
+    def deadline_expired(unused_signum, unused_frame) -> None:
+        raise ProvisionError("download exceeded monotonic total deadline")
+
+    try:
+        signal.signal(signal.SIGALRM, deadline_expired)
+    except (OSError, ValueError) as error:
+        raise ProvisionError("download deadline control is unavailable") from error
+    try:
+        signal.setitimer(signal.ITIMER_REAL, total_timeout)
+    except (OSError, ValueError) as error:
+        try:
+            signal.signal(signal.SIGALRM, previous_handler)
+        except (OSError, ValueError):
+            pass
+        raise ProvisionError("download deadline control is unavailable") from error
+    try:
+        yield
+    finally:
+        try:
+            signal.setitimer(signal.ITIMER_REAL, 0.0)
+            signal.signal(signal.SIGALRM, previous_handler)
+        except (OSError, ValueError) as error:
+            raise ProvisionError("download deadline control is unavailable") from error
+
+
 def stream_download(
     url: str,
     output: Path | str,
@@ -129,43 +167,63 @@ def stream_download(
     opener: Callable = urllib.request.urlopen,
     chunk_size: int = DOWNLOAD_CHUNK_SIZE,
     network_timeout: float = NETWORK_TIMEOUT,
+    total_timeout: float = DOWNLOAD_TOTAL_TIMEOUT,
 ) -> Path:
-    """Stream a pinned asset into a new file with a hard byte ceiling."""
+    """Stream a pinned asset with hard byte and monotonic elapsed-time ceilings."""
     destination = Path(output)
-    if expected_size < 0 or chunk_size <= 0 or network_timeout <= 0 or not _valid_digest(expected_sha256):
+    if (
+        expected_size < 0
+        or chunk_size <= 0
+        or network_timeout <= 0
+        or total_timeout <= 0
+        or not _valid_digest(expected_sha256)
+    ):
         raise ProvisionError("invalid download expectation")
+    deadline = time.monotonic() + total_timeout
+
+    def require_deadline() -> None:
+        if time.monotonic() >= deadline:
+            raise ProvisionError("download exceeded monotonic total deadline")
+
     digest = hashlib.sha256()
     count = 0
     created = False
     try:
-        try:
-            handle = destination.open("xb")
-            created = True
-        except OSError as error:
-            raise ProvisionError("download destination already exists or is unavailable") from error
-        with handle:
-            with opener(url, timeout=network_timeout) as response:
-                declared = response.headers.get("Content-Length")
-                if declared is not None:
-                    try:
-                        declared_size = int(declared)
-                    except (TypeError, ValueError) as error:
-                        raise ProvisionError("invalid Content-Length") from error
-                    if declared_size != expected_size:
-                        raise ProvisionError("Content-Length does not match pinned size")
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    if not isinstance(chunk, bytes):
-                        raise ProvisionError("download returned non-byte content")
-                    count += len(chunk)
-                    if count > expected_size:
-                        raise ProvisionError("download exceeds pinned size")
-                    digest.update(chunk)
-                    handle.write(chunk)
-            handle.flush()
-            os.fsync(handle.fileno())
+        with _hard_download_deadline(total_timeout):
+            try:
+                handle = destination.open("xb")
+                created = True
+            except OSError as error:
+                raise ProvisionError("download destination already exists or is unavailable") from error
+            with handle:
+                require_deadline()
+                with opener(url, timeout=min(network_timeout, total_timeout)) as response:
+                    require_deadline()
+                    declared = response.headers.get("Content-Length")
+                    if declared is not None:
+                        try:
+                            declared_size = int(declared)
+                        except (TypeError, ValueError) as error:
+                            raise ProvisionError("invalid Content-Length") from error
+                        if declared_size != expected_size:
+                            raise ProvisionError("Content-Length does not match pinned size")
+                    while True:
+                        require_deadline()
+                        chunk = response.read(chunk_size)
+                        require_deadline()
+                        if not chunk:
+                            break
+                        if not isinstance(chunk, bytes):
+                            raise ProvisionError("download returned non-byte content")
+                        count += len(chunk)
+                        if count > expected_size:
+                            raise ProvisionError("download exceeds pinned size")
+                        digest.update(chunk)
+                        handle.write(chunk)
+                require_deadline()
+                handle.flush()
+                os.fsync(handle.fileno())
+                require_deadline()
         if count != expected_size:
             raise ProvisionError("download size does not match pin")
         if not hmac.compare_digest(digest.hexdigest(), expected_sha256):
@@ -626,7 +684,12 @@ def verify_sha256sums(
         os.close(root_fd)
 
 
-def _process_group_exists(process_group: int, kill_group: Callable) -> bool:
+def _process_group_exists(
+    process_group: int,
+    kill_group: Callable,
+    *,
+    permission_quiescent: Callable[[], bool] | None = None,
+) -> bool:
     try:
         kill_group(process_group, 0)
         return True
@@ -636,31 +699,78 @@ def _process_group_exists(process_group: int, kill_group: Callable) -> bool:
         if error.errno == errno.ESRCH:
             return False
         if error.errno == errno.EPERM:
-            return False
+            if permission_quiescent is not None and permission_quiescent():
+                return False
+            raise ProvisionError(
+                "permission denied inspecting selftest process group"
+            ) from error
         raise ProvisionError("cannot inspect selftest process group") from error
 
 
-def _cleanup_process_group(process_group: int, kill_group: Callable = os.killpg) -> None:
+def _cleanup_process_group(
+    process_group: int,
+    kill_group: Callable = os.killpg,
+    *,
+    quiescent_check: Callable[[], bool] | None = None,
+) -> None:
+    def independently_quiescent() -> bool:
+        return quiescent_check is not None and quiescent_check()
+
+    def bounded_permission_quiescence() -> bool:
+        if quiescent_check is None:
+            return False
+        deadline = time.monotonic() + 0.2
+        while True:
+            if independently_quiescent():
+                return True
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(0.01, remaining))
+
+    if independently_quiescent():
+        return
     try:
         kill_group(process_group, signal.SIGTERM)
     except ProcessLookupError:
         return
     except OSError as error:
-        if error.errno in (errno.ESRCH, errno.EPERM):
+        if error.errno == errno.ESRCH:
             return
+        if error.errno == errno.EPERM:
+            if bounded_permission_quiescence():
+                return
+            raise ProvisionError(
+                "permission denied terminating selftest process group"
+            ) from error
         raise ProvisionError("cannot terminate selftest process group") from error
     deadline = time.monotonic() + 0.2
     while time.monotonic() < deadline:
-        if not _process_group_exists(process_group, kill_group):
+        if independently_quiescent():
+            return
+        if not _process_group_exists(
+            process_group,
+            kill_group,
+            permission_quiescent=bounded_permission_quiescence,
+        ):
             return
         time.sleep(0.01)
+    if independently_quiescent():
+        return
     try:
         kill_group(process_group, signal.SIGKILL)
     except ProcessLookupError:
         return
     except OSError as error:
-        if error.errno not in (errno.ESRCH, errno.EPERM):
-            raise ProvisionError("cannot kill surviving selftest process group") from error
+        if error.errno == errno.ESRCH:
+            return
+        if error.errno == errno.EPERM:
+            if bounded_permission_quiescence():
+                return
+            raise ProvisionError(
+                "permission denied killing selftest process group"
+            ) from error
+        raise ProvisionError("cannot kill surviving selftest process group") from error
 
 
 def _terminate_process_group(process: subprocess.Popen, kill_group: Callable = os.killpg) -> None:
@@ -683,6 +793,120 @@ def _leader_exited_without_reaping(pid: int, waitid_func: Callable) -> bool:
     except ChildProcessError as error:
         raise _LeaderAnchorLost("selftest leader was reaped before process-group cleanup") from error
     return result is not None and getattr(result, "si_pid", pid) == pid
+
+
+def _group_observation_is_quiescent(
+    output: bytes | bytearray, process_group: int,
+) -> bool:
+    try:
+        members = []
+        for line in bytes(output).decode("ascii").splitlines():
+            fields = line.split()
+            if len(fields) != 2 or not fields[0].isdigit():
+                raise ValueError
+            members.append((int(fields[0]), fields[1]))
+    except (TypeError, UnicodeDecodeError, ValueError) as error:
+        raise ProvisionError("process-group observation output is invalid") from error
+    return (
+        bool(members)
+        and any(pid == process_group for pid, unused_state in members)
+        and all(state.startswith("Z") for unused_pid, state in members)
+    )
+
+
+def _exited_group_has_only_zombie_members(
+    process_group: int,
+    *,
+    output_limit: int = 64 * 1024,
+    timeout: float = 0.5,
+) -> bool:
+    """Affirm that the retained leader and every observed member are zombies."""
+    if process_group <= 0 or output_limit < 1 or timeout <= 0:
+        raise ProvisionError("invalid process-group observation bounds")
+    try:
+        observer = subprocess.Popen(
+            ["/bin/ps", "-o", "pid=,state=", "-g", str(process_group)],
+            env={"PATH": FIXED_SYSTEM_PATH},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+    except OSError as error:
+        raise ProvisionError("cannot inspect completed selftest process group") from error
+    if observer.stdout is None:
+        observer.kill()
+        observer.wait()
+        raise ProvisionError("process-group observer pipe is unavailable")
+    selector: selectors.BaseSelector | None = None
+    output = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        try:
+            selector = selectors.DefaultSelector()
+        except OSError as error:
+            raise ProvisionError("process-group observer setup failed") from error
+        selector.register(observer.stdout, selectors.EVENT_READ)
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProvisionError("process-group observation timed out")
+            for key, unused in selector.select(min(remaining, 0.05)):
+                allowance = output_limit - len(output) + 1
+                chunk = os.read(key.fd, min(DOWNLOAD_CHUNK_SIZE, max(1, allowance)))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                output.extend(chunk)
+                if len(output) > output_limit:
+                    raise ProvisionError("process-group observation exceeds output limit")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ProvisionError("process-group observation timed out")
+        observer_return_code = observer.wait(timeout=remaining)
+        if observer_return_code not in (0, 1):
+            raise ProvisionError("process-group observation refused")
+    except Exception:
+        if observer.poll() is None:
+            observer.terminate()
+            try:
+                observer.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                observer.kill()
+                try:
+                    observer.wait(timeout=0.1)
+                except subprocess.TimeoutExpired as error:
+                    raise ProvisionError(
+                        "process-group observer did not exit after bounded cleanup"
+                    ) from error
+        raise
+    finally:
+        if selector is not None:
+            selector.close()
+        observer.stdout.close()
+    if observer_return_code == 1 and not output:
+        return False
+    return _group_observation_is_quiescent(output, process_group)
+
+
+def _cleanup_completed_process_group(
+    process_group: int,
+    cleanup_group: Callable,
+    kill_group: Callable,
+) -> None:
+    def independently_quiescent() -> bool:
+        try:
+            return _exited_group_has_only_zombie_members(process_group)
+        except ProvisionError:
+            return False
+
+    if independently_quiescent():
+        return
+    cleanup_group(
+        process_group,
+        kill_group,
+        quiescent_check=independently_quiescent,
+    )
 
 
 def _run_selftest(
@@ -712,11 +936,15 @@ def _run_selftest(
         )
     except OSError as error:
         raise ProvisionError("runtime selftest failed to start") from error
-    selector = selectors.DefaultSelector()
+    selector: selectors.BaseSelector | None = None
     stdout = bytearray()
     stderr = bytearray()
     streams = ((process.stdout, stdout), (process.stderr, stderr))
     try:
+        try:
+            selector = selectors.DefaultSelector()
+        except OSError as error:
+            raise ProvisionError("runtime selftest monitor setup failed") from error
         for stream, sink in streams:
             if stream is None:
                 raise ProvisionError("runtime selftest pipes are unavailable")
@@ -739,7 +967,7 @@ def _run_selftest(
                 sink.extend(chunk)
                 if len(stdout) + len(stderr) > output_limit:
                     raise ProvisionError("runtime selftest output exceeds limit")
-        cleanup(process.pid, kill_group)
+        _cleanup_completed_process_group(process.pid, cleanup, kill_group)
         return_code = process.wait(timeout=0.5)
     except _LeaderAnchorLost:
         raise
@@ -747,7 +975,8 @@ def _run_selftest(
         _terminate_process_group(process, kill_group)
         raise
     finally:
-        selector.close()
+        if selector is not None:
+            selector.close()
         for stream, unused in streams:
             if stream is not None:
                 stream.close()
@@ -830,8 +1059,16 @@ def _private_directory_chain(root_fd: int, components: Iterable[str]) -> int:
         raise
 
 
-def _copy_file_bytes(source_fd: int, destination_fd: int, relative: str) -> str:
+def _copy_file_bytes(
+    source_fd: int,
+    destination_fd: int,
+    relative: str,
+    *,
+    byte_limit: int = SNAPSHOT_BYTE_LIMIT,
+) -> str:
     """Copy and hash one already opened file without resolving another pathname."""
+    if byte_limit < 0:
+        raise ProvisionError(f"runtime snapshot file exceeds byte limit: {relative!r}")
     digest = hashlib.sha256()
     count = 0
     os.lseek(source_fd, 0, os.SEEK_SET)
@@ -840,7 +1077,7 @@ def _copy_file_bytes(source_fd: int, destination_fd: int, relative: str) -> str:
         if not chunk:
             break
         count += len(chunk)
-        if count > SNAPSHOT_BYTE_LIMIT:
+        if count > min(byte_limit, SNAPSHOT_BYTE_LIMIT):
             raise ProvisionError(f"runtime snapshot file exceeds byte limit: {relative!r}")
         digest.update(chunk)
         view = memoryview(chunk)
@@ -857,14 +1094,21 @@ def _copy_runtime_file(
     destination_root_fd: int,
     relative: str,
     expected_digest: str | None,
+    *,
+    byte_limit: int = SNAPSHOT_BYTE_LIMIT,
 ) -> int:
     source_fd = _open_regular_at(source_root_fd, relative)
-    destination_parent_fd = _private_directory_chain(
-        destination_root_fd, relative.split("/")[:-1]
-    )
+    destination_parent_fd = -1
     destination_fd = -1
     try:
         before = os.fstat(source_fd)
+        if byte_limit < 0 or before.st_size > min(byte_limit, MAX_RUNTIME_FILE_BYTES):
+            raise ProvisionError(
+                f"runtime snapshot file exceeds remaining byte limit: {relative!r}"
+            )
+        destination_parent_fd = _private_directory_chain(
+            destination_root_fd, relative.split("/")[:-1]
+        )
         try:
             destination_fd = os.open(
                 relative.split("/")[-1],
@@ -874,7 +1118,9 @@ def _copy_runtime_file(
             )
         except OSError as error:
             raise ProvisionError("runtime snapshot destination is unsafe") from error
-        actual = _copy_file_bytes(source_fd, destination_fd, relative)
+        actual = _copy_file_bytes(
+            source_fd, destination_fd, relative, byte_limit=byte_limit
+        )
         after = os.fstat(source_fd)
         if (
             before.st_dev,
@@ -902,7 +1148,8 @@ def _copy_runtime_file(
     finally:
         if destination_fd >= 0:
             os.close(destination_fd)
-        os.close(destination_parent_fd)
+        if destination_parent_fd >= 0:
+            os.close(destination_parent_fd)
         os.close(source_fd)
 
 
@@ -943,7 +1190,11 @@ def create_runtime_snapshot(
             total = 0
             for relative, digest in sorted(records.items()):
                 total += _copy_runtime_file(
-                    source_root_fd, destination_root_fd, relative, digest
+                    source_root_fd,
+                    destination_root_fd,
+                    relative,
+                    digest,
+                    byte_limit=SNAPSHOT_BYTE_LIMIT - total,
                 )
                 if total > SNAPSHOT_BYTE_LIMIT:
                     raise ProvisionError("runtime snapshot exceeds byte limit")
@@ -952,12 +1203,14 @@ def create_runtime_snapshot(
                 destination_root_fd,
                 "SHA256SUMS",
                 expected_tree_sha256,
+                byte_limit=SNAPSHOT_BYTE_LIMIT - total,
             )
             total += _copy_runtime_file(
                 source_root_fd,
                 destination_root_fd,
                 ".jackal-package.json",
                 None,
+                byte_limit=SNAPSHOT_BYTE_LIMIT - total,
             )
             if total > SNAPSHOT_BYTE_LIMIT:
                 raise ProvisionError("runtime snapshot exceeds byte limit")
@@ -1017,12 +1270,62 @@ def _atomic_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def _load_exact_metadata(path: Path, expected: dict[str, object]) -> None:
+    parent_fd = -1
+    metadata_fd = -1
+    current_fd = -1
+
+    def reject_duplicate_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ProvisionError("installed runtime metadata has duplicate keys")
+            result[key] = value
+        return result
+
     try:
-        if path.is_symlink() or not path.is_file():
+        parent_fd = os.open(path.parent, _directory_flags())
+        parent_before = os.fstat(parent_fd)
+        if not stat.S_ISDIR(parent_before.st_mode):
+            raise ProvisionError("installed runtime metadata parent is not a directory")
+        metadata_fd = os.open(path.name, _file_read_flags(), dir_fd=parent_fd)
+        metadata_before = os.fstat(metadata_fd)
+        if not stat.S_ISREG(metadata_before.st_mode):
             raise ProvisionError("installed runtime metadata is not a regular file")
-        parsed = json.loads(path.read_bytes())
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        if metadata_before.st_size > MAX_INSTALLED_METADATA_BYTES:
+            raise ProvisionError("installed runtime metadata exceeds byte limit")
+        data = _read_fd(metadata_fd, byte_limit=MAX_INSTALLED_METADATA_BYTES)
+        text = data.decode("utf-8")
+        parsed = json.loads(text, object_pairs_hook=reject_duplicate_keys)
+        canonical = (
+            json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        if data != canonical:
+            raise ProvisionError("installed runtime metadata is not canonical JSON")
+
+        current_fd = os.open(path.name, _file_read_flags(), dir_fd=parent_fd)
+        current_info = os.fstat(current_fd)
+        metadata_after = os.fstat(metadata_fd)
+        if (
+            not stat.S_ISREG(current_info.st_mode)
+            or _file_signature(metadata_before) != _file_signature(metadata_after)
+            or _file_signature(metadata_after) != _file_signature(current_info)
+        ):
+            raise ProvisionError("installed runtime metadata path changed during validation")
+        parent_after = os.fstat(parent_fd)
+        parent_path = os.stat(path.parent, follow_symlinks=False)
+        if (
+            _file_signature(parent_before) != _file_signature(parent_after)
+            or _file_signature(parent_after) != _file_signature(parent_path)
+        ):
+            raise ProvisionError("installed runtime metadata parent changed during validation")
+    except ProvisionError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ProvisionError("installed runtime metadata is invalid") from error
+    finally:
+        for fd in (current_fd, metadata_fd, parent_fd):
+            if fd >= 0:
+                os.close(fd)
     if parsed != expected:
         raise ProvisionError("installed runtime does not match the pinned package")
 
@@ -1115,6 +1418,7 @@ def provision(
     expected_top_level: str = PACKAGE_DIRECTORY,
     opener: Callable = urllib.request.urlopen,
     network_timeout: float = NETWORK_TIMEOUT,
+    download_total_timeout: float = DOWNLOAD_TOTAL_TIMEOUT,
     system: str | None = None,
     machine: str | None = None,
     selftest_timeout: float = SELFTEST_TIMEOUT,
@@ -1169,6 +1473,7 @@ def provision(
                 expected_sha256=expected_sha256,
                 opener=opener,
                 network_timeout=network_timeout,
+                total_timeout=download_total_timeout,
             )
         else:
             package_source = Path(tarball)

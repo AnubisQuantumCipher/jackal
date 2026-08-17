@@ -218,8 +218,9 @@ def _open_plugin_root(plugin_root: Path | str) -> int:
 
 
 def _open_plugin_file_at(root_fd: int, relative_path: str) -> int:
-    fd = os.dup(root_fd)
+    fd = -1
     try:
+        fd = os.dup(root_fd)
         components = relative_path.split("/")
         for index, component in enumerate(components):
             try:
@@ -239,8 +240,15 @@ def _open_plugin_file_at(root_fd: int, relative_path: str) -> int:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise NonRegularFile(f"not a regular file: {_display_path(relative_path)}")
         return fd
+    except OSError as error:
+        if fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        raise UnexpectedEntry("plugin file cannot be opened safely") from error
     except Exception:
-        os.close(fd)
+        if fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(fd)
         raise
 
 def _hash_open_file(fd: int, *, byte_limit: int) -> tuple[str, int]:
@@ -298,8 +306,9 @@ def _verify_exact_inventory_at(
     seen_files: set[str] = set()
     seen_directories: set[str] = set()
     entry_count = 0
-    stack: list[tuple[str, int, int]] = [("", os.dup(root_fd), 0)]
+    stack: list[tuple[str, int, int]] = []
     try:
+        stack.append(("", os.dup(root_fd), 0))
         while stack:
             prefix, directory_fd, depth = stack.pop()
             try:
@@ -378,6 +387,11 @@ def _verify_exact_inventory_at(
                     f"missing plugin directory: {_display_path(missing[0])}"
                 )
             raise UnexpectedEntry("plugin inventory differs from identity manifest")
+    except OSError as error:
+        for unused_prefix, pending_fd, unused_depth in stack:
+            with contextlib.suppress(OSError):
+                os.close(pending_fd)
+        raise UnexpectedEntry("plugin inventory cannot be traversed safely") from error
     except Exception:
         for unused_prefix, pending_fd, unused_depth in stack:
             with contextlib.suppress(OSError):
@@ -443,8 +457,9 @@ def _require_supplied_manifest_bytes(
 
 
 def _open_plugin_directory_at(root_fd: int, relative_path: str) -> int:
-    fd = os.dup(root_fd)
+    fd = -1
     try:
+        fd = os.dup(root_fd)
         if relative_path:
             for component in relative_path.split("/"):
                 next_fd = os.open(
@@ -455,8 +470,17 @@ def _open_plugin_directory_at(root_fd: int, relative_path: str) -> int:
         if not stat.S_ISDIR(os.fstat(fd).st_mode):
             raise NonRegularFile("plugin inventory directory is not a directory")
         return fd
+    except OSError as error:
+        if fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        raise UnexpectedEntry(
+            "plugin inventory directory cannot be opened safely"
+        ) from error
     except Exception:
-        os.close(fd)
+        if fd >= 0:
+            with contextlib.suppress(OSError):
+                os.close(fd)
         raise
 
 

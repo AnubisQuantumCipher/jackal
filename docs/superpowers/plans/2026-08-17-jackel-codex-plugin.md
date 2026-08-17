@@ -437,10 +437,11 @@ all public descriptions, display names, prompts, instructions, and headings.
 Run the focused metadata test and confirm it fails on the legacy public-name
 misspelling.
 
-```bash
-/opt/homebrew/bin/python3 -m unittest \
-  tests.codex_plugin.test_plugin_metadata.PluginMetadataTests.test_legacy_ids_remain_jackel_but_public_product_is_jackal -v
-```
+Run the named metadata test with a fixed absolute interpreter only after it
+passes the exact `launch_mcp.zsh` capability probe. The hosted `macos-14`
+workflow repeats the complete repository plugin suite on Darwin/arm64; this
+historical plan does not bypass the launcher contract with a hard-coded direct
+Python invocation.
 
 - [ ] **Step 2: GREEN public-name metadata**
 
@@ -585,15 +586,15 @@ success, cancellation, timeout, and backend error.
 
 - [ ] **Step 15: Run focused GREEN gates**
 
-```bash
-/opt/homebrew/bin/python3 -m unittest \
-  tests.codex_plugin.test_plugin_metadata \
-  tests.codex_plugin.test_plugin_identity \
-  tests.codex_plugin.test_runtime_provisioner \
-  tests.codex_plugin.test_mcp_adapter \
-  tests.codex_plugin.test_live_acceptance -v
-/opt/homebrew/bin/python3 plugins/jackel/scripts/verify_plugin.py
-```
+Run the five focused modules, full `tests/codex_plugin` discovery, and
+`plugins/jackel/scripts/verify_plugin.py` with the exact fixed interpreter that
+has passed `launch_mcp.zsh`'s complete capability probe. Run repository
+module-name unittest gates with `-B`; `-I -S -B` remains mandatory for
+launcher-controlled adapter and provisioner execution, where the launcher
+supplies the verified source path explicitly. The pinned `macos-14` workflow is
+the hosted reproduction of these commands and also runs the offline
+installed-config smoke. Do not substitute a caller-`PATH` interpreter merely
+to make this historical checklist portable.
 
 Require zero warnings, no leaked processes/snapshots, and no `__pycache__` under
 the source or isolated installed plugin.
@@ -602,6 +603,43 @@ the source or isolated installed plugin.
 
 - [ ] Re-run the complete plugin suite and canonical Plugin Creator validator.
 - [ ] Run the live driver through the installed `.mcp.json` launch command.
+- [ ] After installing the final frozen wrapper into the explicitly selected
+  real Codex home, run the separate fresh-task discovery hook. The exact
+  operator command is:
+
+  ```bash
+  set -o pipefail
+  cd /Users/sicarii/Worktrees/jackal-codex-plugin
+  /Users/sicarii/.local/bin/codex plugin add jackel@anubis-quantum-cipher --json
+  JACKAL_PROBED_PYTHON=/opt/homebrew/bin/python3
+  HOST_EVIDENCE="/private/tmp/jackal-codex-host-$(/bin/date -u +%Y%m%dT%H%M%SZ)-$$.jsonl"
+  HOST_REPORT="${HOST_EVIDENCE%.jsonl}.report.json"
+  "$JACKAL_PROBED_PYTHON" -I -S -B tests/codex_plugin/live_acceptance.py \
+    --host-live \
+    --codex-home /Users/sicarii/.codex \
+    --codex-binary /Users/sicarii/.local/bin/codex \
+    --runtime-root '/Users/sicarii/Library/Application Support/JACKAL/runtimes/v1.7.0' \
+    --host-evidence "$HOST_EVIDENCE" | /usr/bin/tee "$HOST_REPORT"
+  ```
+
+  `JACKAL_PROBED_PYTHON` must first pass the unchanged launcher probe. This
+  command intentionally targets real Codex state and is outside the present
+  isolated remediation run. Until its nonce-bound raw JSONL and canonical
+  report are captured from the frozen installed identity, fresh-task host acceptance remains unproven.
+  The hook records the canonical host executable path, size, SHA-256, and
+  strict version before and after the task as a caller-supplied external trust anchor.
+  This tamper-evident provenance does not authenticate an official Codex binary;
+  the operator must separately trust the executable selected for the gate.
+  Its fail-closed transcript validator requires canonical event and item keys,
+  passive item text, exact MCP lifecycle state, and deep equality between each
+  MCP completion's strict-JSON text content and structured content.
+  It also requires exact successful claim and verifier result key sets and
+  binds the self-excluding bundle digest, route/root/rendering/policy/proposition,
+  `claim-verify=verified`, `bundle.digest=`, and epoch-plus-nonce freshness.
+  Process-group cleanup treats only `ESRCH` as absence. Before or after a
+  transient `EPERM`, the separate bounded observer may affirm quiescence only
+  when WNOWAIT retains the exited leader and every observed group member is a
+  zombie; the permission error itself is never reclassified as absence.
 - [ ] Require exactly 34 full-profile tools, direct/MCP parity for success and
   backend refusal, formal acceptance, unsupported-formal refusal without
   fallback, bundle replay, and receipt replay.

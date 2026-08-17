@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -16,12 +17,20 @@ SKILL_PATH = PLUGIN_ROOT / "skills" / "jackel" / "SKILL.md"
 IDENTITY_PATH = PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
 LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.zsh"
 SERVER_PATH = PLUGIN_ROOT / "mcp" / "server.py"
+WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "jackal-codex-plugin.yml"
 DESIGN_PATH = (
     REPOSITORY_ROOT
     / "docs"
     / "superpowers"
     / "specs"
     / "2026-08-17-jackel-codex-plugin-design.md"
+)
+PLAN_PATH = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "superpowers"
+    / "plans"
+    / "2026-08-17-jackel-codex-plugin.md"
 )
 APPROVED_SKILL_DESCRIPTION = (
     "Route claim-aware mathematical evidence work through JACKAL without "
@@ -131,6 +140,59 @@ class PluginMetadataTests(unittest.TestCase):
             design,
         )
 
+    def test_design_records_quality_closure_and_unrun_fresh_host_gate(self):
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        for required in (
+            "monotonic total download deadline",
+            "bounded response-byte queue",
+            "duplicate-key rejection and canonical JSON",
+            "Only `ESRCH` or `ProcessLookupError`",
+            "`EPERM` is a bounded named failure unless a bounded re-observation",
+            "never reinterpret a permission error itself as proof of absence",
+            "same provisioner-owned sanitized environment",
+            "`--host-live`",
+            "`codex mcp list --json`",
+            "exact active `jackel` MCP declaration and resolved cache cwd",
+            "thread-start, turn-start, claim-start, claim-complete, verify-start, verify-complete, turn-complete",
+            "`item.updated`",
+            "unknown top-level or active-capability event",
+            "`in_progress` to `completed`",
+            "between its correlated start and completion",
+            "nonnegative `input_tokens`, `cached_input_tokens`, and `output_tokens`",
+            "`cache_write_input_tokens` and `reasoning_output_tokens` are the only permitted optional counters",
+            "does not itself constitute fresh-host evidence",
+            "`macos-14`",
+            "snapshot cleanup failure is a named startup refusal",
+            "caller-supplied external trust anchor",
+            "does not authenticate an official Codex binary",
+            "passive item identifiers",
+            "terminal-only passive completion",
+            "passwd account home",
+            "ancestor or descendant",
+            "before every Codex install command",
+            "retains the unreaped leader anchor",
+            "host text content and structured content",
+            "observer failure cannot suppress",
+            "canonical event and item keys",
+            "passive item text",
+            "exact successful claim and verifier result key sets",
+            "`claim-verify=verified`",
+            "`bundle.digest=`",
+            "retained leader plus only zombie members",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, design)
+
+        plan = PLAN_PATH.read_text(encoding="utf-8")
+        self.assertIsNone(
+            re.search(r"(?m)^/opt/homebrew/bin/python3\b", plan),
+            "historical plan must not directly invoke one machine-specific Python",
+        )
+        self.assertIn("--host-live", plan)
+        self.assertIn("fresh-task host acceptance remains unproven", plan)
+        self.assertIn("caller-supplied external trust anchor", plan)
+        self.assertIn("does not authenticate an official Codex binary", plan)
+
     def test_jackel_plugin_metadata_contract(self):
         manifest = self.load_json(MANIFEST_PATH)
         marketplace = self.load_json(MARKETPLACE_PATH)
@@ -167,10 +229,17 @@ class PluginMetadataTests(unittest.TestCase):
                 "Verify this receipt or claim bundle against my pinned expectations.",
             ],
         )
-        self.assertEqual(
-            interface["longDescription"],
-            "Use JACKAL's complete mathematical evidence kernel from Codex, with exact, checked, estimated, bounded, formal-bounded, model-based, verified, indeterminate, and refused results preserved at their original assurance level. Formal-bounded applies only to checker-admitted fragments. Requires Apple Silicon macOS and the pinned sealed v1.7.0 runtime.",
+        expected_long_description = (
+            "Use JACKAL's complete mathematical evidence kernel from Codex, with "
+            "exact, checked, estimated, bounded, formal-bounded, model-based, "
+            "verified, indeterminate, and refused results preserved at their "
+            "original assurance level. Formal-bounded applies only to "
+            "checker-admitted fragments. Requires Apple Silicon macOS, Python "
+            ">=3.10 at /opt/homebrew/bin/python3 (install with brew install "
+            "python), and the pinned sealed v1.7.0 runtime."
         )
+        self.assertEqual(interface["longDescription"], expected_long_description)
+        self.assertIn(f"- `interface.longDescription`: `{expected_long_description}`", DESIGN_PATH.read_text(encoding="utf-8"))
 
         self.assertRegex(manifest["version"], r"^0\.1\.0\+codex\.\d{14}$")
         self.assertEqual(manifest["description"], "Expose JACKAL's claim-aware mathematical evidence kernel to Codex.")
@@ -240,6 +309,8 @@ class PluginMetadataTests(unittest.TestCase):
             "Run a weaker lane only when the caller explicitly requests one",
             "Apple Silicon macOS only",
             "Do not bypass the Darwin/arm64 host guard",
+            "Python >=3.10 at `/opt/homebrew/bin/python3`",
+            "brew install python",
         ):
             self.assertIn(phrase, skill)
 
@@ -291,7 +362,9 @@ class PluginMetadataTests(unittest.TestCase):
             '"CLD_KILLED"', '"CLD_DUMPED"', '"killpg"',
             '"set_blocking"', '"socketpair"', "ctypes.CDLL",
             '"renameatx_np"', "selectors.DefaultSelector",
-            "tarfile.open", "urllib.request.urlopen", "is_absolute",
+            "signal.setitimer", "signal.getitimer", "signal.ITIMER_REAL",
+            "signal.SIGALRM", "tarfile.open", "urllib.request.urlopen",
+            "is_absolute",
         ):
             self.assertIn(required_probe, source)
         self.assertIn('exec "$python" -I -S -B', source)
@@ -374,9 +447,53 @@ class PluginMetadataTests(unittest.TestCase):
         self.assertEqual(completed.stdout, "")
         self.assertEqual(
             completed.stderr,
-            "jackal_mcp=refused reason=no-compatible-python\n",
+            "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 at /opt/homebrew/bin/python3' recovery='brew install python'\n",
         )
         self.assertEqual(len(calls), 2)
+
+    def test_hosted_macos_workflow_mechanically_runs_all_repo_local_plugin_gates(self):
+        self.assertTrue(WORKFLOW_PATH.is_file(), "hosted JACKAL plugin workflow is missing")
+        source = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("runs-on: macos-14", source)
+        self.assertIn('test "$(uname -s)" = Darwin', source)
+        self.assertIn('test "$(uname -m)" = arm64', source)
+        self.assertIn(
+            "/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v",
+            source,
+        )
+        self.assertIn(
+            "/opt/homebrew/bin/python3 -B plugins/jackel/scripts/verify_plugin.py",
+            source,
+        )
+        self.assertIn(
+            "/opt/homebrew/bin/python3 -B -m unittest tests.codex_plugin.test_plugin_metadata -v",
+            source,
+        )
+        self.assertIn(
+            "test_real_installed_config_smoke_without_runtime",
+            source,
+        )
+        self.assertIn(
+            "test_actual_plugin_installed_config_refuses_offline_without_runtime",
+            source,
+        )
+        self.assertIn("PYTHONDONTWRITEBYTECODE: \"1\"", source)
+        action_uses = re.findall(r"^\s*-?\s*uses:\s*([^\s#]+)", source, re.MULTILINE)
+        self.assertTrue(action_uses)
+        for action in action_uses:
+            with self.subTest(action=action):
+                self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
+        smoke_block = source.split("- name: Installed-config live smoke", 1)[1]
+        for forbidden in (
+            "brew install",
+            "curl ",
+            "urllib",
+            "provision --",
+            "release/download",
+            "JACKAL_HOME=",
+        ):
+            self.assertNotIn(forbidden, smoke_block)
 
     def test_load_json_rejects_duplicate_keys(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

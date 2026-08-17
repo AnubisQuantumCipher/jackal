@@ -1,3 +1,4 @@
+import errno
 import hashlib
 import io
 import json
@@ -287,6 +288,80 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 opener=opener, network_timeout=3.25,
             )
         opener.assert_called_once_with("https://example.invalid/asset", timeout=3.25)
+
+    def test_stream_download_does_not_misclassify_body_io_as_timer_failure(self):
+        class FailingResponse(FakeResponse):
+            def read(self, size=-1):
+                raise OSError("fixture network read failure")
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "download"
+            with self.assertRaisesRegex(
+                provisioner.ProvisionError, "^download failed$"
+            ):
+                provisioner.stream_download(
+                    "https://example.invalid/asset",
+                    output,
+                    expected_size=1,
+                    expected_sha256=self.sha(b"x"),
+                    opener=lambda unused, **kwargs: FailingResponse(b"", 1),
+                )
+            self.assertFalse(output.exists())
+
+    def test_stream_download_enforces_monotonic_total_deadline(self):
+        data = b"abcdef"
+        clock = [100.0]
+
+        class SlowResponse(FakeResponse):
+            def read(self, size=-1):
+                clock[0] += 0.3
+                return super().read(size)
+
+        response = SlowResponse(data, len(data))
+        opener = mock.Mock(return_value=response)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "download"
+            with (
+                mock.patch.object(provisioner.time, "monotonic", side_effect=lambda: clock[0]),
+                self.assertRaisesRegex(provisioner.ProvisionError, "deadline"),
+            ):
+                provisioner.stream_download(
+                    "https://example.invalid/asset",
+                    output,
+                    expected_size=len(data),
+                    expected_sha256=self.sha(data),
+                    opener=opener,
+                    chunk_size=2,
+                    network_timeout=3.25,
+                    total_timeout=0.5,
+                )
+            self.assertFalse(output.exists())
+        opener.assert_called_once_with("https://example.invalid/asset", timeout=0.5)
+        self.assertEqual(response.read_sizes, [2, 2])
+
+    def test_stream_download_interrupts_one_blocking_read_at_total_deadline(self):
+        data = b"payload"
+
+        class BlockingResponse(FakeResponse):
+            def read(self, size=-1):
+                time.sleep(0.2)
+                return super().read(size)
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "download"
+            started = time.monotonic()
+            with self.assertRaisesRegex(provisioner.ProvisionError, "deadline"):
+                provisioner.stream_download(
+                    "https://example.invalid/asset",
+                    output,
+                    expected_size=len(data),
+                    expected_sha256=self.sha(data),
+                    opener=mock.Mock(return_value=BlockingResponse(data, len(data))),
+                    total_timeout=0.05,
+                )
+            elapsed = time.monotonic() - started
+            self.assertLess(elapsed, 0.15)
+            self.assertFalse(output.exists())
 
     def test_stream_download_preserves_preexisting_destination(self):
         data = b"trusted operator bytes"
@@ -766,6 +841,77 @@ class RuntimeProvisionerTests(unittest.TestCase):
             self.assertTrue(snapshot._closed)
             self.assertEqual(cleanup.call_count, 2)
 
+    def test_runtime_snapshot_preflights_file_size_against_remaining_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"
+            destination = base / "destination"
+            source.mkdir()
+            destination.mkdir()
+            (source / "payload.txt").write_bytes(b"12345")
+            source_fd = os.open(source, provisioner._directory_flags())
+            destination_fd = os.open(destination, provisioner._directory_flags())
+            try:
+                with (
+                    mock.patch.object(
+                        provisioner,
+                        "_copy_file_bytes",
+                        side_effect=AssertionError("oversized file must not be copied"),
+                    ),
+                    self.assertRaisesRegex(provisioner.ProvisionError, "byte limit"),
+                ):
+                    provisioner._copy_runtime_file(
+                        source_fd,
+                        destination_fd,
+                        "payload.txt",
+                        self.sha(b"12345"),
+                        byte_limit=4,
+                    )
+            finally:
+                os.close(destination_fd)
+                os.close(source_fd)
+            self.assertFalse((destination / "payload.txt").exists())
+
+    def test_runtime_snapshot_growth_never_writes_past_remaining_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"
+            destination = base / "destination"
+            source.mkdir()
+            destination.mkdir()
+            payload = source / "payload.txt"
+            payload.write_bytes(b"123")
+            source_fd = os.open(source, provisioner._directory_flags())
+            destination_fd = os.open(destination, provisioner._directory_flags())
+            original_copy = provisioner._copy_file_bytes
+
+            def grow_after_preflight(*args, **kwargs):
+                payload.write_bytes(b"1234567890")
+                return original_copy(*args, **kwargs)
+
+            try:
+                with (
+                    mock.patch.object(
+                        provisioner,
+                        "_copy_file_bytes",
+                        side_effect=grow_after_preflight,
+                    ),
+                    self.assertRaisesRegex(provisioner.ProvisionError, "byte limit"),
+                ):
+                    provisioner._copy_runtime_file(
+                        source_fd,
+                        destination_fd,
+                        "payload.txt",
+                        self.sha(b"123"),
+                        byte_limit=4,
+                    )
+            finally:
+                os.close(destination_fd)
+                os.close(source_fd)
+            copied = destination / "payload.txt"
+            self.assertTrue(copied.exists())
+            self.assertLessEqual(copied.stat().st_size, 4)
+
     def test_runtime_snapshot_rejects_unsafe_partial_and_extra_inputs_without_leaks(self):
         cases = ("symlink", "fifo", "extra", "partial")
         for case in cases:
@@ -806,9 +952,14 @@ class RuntimeProvisionerTests(unittest.TestCase):
             real_copy = provisioner._copy_file_bytes
             changed = False
 
-            def aba_after_copy(source_fd, destination_fd, relative):
+            def aba_after_copy(source_fd, destination_fd, relative, *, byte_limit):
                 nonlocal changed
-                result = real_copy(source_fd, destination_fd, relative)
+                result = real_copy(
+                    source_fd,
+                    destination_fd,
+                    relative,
+                    byte_limit=byte_limit,
+                )
                 if relative == "payload.txt" and not changed:
                     changed = True
                     payload.unlink()
@@ -949,9 +1100,264 @@ class RuntimeProvisionerTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(events, [f"signal-anchored-group:{signal.SIGTERM}", "reap-boundary"])
+        self.assertEqual(events, ["reap-boundary"])
         self.assertTrue(waitid_calls)
         self.assertTrue(all(flags & os.WNOWAIT for unused_type, unused_pid, flags in waitid_calls))
+
+    def test_selftest_selector_allocation_failure_cleans_spawned_process(self):
+        process = mock.Mock(pid=424204)
+        process.stdout = io.BytesIO()
+        process.stderr = io.BytesIO()
+        with (
+            mock.patch.object(
+                provisioner.selectors,
+                "DefaultSelector",
+                side_effect=OSError("descriptor exhaustion"),
+            ),
+            mock.patch.object(provisioner, "_terminate_process_group") as terminate,
+            self.assertRaisesRegex(provisioner.ProvisionError, "monitor setup"),
+        ):
+            provisioner._run_selftest(
+                ["/absolute/runtime", "selftest"],
+                timeout=1.0,
+                output_limit=1024,
+                popen_factory=mock.Mock(return_value=process),
+            )
+
+        terminate.assert_called_once_with(process, provisioner.os.killpg)
+        self.assertTrue(process.stdout.closed)
+        self.assertTrue(process.stderr.closed)
+
+    def test_process_group_observer_selector_failure_cleans_observer(self):
+        observer = mock.Mock()
+        observer.stdout = io.BytesIO()
+        observer.poll.return_value = None
+        observer.wait.return_value = -signal.SIGTERM
+        with (
+            mock.patch.object(provisioner.subprocess, "Popen", return_value=observer),
+            mock.patch.object(
+                provisioner.selectors,
+                "DefaultSelector",
+                side_effect=OSError("descriptor exhaustion"),
+            ),
+            self.assertRaisesRegex(provisioner.ProvisionError, "observer setup"),
+        ):
+            provisioner._exited_group_has_only_zombie_members(424205)
+
+        observer.terminate.assert_called_once_with()
+        observer.wait.assert_called_once_with(timeout=0.1)
+        self.assertTrue(observer.stdout.closed)
+
+    def test_process_group_observer_accepts_leader_plus_only_zombie_members(self):
+        self.assertTrue(
+            provisioner._group_observation_is_quiescent(
+                b"424208 Z\n424209 Z+\n424210 Z\n", 424208
+            )
+        )
+        self.assertTrue(
+            hasattr(provisioner, "_exited_group_has_only_zombie_members")
+        )
+        self.assertFalse(
+            hasattr(provisioner, "_exited_group_has_only_zombie_leader")
+        )
+        self.assertFalse(
+            provisioner._group_observation_is_quiescent(
+                b"424208 Z\n424209 S\n", 424208
+            )
+        )
+        self.assertFalse(
+            provisioner._group_observation_is_quiescent(b"424209 Z\n", 424208)
+        )
+
+    def test_process_group_observer_cleanup_timeout_is_named(self):
+        observer = mock.Mock()
+        observer.stdout = io.BytesIO()
+        observer.poll.return_value = None
+        observer.wait.side_effect = (
+            subprocess.TimeoutExpired(["ps"], 0.1),
+            subprocess.TimeoutExpired(["ps"], 0.1),
+        )
+        with (
+            mock.patch.object(provisioner.subprocess, "Popen", return_value=observer),
+            mock.patch.object(
+                provisioner.selectors,
+                "DefaultSelector",
+                side_effect=OSError("descriptor exhaustion"),
+            ),
+            self.assertRaisesRegex(provisioner.ProvisionError, "did not exit"),
+        ):
+            provisioner._exited_group_has_only_zombie_members(424207)
+
+        observer.terminate.assert_called_once_with()
+        observer.kill.assert_called_once_with()
+        self.assertTrue(observer.stdout.closed)
+
+    def test_selftest_group_permission_denial_is_a_named_failure(self):
+        def deny(unused_group, unused_signal):
+            raise OSError(errno.EPERM, "not permitted")
+
+        with self.assertRaisesRegex(provisioner.ProvisionError, "permission denied"):
+            provisioner._process_group_exists(424200, deny)
+        with self.assertRaisesRegex(provisioner.ProvisionError, "permission denied"):
+            provisioner._cleanup_process_group(424201, deny)
+
+        signals = []
+
+        def deny_kill(unused_group, sent_signal):
+            signals.append(sent_signal)
+            if sent_signal == signal.SIGKILL:
+                raise OSError(errno.EPERM, "not permitted")
+
+        with (
+            mock.patch.object(provisioner.time, "monotonic", side_effect=(0.0, 1.0)),
+            self.assertRaisesRegex(provisioner.ProvisionError, "permission denied"),
+        ):
+            provisioner._cleanup_process_group(424202, deny_kill)
+        self.assertEqual(signals, [signal.SIGTERM, signal.SIGKILL])
+
+        cleanup = mock.Mock()
+        with mock.patch.object(
+            provisioner, "_exited_group_has_only_zombie_members", return_value=True
+        ) as observe_quiescent:
+            provisioner._cleanup_completed_process_group(424203, cleanup, deny)
+        observe_quiescent.assert_called_once_with(424203)
+        cleanup.assert_not_called()
+
+    def test_selftest_transient_eperm_requires_positive_bounded_quiescence(self):
+        signals = []
+
+        def transient_after_term(unused_group, sent_signal):
+            signals.append(sent_signal)
+            if sent_signal == 0:
+                raise OSError(errno.EPERM, "transient zombie transition")
+
+        quiescent = mock.Mock(side_effect=(False, False, True))
+        provisioner._cleanup_process_group(
+            424210,
+            transient_after_term,
+            quiescent_check=quiescent,
+        )
+        self.assertEqual(signals, [signal.SIGTERM, 0])
+        self.assertEqual(quiescent.call_count, 3)
+
+        persistent = mock.Mock(return_value=False)
+        with self.assertRaisesRegex(provisioner.ProvisionError, "permission denied"):
+            provisioner._cleanup_process_group(
+                424211,
+                transient_after_term,
+                quiescent_check=persistent,
+            )
+        self.assertGreaterEqual(persistent.call_count, 2)
+
+    def test_failed_quiescence_observer_cannot_prevent_group_cleanup(self):
+        cleanup = mock.Mock()
+        deny = mock.Mock()
+        with mock.patch.object(
+            provisioner,
+            "_exited_group_has_only_zombie_members",
+            side_effect=provisioner.ProvisionError("observer unavailable"),
+        ):
+            provisioner._cleanup_completed_process_group(424206, cleanup, deny)
+
+        cleanup.assert_called_once()
+        process_group, kill_group = cleanup.call_args.args
+        self.assertEqual(process_group, 424206)
+        self.assertIs(kill_group, deny)
+        self.assertFalse(cleanup.call_args.kwargs["quiescent_check"]())
+
+    def test_exact_metadata_is_bounded_canonical_and_duplicate_safe(self):
+        expected = provisioner._package_metadata(
+            epoch="v1.7.0",
+            asset=provisioner.ASSET,
+            size=17,
+            digest=self.sha(b"package"),
+        )
+        canonical = (
+            json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = root / ".jackal-package.json"
+
+            metadata.write_bytes(b" " * (16 * 1024 + 1))
+            with (
+                mock.patch.object(
+                    provisioner.json,
+                    "loads",
+                    side_effect=AssertionError("oversized metadata must not be parsed"),
+                ),
+                self.assertRaisesRegex(provisioner.ProvisionError, "metadata"),
+            ):
+                provisioner._load_exact_metadata(metadata, expected)
+
+            duplicate = b'{"schema":"forged",' + canonical[1:]
+            metadata.write_bytes(duplicate)
+            with self.assertRaisesRegex(provisioner.ProvisionError, "metadata"):
+                provisioner._load_exact_metadata(metadata, expected)
+
+            metadata.write_text(json.dumps(expected, indent=2) + "\n")
+            with self.assertRaisesRegex(provisioner.ProvisionError, "metadata"):
+                provisioner._load_exact_metadata(metadata, expected)
+
+            metadata.write_bytes(canonical)
+            provisioner._load_exact_metadata(metadata, expected)
+
+    def test_exact_metadata_rejects_path_replacement_and_coordinated_aba(self):
+        expected = provisioner._package_metadata(
+            epoch="v1.7.0",
+            asset=provisioner.ASSET,
+            size=17,
+            digest=self.sha(b"package"),
+        )
+        canonical = (
+            json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode()
+        real_read_fd = provisioner._read_fd
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = root / ".jackal-package.json"
+            replacement = root / "replacement.json"
+            metadata.write_bytes(canonical)
+            replacement.write_bytes(canonical)
+
+            def replace_after_read(fd, *, byte_limit):
+                data = real_read_fd(fd, byte_limit=byte_limit)
+                os.replace(replacement, metadata)
+                return data
+
+            with (
+                mock.patch.object(provisioner, "_read_fd", side_effect=replace_after_read),
+                self.assertRaisesRegex(provisioner.ProvisionError, "metadata"),
+            ):
+                provisioner._load_exact_metadata(metadata, expected)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = root / ".jackal-package.json"
+            parked = root / "parked.json"
+            replacement = root / "replacement.json"
+            metadata.write_bytes(canonical)
+            replacement.write_bytes(canonical)
+
+            def aba_after_read(fd, *, byte_limit):
+                data = real_read_fd(fd, byte_limit=byte_limit)
+                before = root.stat()
+                os.replace(metadata, parked)
+                os.replace(replacement, metadata)
+                os.replace(metadata, replacement)
+                os.replace(parked, metadata)
+                os.utime(
+                    root,
+                    ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000),
+                )
+                return data
+
+            with (
+                mock.patch.object(provisioner, "_read_fd", side_effect=aba_after_read),
+                self.assertRaisesRegex(provisioner.ProvisionError, "metadata"),
+            ):
+                provisioner._load_exact_metadata(metadata, expected)
 
     def test_provision_offline_installs_metadata_and_locator_atomically(self):
         with tempfile.TemporaryDirectory() as directory:

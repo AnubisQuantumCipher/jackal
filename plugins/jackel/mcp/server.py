@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import contextlib
 import copy
 import errno
@@ -48,6 +49,12 @@ MAX_STDERR_BYTES = 1024 * 1024
 MAX_ERROR_RESPONSE_BYTES = 1024
 MAX_ACTIVE_CALLS = 8
 MAX_TRANSPORT_TASKS = 16
+MAX_JSON_DEPTH = 64
+MAX_MCP_RESPONSE_BYTES = (2 * MAX_STDOUT_BYTES) + (2 * 1024 * 1024)
+MAX_RESPONSE_QUEUE_BYTES = 2 * MAX_MCP_RESPONSE_BYTES
+STDIO_DRAIN_TIMEOUT = 0.5
+PROCESS_GROUP_OBSERVATION_BYTES = 64 * 1024
+PROCESS_GROUP_OBSERVATION_TIMEOUT = 0.5
 _IDENTITY_LINE = re.compile(r"([0-9a-f]{64})  ([^\n]+)", re.ASCII)
 
 PARSE_ERROR = -32700
@@ -247,11 +254,113 @@ def _reject_json_constant(unused: str) -> None:
 
 
 def _strict_json_loads(text: str) -> Any:
-    return json.loads(
-        text,
-        object_pairs_hook=_object_pairs,
-        parse_constant=_reject_json_constant,
+    try:
+        value = json.loads(
+            text,
+            object_pairs_hook=_object_pairs,
+            parse_constant=_reject_json_constant,
+        )
+    except RecursionError as error:
+        raise ValueError("JSON nesting exceeds limit") from error
+    stack: list[tuple[object, int]] = [(value, 1)]
+    while stack:
+        item, depth = stack.pop()
+        if isinstance(item, dict):
+            if depth > MAX_JSON_DEPTH:
+                raise ValueError("JSON nesting exceeds limit")
+            stack.extend((child, depth + 1) for child in item.values())
+        elif isinstance(item, list):
+            if depth > MAX_JSON_DEPTH:
+                raise ValueError("JSON nesting exceeds limit")
+            stack.extend((child, depth + 1) for child in item)
+    return value
+
+
+def _group_observation_is_quiescent(output: bytes | bytearray, process_group: int) -> bool:
+    try:
+        members = []
+        for line in bytes(output).decode("ascii").splitlines():
+            fields = line.split()
+            if len(fields) != 2 or not fields[0].isdigit():
+                raise ValueError
+            members.append((int(fields[0]), fields[1]))
+    except (TypeError, UnicodeDecodeError, ValueError) as error:
+        raise BackendFailure("backend process-group observation output is invalid") from error
+    return (
+        bool(members)
+        and any(pid == process_group for pid, unused_state in members)
+        and all(state.startswith("Z") for unused_pid, state in members)
     )
+
+
+def _exited_group_has_only_zombie_members(process_group: int) -> bool:
+    """Affirm a completed group has its leader and only zombie members."""
+    try:
+        observer = subprocess.Popen(
+            ["/bin/ps", "-o", "pid=,state=", "-g", str(process_group)],
+            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+    except OSError as error:
+        raise BackendFailure("cannot inspect completed backend process group") from error
+    if observer.stdout is None:
+        observer.kill()
+        observer.wait()
+        raise BackendFailure("backend process-group observer pipe is unavailable")
+    selector: selectors.BaseSelector | None = None
+    output = bytearray()
+    deadline = time.monotonic() + PROCESS_GROUP_OBSERVATION_TIMEOUT
+    try:
+        try:
+            selector = selectors.DefaultSelector()
+        except OSError as error:
+            raise BackendFailure("backend process-group observer setup failed") from error
+        selector.register(observer.stdout, selectors.EVENT_READ)
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise BackendFailure("backend process-group observation timed out")
+            for key, unused in selector.select(min(remaining, 0.05)):
+                allowance = PROCESS_GROUP_OBSERVATION_BYTES - len(output) + 1
+                chunk = os.read(key.fd, min(64 * 1024, max(1, allowance)))
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                output.extend(chunk)
+                if len(output) > PROCESS_GROUP_OBSERVATION_BYTES:
+                    raise BackendFailure(
+                        "backend process-group observation exceeds output limit"
+                    )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise BackendFailure("backend process-group observation timed out")
+        observer_return_code = observer.wait(timeout=remaining)
+        if observer_return_code not in (0, 1):
+            raise BackendFailure("backend process-group observation refused")
+    except Exception:
+        if observer.poll() is None:
+            observer.terminate()
+            try:
+                observer.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                observer.kill()
+                try:
+                    observer.wait(timeout=0.1)
+                except subprocess.TimeoutExpired as error:
+                    raise BackendFailure(
+                        "backend process-group observer did not exit after bounded cleanup"
+                    ) from error
+        raise
+    finally:
+        if selector is not None:
+            selector.close()
+        observer.stdout.close()
+    if observer_return_code == 1 and not output:
+        return False
+    return _group_observation_is_quiescent(output, process_group)
 
 
 class _AnchoredBackendRunner:
@@ -347,18 +456,54 @@ class _AnchoredBackendRunner:
 
     def _signal_group(self, process: subprocess.Popen[bytes], requested_signal: int) -> bool:
         self._peek_leader_anchor(process)
+        if self.state.leader_status is not None:
+            try:
+                if _exited_group_has_only_zombie_members(process.pid):
+                    return False
+            except BackendFailure:
+                # Observation is an optimization for the zombie-only case. A
+                # failed observer must never prevent an otherwise permitted
+                # group signal; EPERM from that signal remains a named failure.
+                pass
         try:
             os.killpg(process.pid, requested_signal)
             return True
         except ProcessLookupError:
             return False
         except OSError as error:
-            if error.errno in (errno.ESRCH, errno.EPERM):
+            if error.errno == errno.ESRCH:
                 return False
+            if error.errno == errno.EPERM:
+                if self._permission_failure_is_quiescent(process):
+                    return False
+                raise BackendFailure(
+                    "permission denied signalling backend process group"
+                ) from error
             raise BackendFailure("cannot signal backend process group") from error
 
     def _group_exists(self, process: subprocess.Popen[bytes]) -> bool:
         return self._signal_group(process, 0)
+
+    def _permission_failure_is_quiescent(
+        self, process: subprocess.Popen[bytes]
+    ) -> bool:
+        """Require a retained exited leader and an all-zombie group snapshot."""
+        deadline = time.monotonic() + self.terminate_grace
+        while True:
+            try:
+                status = self._peek_leader_anchor(process)
+            except BackendFailure:
+                return False
+            if status is not None:
+                try:
+                    if _exited_group_has_only_zombie_members(process.pid):
+                        return True
+                except BackendFailure:
+                    return False
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(0.01, remaining))
 
     def _begin_termination(self, process: subprocess.Popen[bytes]) -> None:
         state = self.state
@@ -562,11 +707,17 @@ class _AnchoredBackendRunner:
 
             status = self._terminate_and_reap(process)
             cleanup_done = True
+            if outcome is None and self._cancelled.is_set():
+                outcome = CallCancelled("request cancelled during backend cleanup")
             if outcome is not None:
                 raise outcome
 
             self._drain_to_eof(selector, buffers, open_streams, wake_reader)
+            if self._cancelled.is_set():
+                raise CallCancelled("request cancelled before backend result delivery")
             value = self._parse_backend_output(bytes(buffers["stdout"]))
+            if self._cancelled.is_set():
+                raise CallCancelled("request cancelled before backend result delivery")
             if status == 0:
                 return value
             if status == 1 and value.get("status") in {"ok", "refused", "indeterminate"}:
@@ -1057,7 +1208,7 @@ class MCPServer:
         try:
             text = line.decode("utf-8")
             message = _strict_json_loads(text)
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
             return _error_response(None, PARSE_ERROR, "invalid JSON")
         return await self.handle_message(message)
 
@@ -1430,14 +1581,133 @@ def build_production_server(
             runtime_owner=snapshot_owner,
         )
     except Exception as error:
+        cleanup_error: Exception | None = None
         if snapshot_owner is not None:
             close = getattr(snapshot_owner, "close", None)
             if callable(close):
-                with contextlib.suppress(Exception):
+                try:
                     close()
+                except Exception as failure:
+                    cleanup_error = failure
+        if cleanup_error is not None:
+            raise StartupError(
+                "private runtime snapshot cleanup failed after startup refusal"
+            ) from cleanup_error
         if isinstance(error, StartupError):
             raise
         raise StartupError("private runtime snapshot creation refused") from error
+
+
+class _ResponseQueueClosed(AdapterError):
+    pass
+
+
+class _ResponseQueueFull(AdapterError):
+    pass
+
+
+class _BoundedResponseQueue:
+    def __init__(self, max_bytes: int = MAX_RESPONSE_QUEUE_BYTES) -> None:
+        if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 1:
+            raise ValueError("invalid response queue byte bound")
+        self.max_bytes = max_bytes
+        self._bytes = 0
+        self._items: deque[bytes] = deque()
+        self._closed = False
+        self._condition = asyncio.Condition()
+
+    async def put(self, payload: bytes) -> None:
+        if not isinstance(payload, bytes) or not payload or len(payload) > self.max_bytes:
+            raise BackendFailure("encoded MCP response exceeds queue byte limit")
+        async with self._condition:
+            if self._closed:
+                raise _ResponseQueueClosed("response queue is closed")
+            if self._bytes + len(payload) > self.max_bytes:
+                raise _ResponseQueueFull("response queue capacity is exhausted")
+            self._items.append(payload)
+            self._bytes += len(payload)
+            self._condition.notify_all()
+
+    async def get(self) -> bytes | None:
+        async with self._condition:
+            while not self._items and not self._closed:
+                await self._condition.wait()
+            if not self._items:
+                return None
+            payload = self._items.popleft()
+            self._bytes -= len(payload)
+            self._condition.notify_all()
+            return payload
+
+    async def close(self) -> None:
+        async with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+
+
+class _AsyncWritePipeProtocol(asyncio.Protocol):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        on_connection_lost: Callable[[], None],
+    ) -> None:
+        self._loop = loop
+        self._on_connection_lost = on_connection_lost
+        self._paused = False
+        self._lost: BaseException | None = None
+        self._drain_waiter: asyncio.Future[None] | None = None
+
+    def pause_writing(self) -> None:
+        self._paused = True
+
+    def resume_writing(self) -> None:
+        self._paused = False
+        waiter = self._drain_waiter
+        if waiter is not None and not waiter.done():
+            waiter.set_result(None)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        self._lost = exc if exc is not None else BrokenPipeError("stdout pipe closed")
+        waiter = self._drain_waiter
+        if waiter is not None and not waiter.done():
+            waiter.set_exception(self._lost)
+        self._on_connection_lost()
+
+    async def drain(self) -> None:
+        if self._lost is not None:
+            raise self._lost
+        if not self._paused:
+            return
+        waiter = self._loop.create_future()
+        self._drain_waiter = waiter
+        try:
+            await waiter
+        finally:
+            if self._drain_waiter is waiter:
+                self._drain_waiter = None
+
+
+def _encode_transport_response(response: dict[str, Any]) -> bytes:
+    request_id = response.get("id") if _valid_request_id(response.get("id")) else None
+    try:
+        encoded = (
+            json.dumps(
+                response,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            + b"\n"
+        )
+        if len(encoded) > MAX_MCP_RESPONSE_BYTES:
+            raise ValueError("encoded response exceeds limit")
+        return encoded
+    except (TypeError, ValueError, RecursionError):
+        fallback = _error_response(
+            request_id, INTERNAL_ERROR, "response serialization failed closed"
+        )
+        return json.dumps(fallback, separators=(",", ":")).encode("utf-8") + b"\n"
 
 
 async def _wait_for_transport_capacity(
@@ -1450,45 +1720,90 @@ async def _wait_for_transport_capacity(
             tuple(tasks), return_when=asyncio.FIRST_COMPLETED
         )
         tasks.difference_update(done)
-        await asyncio.gather(*done)
+        await asyncio.gather(*done, return_exceptions=True)
 
 
 async def _serve_stdio(server: MCPServer) -> None:
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader(limit=MAX_REQUEST_LINE_BYTES + 1)
     protocol = asyncio.StreamReaderProtocol(reader)
-    await loop.connect_read_pipe(lambda: protocol, sys.stdin.buffer)
-    write_lock = asyncio.Lock()
+    response_queue = _BoundedResponseQueue()
     tasks: set[asyncio.Task[None]] = set()
+    read_transport: asyncio.ReadTransport | None = None
+    write_transport: asyncio.WriteTransport | None = None
+    writer_task: asyncio.Task[None] | None = None
+    transport_stop_task: asyncio.Task[None] | None = None
+    shutting_down = False
+
+    async def stop_transport() -> None:
+        await response_queue.close()
+        if read_transport is not None:
+            read_transport.close()
+        if write_transport is not None:
+            write_transport.abort()
+
+    def schedule_transport_stop() -> None:
+        nonlocal transport_stop_task
+        if shutting_down:
+            return
+        if transport_stop_task is None or transport_stop_task.done():
+            transport_stop_task = asyncio.create_task(stop_transport())
+
+    async def drain_responses(write_protocol: _AsyncWritePipeProtocol) -> None:
+        assert write_transport is not None
+        try:
+            while True:
+                encoded = await response_queue.get()
+                if encoded is None:
+                    return
+                write_transport.write(encoded)
+                await write_protocol.drain()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            await stop_transport()
 
     async def process(line: bytes) -> None:
-        response = await server.handle_line(line)
+        try:
+            response = await server.handle_line(line)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            response = _error_response(None, INTERNAL_ERROR, "unexpected handler failure")
         if response is None:
             return
-        encoded = (
-            json.dumps(
-                response,
-                ensure_ascii=False,
-                allow_nan=False,
-                sort_keys=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
-            + b"\n"
-        )
-        async with write_lock:
-            sys.stdout.buffer.write(encoded)
-            sys.stdout.buffer.flush()
+        try:
+            await response_queue.put(_encode_transport_response(response))
+        except _ResponseQueueClosed:
+            return
+        except _ResponseQueueFull:
+            await stop_transport()
 
     try:
+        raw_read_transport, unused_read_protocol = await loop.connect_read_pipe(
+            lambda: protocol, sys.stdin.buffer
+        )
+        read_transport = cast(asyncio.ReadTransport, raw_read_transport)
+        raw_transport, write_protocol = await loop.connect_write_pipe(
+            lambda: _AsyncWritePipeProtocol(loop, schedule_transport_stop),
+            sys.stdout.buffer,
+        )
+        write_transport = cast(asyncio.WriteTransport, raw_transport)
+        write_transport.set_write_buffer_limits(
+            high=MAX_MCP_RESPONSE_BYTES, low=max(1, MAX_MCP_RESPONSE_BYTES // 2)
+        )
+        writer_task = asyncio.create_task(drain_responses(write_protocol))
         while True:
             try:
                 line = await reader.readline()
             except ValueError:
                 response = _error_response(None, INVALID_REQUEST, "request line exceeds byte limit")
-                encoded = json.dumps(response, separators=(",", ":")).encode("utf-8") + b"\n"
-                async with write_lock:
-                    sys.stdout.buffer.write(encoded)
-                    sys.stdout.buffer.flush()
+                try:
+                    await response_queue.put(_encode_transport_response(response))
+                except _ResponseQueueClosed:
+                    pass
+                except _ResponseQueueFull:
+                    await stop_transport()
                 break
             if not line:
                 break
@@ -1499,13 +1814,35 @@ async def _serve_stdio(server: MCPServer) -> None:
             # following cancellation cannot overtake registration of its call.
             await asyncio.sleep(0)
     finally:
+        shutting_down = True
         try:
             # EOF means the client can no longer receive a call response.
             # Cancel/reap active process groups before awaiting handler exit.
             await server.close()
         finally:
             if tasks:
+                done, pending = await asyncio.wait(tasks, timeout=STDIO_DRAIN_TIMEOUT)
+                if pending:
+                    await response_queue.close()
+                    for task in pending:
+                        task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
+            await response_queue.close()
+            if writer_task is not None:
+                done, unused_pending = await asyncio.wait(
+                    {writer_task}, timeout=STDIO_DRAIN_TIMEOUT
+                )
+                if not done:
+                    writer_task.cancel()
+                    if write_transport is not None:
+                        write_transport.abort()
+                await asyncio.gather(writer_task, return_exceptions=True)
+            if write_transport is not None:
+                write_transport.close()
+            if read_transport is not None:
+                read_transport.close()
+            if transport_stop_task is not None:
+                await asyncio.gather(transport_stop_task, return_exceptions=True)
 
 
 def _bounded_detail(error: Exception) -> str:

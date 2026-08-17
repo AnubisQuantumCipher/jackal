@@ -86,6 +86,13 @@ This plugin supports Apple Silicon macOS only and uses the pinned sealed
 v1.7.0 macOS-arm64 runtime. Do not bypass the Darwin/arm64 host guard or
 substitute another platform build.
 
+Python >=3.10 at `/opt/homebrew/bin/python3` is the supported fixed-path
+prerequisite on Apple Silicon. If it is absent or fails the launcher's
+capability probe, install it with `brew install python`, then rerun the same
+launcher command. The launcher also probes `/usr/local/bin/python3` and
+`/usr/bin/python3` when either already satisfies the complete contract; it
+never searches caller `PATH`.
+
 When provisioning is requested, run from the plugin root:
 
 ```bash

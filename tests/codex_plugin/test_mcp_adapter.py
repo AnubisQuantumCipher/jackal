@@ -3,6 +3,7 @@ import copy
 import errno
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import py_compile
@@ -245,7 +246,7 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                     raise SystemExit(64)
                 name = sys.argv[2]
                 arguments = json.loads(sys.argv[3])
-                allowed = {{"payload", "mode", "pid_file"}}
+                allowed = {{"payload", "mode", "pid_file", "release_file"}}
                 if (
                     "payload" not in arguments
                     or not isinstance(arguments.get("payload"), dict)
@@ -334,44 +335,48 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                     time.sleep(60)
                 elif mode in ("orphan-hold-exit", "orphan-hold-crash", "orphan-output-exit"):
                     pid_file = arguments["pid_file"]
-                    grandchild_source = (
-                        "import os,signal,sys,time;"
-                        "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
-                        "open(sys.argv[1],'a').write(str(os.getpid())+'\\\\n');"
-                        "time.sleep(60)"
-                    )
                     child_source = (
-                        "import os,signal,subprocess,sys,time;"
-                        "parent=os.getppid();"
+                        "import os,signal,sys,time;"
+                        "mode=sys.argv[1];parent=int(sys.argv[2]);"
+                        "time.sleep(0.1);"
                         "signal.signal(signal.SIGTERM,signal.SIG_IGN);"
-                        "g=subprocess.Popen([sys.executable,'-c',sys.argv[2],sys.argv[1]]);"
-                        "open(sys.argv[1],'a').write(str(os.getpid())+'\\\\n');"
-                        "mode=sys.argv[3];"
+                        "signal.pthread_sigmask(signal.SIG_UNBLOCK,{{signal.SIGTERM}});"
                         "exec(\\\"while mode == 'output' and os.getppid() == parent:\\\\n time.sleep(0.005)\\\");"
                         "time.sleep(0.15) if mode == 'output' else None;"
                         "os.write(1,b'x'*8192) if mode == 'output' else None;"
                         "time.sleep(60)"
                     )
-                    child = subprocess.Popen(
-                        [
-                            sys.executable,
-                            "-c",
-                            child_source,
-                            pid_file,
-                            grandchild_source,
-                            "output" if mode == "orphan-output-exit" else "hold",
-                        ]
+                    child_modes = (
+                        ("output", "hold")
+                        if mode == "orphan-output-exit"
+                        else ("hold", "hold")
                     )
+                    signal.pthread_sigmask(signal.SIG_BLOCK, {{signal.SIGTERM}})
+                    try:
+                        children = [
+                            subprocess.Popen(
+                                [sys.executable, "-c", child_source, child_mode, str(os.getpid())]
+                            )
+                            for child_mode in child_modes
+                        ]
+                    finally:
+                        signal.pthread_sigmask(signal.SIG_UNBLOCK, {{signal.SIGTERM}})
                     with open(pid_file, "a", encoding="utf-8") as handle:
-                        handle.write(str(os.getpid()) + "\\n" + str(child.pid) + "\\n")
+                        handle.write(
+                            str(os.getpid())
+                            + "\\n"
+                            + "\\n".join(str(child.pid) for child in children)
+                            + "\\n"
+                        )
                         handle.flush()
                         os.fsync(handle.fileno())
-                    deadline = time.monotonic() + 2
-                    while time.monotonic() < deadline:
-                        with open(pid_file, encoding="utf-8") as handle:
-                            if len(set(handle.read().splitlines())) >= 3:
-                                break
-                        time.sleep(0.005)
+                    release_file = arguments.get("release_file")
+                    if release_file is not None:
+                        release_deadline = time.monotonic() + 5
+                        while not os.path.isfile(release_file):
+                            if time.monotonic() >= release_deadline:
+                                raise SystemExit(70)
+                            time.sleep(0.005)
                     if mode == "orphan-hold-crash":
                         os.kill(os.getpid(), signal.SIGKILL)
                     raise SystemExit(0)
@@ -404,6 +409,7 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                         "payload": {"type": "object", "required": True, "help": "Fixture payload."},
                         "mode": {"type": "string", "required": False, "help": "Fixture mode."},
                         "pid_file": {"type": "string", "required": False, "help": "Fixture PID file."},
+                        "release_file": {"type": "string", "required": False, "help": "Fixture leader release file."},
                     },
                     "returns": {},
                 },
@@ -414,6 +420,7 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                         "payload": {"type": "object", "required": True, "help": "Fixture payload."},
                         "mode": {"type": "string", "required": False, "help": "Fixture mode."},
                         "pid_file": {"type": "string", "required": False, "help": "Fixture PID file."},
+                        "release_file": {"type": "string", "required": False, "help": "Fixture leader release file."},
                     },
                     "returns": {},
                 },
@@ -503,7 +510,10 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
             tool_definitions=self.definitions,
             runtime_environment=TEST_RUNTIME_ENVIRONMENT,
             max_active_calls=2,
-            tool_timeout=2.0,
+            # The capacity assertion deliberately floods 100 ordinary busy
+            # responses before cancellation. Keep its unrelated backend
+            # timeout well outside that scheduler/load-sensitive window.
+            tool_timeout=10.0,
             stdout_limit=4096,
             stderr_limit=4096,
             terminate_grace=0.1,
@@ -583,18 +593,48 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
         gates[1].set()
         await asyncio.gather(*tasks, return_exceptions=True)
 
+        async def fail_handler():
+            raise RuntimeError("fixture handler failure")
+
+        failed = asyncio.create_task(fail_handler())
+        failed_tasks = {failed}
+        await asyncio.sleep(0)
+        await adapter._wait_for_transport_capacity(failed_tasks, max_tasks=1)
+        self.assertEqual(failed_tasks, set())
+
+    async def test_response_queue_refuses_overflow_without_waiting(self):
+        queue = adapter._BoundedResponseQueue(max_bytes=8)
+        await queue.put(b"12345678")
+
+        with self.assertRaisesRegex(adapter._ResponseQueueFull, "capacity"):
+            await asyncio.wait_for(queue.put(b"x"), timeout=0.1)
+
+        self.assertEqual(await queue.get(), b"12345678")
+        await queue.close()
+
     def _request(self, request_id, method, params=None):
         message = {"jsonrpc": "2.0", "id": request_id, "method": method}
         if params is not None:
             message["params"] = params
         return message
 
-    def _call(self, request_id, *, name="jackal_echo", payload=None, mode=None, pid_file=None):
+    def _call(
+        self,
+        request_id,
+        *,
+        name="jackal_echo",
+        payload=None,
+        mode=None,
+        pid_file=None,
+        release_file=None,
+    ):
         arguments = {"payload": {} if payload is None else payload}
         if mode is not None:
             arguments["mode"] = mode
         if pid_file is not None:
             arguments["pid_file"] = str(pid_file)
+        if release_file is not None:
+            arguments["release_file"] = str(release_file)
         return self._request(
             request_id,
             "tools/call",
@@ -637,11 +677,11 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                 launcher=launcher,
                 tool_definitions=definitions,
                 runtime_environment=provision_runtime.runtime_subprocess_environment({}),
-                tool_timeout=2.0,
+                tool_timeout=15.0,
                 stdout_limit=256,
                 stderr_limit=256,
                 terminate_grace=0.05,
-                leader_poll_interval=1.0,
+                leader_poll_interval=10.0,
                 runtime_owner=(RuntimeOwner() if runtime_owner_path else None),
             )
             asyncio.run(adapter._serve_stdio(instance))
@@ -656,6 +696,61 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
             str(self.launcher),
             str(self.tool_fixture),
             "" if runtime_owner_path is None else str(runtime_owner_path),
+            cwd=str(REPO_ROOT),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+    async def _spawn_transport_fixture(self, mode, marker):
+        driver = textwrap.dedent(
+            """\
+            import asyncio
+            import json
+            import sys
+            from pathlib import Path
+            from plugins.jackel.mcp import server as adapter
+
+            mode = sys.argv[1]
+            marker = Path(sys.argv[2])
+
+            if mode in {"oversize-queue-closed", "oversize-queue-full"}:
+                async def refuse_oversize_response(unused_queue, unused_payload):
+                    if mode == "oversize-queue-closed":
+                        raise adapter._ResponseQueueClosed("fixture queue closed")
+                    raise adapter._ResponseQueueFull("fixture queue full")
+
+                adapter._BoundedResponseQueue.put = refuse_oversize_response
+
+            class FixtureServer:
+                async def handle_line(self, line):
+                    message = json.loads(line)
+                    if mode == "nonreader" and message.get("method") == "notifications/cancelled":
+                        marker.write_text("cancelled\\n", encoding="utf-8")
+                        return None
+                    if mode == "exception" and message.get("id") == 0:
+                        raise RuntimeError("fixture handler failure")
+                    payload = "x" * (512 * 1024) if mode == "nonreader" else "ok"
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": message.get("id"),
+                        "result": {"payload": payload},
+                    }
+
+                async def close(self):
+                    with marker.open("a", encoding="utf-8") as handle:
+                        handle.write("closed\\n")
+
+            asyncio.run(adapter._serve_stdio(FixtureServer()))
+            """
+        )
+        return await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-B",
+            "-c",
+            driver,
+            mode,
+            str(marker),
             cwd=str(REPO_ROOT),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
@@ -925,6 +1020,24 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unterminated["error"]["code"], -32600)
         self.assertIsNone(unterminated["id"])
 
+    async def test_deep_json_and_recursion_failure_are_bounded_parse_errors(self):
+        expected_depth_limit = getattr(adapter, "MAX_JSON_DEPTH", 64)
+        nested = (
+            b"[" * (expected_depth_limit + 1)
+            + b"0"
+            + b"]" * (expected_depth_limit + 1)
+            + b"\n"
+        )
+        response = await self.server.handle_line(nested)
+        self.assertEqual(response["error"]["code"], adapter.PARSE_ERROR)
+        self.assertLessEqual(len(json.dumps(response)), adapter.MAX_ERROR_RESPONSE_BYTES)
+
+        with mock.patch.object(adapter, "_strict_json_loads", side_effect=RecursionError):
+            response = await self.server.handle_line(
+                b'{"jsonrpc":"2.0","id":1,"method":"ping"}\n'
+            )
+        self.assertEqual(response["error"]["code"], adapter.PARSE_ERROR)
+
     async def test_invalid_request_shape_preserves_a_valid_detectable_id(self):
         cases = (
             ({"jsonrpc": "1.0", "id": "correlate-me", "method": "ping"}, "correlate-me"),
@@ -962,6 +1075,13 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
             pids
         )
         state = anchored_server._active[40]
+        observation_deadline = time.monotonic() + 2
+        while state.leader_status is None and not task.done():
+            if time.monotonic() >= observation_deadline:
+                self.fail("backend runner did not observe the exited leader")
+            await asyncio.sleep(0.005)
+        self.assertIsNotNone(state.leader_status)
+        self.assertFalse(task.done())
         started = time.monotonic()
         self.assertIsNone(await anchored_server.handle_message(self._cancel(40)))
         response = await asyncio.wait_for(task, timeout=2)
@@ -1144,14 +1264,21 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_actual_stdio_cancellation_is_responsive_stdout_only_and_recovers(self):
         pid_file = self._new_pid_file("stdio-cancel-tree.pids")
+        release_file = Path(f"{pid_file}.release")
         process = await self._spawn_stdio_server()
         self.assertIsNotNone(process.stdin)
         self.assertIsNotNone(process.stdout)
         self.assertIsNotNone(process.stderr)
-        call = self._call(100, mode="orphan-hold-exit", pid_file=pid_file)
+        call = self._call(
+            100,
+            mode="orphan-hold-exit",
+            pid_file=pid_file,
+            release_file=release_file,
+        )
         process.stdin.write(json.dumps(call, separators=(",", ":")).encode() + b"\n")
         await process.stdin.drain()
         pids = await self._wait_for_pids(pid_file)
+        release_file.write_text("exit\n", encoding="utf-8")
         await self._wait_for_exited_leader_with_live_descendants(pids)
 
         cancellation = self._cancel(100, include_meta=True)
@@ -1175,6 +1302,90 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
         for pid in pids:
             self.assertFalse(await self._wait_not_live(pid), f"stdio-cancel survived: {pid}")
 
+    async def test_nonreading_stdout_does_not_block_cancellation_or_eof(self):
+        marker = Path(self.temporary.name) / "nonreader.marker"
+        process = await self._spawn_transport_fixture("nonreader", marker)
+        try:
+            large = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+            cancel = {
+                "jsonrpc": "2.0",
+                "method": "notifications/cancelled",
+                "params": {"requestId": 1},
+            }
+            process.stdin.write(json.dumps(large).encode() + b"\n")
+            process.stdin.write(json.dumps(cancel).encode() + b"\n")
+            await process.stdin.drain()
+            process.stdin.close()
+            await process.stdin.wait_closed()
+            deadline = asyncio.get_running_loop().time() + 2
+            while process.returncode is None and asyncio.get_running_loop().time() < deadline:
+                await asyncio.sleep(0.01)
+            if process.returncode is None:
+                raise TimeoutError("stdio server did not exit while stdout was unread")
+            return_code = process.returncode
+        except BaseException:
+            process.kill()
+            await asyncio.wait_for(process.communicate(), timeout=2)
+            raise
+        self.assertEqual(return_code, 0)
+        self.assertEqual(marker.read_text(encoding="utf-8").splitlines(), ["cancelled", "closed"])
+        unused_stdout, stderr = await process.communicate()
+        self.assertEqual(stderr, b"")
+
+    async def test_oversize_line_queue_shutdown_is_bounded_and_clean(self):
+        oversized = b"x" * (adapter.MAX_REQUEST_LINE_BYTES + 2) + b"\n"
+        for mode in ("oversize-queue-closed", "oversize-queue-full"):
+            with self.subTest(mode=mode):
+                marker = Path(self.temporary.name) / f"{mode}.marker"
+                process = await self._spawn_transport_fixture(mode, marker)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(oversized), timeout=2
+                )
+                self.assertEqual(process.returncode, 0)
+                self.assertEqual(stdout, b"")
+                self.assertEqual(stderr, b"")
+                self.assertEqual(
+                    marker.read_text(encoding="utf-8").splitlines(), ["closed"]
+                )
+
+    async def test_closed_stdout_reader_stops_stdio_without_waiting_for_stdin(self):
+        marker = Path(self.temporary.name) / "writer-loss.marker"
+        process = await self._spawn_transport_fixture("normal", marker)
+        pipe_transport = process._transport.get_pipe_transport(1)
+        self.assertIsNotNone(pipe_transport)
+        pipe_transport.close()
+        try:
+            self.assertIsNotNone(process.stdin)
+            await asyncio.wait_for(process.wait(), timeout=1)
+        except BaseException:
+            if process.stdin is not None:
+                process.stdin.close()
+            if process.returncode is None:
+                process.kill()
+            await asyncio.wait_for(process.wait(), timeout=2)
+            raise
+
+        self.assertEqual(process.returncode, 0)
+        self.assertEqual(marker.read_text(encoding="utf-8").splitlines(), ["closed"])
+
+    async def test_handler_exception_is_bounded_and_stdio_recovers(self):
+        marker = Path(self.temporary.name) / "handler.marker"
+        process = await self._spawn_transport_fixture("exception", marker)
+        requests = b"".join(
+            json.dumps({"jsonrpc": "2.0", "id": index, "method": "ping"}).encode()
+            + b"\n"
+            for index in range(adapter.MAX_TRANSPORT_TASKS + 4)
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(requests), timeout=3)
+
+        self.assertEqual(process.returncode, 0)
+        self.assertEqual(stderr, b"")
+        responses = [json.loads(line) for line in stdout.splitlines()]
+        self.assertEqual(len(responses), adapter.MAX_TRANSPORT_TASKS + 4)
+        self.assertEqual(responses[0]["error"]["code"], adapter.INTERNAL_ERROR)
+        self.assertEqual(responses[-1]["result"], {"payload": "ok"})
+        self.assertEqual(marker.read_text(encoding="utf-8").splitlines(), ["closed"])
+
     async def test_actual_stdio_unterminated_eof_refuses_without_execution(self):
         pid_file = self._new_pid_file("unterminated-eof-tree.pids")
         process = await self._spawn_stdio_server()
@@ -1192,15 +1403,22 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_actual_stdio_eof_closes_resistant_process_tree(self):
         pid_file = self._new_pid_file("stdio-eof-tree.pids")
+        release_file = Path(f"{pid_file}.release")
         runtime_owner_path = Path(self.temporary.name) / "stdio-owned-snapshot"
         runtime_owner_path.mkdir()
         (runtime_owner_path / "owned-byte").write_text("fixture\n", encoding="utf-8")
         process = await self._spawn_stdio_server(runtime_owner_path)
         self.assertIsNotNone(process.stdin)
-        call = self._call(120, mode="orphan-hold-crash", pid_file=pid_file)
+        call = self._call(
+            120,
+            mode="orphan-hold-crash",
+            pid_file=pid_file,
+            release_file=release_file,
+        )
         process.stdin.write(json.dumps(call, separators=(",", ":")).encode() + b"\n")
         await process.stdin.drain()
         pids = await self._wait_for_pids(pid_file)
+        release_file.write_text("exit\n", encoding="utf-8")
         await self._wait_for_exited_leader_with_live_descendants(pids)
         process.stdin.close()
         await process.stdin.wait_closed()
@@ -1377,27 +1595,232 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
             setup_runner.run()
         setup_cleanup.assert_called_once_with(setup_process)
 
-        for error in (ProcessLookupError(), OSError(errno.EPERM, "not permitted")):
-            with self.subTest(error=type(error).__name__):
-                unavailable_state = adapter._CallState(request_id="unavailable")
-                unavailable_state.leader_status = 0
-                unavailable_runner = adapter._AnchoredBackendRunner(
-                    state=unavailable_state,
-                    command=("unused",),
-                    cwd=self.runtime,
-                    environment=TEST_RUNTIME_ENVIRONMENT,
-                    timeout=1.0,
-                    stdout_limit=128,
-                    stderr_limit=128,
-                    terminate_grace=0.05,
-                    leader_poll_interval=0.01,
+        unavailable_state = adapter._CallState(request_id="unavailable")
+        unavailable_state.leader_status = 0
+        unavailable_runner = adapter._AnchoredBackendRunner(
+            state=unavailable_state,
+            command=("unused",),
+            cwd=self.runtime,
+            environment=TEST_RUNTIME_ENVIRONMENT,
+            timeout=1.0,
+            stdout_limit=128,
+            stderr_limit=128,
+            terminate_grace=0.05,
+            leader_poll_interval=0.01,
+        )
+        with mock.patch.object(adapter.os, "killpg", side_effect=ProcessLookupError()):
+            self.assertFalse(
+                unavailable_runner._signal_group(
+                    types.SimpleNamespace(pid=424245), signal.SIGTERM
                 )
-                with mock.patch.object(adapter.os, "killpg", side_effect=error):
-                    self.assertFalse(
-                        unavailable_runner._signal_group(
-                            types.SimpleNamespace(pid=424245), signal.SIGTERM
-                        )
-                    )
+            )
+        with (
+            mock.patch.object(
+                adapter.os, "killpg", side_effect=OSError(errno.EPERM, "not permitted")
+            ),
+            self.assertRaisesRegex(adapter.BackendFailure, "permission denied"),
+        ):
+            unavailable_runner._signal_group(
+                types.SimpleNamespace(pid=424245), signal.SIGTERM
+            )
+
+        transient_state = adapter._CallState(request_id="transient-eperm")
+        transient_runner = adapter._AnchoredBackendRunner(
+            state=transient_state,
+            command=("unused",),
+            cwd=self.runtime,
+            environment=TEST_RUNTIME_ENVIRONMENT,
+            timeout=1.0,
+            stdout_limit=128,
+            stderr_limit=128,
+            terminate_grace=0.05,
+            leader_poll_interval=10.0,
+        )
+        transient_process = types.SimpleNamespace(pid=424251)
+        with (
+            mock.patch.object(
+                transient_runner,
+                "_peek_leader_anchor",
+                side_effect=(None, 0, 0),
+            ) as observe_anchor,
+            mock.patch.object(
+                adapter.os,
+                "killpg",
+                side_effect=OSError(errno.EPERM, "transient zombie transition"),
+            ) as transient_kill_group,
+            mock.patch.object(
+                adapter,
+                "_exited_group_has_only_zombie_members",
+                side_effect=(False, True),
+            ) as observe_transient_quiescence,
+            mock.patch.object(adapter.time, "sleep") as transient_sleep,
+        ):
+            self.assertFalse(
+                transient_runner._signal_group(transient_process, signal.SIGTERM)
+            )
+        self.assertEqual(observe_anchor.call_count, 3)
+        transient_kill_group.assert_called_once_with(424251, signal.SIGTERM)
+        self.assertEqual(observe_transient_quiescence.call_count, 2)
+        observe_transient_quiescence.assert_has_calls(
+            [mock.call(424251), mock.call(424251)]
+        )
+        transient_sleep.assert_called_once_with(0.01)
+
+        persistent_state = adapter._CallState(request_id="persistent-eperm")
+        persistent_runner = adapter._AnchoredBackendRunner(
+            state=persistent_state,
+            command=("unused",),
+            cwd=self.runtime,
+            environment=TEST_RUNTIME_ENVIRONMENT,
+            timeout=1.0,
+            stdout_limit=128,
+            stderr_limit=128,
+            terminate_grace=0.01,
+            leader_poll_interval=0.005,
+        )
+        with (
+            mock.patch.object(
+                persistent_runner, "_peek_leader_anchor", return_value=0
+            ),
+            mock.patch.object(
+                adapter.os,
+                "killpg",
+                side_effect=OSError(errno.EPERM, "persistent denial"),
+            ),
+            mock.patch.object(
+                adapter,
+                "_exited_group_has_only_zombie_members",
+                return_value=False,
+            ) as persistent_observer,
+            self.assertRaisesRegex(adapter.BackendFailure, "permission denied"),
+        ):
+            persistent_runner._signal_group(
+                types.SimpleNamespace(pid=424252), signal.SIGTERM
+            )
+        self.assertGreaterEqual(persistent_observer.call_count, 2)
+
+        quiescent_state = adapter._CallState(request_id="quiescent")
+        quiescent_state.leader_status = 0
+        quiescent_runner = adapter._AnchoredBackendRunner(
+            state=quiescent_state,
+            command=("unused",),
+            cwd=self.runtime,
+            environment=TEST_RUNTIME_ENVIRONMENT,
+            timeout=1.0,
+            stdout_limit=128,
+            stderr_limit=128,
+            terminate_grace=0.05,
+            leader_poll_interval=0.01,
+        )
+        with (
+            mock.patch.object(
+                adapter, "_exited_group_has_only_zombie_members", return_value=True
+            ) as observe_quiescent,
+            mock.patch.object(adapter.os, "killpg") as quiescent_kill_group,
+        ):
+            self.assertFalse(
+                quiescent_runner._signal_group(
+                    types.SimpleNamespace(pid=424248), signal.SIGTERM
+                )
+            )
+        observe_quiescent.assert_called_once_with(424248)
+        quiescent_kill_group.assert_not_called()
+
+    async def test_process_group_observer_selector_failure_cleans_observer(self):
+        observer = mock.Mock()
+        observer.stdout = io.BytesIO()
+        observer.poll.return_value = None
+        observer.wait.return_value = -signal.SIGTERM
+        with (
+            mock.patch.object(adapter.subprocess, "Popen", return_value=observer),
+            mock.patch.object(
+                adapter.selectors,
+                "DefaultSelector",
+                side_effect=OSError("descriptor exhaustion"),
+            ),
+            self.assertRaisesRegex(adapter.BackendFailure, "observer setup"),
+        ):
+            adapter._exited_group_has_only_zombie_members(424249)
+
+        observer.terminate.assert_called_once_with()
+        observer.wait.assert_called_once_with(timeout=0.1)
+        self.assertTrue(observer.stdout.closed)
+
+    async def test_process_group_observer_accepts_leader_plus_only_zombie_members(self):
+        self.assertTrue(
+            adapter._group_observation_is_quiescent(
+                b"424252 Z\n424253 Z+\n424254 Z\n", 424252
+            )
+        )
+        self.assertTrue(hasattr(adapter, "_exited_group_has_only_zombie_members"))
+        self.assertFalse(hasattr(adapter, "_exited_group_has_only_zombie_leader"))
+        self.assertFalse(
+            adapter._group_observation_is_quiescent(
+                b"424252 Z\n424253 S\n", 424252
+            )
+        )
+        self.assertFalse(
+            adapter._group_observation_is_quiescent(b"424253 Z\n", 424252)
+        )
+
+    async def test_process_group_observer_cleanup_timeout_is_named(self):
+        observer = mock.Mock()
+        observer.stdout = io.BytesIO()
+        observer.poll.return_value = None
+        observer.wait.side_effect = (
+            subprocess.TimeoutExpired(["ps"], 0.1),
+            subprocess.TimeoutExpired(["ps"], 0.1),
+        )
+        with (
+            mock.patch.object(adapter.subprocess, "Popen", return_value=observer),
+            mock.patch.object(
+                adapter.selectors,
+                "DefaultSelector",
+                side_effect=OSError("descriptor exhaustion"),
+            ),
+            self.assertRaisesRegex(adapter.BackendFailure, "did not exit"),
+        ):
+            adapter._exited_group_has_only_zombie_members(424251)
+
+        observer.terminate.assert_called_once_with()
+        observer.kill.assert_called_once_with()
+        self.assertTrue(observer.stdout.closed)
+
+    async def test_failed_quiescence_observer_cannot_prevent_backend_group_cleanup(self):
+        state = adapter._CallState(request_id="observer-failure-cleanup")
+        state.leader_status = 0
+        process = mock.Mock(pid=424250)
+        process.wait.return_value = 0
+        runner = adapter._AnchoredBackendRunner(
+            state=state,
+            command=("unused",),
+            cwd=self.runtime,
+            environment=TEST_RUNTIME_ENVIRONMENT,
+            timeout=1.0,
+            stdout_limit=128,
+            stderr_limit=128,
+            terminate_grace=0.05,
+            leader_poll_interval=0.01,
+        )
+        with (
+            mock.patch.object(
+                adapter,
+                "_exited_group_has_only_zombie_members",
+                side_effect=adapter.BackendFailure("observer unavailable"),
+            ),
+            mock.patch.object(
+                adapter.os,
+                "killpg",
+                side_effect=(None, ProcessLookupError()),
+            ) as kill_group,
+        ):
+            self.assertEqual(runner._terminate_and_reap(process), 0)
+
+        self.assertEqual(
+            kill_group.call_args_list,
+            [mock.call(424250, signal.SIGTERM), mock.call(424250, 0)],
+        )
+        process.wait.assert_called_once_with()
 
 
 class MCPAdapterProductionResolutionTests(unittest.TestCase):
@@ -1616,6 +2039,33 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         with (
             mock.patch.object(adapter, "_load_catalog", side_effect=adapter.StartupError("fixture")),
             self.assertRaises(adapter.StartupError),
+        ):
+            adapter.build_production_server(
+                plugin_root=plugin_root,
+                environ={"JACKAL_HOME": str(self.runtime)},
+                provisioner=self.provisioner,
+                identity_verifier=mock.Mock(return_value=()),
+                runtime_validator=mock.Mock(return_value={}),
+            )
+        self.snapshot_owners[0].close.assert_called_once_with()
+
+    def test_startup_snapshot_cleanup_failure_is_reported_not_suppressed(self):
+        plugin_root = self.root / "startup-cleanup-failure-plugin"
+        plugin_root.mkdir()
+        (plugin_root / "PLUGIN_IDENTITY.sha256").write_text("fixture\n")
+        create_snapshot = self.provisioner.create_runtime_snapshot.side_effect
+
+        def create_uncleanable_snapshot(*args, **kwargs):
+            owner = create_snapshot(*args, **kwargs)
+            owner.close.side_effect = OSError("fixture cleanup failure")
+            return owner
+
+        self.provisioner.create_runtime_snapshot.side_effect = create_uncleanable_snapshot
+        with (
+            mock.patch.object(
+                adapter, "_load_catalog", side_effect=adapter.StartupError("fixture")
+            ),
+            self.assertRaisesRegex(adapter.StartupError, "snapshot cleanup failed"),
         ):
             adapter.build_production_server(
                 plugin_root=plugin_root,

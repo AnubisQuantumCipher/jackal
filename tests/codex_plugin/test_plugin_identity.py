@@ -97,7 +97,7 @@ class PluginIdentityTests(unittest.TestCase):
                 parse_manifest(manifest)
 
     def test_unsafe_paths_are_refused(self):
-        unsafe_paths = ["../outside.txt", "/absolute.txt", r"nested\\file.txt", "./dot.txt", "nested//empty.txt"]
+        unsafe_paths = ["../outside.txt", "/absolute.txt", "nested\\file.txt", "./dot.txt", "nested//empty.txt"]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for path in unsafe_paths:
@@ -105,6 +105,102 @@ class PluginIdentityTests(unittest.TestCase):
                     manifest = self.write_manifest(root, [self.manifest_line(path, b"payload")])
                     with self.assertRaises(ManifestError):
                         parse_manifest(manifest)
+
+    def test_plugin_directory_open_error_uses_manifest_error_taxonomy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root_fd = os.open(directory, verifier._open_flags(directory=True))
+            try:
+                with (
+                    mock.patch.object(
+                        verifier.os,
+                        "open",
+                        side_effect=OSError("fixture directory-open failure"),
+                    ),
+                    self.assertRaisesRegex(
+                        verifier.UnexpectedEntry, "plugin inventory directory"
+                    ),
+                ):
+                    verifier._open_plugin_directory_at(root_fd, "nested")
+            finally:
+                os.close(root_fd)
+
+    def test_plugin_directory_dup_error_uses_manifest_error_taxonomy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root_fd = os.open(directory, verifier._open_flags(directory=True))
+            try:
+                with (
+                    mock.patch.object(
+                        verifier.os,
+                        "dup",
+                        side_effect=OSError("fixture directory-dup failure"),
+                    ),
+                    self.assertRaisesRegex(
+                        verifier.UnexpectedEntry, "plugin inventory directory"
+                    ),
+                ):
+                    verifier._open_plugin_directory_at(root_fd, "nested")
+            finally:
+                os.close(root_fd)
+
+    def test_plugin_directory_close_error_does_not_mask_open_taxonomy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root_fd = os.open(directory, verifier._open_flags(directory=True))
+            try:
+                with (
+                    mock.patch.object(verifier.os, "dup", return_value=424203),
+                    mock.patch.object(
+                        verifier.os,
+                        "open",
+                        side_effect=OSError("fixture directory-open failure"),
+                    ),
+                    mock.patch.object(
+                        verifier.os,
+                        "close",
+                        side_effect=OSError("fixture directory-close failure"),
+                    ),
+                    self.assertRaisesRegex(
+                        verifier.UnexpectedEntry, "plugin inventory directory"
+                    ),
+                ):
+                    verifier._open_plugin_directory_at(root_fd, "nested")
+            finally:
+                os.close(root_fd)
+
+    def test_plugin_file_dup_error_uses_manifest_error_taxonomy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root_fd = os.open(directory, verifier._open_flags(directory=True))
+            try:
+                with (
+                    mock.patch.object(
+                        verifier.os,
+                        "dup",
+                        side_effect=OSError("fixture file-dup failure"),
+                    ),
+                    self.assertRaisesRegex(
+                        verifier.UnexpectedEntry, "plugin file"
+                    ),
+                ):
+                    verifier._open_plugin_file_at(root_fd, "nested/file.txt")
+            finally:
+                os.close(root_fd)
+
+    def test_plugin_inventory_dup_error_uses_manifest_error_taxonomy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root_fd = os.open(directory, verifier._open_flags(directory=True))
+            try:
+                with (
+                    mock.patch.object(
+                        verifier.os,
+                        "dup",
+                        side_effect=OSError("fixture inventory-dup failure"),
+                    ),
+                    self.assertRaisesRegex(
+                        verifier.UnexpectedEntry, "plugin inventory"
+                    ),
+                ):
+                    verifier._verify_exact_inventory_at(root_fd, ())
+            finally:
+                os.close(root_fd)
 
     def test_symlink_is_refused(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -95,7 +95,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `mcpServers`: `./.mcp.json`
 - `interface.displayName`: `JACKAL`
 - `interface.shortDescription`: `Claim-aware computation with explicit evidence classes`
-- `interface.longDescription`: `Use JACKAL's complete mathematical evidence kernel from Codex, with exact, checked, estimated, bounded, formal-bounded, model-based, verified, indeterminate, and refused results preserved at their original assurance level. Formal-bounded applies only to checker-admitted fragments.`
+- `interface.longDescription`: `Use JACKAL's complete mathematical evidence kernel from Codex, with exact, checked, estimated, bounded, formal-bounded, model-based, verified, indeterminate, and refused results preserved at their original assurance level. Formal-bounded applies only to checker-admitted fragments. Requires Apple Silicon macOS, Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python), and the pinned sealed v1.7.0 runtime.`
 - `interface.developerName`: `Anubis Quantum Cipher`
 - `interface.category`: `Productivity`
 - `interface.capabilities`: `["Interactive"]`
@@ -153,6 +153,9 @@ The provisioner:
    local tarball path for offline installation.
 3. Rejects a declared or streamed body larger than 118862060 bytes, then
    requires exactly that size and the fixed package SHA-256 before extraction.
+   The per-operation network timeout is supplemented by a monotonic total download deadline,
+   so a peer cannot keep the transfer alive indefinitely
+   by returning one small chunk inside each socket timeout.
 4. Rejects absolute paths, parent traversal, device entries, and escaping
    links in the archive.
 5. Extracts to a staging directory and verifies the package's own
@@ -167,6 +170,13 @@ The provisioner:
 An existing valid runtime makes provisioning an idempotent success. An
 existing divergent runtime is never overwritten silently; the operator must
 remove or relocate it explicitly.
+
+The installed `.jackal-package.json` marker is read through a no-follow,
+directory-descriptor anchor with an explicit byte ceiling, stable descriptor
+and current-path identity checks, a parent-directory mutation epoch,
+duplicate-key rejection and canonical JSON enforcement. Oversized metadata,
+regular replacement, or a coordinated replace-and-restore race refuses before
+the runtime can be reused.
 
 The MCP adapter resolves runtime roots in this order:
 
@@ -220,12 +230,23 @@ line and exits `126` before loading the adapter. Provisioning instructions use
 the same launcher contract, so installation documentation, MCP startup, and
 live acceptance cannot disagree about the interpreter.
 
+The supported clean-machine prerequisite is Python >=3.10 at
+`/opt/homebrew/bin/python3`; `brew install python` is the documented recovery.
+Existing `/usr/local/bin/python3` and `/usr/bin/python3` installations are
+accepted only when the same complete capability probe passes.
+
 After the probe, both runtime selftest and every tool call receive the same
 minimal environment: `PATH` begins with the selected interpreter's directory
 and then only fixed macOS system directories, and `JACKAL_HOME` is the sole
 allowlisted inherited JACKAL variable. Caller `PATH`, Python injection
 variables, dynamic-loader variables, and unrelated process state are not
 forwarded to the sealed launcher's bare `python3` lookup.
+
+The installed-config live adapter and its direct-backend comparator use the
+same provisioner-owned sanitized environment. Hostile caller `PATH`, Python
+startup variables, dynamic-loader variables, and unrelated `CODEX_HOME`
+state therefore cannot make the direct comparison exercise different backend
+bytes from the installed MCP path.
 
 The 3,700-second host ceiling covers the backend's current longest documented
 operation (3,600 seconds for bundle verification) plus bounded transport
@@ -260,11 +281,26 @@ state. At most eight calls may be active or queued; additional valid calls
 return the ordinary JACKAL-shaped `status: refused`, `reason: plugin-busy`
 result. The stdio reader applies backpressure at sixteen handler tasks, so
 input cannot create an unbounded task set. Capacity is released after success,
-backend failure, timeout, or cancellation. Backend stderr is captured as a bounded diagnostic and never mixed into
-MCP stdout. Startup failure closes a partially completed snapshot; normal
+backend failure, timeout, or cancellation. Responses enter a bounded response-byte queue
+drained through the event loop's nonblocking write-pipe
+transport, so a client that stops reading stdout cannot freeze cancellation,
+EOF cleanup, or the input loop. Deeply nested JSON is bounded per request;
+`RecursionError` and unexpected handler-task failures become one bounded
+protocol error without terminating stdio service. Backend stderr is captured
+as a bounded diagnostic and never mixed into MCP stdout. On startup refusal,
+a partially completed snapshot is closed; snapshot cleanup failure is a named startup refusal rather than a silently suppressed residue; normal
 close or stdin EOF closes it only after active workers are reaped. A cancelled
 call reaps its process group but retains the snapshot while the server remains
 available for later calls.
+
+Only `ESRCH` or `ProcessLookupError` is treated as proof that a process group
+is absent. `EPERM` is a bounded named failure unless a bounded re-observation
+independently proves quiescence. On macOS, a completed group containing the
+retained leader plus only zombie members can make signalling return `EPERM`;
+the adapter and provisioner accept that case only after WNOWAIT retains the
+exited leader and a separate process-table observation affirmatively shows
+that the leader is present and every observed member is a zombie. An observer failure cannot suppress an otherwise permitted process-group signal and
+cannot excuse `EPERM`. They never reinterpret a permission error itself as proof of absence.
 
 The private directory and independent copies bind execution against later
 changes to the original provisioned runtime. They are not an OS immutability
@@ -453,6 +489,17 @@ status; the adapter is not authorized to create or promote that status.
 
 Using the pinned v1.7.0 runtime and an isolated temporary `CODEX_HOME`:
 
+The installer derives forbidden state roots from both the passwd account home
+and the process home, canonicalizes them independently of caller `HOME`, and
+refuses a selected directory that is equal to, an ancestor or descendant of,
+either real Codex state root. The plan carries that authority into execution.
+Execution requires the selected home to remain the same canonical non-symlink
+directory inode and rechecks it before every Codex install command and after
+the final command. This prevents forged-`HOME`, symlink-alias, overlapping
+temporary-root, and between-command replacement from redirecting the isolated
+flow into account state; it is not an OS isolation claim against a same-UID
+process racing inside one validation-to-exec interval.
+
 1. Provision the runtime from the downloaded asset and again from an offline
    local tarball; require the package and bundle identities to match.
 2. Add the repository as a local marketplace with
@@ -476,6 +523,55 @@ Using the pinned v1.7.0 runtime and an isolated temporary `CODEX_HOME`:
     `jackal_verify_receipt`, again using caller-pinned expectations.
 11. Run `python3 release/verify_evidence.py`; a general green line does not
    override any named identity failure.
+
+The repository also supplies `live_acceptance.py` with `--host-live` for the separate
+fresh Codex host-discovery gate. It first binds the source and installed cache
+identities and uses bounded `codex mcp list --json` reads before and after the
+task to require the exact active `jackel` MCP declaration and resolved cache cwd
+to match that verified installed copy. Before and after the task it also
+resolves and no-follow reads the selected host executable, binds its canonical
+path, byte count, SHA-256, stable file/parent identities, and strict
+`codex-cli` version line, and reports the selection as a caller-supplied external trust anchor.
+This tamper-evident path/version/digest record does not authenticate an official Codex binary;
+fresh-host acceptance therefore depends on the operator separately trusting
+the supplied executable anchor. It then generates an internal nonce,
+launches a new ephemeral read-only Codex task with a neutral prompt that names
+no plugin, server, or tool, and records a bounded no-overwrite JSONL transcript.
+Acceptance requires the global event order thread-start, turn-start, claim-start, claim-complete, verify-start, verify-complete, turn-complete
+for exactly `jackal_claim` followed by `jackal_verify_bundle`, exact
+nonce/request/bundle/caller-pin binding, and a verified structured result. The
+validator inspects `item.started`, `item.updated`, and `item.completed`, and
+refuses any unknown top-level or active-capability event, including shell,
+file, web, collaboration, or unrelated MCP activity. It requires canonical event and item keys,
+including nonempty string identifiers and passive item text, before it performs
+exact MCP state validation from `in_progress` to `completed`, requires each
+update between its correlated start and completion, and requires turn usage
+with nonnegative `input_tokens`, `cached_input_tokens`, and `output_tokens`.
+`cache_write_input_tokens` and `reasoning_output_tokens` are the only permitted optional counters.
+Every passive `reasoning` or `agent_message` lifecycle must stay inside the
+turn, carry nonempty passive item identifiers, and be either a fully correlated
+start/update/complete sequence or a terminal-only passive completion emitted
+by the host. Each required MCP completion must contain one strict-JSON text
+block, and the host text content and structured content must compare by
+semantic deep equality; missing, malformed, or divergent fallbacks refuse.
+The hook also requires exact successful claim and verifier result key sets,
+recomputes the self-excluding claim-bundle digest, binds the returned root,
+rendering, policy, proposition, and selected route, and requires verifier report
+lines `claim-verify=verified`, `bundle.digest=`, the caller-pinned proposition,
+and v1.6.0 freshness with the host nonce bound.
+Host subprocess supervision retains the unreaped leader anchor,
+cleans the whole process group before reaping, and refuses boundedly if selector
+allocation, stream handling, or group cleanup fails; a leader exit cannot hide
+a resistant descendant.
+It then performs post-task identity and active-MCP rechecks. Synthetic event
+fixtures test the validator, but that does not itself constitute fresh-host evidence.
+
+The hosted `.github/workflows/jackal-codex-plugin.yml` job runs on `macos-14`,
+asserts Darwin/arm64, runs the complete repository plugin suite, exact identity
+verifier, repository metadata/skill checks, and offline installed-config smoke.
+It pins every action by full commit SHA and neither downloads nor provisions a
+runtime. Hosted CI is regression protection; the runtime-backed and fresh-host
+gates remain separate evidence requirements.
 
 ### Completion standard
 

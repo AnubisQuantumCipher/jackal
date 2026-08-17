@@ -78,8 +78,8 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
 ## Run
 
 ```bash
-git clone https://github.com/AnubisQuantumCipher/jackal-calc.git
-cd jackal-calc
+git clone https://github.com/AnubisQuantumCipher/jackal.git
+cd jackal
 ./jackal help
 ./jackal self-test
 ```

@@ -19,8 +19,8 @@ verify its checksum against the one published in
 [`PROVENANCE.md`](PROVENANCE.md), and drop it next to the launcher:
 
 ```bash
-git clone https://github.com/AnubisQuantumCipher/jackal-calc.git
-cd jackal-calc
+git clone https://github.com/AnubisQuantumCipher/jackal.git
+cd jackal
 # download jackal-native from the Releases page into this directory, then:
 shasum -a 256 jackal-native        # compare against PROVENANCE.md
 chmod +x jackal-native

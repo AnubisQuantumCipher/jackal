@@ -32,3 +32,5 @@ import JackalIv.ShadowCertTypes
 import JackalIv.ShadowCertCheck
 import JackalIv.ShadowMeasure
 import JackalIv.ShadowCertSound
+import JackalIv.ShadowCertCodec
+import JackalIv.ShadowCertFixtures

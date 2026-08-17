@@ -187,8 +187,11 @@ def main() -> int:
     ok, det = expect_accept(art_p2)
     record("P2-taylor2-leaf", "positive", "accept", ok, det, sha256_text(art_p2))
 
-    # P3 taylor4 leaf, single node.
-    art_p3 = produce("x^2", "0", "1", "1/2")
+    # P3 taylor4 leaf: sin's Lean-D chain stays pow-free, so the unsimplified
+    # derivative chain evaluates through degree 4 (x^2's chain hits the
+    # 0*x^(-1) power-rule artifact and falls back to taylor2 — disclosed D4
+    # divergence; see RESEARCH_SOURCES.md).
+    art_p3 = produce("sin(x)", "0", "1", "1/100")
     ok, det = expect_accept(art_p3)
     if "taylor4" not in art_p3:
         ok, det = False, "no taylor4 leaf in artifact"
@@ -202,9 +205,10 @@ def main() -> int:
         ok, det = False, f"tree not multi-level: splits={n_split}"
     record("P4-multi-level", "positive", "accept", ok, det, sha256_text(art_p4))
 
-    # P5 nontrivial left/right sums: integrand with sign change so child
-    # contributions have opposite signs and interval addition is exercised.
-    art_p5 = produce("x^3-x", "-1", "3/2", "1/8")
+    # P5 nontrivial left/right sums: sign-changing integrand forced range-only
+    # (degree cap 0) so subdivision is exercised with signed child sums
+    # (taylor4 would certify the cubic exactly in one leaf).
+    art_p5 = produce_with_cap("x^3-x", "-1", "3/2", "1/8", cap=0)
     ok, det = expect_accept(art_p5)
     if len([l for l in get_lines(art_p5, "tree ") if " split " in l]) < 1:
         ok, det = False, "no split node"
@@ -226,7 +230,9 @@ def main() -> int:
     record("R2-budget", "refusal", "budget-exhausted",
            r == "budget-exhausted", f"observed={r}")
 
-    r = producer_refusal("1/x", "-1", "1", "1/10")
+    # left-first depth-first descent hits the pure-fail straddling chain
+    # [0, 2^-k] immediately (the engine's own recursion order)
+    r = producer_refusal("1/x", "0", "1", "1/10")
     record("R3-cannot-certify", "refusal", "cannot-certify",
            r == "cannot-certify", f"observed={r}")
 
@@ -238,23 +244,25 @@ def main() -> int:
     record("R5-reversed-domain", "refusal", "invalid-domain",
            r == "invalid-domain", f"observed={r}")
 
-    r = producer_refusal("x", "999999999999", "1000000000001", "1/200")
+    # the released outward pad alone is ~2*(1e-15*2e12) = 4e-3 > tol = 1/300,
+    # so the final width check must refuse regardless of leaf tightness
+    r = producer_refusal("x", "999999999999", "1000000000001", "1/300")
     record("R6-tolerance-unmet", "refusal", "tolerance-unmet",
            r == "tolerance-unmet", f"observed={r}")
 
     # R7 checker-side noncanonical value: mutate a canonical rational to an
     # unreduced form; codec layer must refuse with class noncanonical-value.
-    bad = art_p3.replace("request 0 1 1/2", "request 0 2/2 1/2", 1)
+    bad = art_p3.replace("request 0 1 1/100", "request 0 2/2 1/100", 1)
     ok, det = expect_refuse(bad, "noncanonical-value")
     record("R7-noncanonical", "refusal", "noncanonical-value", ok, det)
 
     # ---------------- semantic poisons ----------------
     # Baseline artifacts for surgery: taylor4 single leaf (t4) and multi-level (ml).
-    t4 = bsp.build("x^2", "0", "1", "1/2")
+    t4 = bsp.build("sin(x)", "0", "1", "1/100")
     ml = bsp.build("abs(x-1/3)", "0", "1", "1/40")
 
     # X1 expression changed, certificates retained.
-    p = bsp.clone(t4); p["expr_sexp"] = "(pow (var x) (num 3))"
+    p = bsp.clone(t4); p["expr_sexp"] = "(call cos (var x))"
     ok, det = expect_refuse(bsp.emit(p), "request-mismatch")
     record("X1-expr-changed", "poison", "request-mismatch", ok, det)
 
@@ -273,10 +281,21 @@ def main() -> int:
     ok, det = expect_refuse(bad, "stale-identity")
     record("X4-epoch-changed", "poison", "stale-identity", ok, det)
 
-    # X5 leaf mode relabeled (taylor4 -> range keeps extra certs: role mismatch).
+    # X5a leaf mode relabeled, certificates retained: the kind-aware wire
+    # grammar refuses the cert-count mismatch at the artifact layer.
     p = bsp.clone(t4); bsp.leaf(p)["kind"] = "range"
-    ok, det = expect_refuse(bsp.emit(p), "missing-premise")
-    record("X5-mode-relabel", "poison", "missing-premise", ok, det)
+    ok, det = expect_refuse(bsp.emit(p), "malformed-artifact")
+    record("X5a-mode-relabel-wire", "poison", "malformed-artifact", ok, det)
+
+    # X5b leaf mode relabeled with a role-consistent certificate subset (the
+    # semantic layer is the intended rejector): the taylor-tightened claim
+    # cannot be justified by range evidence alone -> forged enclosure.
+    p = bsp.clone(t4)
+    lf = bsp.leaf(p)
+    lf["kind"] = "range"
+    lf["certs"] = [lf["certs"][0]]
+    ok, det = expect_refuse(bsp.emit(p), "forged-enclosure")
+    record("X5b-mode-relabel-sem", "poison", "forged-enclosure", ok, det)
 
     # X6 leaf enclosure narrowed falsely.
     p = bsp.clone(t4)
@@ -294,11 +313,12 @@ def main() -> int:
     ok, det = expect_refuse(bsp.emit(p), "malformed-tree")
     record("X7-child-omitted", "poison", "malformed-tree", ok, det)
 
-    # X8 child duplicated.
+    # X8 child duplicated: a duplicated node is a STRUCTURAL malformation
+    # (mission 6.4 "duplicate ... nodes"), refused by the shared-child pass.
     p = bsp.clone(ml); sp = bsp.first_split(p)
     sp["children"] = [sp["children"][0], sp["children"][0]]
-    ok, det = expect_refuse(bsp.emit(p), "child-partition-mismatch")
-    record("X8-child-duplicated", "poison", "child-partition-mismatch", ok, det)
+    ok, det = expect_refuse(bsp.emit(p), "malformed-tree")
+    record("X8-child-duplicated", "poison", "malformed-tree", ok, det)
 
     # X9 child order swapped.
     p = bsp.clone(ml); sp = bsp.first_split(p)

@@ -1,0 +1,263 @@
+{
+  "checker_source_sha256": "3cff239c13a91211319fe358a998345a5980d802d8d9ef5df483343955f07ea6",
+  "non_claims": [
+    "non-authoritative shadow evidence",
+    "does not change any public verifier, tool, or acceptance class",
+    "bound_step release composition remains OPEN on the public surface"
+  ],
+  "passed": 31,
+  "producer_sha256": "02259649452da98c9c60552c5df9c1152d481e98e321e5191bf16b16c61760e6",
+  "rows": [
+    {
+      "artifact_sha256": "4f0984f1ecc9e755152e3b81cf83ab93457d0776ddd7d183827120e80d1a85ce",
+      "expected": "accept",
+      "id": "P1-range-leaf",
+      "kind": "positive",
+      "observed": "SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound checker=jackal-iv-bound-step-shadow-v1 output 499999999999999499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "985ccf85a8669998b98464a320da3cc8d97c2b2f74b7e49135cf0949f68a5c6b",
+      "expected": "accept",
+      "id": "P2-taylor2-leaf",
+      "kind": "positive",
+      "observed": "SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound checker=jackal-iv-bound-step-shadow-v1 output 106666666666666320106570378314921602690109866538037408645323012024164199829101562499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "da6996ea78bca3fbe4e3c0298b61a6d139f1d49eadef902f83394a0137aaac4e",
+      "expected": "accept",
+      "id": "P3-taylor4-leaf",
+      "kind": "positive",
+      "observed": "SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound checker=jackal-iv-bound-step-shadow-v1 output 293673506944444110954471345710322323515845023950473352547518857136310543864965438842773437499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "073ab8bcbdee880fc26b392d1cdd685dc7ecd923f3f4bc5347b33e82e15fe6a4",
+      "expected": "accept",
+      "id": "P4-multi-level",
+      "kind": "positive",
+      "observed": "SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound checker=jackal-iv-bound-step-shadow-v1 output 863802083333330565820266934439650756414468680477458661925993510521948337554931640624999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "5d66fab87f6f2a873ddcac63df945c8bb1034dc190e610c217dcd91317965dce",
+      "expected": "accept",
+      "id": "P5-signed-sums",
+      "kind": "positive",
+      "observed": "SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound checker=jackal-iv-bound-step-shadow-v1 output 139720517317981643999130114637511681049089411086129347474432682574274622311349958181381225585937499999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "da6996ea78bca3fbe4e3c0298b61a6d139f1d49eadef902f83394a0137aaac4e",
+      "expected": "accept",
+      "id": "P6-fresh-replay",
+      "kind": "positive",
+      "observed": "first='SHADOW-ACCEPT status=research-shadow theorem=int_cert_sound checker=jackal-iv-bound-step-shadow-v1 output 29367350694444411095447134571032232351584502395047335254751885713631054386496543884277343749999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "unsupported-expression",
+      "id": "R1-unsupported-expr",
+      "kind": "refusal",
+      "observed": "observed=unsupported-expression",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "budget-exhausted",
+      "id": "R2-budget",
+      "kind": "refusal",
+      "observed": "observed=budget-exhausted",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "cannot-certify",
+      "id": "R3-cannot-certify",
+      "kind": "refusal",
+      "observed": "observed=cannot-certify",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "float-resolution",
+      "id": "R4-float-resolution",
+      "kind": "refusal",
+      "observed": "observed=float-resolution",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "invalid-domain",
+      "id": "R5-reversed-domain",
+      "kind": "refusal",
+      "observed": "observed=invalid-domain",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "tolerance-unmet",
+      "id": "R6-tolerance-unmet",
+      "kind": "refusal",
+      "observed": "observed=tolerance-unmet",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "noncanonical-value",
+      "id": "R7-noncanonical",
+      "kind": "refusal",
+      "observed": "observed=noncanonical-value line='SHADOW-REFUSE reason=noncanonical-value:request-hi'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "request-mismatch",
+      "id": "X1-expr-changed",
+      "kind": "poison",
+      "observed": "observed=request-mismatch line='SHADOW-REFUSE reason=request-mismatch:expr'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "request-mismatch",
+      "id": "X2-bounds-changed",
+      "kind": "poison",
+      "observed": "observed=request-mismatch line='SHADOW-REFUSE reason=request-mismatch:domain'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "policy-violation",
+      "id": "X3-tolerance-changed",
+      "kind": "poison",
+      "observed": "observed=policy-violation line='SHADOW-REFUSE reason=policy-violation:local-tolerance'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "stale-identity",
+      "id": "X4-epoch-changed",
+      "kind": "poison",
+      "observed": "observed=stale-identity line='SHADOW-REFUSE reason=stale-identity:model'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-artifact",
+      "id": "X5a-mode-relabel-wire",
+      "kind": "poison",
+      "observed": "observed=malformed-artifact line='SHADOW-REFUSE reason=malformed-artifact:role-count'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "forged-enclosure",
+      "id": "X5b-mode-relabel-sem",
+      "kind": "poison",
+      "observed": "observed=forged-enclosure line='SHADOW-REFUSE reason=forged-enclosure:lower'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "forged-enclosure",
+      "id": "X6-narrowed-leaf",
+      "kind": "poison",
+      "observed": "observed=forged-enclosure line='SHADOW-REFUSE reason=forged-enclosure:lower'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X7-child-omitted",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='SHADOW-REFUSE reason=malformed-tree:orphan'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X8-child-duplicated",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='SHADOW-REFUSE reason=malformed-tree:shared-child'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "child-partition-mismatch",
+      "id": "X9-child-swapped",
+      "kind": "poison",
+      "observed": "observed=child-partition-mismatch line='SHADOW-REFUSE reason=child-partition-mismatch:left-a'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "child-partition-mismatch",
+      "id": "X10-partition-gap",
+      "kind": "poison",
+      "observed": "observed=child-partition-mismatch line='SHADOW-REFUSE reason=child-partition-mismatch:interior'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "child-partition-mismatch",
+      "id": "X11-partition-overlap",
+      "kind": "poison",
+      "observed": "observed=child-partition-mismatch line='SHADOW-REFUSE reason=child-partition-mismatch:interior'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "forged-parent-sum",
+      "id": "X12-forged-parent",
+      "kind": "poison",
+      "observed": "observed=forged-parent-sum line='SHADOW-REFUSE reason=forged-parent-sum:lower'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X13-orphan-node",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='SHADOW-REFUSE reason=malformed-tree:root-id'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X14-forward-ref",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='SHADOW-REFUSE reason=malformed-tree:child-ref'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "malformed-tree",
+      "id": "X15-root-changed",
+      "kind": "poison",
+      "observed": "observed=malformed-tree line='SHADOW-REFUSE reason=malformed-tree:root-id'",
+      "ok": true
+    },
+    {
+      "artifact_sha256": "6555157e200ed0532635d96083de4889ab89639fa4383163488fc4cb0b8c9481",
+      "expected": "forged-enclosure",
+      "id": "X16-rehash-tamper",
+      "kind": "poison",
+      "observed": "observed=forged-enclosure line='SHADOW-REFUSE reason=forged-enclosure:lower' fresh_sha=6555157e200ed053",
+      "ok": true
+    },
+    {
+      "artifact_sha256": null,
+      "expected": "stale-identity",
+      "id": "X17-stale-checker",
+      "kind": "poison",
+      "observed": "observed=stale-identity line='SHADOW-REFUSE reason=stale-identity:checker'",
+      "ok": true
+    }
+  ],
+  "schema": "jackal-bound-step-shadow-matrix-v1",
+  "status": "research-shadow",
+  "total": 31
+}

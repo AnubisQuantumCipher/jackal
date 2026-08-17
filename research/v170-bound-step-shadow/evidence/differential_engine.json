@@ -1,0 +1,102 @@
+{
+  "non_claims": [
+    "differential consistency, not byte identity",
+    "engine lane remains implementation-tested-not-mechanized"
+  ],
+  "passed": 5,
+  "rows": [
+    {
+      "case": "abs-range",
+      "enclosures_overlap": true,
+      "engine": [
+        0.4999999999999975,
+        1.500000000000008
+      ],
+      "engine_line_head": "00000008] width=1.0000000000000104 method=adaptive-interval mode=range-only(non-smooth-integrand) subintervals=7 taylor-accepted=0 range-accepted=4 tolerance=2 ",
+      "expr": "abs(x)",
+      "ok": true,
+      "oracle": "1.0",
+      "oracle_in_engine": true,
+      "oracle_in_shadow": true,
+      "shadow": [
+        0.4999999999999995,
+        1.5000000000000016
+      ]
+    },
+    {
+      "case": "x2-taylor2",
+      "enclosures_overlap": true,
+      "engine": [
+        0.33333333333333065,
+        0.3333333333333362
+      ],
+      "engine_line_head": "3333333362] width=0.000000000000005551115123125783 method=adaptive-interval mode=smooth-taylor4 subintervals=1 taylor-accepted=1 range-accepted=0 tolerance=0.5 ",
+      "expr": "x^2",
+      "ok": true,
+      "oracle": "0.333333333333333333333333333333333333333333333333333333333333",
+      "oracle_in_engine": true,
+      "oracle_in_shadow": true,
+      "shadow": [
+        0.33333333333333226,
+        0.3333333333333345
+      ]
+    },
+    {
+      "case": "sin-taylor4",
+      "enclosures_overlap": true,
+      "engine": [
+        0.4594494744956915,
+        0.4598877406336185
+      ],
+      "engine_line_head": "5,0.4598877406336185] width=0.0004382661379269681 method=adaptive-interval mode=smooth-taylor4 subintervals=1 taylor-accepted=1 range-accepted=0 tolerance=0.01 ",
+      "expr": "sin(x)",
+      "ok": true,
+      "oracle": "0.459697694131860282599063392557023396267689579382077772329903",
+      "oracle_in_engine": true,
+      "oracle_in_shadow": true,
+      "shadow": [
+        0.4588648546006939,
+        0.4600370551215283
+      ]
+    },
+    {
+      "case": "abs-kink-multi",
+      "enclosures_overlap": true,
+      "engine": [
+        0.26993815104166363,
+        0.2857259114583366
+      ],
+      "engine_line_head": " width=0.015787760416672958 method=adaptive-interval mode=range-only(non-smooth-integrand) subintervals=125 taylor-accepted=0 range-accepted=63 tolerance=0.025 ",
+      "expr": "abs(x-1/3)",
+      "ok": true,
+      "oracle": "0.277777777777777777777777777777777777777777777777777777777778",
+      "oracle_in_engine": true,
+      "oracle_in_shadow": true,
+      "shadow": [
+        0.2699381510416658,
+        0.28572591145833426
+      ]
+    },
+    {
+      "case": "cubic-signed",
+      "enclosures_overlap": true,
+      "engine": [
+        0.39062499999998446,
+        0.39062500000001565
+      ],
+      "engine_line_head": "0000001565] width=0.0000000000000311972669919669 method=adaptive-interval mode=smooth-taylor4 subintervals=1 taylor-accepted=1 range-accepted=0 tolerance=0.125 ",
+      "expr": "x^3-x",
+      "ok": true,
+      "oracle": "0.390625",
+      "oracle_in_engine": true,
+      "oracle_in_shadow": true,
+      "shadow": [
+        0.34930129329495413,
+        0.4319676821751301
+      ]
+    }
+  ],
+  "schema": "jackal-bound-step-shadow-differential-v1",
+  "status": "research-shadow",
+  "total": 5
+}

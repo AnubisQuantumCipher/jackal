@@ -185,6 +185,7 @@ def qbuildExpr : Nat → List Cert.Node → Nat → Option QExpr
       | "cos_rat", [c0] => (qbuildExpr fuel nodes c0).map (.call1 "cos" ·)
       | "sin", [c0] => (qbuildExpr fuel nodes c0).map (.call1 "sin" ·)
       | "cos", [c0] => (qbuildExpr fuel nodes c0).map (.call1 "cos" ·)
+      | "abs", [c0] => (qbuildExpr fuel nodes c0).map (.call1 "abs" ·)
       | "add", [c0, c1] =>
           match qbuildExpr fuel nodes c0, qbuildExpr fuel nodes c1 with
           | some a, some b => some (.add a b) | _, _ => none
@@ -278,6 +279,12 @@ theorem qbuild_embed (fuel : Nat) (nodes : List Cert.Node) (id : Nat)
           -- cos
           · rename_i c0 hop heq
             have _check : nd.op = "cos" := hop
+            simp only [Option.map_eq_some_iff] at hq
+            obtain ⟨u, hu, rfl⟩ := hq
+            simp [hop, heq, ih c0 u hu, embedQ, Cert.call1Names]
+          -- abs
+          · rename_i c0 hop heq
+            have _check : nd.op = "abs" := hop
             simp only [Option.map_eq_some_iff] at hq
             obtain ⟨u, hu, rfl⟩ := hq
             simp [hop, heq, ih c0 u hu, embedQ, Cert.call1Names]

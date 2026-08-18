@@ -42,6 +42,7 @@ Design (mission §6.3, §6.4):
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
 import JackalIv.IntCertTypes
+import JackalIv.CertRequest
 
 namespace JackalIv.IntCert
 
@@ -130,6 +131,8 @@ def roleSpecs (kind : String) : List (Nat × Bool) :=
 def checkEmbedded (hdr : IntHeader) (q : QExpr) (t : TreeNode)
     (spec : Nat × Bool) (c : EvalCert) : Except String Unit := do
   guardE (Cert.checkCert c.hdr c.nodes) "missing-premise:embedded-cert-rejected"
+  guardE (Cert.releaseNodesOk c.nodes)
+    "missing-premise:embedded-cert-release-fragment"
   guardE (qexprOf c.nodes == some (DQiter spec.1 q))
     "missing-premise:wrong-chain-expression"
   -- the integrand-level certificates also bind the artifact's expression
@@ -237,6 +240,21 @@ def checkHeader (hdr : IntHeader) : Except String Unit := do
   guardE (hdr.degree == 0 || hdr.degree == 2 || hdr.degree == 4)
     "request-mismatch:degree"
 
+/-- Exact caller-request match for the composed-integral checker.  Bounds and
+tolerance use the canonical rational codec.  The raw expression is parsed and
+lowered by the same proved bridge used by the range checker, then compared to
+the parser-shaped expression reconstructed from the first role-F certificate.
+The opaque `source_commitment` remains provenance metadata checked by the
+outer receipt layer; mathematical request semantics are owned here. -/
+def intRequestMatches (rawExpr rawLo rawHi rawTol : String)
+    (hdr : IntHeader) (tree : List TreeNode) : Bool :=
+  (Cert.parseRatCanon rawLo.toList == some hdr.req_lo) &&
+  (Cert.parseRatCanon rawHi.toList == some hdr.req_hi) &&
+  (Cert.parseRatCanon rawTol.toList == some hdr.tol) &&
+  match Parser.parseRaw rawExpr, rootRawExpr tree with
+  | some ast, some certExpr => Cert.lowerRaw ast == some certExpr
+  | _, _ => false
+
 /-- The full composition checker. -/
 def checkIntCert (hdr : IntHeader) (tree : List TreeNode) :
     Except String Unit := do
@@ -254,6 +272,15 @@ def checkIntCert (hdr : IntHeader) (tree : List TreeNode) :
           guardE (decide (hdr.out_lo ≤ root.lo) && decide (root.hi ≤ hdr.out_hi))
             "released-interval-mismatch"
           guardE (decide (hdr.out_hi - hdr.out_lo ≤ hdr.tol)) "tolerance-unmet"
+
+/-- Public request-bound composition checker.  Artifact-only acceptance is
+not a release entrypoint: every ACCEPT must carry and mechanically match the
+caller's raw expression, bounds, and tolerance. -/
+def checkIntCertRequest (rawExpr rawLo rawHi rawTol : String)
+    (hdr : IntHeader) (tree : List TreeNode) : Except String Unit := do
+  guardE (intRequestMatches rawExpr rawLo rawHi rawTol hdr tree)
+    "request-mismatch:raw-expression"
+  checkIntCert hdr tree
 
 /-! ### Extraction lemmas (checker success ⇒ per-conjunct facts) -/
 
@@ -290,5 +317,86 @@ theorem allE_ok {α : Type} {f : α → Except String Unit} :
       rcases List.mem_cons.mp hx with rfl | hmem
       · exact hfy
       · exact allE_ok hrest x hmem
+
+/-- A true request match exposes the exact canonical limits and a concrete
+parsed/lowered expression identical to the certificate's reconstructed raw
+tree. -/
+theorem intRequestMatches_true {rawExpr rawLo rawHi rawTol : String}
+    {hdr : IntHeader} {tree : List TreeNode}
+    (h : intRequestMatches rawExpr rawLo rawHi rawTol hdr tree = true) :
+    Cert.parseRatCanon rawLo.toList = some hdr.req_lo ∧
+    Cert.parseRatCanon rawHi.toList = some hdr.req_hi ∧
+    Cert.parseRatCanon rawTol.toList = some hdr.tol ∧
+    ∃ ast lowered : Parser.RawExpr,
+      Parser.parseRaw rawExpr = some ast ∧
+      Cert.lowerRaw ast = some lowered ∧
+      rootRawExpr tree = some lowered := by
+  generalize hparse : Parser.parseRaw rawExpr = parsed
+  generalize hcert : rootRawExpr tree = cert
+  unfold intRequestMatches at h
+  rw [hparse, hcert] at h
+  cases parsed with
+  | none => simp at h
+  | some ast =>
+      cases cert with
+      | none => simp at h
+      | some certExpr =>
+          simp only [Bool.and_eq_true, beq_iff_eq] at h
+          have hlo := h.1.1.1
+          have hhi := h.1.1.2
+          have htol := h.1.2
+          have hlower : Cert.lowerRaw ast = some certExpr := h.2
+          exact ⟨hlo, hhi, htol, ast, certExpr, rfl, hlower, rfl⟩
+
+/-- Request-bound checker acceptance factors into the executable raw-request
+match and the existing composition checker acceptance. -/
+theorem checkIntCertRequest_ok {rawExpr rawLo rawHi rawTol : String}
+    {hdr : IntHeader} {tree : List TreeNode}
+    (h : checkIntCertRequest rawExpr rawLo rawHi rawTol hdr tree = .ok ()) :
+    intRequestMatches rawExpr rawLo rawHi rawTol hdr tree = true ∧
+    checkIntCert hdr tree = .ok () := by
+  unfold checkIntCertRequest at h
+  exact bind_guard_ok h
+
+/-- Composition-checker success necessarily exposes a reconstructed root
+integrand. -/
+theorem checkIntCert_rootQExpr_exists {hdr : IntHeader} {tree : List TreeNode}
+    (h : checkIntCert hdr tree = .ok ()) :
+    ∃ q, rootQExpr tree = some q := by
+  unfold checkIntCert at h
+  obtain ⟨⟨⟩, _hHeader, h⟩ := except_bind_ok h
+  obtain ⟨⟨⟩, _hStructural, h⟩ := except_bind_ok h
+  cases hroot : findTree tree hdr.root_id with
+  | none => rw [hroot] at h; simp at h
+  | some root =>
+      rw [hroot] at h
+      simp only [] at h
+      obtain ⟨_hDomain, h⟩ := bind_guard_ok h
+      generalize hq : rootQExpr tree = rootExpr at h
+      cases rootExpr with
+      | none => simp at h
+      | some q => exact ⟨q, rfl⟩
+
+/-- The raw parser tree and exact-rational `QExpr` reconstructed from the same
+role-F certificate have identical semantic syntax. -/
+theorem rootRawExpr_rootQExpr_embed {tree : List TreeNode}
+    {raw : Parser.RawExpr} {q : QExpr}
+    (hraw : rootRawExpr tree = some raw)
+    (hq : rootQExpr tree = some q) :
+    raw.toExpr = embedQ q := by
+  unfold rootRawExpr at hraw
+  unfold rootQExpr at hq
+  generalize hleaf : tree.find? (fun t => isLeafKind t.kind) = leaf at hraw hq
+  cases leaf with
+  | none => simp at hraw
+  | some t =>
+      cases hcerts : t.certs with
+      | nil => simp [hcerts] at hraw
+      | cons c cs =>
+          simp only [hcerts] at hraw hq
+          have hbridge := Cert.rawExprOf_toExpr c.nodes
+          have hqembed := qexprOf_embed c.nodes q hq
+          rw [hraw, hqembed] at hbridge
+          simpa using hbridge
 
 end JackalIv.IntCert

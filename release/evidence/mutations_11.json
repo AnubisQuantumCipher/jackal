@@ -1,5 +1,5 @@
 {
-  "checker_sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
+  "checker_sha256": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
   "evaluator_sha256": "20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083",
   "harness": "cert_mutations_11.py",
   "mutations": [
@@ -19,9 +19,9 @@
       "description": "cert.source (request commitment) MUST equal recomputed argv-derived commitment",
       "gate": "M1-request-changed-after-cert",
       "restore_hash_verified": true,
-      "source_hash_mutated": "2e872fb4911bb7320ca450a8ee7230bc956cf47486b9493bc850b7f36f6c3db1",
-      "source_hash_post": "794bb90f884dd0b538a43f92a34f01f01a1c0ee3255e380fc9fc8646d86acb20",
-      "source_hash_pre": "794bb90f884dd0b538a43f92a34f01f01a1c0ee3255e380fc9fc8646d86acb20",
+      "source_hash_mutated": "78b87d1220169328c2a58673059f036319f05d36a708dc6706300231da174fb9",
+      "source_hash_post": "38c631570eaf581027489ae1a4eaf7f63c16f393df24f7b999119ef50c6dbff6",
+      "source_hash_pre": "38c631570eaf581027489ae1a4eaf7f63c16f393df24f7b999119ef50c6dbff6",
       "target_file": "tests/release_validate.py"
     },
     {
@@ -40,9 +40,9 @@
       "description": "receipt.fragment.expression_operators MUST equal ops recovered from cert sexp",
       "gate": "M2-canonical-ast-changed",
       "restore_hash_verified": true,
-      "source_hash_mutated": "ddf61ae94e28e1f5da55adecdc0f794cdbea9e3f3d12589cc8bc85d2a5c0bfde",
-      "source_hash_post": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
-      "source_hash_pre": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
+      "source_hash_mutated": "439d1d332e8a584bf354955d7b13d70b9f8a26d3237db55617e732e3d5f207a7",
+      "source_hash_post": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
+      "source_hash_pre": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
       "target_file": "tools/receipt_verify.py"
     },
     {
@@ -61,9 +61,9 @@
       "description": "receipt.result.enclosure_{lo,hi} MUST equal cert output header",
       "gate": "M3-result-bound-changed",
       "restore_hash_verified": true,
-      "source_hash_mutated": "16f3ceeb3f7ef193c5608d5cba53955bbad5a525c8b4015c6c32f2d876952ff9",
-      "source_hash_post": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
-      "source_hash_pre": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
+      "source_hash_mutated": "69ec534656c2fc8b988da09b155202c33885c6714f32ca01fce71b8bf4da451a",
+      "source_hash_post": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
+      "source_hash_pre": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
       "target_file": "tools/receipt_verify.py"
     },
     {
@@ -82,9 +82,9 @@
       "description": "cert `source` header MUST equal receipt.request_commitment_b64 (single-field forgery)",
       "gate": "M4-certificate-changed",
       "restore_hash_verified": true,
-      "source_hash_mutated": "54fea3a1533bd6fee8b8f33c1538727f50061b6e021ba336c57af0e3f4619aed",
-      "source_hash_post": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
-      "source_hash_pre": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
+      "source_hash_mutated": "f3156ab01276ce08af9662bef40009b26abed240997f96279f9ba7e203d239ac",
+      "source_hash_post": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
+      "source_hash_pre": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
       "target_file": "tools/receipt_verify.py"
     },
     {
@@ -103,9 +103,9 @@
       "description": "cert.input MUST equal canonical_rat(argv lo/hi)",
       "gate": "M5-integration-limits-changed",
       "restore_hash_verified": true,
-      "source_hash_mutated": "6b6f91bb4ba08ed2e7cc528bc1219f2de911616b92109ea951c47685f6b8e46f",
-      "source_hash_post": "794bb90f884dd0b538a43f92a34f01f01a1c0ee3255e380fc9fc8646d86acb20",
-      "source_hash_pre": "794bb90f884dd0b538a43f92a34f01f01a1c0ee3255e380fc9fc8646d86acb20",
+      "source_hash_mutated": "ce16850086b6056623c727729d3b6c25d0b6437cf4a085e6b89f48e750abfae8",
+      "source_hash_post": "38c631570eaf581027489ae1a4eaf7f63c16f393df24f7b999119ef50c6dbff6",
+      "source_hash_pre": "38c631570eaf581027489ae1a4eaf7f63c16f393df24f7b999119ef50c6dbff6",
       "target_file": "tests/release_validate.py"
     },
     {
@@ -145,9 +145,9 @@
       "description": "checker file SHA-256 MUST equal receipt.identities.checker_sha256",
       "gate": "M7-checker-substituted",
       "restore_hash_verified": true,
-      "source_hash_mutated": "50803755535ca558370bc72212dcb6a1f099c6167aad2d809dd40d5d96ecce49",
-      "source_hash_post": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
-      "source_hash_pre": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
+      "source_hash_mutated": "7df0f788b720366efd23b34769e0c152ca0fe8c2fb2d005c4e805b8362257a09",
+      "source_hash_post": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
+      "source_hash_pre": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
       "target_file": "tools/receipt_verify.py"
     },
     {
@@ -166,9 +166,9 @@
       "description": "pinned expected-evaluator MUST equal file SHA-256 of the invoked evaluator",
       "gate": "M8-evaluator-substituted",
       "restore_hash_verified": true,
-      "source_hash_mutated": "d3f0a70d9abd101b8912d5ef554db3037a58c1932a4771ae4480f34a2fb2f356",
-      "source_hash_post": "794bb90f884dd0b538a43f92a34f01f01a1c0ee3255e380fc9fc8646d86acb20",
-      "source_hash_pre": "794bb90f884dd0b538a43f92a34f01f01a1c0ee3255e380fc9fc8646d86acb20",
+      "source_hash_mutated": "cf89d776c018a0ac17f48b5ba77879859ad7020e663c0c623375aa2153413ba2",
+      "source_hash_post": "38c631570eaf581027489ae1a4eaf7f63c16f393df24f7b999119ef50c6dbff6",
+      "source_hash_pre": "38c631570eaf581027489ae1a4eaf7f63c16f393df24f7b999119ef50c6dbff6",
       "target_file": "tests/release_validate.py"
     },
     {
@@ -187,9 +187,9 @@
       "description": "cert output header (source of truth) MUST equal receipt.result enclosure",
       "gate": "M9-outer-digest-recomputed-after-tamper",
       "restore_hash_verified": true,
-      "source_hash_mutated": "a86647452d0a25f1dcc1a88710699c271cda56e0ea48bf02141390440a40635b",
-      "source_hash_post": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
-      "source_hash_pre": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
+      "source_hash_mutated": "9b7e5dbbd5804c1c6539f5ab7517e69fddb9343e11aaef088308efc8d1949e78",
+      "source_hash_post": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
+      "source_hash_pre": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
       "target_file": "tools/receipt_verify.py"
     },
     {
@@ -208,9 +208,9 @@
       "description": "a prior success receipt MUST NOT verify against a different expected request",
       "gate": "M10-stale-success-reuse",
       "restore_hash_verified": true,
-      "source_hash_mutated": "7fa481df92f4873b40b7d9581057cc6461001d9a2849b71ca63583f1c743375b",
-      "source_hash_post": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
-      "source_hash_pre": "e28a103ff07276a2aee270d5dbe234423b6c55a4bb08c0d67c94c06c7e62307c",
+      "source_hash_mutated": "5c8255048957671a5b6bacce8d51cb1651a10b324e7642107565e09bef517fd9",
+      "source_hash_post": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
+      "source_hash_pre": "44f37a7db525e67dc994348eda5ae2ed75e8d0b6ec7ea1d4f86e3ee31c0f9396",
       "target_file": "tools/receipt_verify.py"
     },
     {
@@ -229,12 +229,12 @@
       "description": "plugin bundle hash MUST equal pinned plugin_hermes value at startup",
       "gate": "M11-plugin-binary-replaced",
       "restore_hash_verified": true,
-      "source_hash_mutated": "842086209a56f53a87fee41527a457a7b532559997e651567dc6864c8fbd70c0",
-      "source_hash_post": "4d67ae76edee3f771ced809520ed6df873c77def8cf410eb79145d61af1009b8",
-      "source_hash_pre": "4d67ae76edee3f771ced809520ed6df873c77def8cf410eb79145d61af1009b8",
+      "source_hash_mutated": "22edd4e035335028df5a8ac17adb0e61693542d2b36a3e43e27f89458524a839",
+      "source_hash_post": "a2a37ec7616d321700f718b02396a6d4c9f618e699d221c7ace2eb47058d9709",
+      "source_hash_pre": "a2a37ec7616d321700f718b02396a6d4c9f618e699d221c7ace2eb47058d9709",
       "target_file": "plugin/hermes/server.py"
     }
   ],
-  "plugin_hermes_sha256": "d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9accc247a3274b",
-  "release_epoch": "v1.3.0"
+  "plugin_hermes_sha256": "e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202",
+  "release_epoch": "v1.7.2"
 }

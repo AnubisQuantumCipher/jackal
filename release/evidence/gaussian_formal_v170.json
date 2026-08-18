@@ -5,7 +5,7 @@
     "tolerance": "1/1000000000000",
     "upper": "1"
   },
-  "coverage_inventory_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+  "coverage_inventory_sha256": "6373641cd7833bb46a08f44acf683a119e0a637c8acb88d22797b81188d896b6",
   "executed_controls": {
     "checker_mutations_rejected": 16,
     "formal_receipt_checker_rerun": "PASS",
@@ -17,7 +17,7 @@
   "family": "gaussian-exp-square-integral-v1",
   "identities": {
     "checker_sha256": "ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb",
-    "coverage_inventory_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+    "coverage_inventory_sha256": "6373641cd7833bb46a08f44acf683a119e0a637c8acb88d22797b81188d896b6",
     "producer_sha256": "20c24622b786940a8e82198f2364fb7593e761902fa0736289b179642f1e4306"
   },
   "non_claims": [

@@ -1740,11 +1740,11 @@
         "jackal-int-cert v1"
       ],
       "checker_decode": "IntCertCodec.parseIntCert",
-      "checker_rule": "IntCertCheck.checkIntCert",
+      "checker_rule": "IntCertCheck.checkIntCertRequest",
       "description": "Certified definite-integral enclosure by bound_step subdivision-tree composition (range/taylor2/taylor4 leaves over the certified fragment num/var/neg/add/sub/mul/div/pow/sin/cos/abs)",
       "evaluator_path": "untrusted tools/int_cert_producer.py -> jackal_int_cert_check",
       "kind": "operation-family",
-      "libm_assumption": "none (TreeTCB vacuous on the pure-rational fragment; sin/cos leaves enter through the range certificate model)",
+      "libm_assumption": "none external (releaseNodesOk derives each embedded ModelTCB and the former TreeTCB inside the proved checker path)",
       "notes": "producer is untrusted and identity-pinned; the engine's own float integrate-bound lane stays CONDITIONAL/bounded and never inherits this row",
       "operator": "integrate-bound-composed-v1",
       "parser_admission": "canonical jackal-int-cert v1 codec (exact-rational grammar)",
@@ -1755,6 +1755,7 @@
       "tests": [
         "int_cert_matrix_test.py",
         "int_cert_aba_test.py",
+        "int_cert_request_binding_v172_test.py",
         "int_cert_differential.py",
         "plugin_smoke.py"
       ],
@@ -1767,12 +1768,12 @@
         "jackal-int-cert v1"
       ],
       "checker_decode": "IntCertCodec.parseIntCert",
-      "checker_rule": "IntCertCheck.checkIntCert",
+      "checker_rule": "IntCertCheck.checkIntCertRequest",
       "description": "Hermes plugin tool: emit a jackal-formal-receipt-v1 for a certified composed definite-integral enclosure (bound_step composition; subdivision-tree certificate re-checked by the pinned proved jackal_int_cert_check)",
       "evaluator_path": "plugin/hermes/server.py -> tools/int_cert_release.py (identity-pinned, TOCTOU stable) -> jackal_int_cert_check",
       "kind": "plugin-tool",
       "libm_assumption": "none",
-      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as int_cert_producer and int-cert-checker; v1.7.0 fragment extension; the weaker jackal_integrate_bound float lane is a distinct row and stays bounded",
+      "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as int_cert_producer and int-cert-checker; v1.7.2 binds the raw expression, canonical bounds, and tolerance inside Lean; the weaker jackal_integrate_bound float lane is a distinct row and stays bounded",
       "operator": "jackal_integrate_bound_cert",
       "parser_admission": "certified fragment only: num/var/neg/add/sub/mul/div/pow(0..4096)/sin/cos/abs in x",
       "plugin_tool": "jackal_integrate_bound_cert",
@@ -1794,7 +1795,7 @@
         "jackal-int-cert v1"
       ],
       "checker_decode": "IntCertCodec.parseIntCert",
-      "checker_rule": "IntCertCheck.checkIntCert",
+      "checker_rule": "IntCertCheck.checkIntCertRequest",
       "description": "Hermes plugin tool mode: bind an external composed-integral request and re-run the pinned jackal_int_cert_check",
       "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_int_cert_check",
       "kind": "plugin-tool-mode",
@@ -1808,6 +1809,7 @@
       "soundness_theorem": "int_cert_sound",
       "tests": [
         "int_cert_release_test.py",
+        "int_cert_request_binding_v172_test.py",
         "plugin_smoke.py"
       ],
       "verdict": "FORMAL"

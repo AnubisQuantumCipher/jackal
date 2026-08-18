@@ -1,0 +1,37 @@
+{
+  "A_post": {
+    "clean_accept": true,
+    "identity_restored": true
+  },
+  "A_pre": {
+    "clean_accept": true
+  },
+  "B_embedded_release_guard": {
+    "build_exit_nonzero": true,
+    "proof_load_bearing": true
+  },
+  "B_external_tree_tcb": {
+    "build_exit_nonzero": true,
+    "public_signature_contract_load_bearing": true
+  },
+  "B_raw_request_guard": {
+    "build_exit_nonzero": true,
+    "public_request_bind_load_bearing": true
+  },
+  "canonical_post_sha256": {
+    "IntCertCheck.lean": "a225b06b8ef09906eb4b54954616578b74bdf9151a9101d53828b306d86be0b8",
+    "IntCertPremiseContract.lean": "3a5c493ddf1badfa1ac44b04af5154f7e81417e7b11b387ac3783403e1c180c2",
+    "IntCertSound.lean": "5c4b8d92f6f3b03cc47716d78b5ed7dd85b3b6a552849fc95a4a085fc5c6c541",
+    "jackal_int_cert_check": "f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617"
+  },
+  "canonical_pre_sha256": {
+    "IntCertCheck.lean": "a225b06b8ef09906eb4b54954616578b74bdf9151a9101d53828b306d86be0b8",
+    "IntCertPremiseContract.lean": "3a5c493ddf1badfa1ac44b04af5154f7e81417e7b11b387ac3783403e1c180c2",
+    "IntCertSound.lean": "5c4b8d92f6f3b03cc47716d78b5ed7dd85b3b6a552849fc95a4a085fc5c6c541",
+    "jackal_int_cert_check": "f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617"
+  },
+  "clean_artifact_sha256": "aeb7e81a74565cd3c8596513fdd1694897266d673a3937903d51ae7826ed59ff",
+  "isolation": "throwaway APFS clones; canonical source and executable not rebuilt",
+  "schema": "jackal-int-cert-premise-aba-v172",
+  "status": "passed"
+}

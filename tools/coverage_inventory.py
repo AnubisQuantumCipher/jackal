@@ -424,7 +424,8 @@ def build_rows() -> list[dict]:
         INT_CERT_PROOF.exists()
         and "theorem int_cert_sound" in INT_CERT_PROOF.read_text()
         and INT_CERT_CHECKER_MAIN.exists()
-        and "checkIntCert hdr tree" in INT_CERT_CHECKER_MAIN.read_text()
+        and "checkIntCertRequest rawExpr rawLo rawHi rawTol hdr tree"
+        in INT_CERT_CHECKER_MAIN.read_text()
         and INT_CERT_PRODUCER.exists()
         and GAUSSIAN_PLUGIN.exists()
         and "def tool_integrate_bound_cert" in GAUSSIAN_PLUGIN.read_text()
@@ -439,14 +440,15 @@ def build_rows() -> list[dict]:
         "evaluator_path": "untrusted tools/int_cert_producer.py -> jackal_int_cert_check",
         "certificate_op": ["jackal-int-cert v1"],
         "checker_decode": "IntCertCodec.parseIntCert",
-        "checker_rule": "IntCertCheck.checkIntCert",
+        "checker_rule": "IntCertCheck.checkIntCertRequest",
         "soundness_theorem": "int_cert_sound",
         "runs_constructors": [],
-        "libm_assumption": "none (TreeTCB vacuous on the pure-rational fragment; sin/cos leaves enter through the range certificate model)",
+        "libm_assumption": "none external (releaseNodesOk derives each embedded ModelTCB and the former TreeTCB inside the proved checker path)",
         "plugin_tool": "jackal_integrate_bound_cert",
         "requested_assurance": "formal-bounded",
         "allowed_status": "formal-bounded",
         "tests": ["int_cert_matrix_test.py", "int_cert_aba_test.py",
+                  "int_cert_request_binding_v172_test.py",
                   "int_cert_differential.py", "plugin_smoke.py"],
         "verdict": "FORMAL" if int_cert_wired else "UNWIRED",
         "notes": ("producer is untrusted and identity-pinned; the engine's own float integrate-bound lane stays CONDITIONAL/bounded and never inherits this row"
@@ -460,7 +462,7 @@ def build_rows() -> list[dict]:
         "evaluator_path": "plugin/hermes/server.py -> tools/int_cert_release.py (identity-pinned, TOCTOU stable) -> jackal_int_cert_check",
         "certificate_op": ["jackal-int-cert v1"],
         "checker_decode": "IntCertCodec.parseIntCert",
-        "checker_rule": "IntCertCheck.checkIntCert",
+        "checker_rule": "IntCertCheck.checkIntCertRequest",
         "soundness_theorem": "int_cert_sound",
         "runs_constructors": [],
         "libm_assumption": "none",
@@ -470,7 +472,7 @@ def build_rows() -> list[dict]:
         "tests": ["plugin_smoke.py::S21", "plugin_smoke.py::S22",
                   "int_cert_matrix_test.py", "int_cert_release_test.py"],
         "verdict": "FORMAL" if int_cert_wired else "UNWIRED",
-        "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as int_cert_producer and int-cert-checker; v1.7.0 fragment extension; the weaker jackal_integrate_bound float lane is a distinct row and stays bounded",
+        "notes": "producer + checker identities pinned in release/MANIFEST.sha256 as int_cert_producer and int-cert-checker; v1.7.2 binds the raw expression, canonical bounds, and tolerance inside Lean; the weaker jackal_integrate_bound float lane is a distinct row and stays bounded",
     })
     rows.append({
         "kind": "plugin-tool-mode", "operator": "jackal_verify_receipt:int_cert",
@@ -480,14 +482,15 @@ def build_rows() -> list[dict]:
         "evaluator_path": "plugin/hermes/server.py -> tools/receipt_verify.verify_receipt -> jackal_int_cert_check",
         "certificate_op": ["jackal-int-cert v1"],
         "checker_decode": "IntCertCodec.parseIntCert",
-        "checker_rule": "IntCertCheck.checkIntCert",
+        "checker_rule": "IntCertCheck.checkIntCertRequest",
         "soundness_theorem": "int_cert_sound",
         "runs_constructors": [],
         "libm_assumption": "none",
         "plugin_tool": "jackal_verify_receipt",
         "requested_assurance": "verified",
         "allowed_status": "verified",
-        "tests": ["int_cert_release_test.py", "plugin_smoke.py"],
+        "tests": ["int_cert_release_test.py",
+                  "int_cert_request_binding_v172_test.py", "plugin_smoke.py"],
         "verdict": "FORMAL" if int_cert_wired else "UNWIRED",
         "notes": "external expected request, tolerance, and epoch are mandatory; outer digest alone is NOT sufficient",
     })

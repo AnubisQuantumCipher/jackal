@@ -12,6 +12,8 @@ module closes the remaining request-relabel boundary inside Lean itself:
   with the expression reconstructed from the certificate nodes;
 * both CLI limits are parsed by the canonical rational codec and must equal the
   certificate header's input interval; and
+* both the input and released output intervals must be ordered (`lo ≤ hi`);
+  this is checked inside the same Lean request predicate that emits ACCEPT; and
 * every certificate node must belong to the exact FORMAL release allowlist,
   excluding checker-sound but policy-unreleased negative/general powers and
   TCB-backed transcendental nodes; and
@@ -414,18 +416,51 @@ def releaseNodeOp : String → Bool
 def releaseNodesOk (nodes : List Node) : Bool :=
   nodes.all (fun nd => releaseNodeOp nd.op)
 
+/-- A release-admitted constructor contributes no libm fact: all constructors
+whose `libmNodeFact` is nontrivial are outside `releaseNodeOp`. -/
+theorem releaseNodeOp_true_libmNodeFact (nodes : List Node) (nd : Node)
+    (hrelease : releaseNodeOp nd.op = true) : libmNodeFact nodes nd := by
+  unfold libmNodeFact
+  split <;> simp_all [releaseNodeOp]
+
+/-- The named model TCB is vacuous on the exact release allowlist.  This closes
+the former external `ModelTCB` premise without extending the admitted node
+surface: libm-backed nodes and `const_rounded` still fail closed. -/
+theorem releaseNodesOk_modelTCB {hdr : Header} {nodes : List Node}
+    (hall : releaseNodesOk nodes = true) : ModelTCB hdr nodes := by
+  constructor
+  · intro nd hmem
+    exact releaseNodeOp_true_libmNodeFact nodes nd
+      ((List.all_eq_true.mp hall) nd hmem)
+  · intro nd hmem hop
+    have hrelease := (List.all_eq_true.mp hall) nd hmem
+    simp [hop, releaseNodeOp] at hrelease
+
+/-- Release intervals are genuine closed intervals.  Keeping this predicate
+inside `requestMatches` makes an ACCEPT token self-sufficient: interval
+ordering is no longer an undischarged theorem premise delegated to wrappers. -/
+def releaseIntervalsOrdered (hdr : Header) : Bool :=
+  decide (hdr.input_lo ≤ hdr.input_hi) &&
+  decide (hdr.output_lo ≤ hdr.output_hi)
+
+theorem releaseIntervalsOrdered_true {hdr : Header}
+    (h : releaseIntervalsOrdered hdr = true) :
+    hdr.input_lo ≤ hdr.input_hi ∧ hdr.output_lo ≤ hdr.output_hi := by
+  simpa [releaseIntervalsOrdered] using h
+
 /-- Exact request match.  Every conjunct is executable and fail-closed,
 including the Lean-owned release-fragment allowlist. -/
 def requestMatches (command rawExpr rawLo rawHi : String)
     (hdr : Header) (nodes : List Node) : Bool :=
   (command == rangeBoundCommand) &&
   ((hdr.status_class == "bounded") &&
+  (releaseIntervalsOrdered hdr &&
   (releaseNodesOk nodes &&
   ((parseRatCanon rawLo.toList == some hdr.input_lo) &&
   ((parseRatCanon rawHi.toList == some hdr.input_hi) &&
     match parseRaw rawExpr, rawExprOf nodes with
     | some ast, some certExpr => lowerRaw ast == some certExpr
-    | _, _ => false))))
+    | _, _ => false)))))
 
 /-! The bridge from `rawExprOf` to `exprOf` and the composed release theorem
 are proved below. -/
@@ -480,6 +515,7 @@ theorem requestMatches_true {command rawExpr rawLo rawHi : String}
     {hdr : Header} {nodes : List Node}
     (h : requestMatches command rawExpr rawLo rawHi hdr nodes = true) :
     command = rangeBoundCommand ∧ hdr.status_class = "bounded" ∧
+    releaseIntervalsOrdered hdr = true ∧
     releaseNodesOk nodes = true ∧
     parseRatCanon rawLo.toList = some hdr.input_lo ∧
     parseRatCanon rawHi.toList = some hdr.input_hi ∧
@@ -488,7 +524,7 @@ theorem requestMatches_true {command rawExpr rawLo rawHi : String}
       rawExprOf nodes = some lowered := by
   unfold requestMatches at h
   simp only [Bool.and_eq_true, beq_iff_eq] at h
-  rcases h with ⟨hcmd, hstatus, hfragment, hlo, hhi, htree⟩
+  rcases h with ⟨hcmd, hstatus, hordered, hfragment, hlo, hhi, htree⟩
   generalize hparse : parseRaw rawExpr = parsed at htree
   cases parsed with
   | none => simp at htree
@@ -499,7 +535,8 @@ theorem requestMatches_true {command rawExpr rawLo rawHi : String}
       | some certExpr =>
           have hlower : lowerRaw ast = some certExpr := by
             simpa using htree
-          exact ⟨hcmd, hstatus, hfragment, hlo, hhi, ast, certExpr, rfl, hlower, rfl⟩
+          exact ⟨hcmd, hstatus, hordered, hfragment, hlo, hhi,
+            ast, certExpr, rfl, hlower, rfl⟩
 
 /-- A request-bound ACCEPT mechanically entails the exact node-level FORMAL
 release policy; this fact does not depend on the external inventory file. -/
@@ -507,7 +544,15 @@ theorem requestMatches_releaseNodesOk {command rawExpr rawLo rawHi : String}
     {hdr : Header} {nodes : List Node}
     (h : requestMatches command rawExpr rawLo rawHi hdr nodes = true) :
     releaseNodesOk nodes = true :=
-  (requestMatches_true h).2.2.1
+  (requestMatches_true h).2.2.2.1
+
+/-- Request acceptance exposes both closed-interval ordering facts.  This is a
+focused audit theorem for the public ACCEPT contract. -/
+theorem requestMatches_interval_order {command rawExpr rawLo rawHi : String}
+    {hdr : Header} {nodes : List Node}
+    (h : requestMatches command rawExpr rawLo rawHi hdr nodes = true) :
+    hdr.input_lo ≤ hdr.input_hi ∧ hdr.output_lo ≤ hdr.output_hi :=
+  releaseIntervalsOrdered_true (requestMatches_true h).2.2.1
 
 /-! ### Kernel-reduced relabel controls -/
 
@@ -595,18 +640,25 @@ theorem numericRelabel_exactTrees_differ :
 
 /-- REQUEST-BOUND RELEASE.  If the executable request matcher and certificate
 checker both accept, the exact expression denoted by the raw request is
-enclosed on the exact canonical request interval, under the existing named
-`ModelTCB`. -/
+enclosed on the exact canonical request interval.  Interval ordering and the
+named model facts are derived internally from request acceptance and the exact
+release allowlist; callers supply no theorem premises beyond the two executable
+acceptance decisions. -/
 theorem request_bound_certified_release
     {command rawExpr rawLo rawHi : String} {hdr : Header} {nodes : List Node}
     (hreq : requestMatches command rawExpr rawLo rawHi hdr nodes = true)
-    (hchk : checkCert hdr nodes = true) (htcb : ModelTCB hdr nodes)
-    (hab : (↑hdr.input_lo : ℝ) ≤ ↑hdr.input_hi) :
+    (hchk : checkCert hdr nodes = true) :
     ∃ ast : Expr, Parser.parse rawExpr = some ast ∧
       ∀ x ∈ Set.Icc (↑hdr.input_lo : ℝ) (↑hdr.input_hi),
         DefinedOn ast x → sem ast x ∈ Set.Icc (↑hdr.output_lo : ℝ) (↑hdr.output_hi) := by
-  obtain ⟨_, _, _, _, _, rawAst, lowered, hparseRaw, hlowerRaw, hcertRaw⟩ :=
+  obtain ⟨_, _, hordered, hfragment, _, _, rawAst, lowered,
+      hparseRaw, hlowerRaw, hcertRaw⟩ :=
     requestMatches_true hreq
+  have htcb : ModelTCB hdr nodes := releaseNodesOk_modelTCB hfragment
+  have habQ : hdr.input_lo ≤ hdr.input_hi :=
+    (releaseIntervalsOrdered_true hordered).1
+  have hab : (↑hdr.input_lo : ℝ) ≤ ↑hdr.input_hi := by
+    exact_mod_cast habQ
   let ast := rawAst.toExpr
   let e := lowered.toExpr
   have hparse : Parser.parse rawExpr = some ast := by

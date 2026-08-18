@@ -290,6 +290,15 @@ def build_receipt_node(*, receipt: dict, receipt_bytes: bytes,
                             "input_lo": req["input_lo"],
                             "input_hi": req["input_hi"],
                             "tolerance": req["tolerance"]}
+    elif variant == "int_cert":
+        arg = {"t": "app", "fn": "formal.integral",
+               "args": [{"t": "str", "v": req["expression"]}, domain,
+                        {"t": "rat", "v": req["canonical_tolerance"]}]}
+        expected_request = {"command": req["command"],
+                            "expression": req["expression"],
+                            "input_lo": req["input_lo"],
+                            "input_hi": req["input_hi"],
+                            "tolerance": req["tolerance"]}
     else:
         arg = {"t": "app", "fn": "formal.range",
                "args": [{"t": "str", "v": req["expression"]}, domain]}
@@ -306,8 +315,10 @@ def build_receipt_node(*, receipt: dict, receipt_bytes: bytes,
                   "sha256": sha_hex(receipt_bytes)},
         producer={"name": f"{variant}-producer",
                   "sha256": receipt["identities"]["evaluator_sha256"]},
-        checker={"name": "jackal_cert_check" if variant != "gaussian"
-                 else "jackal_gaussian_check",
+        checker={"name": ("jackal_gaussian_check" if variant == "gaussian"
+                           else "jackal_int_cert_check"
+                           if variant == "int_cert"
+                           else "jackal_cert_check"),
                  "sha256": checker_sha256},
         rule={"id": "evidence_admit",
               "params": {"evidence_kind": "formal-receipt",

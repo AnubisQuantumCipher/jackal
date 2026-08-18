@@ -69,6 +69,7 @@ Terms:
 - `{"t":"app","fn":"<fn id>","args":[...]}` — `fn` from the bounded
   function registry in `inference_registry_v1.json` (`gcd`, `mod_inv`,
   `mod_pow`, `crt_solve`, `formal.range`, `formal.gaussian_integral`,
+  `formal.integral`,
   `m.<op>.w<w>.<s|u>.<wrap|checked>`)
 - `{"t":"add"|"sub"|"mul"|"div","lhs":X,"rhs":Y}`, `{"t":"neg","arg":X}`
 
@@ -235,16 +236,14 @@ quantifier reasoning, unregistered rules — refuses (`rule-unknown` /
   node proposition must equal
   `in(app("formal.range",[str expr, interval domain]), enclosure)` for
   range/variant receipts, or
-  `in(app("formal.gaussian_integral",[str expr, interval domain, rat tol]), enclosure)`.
-  Lane boundary (v1.7.0): the independent bundle replay carries ONE
-  checker/proof-identity pin set (the range lane), so only range-family
-  receipts are admissible as `formal-receipt` evidence payloads today.
-  Certified composed-integral receipts (`variant=int_cert`, theorem
-  `int_cert_sound`) and Gaussian receipts are verified DIRECTLY via
-  `jackal_verify_receipt` / `tools/receipt_verify.py` against their own
-  pinned checkers; admitting them as bundle evidence requires a multi-lane
-  pin extension of the replay contract and is a named residual, never a
-  silent cap bypass.
+  `in(app("formal.gaussian_integral",[str expr, interval domain, rat tol]), enclosure)`,
+  or `in(app("formal.integral",[str expr, interval domain, rat tol]), enclosure)`.
+  Lane boundary (v1.7.2): independent bundle replay selects from a closed
+  four-context registry: current v1.7.2 range/rational, archival v1.5.0
+  range/rational, Gaussian v1.5.0, and current request-bound composed
+  integral v1.7.2. Every tuple supplies its own exact checker and proof
+  identity pins. The request-unbound v1.7.0 composed-integral checker is
+  revoked and has no admitted context.
   Axes: `mathematical=formal-bounded`, `implementation=checker-derived`,
   `input_provenance=supplied`, `model_validity` = per receipt assumptions
   (`assumed` for the f64/model TCB), artifact `content_addressed=true`.
@@ -333,11 +332,31 @@ Required caller pins: `--bundle`, `--expected-release-epoch`,
 `--expected-inference-registry` (path) with `--expected-inference-registry-sha256`,
 `--expected-unit-registry` + `--expected-unit-registry-sha256`,
 `--expected-environment-epoch`, `--verification-time-unix`.
-Optional: `--expected-nonce`, `--receipt-verifier`, `--exact-verifier`,
-`--checker`, `--expected-checker`, `--expected-evaluator`, `--inventory`,
-`--expected-inventory`, `--proof-identity`,
-`--expected-proof-identity-file`, `--expected-proof-identity-digest`
-(required when the bundle embeds formal receipts), `--max-bundle-bytes`.
+Optional (unbind the legacy dispatcher when a bundle carries no
+formal-receipt or exact-cert evidence): `--expected-nonce`,
+`--receipt-verifier`, `--exact-verifier`, `--max-bundle-bytes`.
+
+When a bundle embeds a `formal-receipt` node, the verifier owns a closed
+four-context registry — every context pins its own checker, proof
+identity, and (for the archival lane) inventory bytes, and the CLI
+refuses to invent tuples the code does not admit:
+
+| Context | CLI arguments |
+|---|---|
+| current range/rational v1.7.2 | `--checker`, `--expected-checker`, `--expected-evaluator`, `--inventory`, `--expected-inventory`, `--proof-identity`, `--expected-proof-identity-file`, `--expected-proof-identity-digest` |
+| Gaussian v1.5.0 | `--gaussian-checker`, `--expected-gaussian-checker`, `--gaussian-proof-identity`, `--expected-gaussian-proof-identity-file`, `--expected-gaussian-proof-identity-digest` (evaluator and coverage inventory arguments are reused from the current tuple) |
+| current request-bound int-cert v1.7.2 | `--int-cert-checker`, `--expected-int-cert-checker`, `--int-cert-proof-identity`, `--expected-int-cert-proof-identity-file`, `--expected-int-cert-proof-identity-digest` (evaluator and coverage inventory arguments are reused from the current tuple) |
+| archival range/rational v1.5.0 | `--archival-range-checker`, `--expected-archival-range-checker`, `--archival-range-proof-identity`, `--expected-archival-range-proof-identity-file`, `--expected-archival-range-proof-identity-digest`, `--archival-range-inventory`, `--expected-archival-range-inventory` |
+
+There is no admitted context for the revoked request-unbound v1.7.0
+composed-integral checker.  Cross-mixing any of these tuples — for
+example, pairing the current inventory with the archival checker, or
+the archival proof identity with the current v1.7.2 range checker —
+refuses with a stable reason class (`receipt-context-unsupported` for
+pre-dispatch selector failures; `evidence-verify-failed`,
+`digest-mismatch`, or `evidence-producer-untrusted` for the downstream
+identity checks).  `--trusted-producer` may be repeated to admit
+additional evaluator digests beyond the default `--expected-evaluator`.
 
 Verdicts: `claim-verify=verified|refused|indeterminate` with
 `reason=<stable class>`; never a bare badge — the success output
@@ -362,10 +381,9 @@ Never emits bare `VERIFIED`.
 ## 12. Residual non-claims (v1, verbatim in bundles)
 
 - no source-to-native refinement (`source-native-refined` never granted);
-- claim-bundle `formal-receipt` evidence replay is pinned to the range
-  lane: Gaussian and composed-integral (`int_cert`, v1.7.0) receipts are
-  independently verifiable via `jackal_verify_receipt` but not yet
-  admissible inside bundles;
+- claim-bundle `formal-receipt` replay is limited to the four explicitly
+  pinned contexts above; arbitrary epochs, caller-selected checkers, and the
+  revoked request-unbound v1.7.0 composed-integral context refuse;
 - no one-time replay prevention without an external nonce store;
 - no probability distributions, confidence levels, independence, or
   calibration inferred from intervals;

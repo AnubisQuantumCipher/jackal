@@ -24,7 +24,7 @@ GAUSSIAN_CHECKER = ROOT / "proofs" / "lean" / ".lake" / "build" / "bin" / "jacka
 EVALUATOR = ROOT / "jackal-native"
 PRODUCER = ROOT / "tools" / "gaussian_certificate.py"
 SOURCE = ROOT / "jackal_calc.anb"
-RANGE_PROOF_IDENTITY = ROOT / "release" / "evidence" / "range_proof_identity.json"
+RANGE_PROOF_IDENTITY = ROOT / "release" / "evidence" / "range_proof_identity_v172.json"
 GAUSSIAN_PROOF_IDENTITY = ROOT / "release" / "evidence" / "gaussian_proof_identity.json"
 
 import sys
@@ -72,7 +72,7 @@ def fresh_range() -> dict:
             hi=RANGE_REQUEST["input_hi"], evaluator=str(EVALUATOR),
             checker=str(RANGE_CHECKER), expected_evaluator=file_sha(EVALUATOR),
             expected_checker=file_sha(RANGE_CHECKER), formal_receipt_path=str(path),
-            release_epoch="v1.3.0",
+            release_epoch="v1.7.2",
         )
         return json.loads(path.read_text())
 
@@ -95,7 +95,7 @@ def fresh_gaussian() -> dict:
 
 
 def verify_range(receipt: dict, request: dict[str, str] | None = None,
-                 epoch: str = "v1.3.0", *,
+                 epoch: str = "v1.7.2", *,
                  inventory_sha: str | None = None,
                  proof_file_sha: str | None = None,
                  proof_digest: str | None = None,
@@ -182,7 +182,7 @@ TANH_RAT_PRODUCER = ROOT / "tools" / "tanh_rat_producer.py"
 
 
 def _fresh_variant(*, variant: str, request: dict[str, str], producer: Path,
-                   epoch: str = "v1.4.2",
+                   epoch: str = "v1.7.2",
                    extra_args: list[str] | None = None) -> dict:
     import subprocess
     from formal_receipt import (
@@ -234,33 +234,33 @@ def fresh_exp_rat() -> dict:
 
 def fresh_ln_rat() -> dict:
     return _fresh_variant(variant="ln_rat", request=LN_RAT_REQUEST,
-                          producer=LN_RAT_PRODUCER, epoch="v1.5.0")
+                          producer=LN_RAT_PRODUCER)
 
 
 def fresh_sin_rat() -> dict:
     return _fresh_variant(variant="sin_rat", request=SIN_RAT_REQUEST,
-                          producer=SIN_RAT_PRODUCER, epoch="v1.5.0",
+                          producer=SIN_RAT_PRODUCER,
                           extra_args=["--op", "sin"])
 
 
 def fresh_cos_rat() -> dict:
     return _fresh_variant(variant="cos_rat", request=COS_RAT_REQUEST,
-                          producer=SIN_RAT_PRODUCER, epoch="v1.5.0",
+                          producer=SIN_RAT_PRODUCER,
                           extra_args=["--op", "cos"])
 
 
 def fresh_atan_rat() -> dict:
     return _fresh_variant(variant="atan_rat", request=ATAN_RAT_REQUEST,
-                          producer=ATAN_RAT_PRODUCER, epoch="v1.5.0")
+                          producer=ATAN_RAT_PRODUCER)
 
 
 def fresh_tanh_rat() -> dict:
     return _fresh_variant(variant="tanh_rat", request=TANH_RAT_REQUEST,
-                          producer=TANH_RAT_PRODUCER, epoch="v1.5.0")
+                          producer=TANH_RAT_PRODUCER)
 
 
 def verify_variant(receipt: dict, *, variant: str, request: dict,
-                   producer: Path, epoch: str = "v1.4.2",
+                   producer: Path, epoch: str = "v1.7.2",
                    inventory_sha: str | None = None,
                    proof_file_sha: str | None = None,
                    proof_digest: str | None = None,
@@ -342,7 +342,7 @@ def main() -> int:
         ("tanh_rat", tanh_receipt, TANH_RAT_REQUEST, TANH_RAT_PRODUCER),
     ]:
         if verify_variant(_rcpt, variant=_name, request=_req, producer=_prod,
-                          epoch="v1.5.0").get("verdict") != "ACCEPT":
+                          epoch="v1.7.2").get("verdict") != "ACCEPT":
             raise RuntimeError(f"baseline {_name} receipt did not verify")
 
     cases: list[tuple[str, callable, str]] = []
@@ -565,40 +565,40 @@ def main() -> int:
     add("ln-rat-wrong-variant-tag",
         lambda: verify_variant(mutate(ln_receipt, ("variant",), "exp_rat"),
                                variant="ln_rat", request=LN_RAT_REQUEST,
-                               producer=LN_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=LN_RAT_PRODUCER, epoch="v1.7.2"),
         "receipt-assumptions")
     add("cos-rat-variant-swap-to-sin",
         lambda: verify_variant(mutate(cos_receipt, ("variant",), "sin_rat"),
                                variant="cos_rat", request=COS_RAT_REQUEST,
-                               producer=SIN_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=SIN_RAT_PRODUCER, epoch="v1.7.2"),
         "receipt-assumptions")
     add("ln-rat-source-anb-forged-nonnull",
         lambda: verify_variant(mutate(ln_receipt, ("identities", "source_anb_sha256"), "0" * 64),
                                variant="ln_rat", request=LN_RAT_REQUEST,
-                               producer=LN_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=LN_RAT_PRODUCER, epoch="v1.7.2"),
         "variant-source-identity")
     add("tanh-rat-producer-identity-forged",
         lambda: verify_variant(mutate(tanh_receipt, ("identities", "producer_sha256"), "0" * 64),
                                variant="tanh_rat", request=TANH_RAT_REQUEST,
-                               producer=TANH_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=TANH_RAT_PRODUCER, epoch="v1.7.2"),
         "producer-identity")
     add("tanh-rat-admitted-forged",
         lambda: verify_variant(mutate(tanh_receipt, ("fragment", "admitted_operators"),
                                       ["exp", "var"]),
                                variant="tanh_rat", request=TANH_RAT_REQUEST,
-                               producer=TANH_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=TANH_RAT_PRODUCER, epoch="v1.7.2"),
         "fragment-admitted")
     add("atan-rat-coverage-row-forged",
         lambda: verify_variant(mutate(atan_receipt, ("fragment", "coverage_row_ids"),
                                       ["jackal_range_bound"]),
                                variant="atan_rat", request=ATAN_RAT_REQUEST,
-                               producer=ATAN_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=ATAN_RAT_PRODUCER, epoch="v1.7.2"),
         "coverage-row-set")
     add("sin-rat-non-claims-forged",
         lambda: verify_variant(mutate(sin_receipt, ("non_claims",),
                                       ["UNIVERSAL sin correctness"]),
                                variant="sin_rat", request=SIN_RAT_REQUEST,
-                               producer=SIN_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=SIN_RAT_PRODUCER, epoch="v1.7.2"),
         "receipt-non-claims")
     # TCB-op smuggling lock: relabel the pure-ℚ `ln_rat` node to the
     # libm-TCB `ln` op.  The release-fragment node mirror must refuse —
@@ -607,7 +607,7 @@ def main() -> int:
     add("ln-rat-tcb-op-smuggle",
         lambda: verify_variant(ln_tcb_node,
                                variant="ln_rat", request=LN_RAT_REQUEST,
-                               producer=LN_RAT_PRODUCER, epoch="v1.5.0"),
+                               producer=LN_RAT_PRODUCER, epoch="v1.7.2"),
         "node-op-outside-release-fragment")
     # Stale-epoch lock for the new cycle.
     add("ln-rat-stale-expected-epoch",

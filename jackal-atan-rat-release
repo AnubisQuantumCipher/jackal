@@ -1,5 +1,5 @@
 #!/bin/sh
-# JACKAL v1.5.0 atan_rat fail-closed release wrapper.
+# JACKAL v1.7.2 atan_rat fail-closed release wrapper.
 #
 # Admits ONLY `atan(x)` on a canonical rational interval [lo, hi] and
 # emits a request-bound release ACCEPT from the pinned Lean-proved checker.
@@ -21,6 +21,8 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PRODUCER="$ROOT/tools/atan_rat_producer.py"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 MANIFEST="$ROOT/release/MANIFEST.sha256"
+PROOF_ID="$ROOT/release/evidence/range_proof_identity_v172.json"
+INVENTORY="$ROOT/release/coverage/formal_coverage_inventory.json"
 
 if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
     echo "usage: jackal-atan-rat-release \"atan(x)\" <lo> <hi> [formal-receipt.json]" >&2
@@ -86,45 +88,38 @@ if [ "$CHK_POST" != "$CHK_PRE" ]; then
     exit 1
 fi
 
+if [ -n "$RECEIPT_OUT" ]; then
+    EXPECTED_PROOF=$(awk '$1=="range-proof-identity" {print $NF}' "$MANIFEST")
+    EXPECTED_INV=$(awk '$1=="coverage-inventory" {print $NF}' "$MANIFEST")
+    PROOF_PRE=$(shasum -a 256 "$PROOF_ID" | awk '{print $1}')
+    INV_PRE=$(shasum -a 256 "$INVENTORY" | awk '{print $1}')
+    MANIFEST_PRE=$(shasum -a 256 "$MANIFEST" | awk '{print $1}')
+    [ "$PROOF_PRE" = "$EXPECTED_PROOF" ] && [ "$INV_PRE" = "$EXPECTED_INV" ] || {
+        echo "status=refused reason=receipt-authority-identity" >&2
+        exit 1
+    }
+    python3 -I -S -B "$ROOT/tools/isolated_entry.py" emit-variant-receipt \
+      --variant atan_rat --expression "$EXPR" --lower "$LO" --upper "$HI" \
+      --cert "$CERT" --producer "$PRODUCER" --checker "$CHECKER" \
+      --proof-identity "$PROOF_ID" --inventory "$INVENTORY" \
+      --release-epoch v1.7.2 --output "$RECEIPT_OUT"
+    [ "$(shasum -a 256 "$PROOF_ID" | awk '{print $1}')" = "$PROOF_PRE" ] && \
+    [ "$(shasum -a 256 "$INVENTORY" | awk '{print $1}')" = "$INV_PRE" ] && \
+    [ "$(shasum -a 256 "$MANIFEST" | awk '{print $1}')" = "$MANIFEST_PRE" ] || {
+        echo "status=refused reason=receipt-authority-toctou" >&2
+        exit 1
+    }
+    echo "receipt=$RECEIPT_OUT"
+fi
+
+[ "$(shasum -a 256 "$PRODUCER" | awk '{print $1}')" = "$PROD_PRE" ] && \
+[ "$(shasum -a 256 "$CHECKER" | awk '{print $1}')" = "$CHK_PRE" ] || {
+    echo "status=refused reason=runtime-toctou" >&2
+    exit 1
+}
 echo "status=formal-bounded"
 echo "cert-status=bounded"
 echo "assurance=proof-carrying-certificate(checker-accepted;atanRat-Runs-derivation;NO-libm-TCB)"
 echo "checker.ACCEPT=$OUT"
 echo "checker.sha256=$CHK_PRE"
 echo "producer.sha256=$PROD_PRE"
-
-if [ -n "$RECEIPT_OUT" ]; then
-    PYTHONPATH="$ROOT/tools" python3 -I -S -B - "$CERT" "$EXPR" "$LO" "$HI" "$RECEIPT_OUT" "$ROOT" <<'PY'
-import base64, hashlib, json, sys
-from pathlib import Path
-cert_path, expr, lo, hi, out_path, root_str = sys.argv[1:7]
-root = Path(root_str)
-sys.path.insert(0, str(root / "tools"))
-import formal_receipt as fr
-cert_bytes = Path(cert_path).read_bytes()
-producer_sha = hashlib.sha256((root / "tools/atan_rat_producer.py").read_bytes()).hexdigest()
-checker_sha = hashlib.sha256((root / "proofs/lean/.lake/build/bin/jackal_cert_check").read_bytes()).hexdigest()
-proof = fr.load_proof_identity_binding(root / "release/evidence/range_proof_identity.json")
-inv_bytes = (root / "release/coverage/formal_coverage_inventory.json").read_bytes()
-inv_sha = hashlib.sha256(inv_bytes).hexdigest()
-receipt = fr.build_variant_formal_receipt(
-    variant=fr.ATAN_RAT_VARIANT,
-    release_epoch="v1.5.0",
-    request={"command": "range-bound-cert", "expression": expr,
-             "input_lo": lo, "input_hi": hi},
-    enclosure=tuple(fr._parse_cert_header(cert_bytes).get("output","").split(" ", 1)),
-    cert_bytes=cert_bytes,
-    producer_sha256=producer_sha,
-    checker_sha256=checker_sha,
-    canonical_lo=fr.canonical_rat(lo),
-    canonical_hi=fr.canonical_rat(hi),
-    request_commitment_b64=fr.request_commitment_b64("range-bound-cert", expr, lo, hi),
-    coverage_inventory_sha256=inv_sha,
-    proof_identity=proof,
-    plugin_sha256=None,
-)
-Path(out_path).write_text(fr.dump_receipt(receipt))
-print(f"receipt={out_path}", file=sys.stderr)
-PY
-    echo "receipt=$RECEIPT_OUT"
-fi

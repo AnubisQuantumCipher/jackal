@@ -35,10 +35,18 @@ VERIFIER = ROOT / "tools/claim_bundle_verify.py"
 RECEIPT_VERIFIER = ROOT / "tools/receipt_verify.py"
 EXACT_VERIFIER = ROOT / "tools/exact_verify.py"
 CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_cert_check"
+ARCHIVAL_RANGE_CHECKER = Path(os.environ.get(
+    "JACKAL_V170_ARCHIVAL_RANGE_CHECKER",
+    str(Path.home() / "Library/Application Support/JACKAL/runtimes/v1.7.0/"
+                      "jackal_cert_check")))
 INF_REG = ROOT / "release/claim/inference_registry_v1.json"
 UNIT_REG = ROOT / "release/claim/unit_registry_v1.json"
 INVENTORY = ROOT / "release/coverage/formal_coverage_inventory.json"
-PROOF_ID = ROOT / "release/evidence/range_proof_identity.json"
+ARCHIVAL_RANGE_INVENTORY = Path(os.environ.get(
+    "JACKAL_V170_ARCHIVAL_RANGE_INVENTORY",
+    str(ARCHIVAL_RANGE_CHECKER.parent / "formal_coverage_inventory.json")))
+PROOF_ID = ROOT / "release/evidence/range_proof_identity_v172.json"
+ARCHIVAL_RANGE_PROOF_ID = ROOT / "release/evidence/range_proof_identity.json"
 EVIDENCE_OUT = ROOT / "release/evidence/claim_hostile_matrix_v160.json"
 
 sys.path.insert(0, str(ROOT / "tools"))
@@ -81,9 +89,14 @@ SRC_SHA = sha_file(ROOT / "jackal_calc.anb")
 INF_SHA = sha_file(INF_REG)
 UNIT_SHA = sha_file(UNIT_REG)
 CHECKER_SHA = sha_file(CHECKER) if CHECKER.exists() else ""
+ARCHIVAL_RANGE_CHECKER_SHA = sha_file(ARCHIVAL_RANGE_CHECKER)
 INVENTORY_SHA = sha_file(INVENTORY)
+ARCHIVAL_RANGE_INVENTORY_SHA = sha_file(ARCHIVAL_RANGE_INVENTORY)
 PROOF_ID_SHA = sha_file(PROOF_ID)
 PROOF_ID_DIGEST = json.loads(PROOF_ID.read_text())["identity_digest_sha256"]
+ARCHIVAL_RANGE_PROOF_ID_SHA = sha_file(ARCHIVAL_RANGE_PROOF_ID)
+ARCHIVAL_RANGE_PROOF_ID_DIGEST = json.loads(
+    ARCHIVAL_RANGE_PROOF_ID.read_text())["identity_digest_sha256"]
 
 ROWS: list[dict] = []
 
@@ -453,7 +466,21 @@ def run_verify(bundle, *, root_prop=None, epoch=EPOCH, vtime=VTIME,
                      "--expected-inventory", INVENTORY_SHA,
                      "--proof-identity", str(PROOF_ID),
                      "--expected-proof-identity-file", PROOF_ID_SHA,
-                     "--expected-proof-identity-digest", PROOF_ID_DIGEST]
+                     "--expected-proof-identity-digest", PROOF_ID_DIGEST,
+                     "--archival-range-checker",
+                     str(ARCHIVAL_RANGE_CHECKER),
+                     "--expected-archival-range-checker",
+                     ARCHIVAL_RANGE_CHECKER_SHA,
+                     "--archival-range-proof-identity",
+                     str(ARCHIVAL_RANGE_PROOF_ID),
+                     "--expected-archival-range-proof-identity-file",
+                     ARCHIVAL_RANGE_PROOF_ID_SHA,
+                     "--expected-archival-range-proof-identity-digest",
+                     ARCHIVAL_RANGE_PROOF_ID_DIGEST,
+                     "--archival-range-inventory",
+                     str(ARCHIVAL_RANGE_INVENTORY),
+                     "--expected-archival-range-inventory",
+                     ARCHIVAL_RANGE_INVENTORY_SHA]
             for psha in _trusted_producers():
                 argv += ["--trusted-producer", psha]
         p = subprocess.run(argv, capture_output=True, text=True,
@@ -1300,12 +1327,13 @@ def fresh_receipt() -> dict | None:
         variant="ln_rat", release_epoch="v1.5.0", request=req,
         enclosure=(lo, hi), cert_bytes=cert,
         producer_sha256=sha_file(producer),
-        checker_sha256=CHECKER_SHA,
+        checker_sha256=ARCHIVAL_RANGE_CHECKER_SHA,
         canonical_lo="2", canonical_hi="3",
         request_commitment_b64=fr.request_commitment_b64(
             req["command"], req["expression"], "2", "3"),
-        coverage_inventory_sha256=INVENTORY_SHA,
-        proof_identity=fr.load_proof_identity_binding(PROOF_ID),
+        coverage_inventory_sha256=ARCHIVAL_RANGE_INVENTORY_SHA,
+        proof_identity=fr.load_proof_identity_binding(
+            ARCHIVAL_RANGE_PROOF_ID),
         plugin_sha256=None)
 
 
@@ -1345,7 +1373,8 @@ def receipt_node(receipt: dict, *, prop_override=None) -> dict:
               }},
         producer={"name": "ln_rat_producer.py",
                   "sha256": receipt["identities"]["evaluator_sha256"]},
-        checker={"name": "jackal_cert_check", "sha256": CHECKER_SHA},
+        checker={"name": "jackal_cert_check_v170",
+                 "sha256": ARCHIVAL_RANGE_CHECKER_SHA},
         assumptions=[f"receipt:{a}" for a in receipt["assumptions"]],
     )
     node["assurance"] = {

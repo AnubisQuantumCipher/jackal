@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.5.0 Hermes plugin end-to-end smoke.
+"""JACKAL v1.7.2 Hermes plugin end-to-end smoke.
 
 Fresh-session run against the shipped `plugin/hermes/jackal_hermes`
 binary and its pinned bundle hash.  Verifies:
@@ -71,7 +71,7 @@ from formal_receipt import recompute_receipt_digest, TANH_COMPOSITE_EXPRESSION  
 
 RANGE_EXPR = "sin(x)+x^2"
 RANGE_CONTEXT = {
-    "expected_release_epoch": "v1.5.0",
+    "expected_release_epoch": "v1.7.2",
     "expected_command": "range-bound-cert",
     "expected_expression": RANGE_EXPR,
     "expected_input_lo": "0",
@@ -88,7 +88,7 @@ GAUSSIAN_CONTEXT = {
 }
 INT_CERT_EXPR = "sin(x)"
 INT_CERT_CONTEXT = {
-    "expected_release_epoch": "v1.7.0",
+    "expected_release_epoch": "v1.7.2",
     "expected_command": "integrate-bound-cert",
     "expected_expression": INT_CERT_EXPR,
     "expected_input_lo": "0",
@@ -142,12 +142,9 @@ def record(sid: str, ok: bool, note: str = "", extra: dict | None = None) -> Non
     print(f"{sid} {'PASS' if ok else 'FAIL'} {note}")
 
 
-# The lead re-pins MANIFEST.sha256 (bundle hash + the new producer labels)
-# after this integration lands.  Until then every dispatch fails closed at
-# the startup/identity gates with one of these stable classes.  Those
-# refusals — and ONLY those — count as a graceful skip (printed as
-# SKIPPED-manifest-pending, recorded as pass); any other failure asserts
-# hard.  After the re-pin these classes stop occurring and every case runs.
+# A stale manifest can stop dispatch at the startup/identity gates with one
+# of these stable classes.  The transcript names that state, but it is a hard
+# gate failure: an unexecuted case can never satisfy release acceptance.
 MANIFEST_PENDING_CLASSES = {
     "plugin-manifest-missing", "plugin-bundle-mismatch", "producer-identity",
 }
@@ -159,7 +156,7 @@ def _pending(obj: dict) -> bool:
 
 
 def record_pending(sid: str, obj: dict) -> None:
-    record(sid, True, f"SKIPPED-manifest-pending reason={obj.get('reason')}")
+    record(sid, False, f"NOT-EXECUTED-manifest-pending reason={obj.get('reason')}")
 
 
 def _pinned_bundle_hash() -> str:
@@ -170,11 +167,9 @@ def s1_bundle_hash() -> bool:
     computed = compute_bundle_hash()
     pinned = _pinned_bundle_hash()
     if len(computed) == 64 and computed != pinned:
-        # Pin equality is re-established by the lead's re-pin pass; the
-        # dispatch-gate cases below enforce it mechanically once it lands.
-        record("S1-bundle-hash-pin-matches", True,
-               f"SKIPPED-manifest-pending computed={computed} pinned={pinned or '<none>'}")
-        return True
+        record("S1-bundle-hash-pin-matches", False,
+               f"NOT-EXECUTED-manifest-pending computed={computed} pinned={pinned or '<none>'}")
+        return False
     ok = computed == pinned and len(computed) == 64
     record("S1-bundle-hash-pin-matches", ok,
            f"computed={computed} pinned={pinned}")
@@ -184,9 +179,9 @@ def s1_bundle_hash() -> bool:
 def s2_selftest() -> bool:
     code, out, err = _run([str(PLUGIN), "selftest"])
     if code != 0 and any(f"reason={c}" in out for c in MANIFEST_PENDING_CLASSES):
-        record("S2-server-selftest", True,
-               f"SKIPPED-manifest-pending out={out.strip()[:120]}")
-        return True
+        record("S2-server-selftest", False,
+               f"NOT-EXECUTED-manifest-pending out={out.strip()[:120]}")
+        return False
     ok = code == 0 and "identity_match=true" in out
     record("S2-server-selftest", ok, f"out={out.strip()}"[:200])
     return ok
@@ -283,9 +278,9 @@ def s8_stdio_transport() -> bool:
         # stdio mode refuses at the startup gate before serving any request.
         message = str(replies[0].get("error", {}).get("message", ""))
         if any(message.startswith(f"{c}:") for c in MANIFEST_PENDING_CLASSES):
-            record("S8-stdio-transport", True,
-                   f"SKIPPED-manifest-pending {message[:100]}")
-            return True
+            record("S8-stdio-transport", False,
+                   f"NOT-EXECUTED-manifest-pending {message[:100]}")
+            return False
     idx = {r.get("id"): r for r in replies}
     listed = [t.get("name") for t in (idx.get("L", {}).get("result", {}).get("tools") or [])]
     expected_tools = {
@@ -447,7 +442,7 @@ def _accepts_fragment(tool: str, expr: str, lo: str, hi: str,
           and obj.get("checker_rerun") == "ACCEPT"
           and isinstance(receipt, dict)
           and receipt.get("variant") == variant
-          and receipt.get("release_epoch") == "v1.5.0"
+          and receipt.get("release_epoch") == "v1.7.2"
           and receipt.get("theorem", {}).get("id") == "request_bound_certified_release"
           and receipt.get("identities", {}).get("plugin_sha256") == _pinned_bundle_hash()
           and isinstance(receipt.get("identities", {}).get("producer_sha256"), str)
@@ -470,7 +465,7 @@ def s14_sqrt_rat_bound() -> bool:
     if ok and isinstance(receipt, dict):
         code, obj2 = _call("jackal_verify_receipt", {
             "receipt": receipt,
-            "expected_release_epoch": "v1.5.0",
+            "expected_release_epoch": "v1.7.2",
             "expected_command": "range-bound-cert",
             "expected_expression": "sqrt(x)",
             "expected_input_lo": "2",
@@ -501,7 +496,7 @@ def s15_exp_rat_bound() -> bool:
     if ok and isinstance(receipt, dict) and expected_enclosure:
         code, obj2 = _call("jackal_verify_receipt", {
             "receipt": receipt,
-            "expected_release_epoch": "v1.5.0",
+            "expected_release_epoch": "v1.7.2",
             "expected_command": "range-bound-cert",
             "expected_expression": "exp(x)",
             "expected_input_lo": "0",
@@ -567,7 +562,7 @@ def s17_ln_rat_bound() -> bool:
     if ok and isinstance(receipt, dict):
         code, obj2 = _call("jackal_verify_receipt", {
             "receipt": receipt,
-            "expected_release_epoch": "v1.5.0",
+            "expected_release_epoch": "v1.7.2",
             "expected_command": "range-bound-cert",
             "expected_expression": "ln(x)",
             "expected_input_lo": "2",
@@ -755,7 +750,7 @@ def main() -> int:
     elif receipt_pending:
         for sid in ("S5-verify-round-trip", "S6-plugin-identity-swap-refuses",
                     "S7-enclosure-tamper-refuses"):
-            record(sid, True, "SKIPPED-manifest-pending upstream-receipt-pending")
+            record(sid, False, "NOT-EXECUTED-manifest-pending upstream-receipt-pending")
         results.extend([True, True, True])
     else:
         record("S5-verify-round-trip", False, "no receipt")
@@ -770,8 +765,8 @@ def main() -> int:
     if isinstance(receipt, dict):
         results.append(s11_external_context_substitution_refuses(receipt))
     elif receipt_pending:
-        record("S11-external-context-substitution-refuses", True,
-               "SKIPPED-manifest-pending upstream-receipt-pending")
+        record("S11-external-context-substitution-refuses", False,
+               "NOT-EXECUTED-manifest-pending upstream-receipt-pending")
         results.append(True)
     else:
         record("S11-external-context-substitution-refuses", False, "no receipt")
@@ -791,7 +786,7 @@ def main() -> int:
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     EVIDENCE.write_text("\n".join(json.dumps(r, sort_keys=True) for r in ROWS) + "\n")
     print(f"evidence={EVIDENCE} sha256={_sha256_str(EVIDENCE.read_bytes())}")
-    if not all(results):
+    if not all(results) or not all(row.get("ok") is True for row in ROWS):
         print("VERDICT: FAIL — a plugin smoke case did not meet its gate", file=sys.stderr)
         return 1
     print("VERDICT: PASS — plugin bundle pinned, fragment enforced, verify round-tripped,"

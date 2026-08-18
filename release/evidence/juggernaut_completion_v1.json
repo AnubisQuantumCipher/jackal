@@ -1,0 +1,25 @@
+{
+  "schema": "jackal-juggernaut-completion-v1",
+  "generated": "2026-08-18",
+  "note": "Honest current-state record. Verdict is computed by release/tools/juggernaut_completion_verify.py; this file cannot fake PASS (required ids are hard-coded in the verifier and every VERIFIED row is artifact-checked).",
+  "open_p0": [
+    "stage3 chronology accept-condition unmerged: PR #10 is a DRAFT awaiting explicit architect sign-off on the exact verifier semantics (trust-surface change)"
+  ],
+  "rows": [
+    {"id": "stage1a_phase8_slice1", "status": "VERIFIED", "note": "informational prerequisite; run 32154770175 success, PR #43 merged e34d0c89", "artifacts": []},
+    {"id": "stage3_chronology_merged", "status": "SIGNOFF_REQUIRED", "note": "PR #10 draft; fix+tests+dual-review complete; NOT merged (human sign-off gate)", "artifacts": []},
+    {"id": "w2_capability_manifest", "status": "OPEN", "note": "release/capabilities/jackal_capabilities_v1.json + generator + parity gate not built", "artifacts": []},
+    {"id": "w3_profiles_eval", "status": "OPEN", "note": "plugin/hermes/profiles/{core,formal,full}.json + eval v2 not built", "artifacts": []},
+    {"id": "w4_domain_pack_protocol", "status": "OPEN", "note": "pack spec/schema/registry + domain_pack_verify.py not built", "artifacts": []},
+    {"id": "w5_navier_pack", "status": "PARTIAL", "note": "integrated on feat/navier-stokes-v180; not released", "artifacts": []},
+    {"id": "w6_stem_prog_decision_packs", "status": "OPEN", "note": "requires W4 protocol first", "artifacts": []},
+    {"id": "w7_native_mac_app", "status": "OPEN", "note": "Swift app/runtime client not built; signing ad-hoc/local, notarization EXTERNAL", "artifacts": []},
+    {"id": "w8_enterprise_plane", "status": "OPEN", "note": "policy engine/RBAC/audit/revocation not built", "artifacts": []},
+    {"id": "w9_website", "status": "OPEN", "note": "adoption surface not audited/moved", "artifacts": []},
+    {"id": "w10_conformance_eval", "status": "OPEN", "note": "eval v2 conformance matrix not built", "artifacts": []},
+    {"id": "navier_v180_released_readback", "status": "BLOCKED", "note": "release blocked on stage3 signoff + Lean build + sweep timeout fix + identity regen", "artifacts": []},
+    {"id": "vm_seal_or_declared_external", "status": "EXTERNAL", "note": "VZ seal host-RAM-blocked (SEAL_REFUSED x5); re-baseline is SIGNOFF", "artifacts": []},
+    {"id": "two_clean_builds_adhoc_ok", "status": "OPEN", "note": "two byte-identical ad-hoc/local builds not produced", "artifacts": []},
+    {"id": "w11_completion_verifier", "status": "VERIFIED", "note": "this fail-closed verifier exists and runs", "artifacts": [{"path": "release/tools/juggernaut_completion_verify.py"}]}
+  ]
+}

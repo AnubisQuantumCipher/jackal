@@ -1,0 +1,44 @@
+name: JACKAL Codex plugin
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  macos-arm64-plugin:
+    name: macOS arm64 plugin gates
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Require the supported host and fixed Python prerequisite
+        run: |
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = arm64
+          test -x /opt/homebrew/bin/python3
+          /opt/homebrew/bin/python3 -c 'import sys; assert sys.version_info >= (3, 10)'
+
+      - name: Run complete Codex plugin unit suite
+        run: /opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v
+
+      - name: Verify exact plugin identity
+        run: /opt/homebrew/bin/python3 -B plugins/jackel/scripts/verify_plugin.py
+
+      - name: Validate plugin metadata and skill from repository
+        run: /opt/homebrew/bin/python3 -B -m unittest tests.codex_plugin.test_plugin_metadata -v
+
+      - name: Installed-config live smoke
+        run: >-
+          /opt/homebrew/bin/python3 -B -m unittest
+          tests.codex_plugin.test_live_acceptance.MCPClientTests.test_real_installed_config_smoke_without_runtime
+          tests.codex_plugin.test_live_acceptance.MCPClientTests.test_actual_plugin_installed_config_refuses_offline_without_runtime
+          -v

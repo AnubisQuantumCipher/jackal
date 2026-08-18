@@ -203,14 +203,22 @@ class IdentityAndInstallPlanTests(unittest.TestCase):
         runner.assert_not_called()
 
     def test_isolated_install_uses_account_home_even_when_home_is_forged(self):
-        account_codex_home = (Path.home() / ".codex").resolve(strict=False)
         runner = mock.Mock()
         with tempfile.TemporaryDirectory() as directory:
-            forged_home = Path(directory) / "forged-home"
+            root = Path(directory).resolve()
+            account_home = root / "account-home"
+            account_home.mkdir()
+            account_codex_home = account_home / ".codex"
+            account_codex_home.mkdir()
+            forged_home = root / "forged-home"
             forged_home.mkdir()
-            safe_home = Path(directory) / "safe-codex-home"
+            safe_home = root / "safe-codex-home"
             safe_home.mkdir()
-            with mock.patch.dict(os.environ, {"HOME": str(forged_home)}):
+            account_entry = mock.Mock(pw_dir=str(account_home))
+            with (
+                mock.patch.object(live.pwd, "getpwuid", return_value=account_entry),
+                mock.patch.dict(os.environ, {"HOME": str(forged_home)}),
+            ):
                 with self.assertRaisesRegex(live.AcceptanceError, "actual CODEX_HOME"):
                     live.build_codex_install_plan(
                         codex_home=account_codex_home,
@@ -218,23 +226,26 @@ class IdentityAndInstallPlanTests(unittest.TestCase):
                         codex_binary=Path("/usr/local/bin/codex"),
                     )
 
-            plan = live.build_codex_install_plan(
-                codex_home=safe_home,
-                repository_root=REPOSITORY_ROOT,
-                codex_binary=Path("/usr/local/bin/codex"),
-            )
-            hostile_environment = dict(plan.environment)
-            hostile_environment["CODEX_HOME"] = str(account_codex_home)
-            hostile_plan = live.CodexInstallPlan(
-                commands=plan.commands,
-                environment=hostile_environment,
-                forbidden_codex_homes=getattr(plan, "forbidden_codex_homes", ()),
-            )
             with (
+                mock.patch.object(live.pwd, "getpwuid", return_value=account_entry),
                 mock.patch.dict(os.environ, {"HOME": str(forged_home)}),
-                self.assertRaisesRegex(live.AcceptanceError, "actual CODEX_HOME"),
             ):
-                live.execute_codex_install(hostile_plan, runner=runner)
+                plan = live.build_codex_install_plan(
+                    codex_home=safe_home,
+                    repository_root=REPOSITORY_ROOT,
+                    codex_binary=Path("/usr/local/bin/codex"),
+                )
+                hostile_environment = dict(plan.environment)
+                hostile_environment["CODEX_HOME"] = str(account_codex_home)
+                hostile_plan = live.CodexInstallPlan(
+                    commands=plan.commands,
+                    environment=hostile_environment,
+                    forbidden_codex_homes=getattr(plan, "forbidden_codex_homes", ()),
+                )
+                with self.assertRaisesRegex(
+                    live.AcceptanceError, "actual CODEX_HOME"
+                ):
+                    live.execute_codex_install(hostile_plan, runner=runner)
 
         runner.assert_not_called()
 

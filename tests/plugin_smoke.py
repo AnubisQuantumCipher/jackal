@@ -20,7 +20,7 @@ binary and its pinned bundle hash.  Verifies:
   S7  jackal_verify_receipt refuses a receipt with the outer digest
       recomputed but the enclosure tampered (cross-check gate).
   S8  stdio JSON-RPC transport handles list_tools + tool calls with
-      correct id/jsonrpc/result shape (34 tools listed) and drives the
+      correct id/jsonrpc/result shape (36 tools listed) and drives the
       same refusals.
   S9  jackal_gaussian_integral emits + reverifies a Gaussian receipt.
   S10 jackal_gaussian_integral refuses unsupported non-canonical Gaussians.
@@ -303,6 +303,9 @@ def s8_stdio_transport() -> bool:
         "jackal_claim", "jackal_verify_bundle",
         # v1.7.0 certified composed-integral formal lane (33 -> 34)
         "jackal_integrate_bound_cert",
+        # Direct finite-scope Navier pack; no claim-kernel routing (34 -> 36)
+        "jackal_navier_stokes_check",
+        "jackal_verify_navier_stokes_receipt",
     }
     ok_list = set(listed) == expected_tools and len(listed) == len(expected_tools)
     ok_ok = idx.get("OK", {}).get("result", {}).get("status") == "formal-bounded"

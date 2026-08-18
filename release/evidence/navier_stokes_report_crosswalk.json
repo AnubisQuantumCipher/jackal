@@ -1,0 +1,78 @@
+{
+  "schema": "jackal-navier-stokes-report-crosswalk-v1",
+  "external_report_bundle_locator": "macos-account-home-relative-v1:Desktop/Projects/Navier_Stokes_Report_2026-08-17",
+  "external_report_source_manifest_sha256": "80be3e75d751a50f30b523ac7d5ca05b5f76c3b374a75c567aba09d836eb6e98",
+  "external_report_verification_receipt_sha256": "30df74978d595d201c49727439d79506f49d66539dd939a09e3f8f0a5f102188",
+  "external_fixture_sha256": {
+    "gate_s_missing_refusal": "a72fff5ca43114942a224f700692e9057f3d41b5cddf843a689c21bfe247ec34",
+    "gate_b_ratio_alert": "d55a9d42ddc4bca08916dcd111b60d633f8e45943e911f828999ef0ed79cf4c1",
+    "exact_zero_solution_scope": "cf31d240e6bfdac330e7ccb0dc7be4cc42d3f7c9b49041a9bd27fd70779169b5"
+  },
+  "repository_pack": "domain_packs/pde/navier_stokes_v1.json",
+  "repository_runtime_authority": {
+    "anubis_binary_locator_id": "macos-account-home-relative-v1:anubis-a733565f237d",
+    "anubis_binary_relative_candidates": [
+      "Library/Application Support/JACKAL/anubis-pins/anubis-a733565f237d",
+      "anubis-lang/vm/pins/anubis-a733565f237d"
+    ],
+    "anubis_binary_sha256": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",
+    "anubis_binary_size_bytes": 99415712,
+    "anubis_execution_binding": "descriptor_snapshot_v1",
+    "mutable_target_release_is_authoritative": false,
+    "historical_failed_mutable_sha256": "666b021815c3591437433bcdf881d063a8da0c5b055a5f4f23bd7bee865befd9"
+  },
+  "scope": "semantic_crosswalk_only_not_artifact_equivalence",
+  "status_crosswalk": [
+    {
+      "external_status": "ARITHMETIC_CHECKED",
+      "external_scope": "nonzero_ratio_fixture_with_gate_s_absent",
+      "repository_gate": "gate_b",
+      "repository_status": "refused",
+      "repository_reason": "solution_link_not_verified",
+      "repository_arithmetic_status": "ARITHMETIC_CHECKED",
+      "repository_continuum_status": "NOT_VERIFIED",
+      "equivalence": "arithmetic_policy_only_no_pde_conclusion"
+    },
+    {
+      "external_status": "refused",
+      "external_reason": "uncertified_potential_blowup_vortex_stretching",
+      "external_scope": "ratio_upper_strictly_greater_than_one_with_gate_s_absent",
+      "repository_gate": "gate_b",
+      "repository_status": "indeterminate",
+      "repository_reason": "uncertified_potential_blowup_vortex_stretching",
+      "repository_halt": true,
+      "repository_continuum_status": "NOT_VERIFIED",
+      "equivalence": "policy_alert_only_not_singularity_evidence"
+    },
+    {
+      "external_status": "BOUNDED_ON_SCOPE",
+      "external_scope": "exact_zero_field_identity_only",
+      "repository_gate": "gate_s",
+      "repository_status": "bounded",
+      "repository_reason": "zero_solution_identity_verified_on_finite_scope",
+      "repository_conclusion_status": "BOUNDED_ON_SCOPE",
+      "equivalence": "same_exact_zero_identity_not_a_nonzero_ratio_lane"
+    }
+  ],
+  "dissipation_semantics": {
+    "external_report_dissipation_lower": "already_viscosity_weighted_lower_bound",
+    "repository_d_truncated": "unweighted_dissipation_enclosure",
+    "repository_d_tail_upper": "unweighted_tail_remainder_enclosure",
+    "repository_denominator": "nu*(lower(d_truncated)-upper(d_tail_upper))",
+    "conversion_rule": "divide_a_weighted_external_bound_by_the_same_exact_positive_nu_before_mapping_to_repository_d_fields_or_compare_only_at_the_final_weighted_denominator",
+    "forbid_direct_field_equivalence": true,
+    "forbid_double_viscosity_weighting": true
+  },
+  "tail_semantics": {
+    "external_tail_bound_included_true": "declared_input_field_only",
+    "repository_continuum_status_not_verified": "no_general_tail_artifact_checker_is_enabled",
+    "forbid_promotion": true
+  },
+  "permanent_nonclaims": [
+    "not_global_regular",
+    "not_smooth_for_all_time",
+    "not_millennium_solved",
+    "not_evidence_of_singularity",
+    "not_a_schema_or_receipt_identity_equivalence"
+  ]
+}

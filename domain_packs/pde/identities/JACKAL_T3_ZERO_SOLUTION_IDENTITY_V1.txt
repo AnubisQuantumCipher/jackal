@@ -1,0 +1,3 @@
+jackal-navier-stokes-zero-theorem-v1
+claim=the-zero-field-solves-unforced-incompressible-navier-stokes
+domain=T3_periodic

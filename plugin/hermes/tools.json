@@ -1,8 +1,8 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.7.0",
-  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles.  v1.7.0 adds the certified bound_step composition lane (jackal_integrate_bound_cert, theorem int_cert_sound).",
+  "version": "v1.8.0",
+  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles. v1.7.0 adds the certified bound_step composition lane (jackal_integrate_bound_cert, theorem int_cert_sound). v1.8.0 adds two direct, non-fallback Navier-Stokes finite-scope tools with mandatory independent replay and permanent no-global-regularity/no-all-time-smoothness/no-Millennium-solution nonclaims; the Navier lane is not routed through jackal_claim.",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
@@ -127,6 +127,33 @@
     "runtime/unit_registry_v1.json": [
       "../../release/claim/unit_registry_v1.json",
       "../../unit_registry_v1.json"
+    ],
+    "runtime/tools/navier_stokes_certificate_producer.py": [
+      "../../tools/navier_stokes_certificate_producer.py"
+    ],
+    "runtime/tools/navier_stokes_receipt_verify.py": [
+      "../../tools/navier_stokes_receipt_verify.py"
+    ],
+    "runtime/domain_packs/pde/navier_stokes_v1.json": [
+      "../../domain_packs/pde/navier_stokes_v1.json"
+    ],
+    "runtime/domain_packs/pde/navier_stokes_v1.anb": [
+      "../../domain_packs/pde/navier_stokes_v1.anb"
+    ],
+    "runtime/domain_packs/pde/certificates/JACKAL_T3_ZERO_PROOF_OBJECT_V1.txt": [
+      "../../domain_packs/pde/certificates/JACKAL_T3_ZERO_PROOF_OBJECT_V1.txt"
+    ],
+    "runtime/domain_packs/pde/identities/JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1.txt": [
+      "../../domain_packs/pde/identities/JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1.txt"
+    ],
+    "runtime/domain_packs/pde/representations/T3_ZERO_FOURIER_FIELD_V1.txt": [
+      "../../domain_packs/pde/representations/T3_ZERO_FOURIER_FIELD_V1.txt"
+    ],
+    "runtime/domain_packs/pde/sources/CCRT2007_COROLLARY_5_T3_APOSTERIORI.pdf": [
+      "../../domain_packs/pde/sources/CCRT2007_COROLLARY_5_T3_APOSTERIORI.pdf"
+    ],
+    "runtime/domain_packs/pde/sources/ESS2003_R3_REGULARITY.pdf": [
+      "../../domain_packs/pde/sources/ESS2003_R3_REGULARITY.pdf"
     ]
   },
   "tools": [
@@ -218,6 +245,54 @@
         "evaluator_sha256": "pinned evaluator binary hash",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_navier_stokes_check",
+      "description": "Run the dedicated Navier-Stokes v1 finite-scope checker, preserve its exact bounded | indeterminate | refused status and halt decision, and independently replay the emitted receipt before returning it. Producer exits are enforced as 0=bounded/non-halt, 2=refused, 3=all other non-bounded outcomes. Canonical requests are capped at 4 MiB and producer/verifier stdout+stderr at 64 KiB aggregate per process. allow_fallback must be false. This direct tool is not routed through jackal_claim and never certifies global regularity, all-time smoothness, or a solution of the Clay Millennium Problem.",
+      "arguments": {
+        "request": {
+          "type": "object",
+          "required": true,
+          "help": "A jackal-navier-stokes-request-v1 object with explicit finite scope, allow_fallback=false, and mandatory nonclaims: not_global_regular, not_smooth_for_all_time, not_millennium_solved."
+        }
+      },
+      "returns": {
+        "status": "bounded | indeterminate | refused",
+        "reason": "the producer's exact stable reason",
+        "halt": "the producer's exact fail-closed halt decision",
+        "result": "the producer's complete mathematical result object",
+        "receipt": "the complete jackal-navier-stokes-receipt-v1 object after independent replay",
+        "receipt_replay": "verified only after mandatory independent replay",
+        "verification_scope": "receipt_replay_only",
+        "nonclaims": "exact request nonclaims; never promoted or removed"
+      }
+    },
+    {
+      "name": "jackal_verify_navier_stokes_receipt",
+      "description": "Independently replay a Navier-Stokes v1 receipt against a separate caller-supplied expected request. Canonical receipts are capped at 16 MiB, expected requests at 4 MiB, and verifier stdout+stderr at 64 KiB aggregate. A verified replay authenticates only receipt/checker consistency; mathematical_status remains exactly bounded, indeterminate, or refused and is never upgraded. This direct tool has no fallback and does not route through jackal_claim.",
+      "arguments": {
+        "receipt": {
+          "type": "object",
+          "required": true,
+          "help": "The complete jackal-navier-stokes-receipt-v1 object to replay."
+        },
+        "expected_request": {
+          "type": "object",
+          "required": true,
+          "help": "Caller-authorized jackal-navier-stokes-request-v1 object; never copied from the receipt."
+        }
+      },
+      "returns": {
+        "status": "verified | refused",
+        "verdict": "PASS on successful independent replay",
+        "verification_scope": "receipt_replay_only",
+        "mathematical_status": "the unchanged bounded | indeterminate | refused receipt result status",
+        "reason": "the unchanged mathematical reason, or stable plugin refusal class",
+        "halt": "the unchanged mathematical halt decision",
+        "result": "the unchanged complete mathematical result object",
+        "receipt_sha256": "SHA-256 of canonical receipt bytes replayed",
+        "nonclaims": "exact request nonclaims; never promoted or removed"
       }
     },
     {

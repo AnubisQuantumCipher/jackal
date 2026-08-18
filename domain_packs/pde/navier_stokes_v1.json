@@ -1,0 +1,178 @@
+{
+  "schema": "jackal-domain-pack-manifest-v1",
+  "pack_id": "navier_stokes_v1",
+  "pack_version": "1.0.0",
+  "platform": {
+    "os": "macos",
+    "architecture": "arm64",
+    "authoritative_language": "anubis",
+    "authoritative_source": "domain_packs/pde/navier_stokes_v1.anb",
+    "authoritative_source_sha256": "a5598ceeabeca26f9551e9a388bfaeec4c2ccf6e8bc1577ab8a638f624b3dac6",
+    "anubis_binary_locator_id": "macos-account-home-relative-v1:anubis-a733565f237d",
+    "anubis_binary_relative_candidates": [
+      "Library/Application Support/JACKAL/anubis-pins/anubis-a733565f237d",
+      "anubis-lang/vm/pins/anubis-a733565f237d"
+    ],
+    "anubis_binary_sha256": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",
+    "anubis_binary_size_bytes": 99415712,
+    "anubis_binary_required_mode": "0555",
+    "anubis_execution_binding": "descriptor_snapshot_v1",
+    "independent_replay": "tools/navier_stokes_receipt_verify.py"
+  },
+  "assurance_ceiling": "bounded",
+  "global_claims_admitted": false,
+  "supported_domains": [
+    "T3_periodic",
+    "R3_schwartz_decay"
+  ],
+  "model": {
+    "dimension": 3,
+    "density": "1",
+    "forcing": "0",
+    "viscosity": "exact_positive_rational",
+    "equation": "incompressible_navier_stokes",
+    "torus_pressure_gauge": "zero_spatial_mean",
+    "whole_space_pressure_gauge": "decay_at_infinity"
+  },
+  "operations": {
+    "gate_s": {
+      "requested_claim": "solution_link_on_scope",
+      "maximum_status": "bounded",
+      "requires": [
+        "exact admitted representation",
+        "initial mismatch",
+        "PDE residual",
+        "divergence defect",
+        "continuum remainder evidence",
+        "domain-matched theorem identity"
+      ]
+    },
+    "gate_a": {
+      "requested_claim": "energy_on_scope",
+      "maximum_status": "bounded",
+      "condition": "upper(E_t)+2*nu*upper(D_grad)<=lower(E_0)",
+      "scope": "prefix interval with t0=0"
+    },
+    "gate_b": {
+      "requested_claim": "enstrophy_nonincrease_on_scope",
+      "maximum_status": "arithmetic_checked_only",
+      "condition": "u_plus<=nu*d_minus",
+      "alert_condition": "u_plus>nu*d_minus",
+      "alert_reason": "uncertified_potential_blowup_vortex_stretching",
+      "alert_mathematical_implication": "none"
+    },
+    "gate_c": {
+      "requested_claim": "continuation_on_prefix",
+      "maximum_status": "refused",
+      "reason": "no viscous continuation theorem is enabled pending exact theorem audit"
+    },
+    "gate_d": {
+      "requested_claim": "conditional_regular_on_scope",
+      "maximum_status": "theorem_identity_matched_preconditions_unverified",
+      "reason": "R3 theorem identity/domain/exponent applicability is checked separately; v1 has neither a mixed-norm artifact checker nor an R3 Gate-S solution-link lane"
+    }
+  },
+  "theorem_registry": {
+    "JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1": {
+      "enabled": true,
+      "domain": "T3_periodic",
+      "representation": "T3_ZERO_FOURIER_FIELD_V1",
+      "representation_path": "domain_packs/pde/representations/T3_ZERO_FOURIER_FIELD_V1.txt",
+      "representation_sha256": "c9ca77221d998a4dadc654091bb27776c2a5e461debe3e88e98f7c1bbba06bcf",
+      "theorem_source_path": "domain_packs/pde/identities/JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1.txt",
+      "theorem_source_sha256": "4a26df4e465412aca24de29aeb882fb5c6c36148d16422ffd09f03fd8f3cdc09",
+      "proof_object_id": "JACKAL_T3_ZERO_PROOF_OBJECT_V1",
+      "proof_object_path": "domain_packs/pde/certificates/JACKAL_T3_ZERO_PROOF_OBJECT_V1.txt",
+      "proof_object_sha256": "42ac530f66869eafa2e1f82441ef1c47617fb2ee23a8b05e7d13a7aba4eb1e1f",
+      "locator": "domain_packs/pde/NAVIER_STOKES_VERIFICATION_SPEC.md#zero-solution-identity",
+      "conclusion": "the exactly zero field solves the unforced equation on the named finite scope",
+      "ceiling": "bounded"
+    },
+    "CCRT2007_COROLLARY_5_T3_APOSTERIORI": {
+      "enabled": false,
+      "domain": "T3_periodic",
+      "title": "A posteriori regularity of the three-dimensional Navier-Stokes equations from numerical computations",
+      "authors": [
+        "Sergei I. Chernyshenko",
+        "Peter Constantin",
+        "James C. Robinson",
+        "Edriss S. Titi"
+      ],
+      "doi": "10.1063/1.2372512",
+      "source_url": "https://arxiv.org/pdf/math/0607181",
+      "source_path": "domain_packs/pde/sources/CCRT2007_COROLLARY_5_T3_APOSTERIORI.pdf",
+      "source_sha256": "e815cbcdba8303dc03fb763bb0d10ce33660502ebd075b817359b9d05c89d76b",
+      "locator": "Corollary 5; equation (21); PDF pages 15-16",
+      "disabled_reason": "no admitted checker yet verifies the continuum Sobolev bounds and the numerical constant c_m from source artifacts"
+    },
+    "TEST_FIXTURE_EXACT_FINITE_SUPPORT_V1": {
+      "enabled_for": "arithmetic_test_fixtures_only",
+      "production_admitted": false,
+      "domain": "T3_periodic",
+      "continuum_claim": "none",
+      "disabled_reason": "v1 does not validate a general finite-support reconstruction artifact; this identity only exercises exact rational cutoff policy and cannot support a PDE conclusion"
+    },
+    "BKM1984_EULER_ONLY": {
+      "enabled": false,
+      "equation": "euler",
+      "disabled_reason": "not a Navier-Stokes continuation theorem"
+    },
+    "KATO_PONCE_1988_NS_CONTINUATION_DISABLED": {
+      "enabled": false,
+      "doi": "10.1002/cpa.3160410704",
+      "disabled_reason": "exact theorem number, statement, solution class, and domain assumptions not yet audited into this pack"
+    },
+    "ESS2003_THEOREM_1_2_R3_SERRIN": {
+      "enabled_for": "identity_domain_exponent_precheck_only",
+      "domain": "R3_schwartz_decay",
+      "source_url": "https://www.pdmi.ras.ru/~seregin/Recent%20Publications/engESS3.pdf",
+      "source_path": "domain_packs/pde/sources/ESS2003_R3_REGULARITY.pdf",
+      "source_sha256": "2712fad880a7c626c5b7cdb678052585f502f0bd53594b03e51ea16b149fcc19",
+      "locator": "Theorem 1.2; conditions (1.9)-(1.10)",
+      "condition": "2/p+3/q<=1 with 3<q<=infinity after an explicitly bound finite-time embedding when strict",
+      "maximum_state": "THEOREM_IDENTITY_MATCHED_PRECONDITIONS_UNVERIFIED",
+      "disabled_promotion_reason": "mixed-norm artifact, theorem solution-class hypotheses, and R3 solution link are not verified"
+    },
+    "ESS2003_THEOREM_1_3_R3_ENDPOINT": {
+      "enabled_for": "identity_domain_exponent_precheck_only",
+      "domain": "R3_schwartz_decay",
+      "source_url": "https://www.pdmi.ras.ru/~seregin/Recent%20Publications/engESS3.pdf",
+      "source_path": "domain_packs/pde/sources/ESS2003_R3_REGULARITY.pdf",
+      "source_sha256": "2712fad880a7c626c5b7cdb678052585f502f0bd53594b03e51ea16b149fcc19",
+      "locator": "Theorem 1.3; condition (1.13)",
+      "condition": "u in L-infinity(0,T;L3(R3))",
+      "maximum_state": "THEOREM_IDENTITY_MATCHED_PRECONDITIONS_UNVERIFIED",
+      "disabled_promotion_reason": "mixed-norm artifact, theorem solution-class hypotheses, and R3 solution link are not verified"
+    }
+  },
+  "resource_limits": {
+    "maximum_rational_numerator_absolute": 1000000000,
+    "maximum_rational_denominator": 1000000000,
+    "maximum_cutoffs": 128,
+    "maximum_atom_utf8_bytes": 4096,
+    "maximum_json_depth": 32,
+    "maximum_json_nodes": 4096,
+    "maximum_request_json_bytes": 4194304,
+    "maximum_receipt_json_depth": 36,
+    "maximum_receipt_json_nodes": 4352,
+    "maximum_receipt_json_bytes": 16777216,
+    "maximum_protocol_bytes": 1048576,
+    "maximum_protocol_lines": 45,
+    "maximum_protocol_nodes": 2048,
+    "maximum_anubis_output_bytes": 65536,
+    "maximum_identity_artifact_bytes": 65536,
+    "maximum_theorem_source_bytes": 1048576,
+    "maximum_authoritative_source_bytes": 1048576,
+    "maximum_anubis_binary_bytes": 268435456,
+    "anubis_subprocess_timeout_seconds": 30,
+    "allow_nan": false,
+    "allow_infinity_in_computed_enclosures": false
+  },
+  "permanent_nonclaims": [
+    "not_global_regular",
+    "not_smooth_for_all_time",
+    "not_millennium_solved",
+    "ratio_alert_not_evidence_of_singularity",
+    "finite_scopes_do_not_close_future_time_or_continuum_quantifiers"
+  ]
+}

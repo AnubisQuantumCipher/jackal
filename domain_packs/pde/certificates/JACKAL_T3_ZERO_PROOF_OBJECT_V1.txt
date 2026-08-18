@@ -1,0 +1,11 @@
+jackal-navier-stokes-zero-proof-object-v1
+theorem=JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1
+representation=T3_ZERO_FOURIER_FIELD_V1
+u0=0
+ua=0
+forcing=0
+initial_mismatch=0
+pde_residual=0
+divergence=0
+continuum_remainders=0
+dependency_graph=exact_identity

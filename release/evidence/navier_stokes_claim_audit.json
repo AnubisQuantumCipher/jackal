@@ -1,0 +1,166 @@
+{
+  "schema": "jackal-navier-stokes-claim-audit-v1",
+  "as_of_date": "2026-08-17",
+  "overall_status": "UNSOLVED_PARTIAL_INSTRUMENT",
+  "pack_id": "navier_stokes_v1",
+  "claims": [
+    {
+      "claim_id": "clay-global-existence-smoothness-solved",
+      "supplied_claim": "The four gates solve global existence and smoothness for every admitted three-dimensional initial field.",
+      "verdict": "false_or_unestablished",
+      "correction": "No v1 operation closes all future-time, continuum, and universal-initial-data quantifiers. The Clay problem remains open.",
+      "evidence": [
+        "domain_packs/pde/NAVIER_STOKES_VERIFICATION_SPEC.md#10-permanent-global-boundary",
+        "permanent-negative-control:global_regular_claim_not_admitted"
+      ]
+    },
+    {
+      "claim_id": "gate-s-solution-link",
+      "supplied_claim": "Numerical observable intervals can be treated as observables of an exact Navier-Stokes solution.",
+      "verdict": "conditional_only",
+      "correction": "Gate S must bind the initial mismatch, divergence defect, PDE residual, continuum remainders, theorem identity, representation, and proof dependency object. The exact-zero lane collapses its theorem-derived facts into one canonical proof object rather than pretending one digest names five distinct artifacts. Without Gate S only ARITHMETIC_CHECKED is permitted.",
+      "evidence": [
+        "JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1 is the sole enabled positive lane",
+        "CCRT2007_COROLLARY_5_T3_APOSTERIORI is disabled"
+      ]
+    },
+    {
+      "claim_id": "gate-a-energy",
+      "supplied_claim": "The Leray-Hopf energy inequality establishes global smoothness.",
+      "verdict": "incorrect_implication",
+      "correction": "The inequality is necessary weak-solution control. The implemented interval condition is sufficient only for the named linked prefix and proves no existence, uniqueness, smoothness, or all-time conclusion. D_grad is unweighted and the exact viscosity is applied once as 2*nu*D_grad.",
+      "evidence": [
+        "upper(E_t)+2*nu*upper(D_grad)<=lower(E_0)",
+        "tests/navier_stokes_gate_test.py:test_gate_a_exact_zero_energy_boundary_is_bounded"
+      ]
+    },
+    {
+      "claim_id": "gate-b-h1-wording",
+      "supplied_claim": "The displayed enstrophy identity is H1 norm evolution for vorticity.",
+      "verdict": "incorrect",
+      "correction": "It is L2 vorticity evolution, equivalently the homogeneous H1 seminorm of divergence-free velocity under the admitted boundary convention.",
+      "evidence": [
+        "domain_packs/pde/NAVIER_STOKES_VERIFICATION_SPEC.md#5-gate-b-enstrophy-and-vortex-stretching"
+      ]
+    },
+    {
+      "claim_id": "gate-b-ratio-above-one",
+      "supplied_claim": "A certified ratio upper bound above one proves a singularity.",
+      "verdict": "false",
+      "correction": "It triggers a fail-closed policy halt. The result carries mathematical_implication=none and nonclaim=not_evidence_of_singularity.",
+      "evidence": [
+        "tests/navier_stokes_gate_test.py:test_gate_b_ratio_above_one_halts_with_nonimplicative_alert",
+        "reason:uncertified_potential_blowup_vortex_stretching"
+      ]
+    },
+    {
+      "claim_id": "gate-b-ratio-at-most-one",
+      "supplied_claim": "Ratios at most one over finitely many cutoffs prove global regularity.",
+      "verdict": "false",
+      "correction": "V1 checks exact-rational fixture comparisons only and retains continuum_status=NOT_VERIFIED. A future PDE-level scoped conclusion would require an admitted continuum reconstruction checker plus Gate S, and finite cutoffs do not close Lambda-to-infinity or time-to-infinity quantifiers.",
+      "evidence": [
+        "tests/navier_stokes_gate_test.py:test_gate_b_ratio_below_one_is_arithmetic_only_without_gate_s"
+      ]
+    },
+    {
+      "claim_id": "gate-c-bkm",
+      "supplied_claim": "The 1984 Beale-Kato-Majda theorem directly supplies a Navier-Stokes continuation receipt.",
+      "verdict": "incorrect_theorem_transfer",
+      "correction": "The original BKM theorem is Euler-only. It is permanently inadmissible as the Navier-Stokes theorem identity in v1.",
+      "evidence": [
+        "theorem_id:BKM1984_EULER_ONLY",
+        "reason:euler_theorem_not_applicable_to_navier_stokes"
+      ]
+    },
+    {
+      "claim_id": "gate-c-kato-ponce",
+      "supplied_claim": "Kato-Ponce is fully audited and enabled here.",
+      "verdict": "not_verified",
+      "correction": "The lane remains disabled pending exact theorem number, text, domain, solution class, topology, and normalization audit.",
+      "evidence": [
+        "theorem_id:KATO_PONCE_1988_NS_CONTINUATION_DISABLED",
+        "doi:10.1002/cpa.3160410704"
+      ]
+    },
+    {
+      "claim_id": "gate-d-endpoint",
+      "supplied_claim": "The q>3 Serrin lane automatically includes the q=3 endpoint.",
+      "verdict": "incorrect",
+      "correction": "ESS2003_THEOREM_1_3_R3_ENDPOINT is a distinct L-infinity-in-time, L3-in-space R3 lane and is not admitted by pretending q>3. Even an exact identity/domain/exponent match stops at THEOREM_IDENTITY_MATCHED_PRECONDITIONS_UNVERIFIED because v1 does not verify the continuum mixed norm, the theorem solution-class hypotheses, or an R3 Gate-S link.",
+      "evidence": [
+        "ESS2003_THEOREM_1_2_R3_SERRIN",
+        "ESS2003_THEOREM_1_3_R3_ENDPOINT"
+      ]
+    },
+    {
+      "claim_id": "repository-report-status-and-dissipation-equivalence",
+      "supplied_claim": "The repository and external report statuses and dissipation fields can be compared directly.",
+      "verdict": "false",
+      "correction": "The schemas use different top-level status vocabularies. The report dissipation_lower is already viscosity-weighted, while repository d_truncated and d_tail_upper are unweighted and are multiplied by exact nu once. Direct field equivalence would double-weight viscosity.",
+      "evidence": [
+        "release/evidence/navier_stokes_report_crosswalk.json",
+        "tests/navier_stokes_release_blockers_test.py:test_report_crosswalk_prevents_status_and_viscosity_laundering"
+      ]
+    },
+    {
+      "claim_id": "receipt-self-pinned-authority",
+      "supplied_claim": "A receipt or caller-selected Anubis binary may define the authority hash used to verify itself.",
+      "verdict": "false",
+      "correction": "The verifier requires the exact repository manifest and resolves only a fixed macOS account-home-relative locator whose candidate list is portable across usernames. Authority remains the exact Apple-arm64 digest, size, and read-only mode, never the located host path. It captures descriptor-verified compiler and source bytes into private execution snapshots, rejects a mutable target/release locator even with a caller-supplied matching digest, reexecutes Anubis in a sanitized subprocess, and then performs independent policy replay. The historically observed failed mutable digest 666b021815c3591437433bcdf881d063a8da0c5b055a5f4f23bd7bee865befd9 is explicitly non-authoritative.",
+      "evidence": [
+        "tests/navier_stokes_release_blockers_test.py:test_manifest_authorizes_only_the_immutable_anubis_pin",
+        "tests/navier_stokes_release_blockers_test.py:test_mutable_release_path_cannot_self_authorize_with_its_own_digest",
+        "tests/navier_stokes_release_blockers_test.py:test_receipt_binary_locator_laundering_to_mutable_release_refuses",
+        "tests/navier_stokes_release_blockers_test.py:test_producer_executes_a_private_snapshot_of_pinned_descriptor_bytes",
+        "release/evidence/navier_stokes_semantic_mutations.json#historical-failed-mutable-anubis-locator-laundering",
+        "tests/navier_stokes_release_blockers_test.py:test_verifier_ignores_environment_selected_binary",
+        "tests/navier_stokes_release_blockers_test.py:test_valid_receipt_requires_fresh_anubis_reexecution",
+        "tests/navier_stokes_release_blockers_test.py:test_independent_replay_rejects_even_runtime_aligned_status_laundering"
+      ]
+    },
+    {
+      "claim_id": "domain-transfer",
+      "supplied_claim": "R3 and T3 regularity theorems are interchangeable.",
+      "verdict": "false",
+      "correction": "Every theorem is domain-bound. ESS lanes are R3-only in v1; the periodic enstrophy identity refuses whole-space transfer.",
+      "evidence": [
+        "tests/navier_stokes_gate_test.py:test_gate_d_endpoint_refuses_periodic_theorem_transfer",
+        "tests/navier_stokes_gate_test.py:test_gate_b_t3_identity_refuses_whole_space_transfer"
+      ]
+    },
+    {
+      "claim_id": "mass-momentum-pressure",
+      "supplied_claim": "Mass, momentum, and pressure need no additional conventions.",
+      "verdict": "imprecise",
+      "correction": "Density is fixed to one and incompressibility supplies local mass conservation. T3 binds zero mean and a zero-mean pressure gauge. R3 total momentum is not inferred from L2 alone and pressure uses decay at infinity.",
+      "evidence": [
+        "domain_packs/pde/NAVIER_STOKES_VERIFICATION_SPEC.md#1-governing-system-and-admitted-scope"
+      ]
+    }
+  ],
+  "primary_source_identities": [
+    {
+      "id": "CCRT2007",
+      "url": "https://arxiv.org/pdf/math/0607181",
+      "doi": "10.1063/1.2372512",
+      "sha256": "e815cbcdba8303dc03fb763bb0d10ce33660502ebd075b817359b9d05c89d76b",
+      "locator": "Corollary 5; equation (21); PDF pages 15-16",
+      "pack_status": "disabled_pending_continuum_checker"
+    },
+    {
+      "id": "ESS2003",
+      "url": "https://www.pdmi.ras.ru/~seregin/Recent%20Publications/engESS3.pdf",
+      "doi": "10.1070/RM2003v058n02ABEH000609",
+      "sha256": "2712fad880a7c626c5b7cdb678052585f502f0bd53594b03e51ea16b149fcc19",
+      "locator": "Theorems 1.2 and 1.3",
+      "pack_status": "identity_domain_exponent_precheck_only"
+    }
+  ],
+  "nonclaims": [
+    "not_global_regular",
+    "not_smooth_for_all_time",
+    "not_millennium_solved",
+    "not_a_formal_proof_of_continuum_bounds",
+    "not_evidence_of_singularity"
+  ]
+}

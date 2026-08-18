@@ -1,9 +1,10 @@
 # JACKAL Hermes plugin — proof-carrying range, Gaussian, composed-integral, and pure-ℚ transcendental bounds
 
-A load-bearing Hermes / MCP-style plugin exposing **thirty-four tools** —
+A load-bearing Hermes / MCP-style plugin exposing **thirty-six tools** —
 eleven proof-carrying formal tools, twenty-one honest weaker-lane adapters
 (status passthrough, never inflated), and the two v1.6.0 claim-kernel
-front doors (`jackal_claim`, `jackal_verify_bundle`).
+front doors (`jackal_claim`, `jackal_verify_bundle`), plus two direct
+finite-scope Navier--Stokes domain-pack tools.
 
 ## Formal (checker-attested) tools
 
@@ -67,6 +68,19 @@ exact certificates) is dispatched to the EXISTING independent verifiers
 with the pinned Lean checker; no existing tool, schema, status, or
 refusal class changed.
 
+## Direct Navier--Stokes domain-pack tools
+
+| Tool | Effect |
+|---|---|
+| `jackal_navier_stokes_check` | Runs the dedicated Anubis Navier--Stokes v1 policy kernel over one structured finite-scope request, enforces the producer's `0=bounded/non-halt`, `2=refused`, `3=other non-bounded` exit contract, then requires the independent receipt verifier to replay the result before it is returned. The mathematical status and halt decision pass through exactly as `bounded`, `indeterminate`, or `refused`. |
+| `jackal_verify_navier_stokes_receipt` | Independently replays a receipt against a separate caller-supplied expected request. Tool status `verified` means receipt replay only; `mathematical_status`, `reason`, and `halt` remain unchanged and are never promoted. |
+
+These tools are deliberately outside `jackal_claim` routing and have no
+fallback lane. Requests must carry `allow_fallback=false` and the permanent
+nonclaims `not_global_regular`, `not_smooth_for_all_time`, and
+`not_millennium_solved`. Neither tool certifies global regularity, smoothness
+for all time, a singularity, or a solution of the Clay Millennium Problem.
+
 ## Invocation modes
 
 The plugin ships one Python entry-point (`plugin/hermes/server.py`) with
@@ -77,7 +91,7 @@ three interchangeable frontends — pick the one your Hermes runtime uses:
 * `plugin/hermes/jackal_hermes call <tool> <json-args>` — one-shot
   call, prints the JSON reply to stdout.
 * `plugin/hermes/jackal_hermes http --port 8181` — tiny HTTP server
-  wrapping the same thirty-four tools (POST `/tools/<name>` with a JSON body).
+  wrapping the same thirty-six tools (POST `/tools/<name>` with a JSON body).
 
 ## Bundle identity
 
@@ -94,6 +108,7 @@ startup.
 * `plugin-bundle-mismatch`      bundle hash != pinned value
 * `plugin-manifest-missing`     no plugin manifest row
 * `plugin-args-schema`          bad tool arguments (shape/type)
+* `plugin-args-resource-limit`  Navier request/receipt exceeds its canonical-byte cap
 * `plugin-operator-refused`     expression uses a non-formal operator
 * `plugin-fragment`             sqrt_rat / exp_rat tool called with a non-admitted expression
 * `producer-refused`            standalone producer (sqrt_rat / exp_rat) refused
@@ -106,6 +121,9 @@ startup.
 * `request-*`, `cert-*`,        as raised by the shared validator
   `evaluator-*`, `checker-*`
 * `receipt-*`                   as raised by the independent verifier
+* `navier-subprocess-output-limit` producer/verifier stdout + stderr exceeds 64 KiB
+* `navier-receipt-resource-limit` emitted Navier receipt exceeds 16 MiB
+* `navier-receipt-replay-refused` independent Navier replay rejected
 
 Every refusal is a JSON object `{"status":"refused","reason":<class>,
 "detail":<string>}` — never a bounded fallback, never an implicit weaker

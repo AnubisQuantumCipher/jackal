@@ -1,0 +1,717 @@
+// JACKAL Navier--Stokes v1 bounded policy kernel.
+//
+// This program is deliberately not a PDE solver and does not claim global
+// regularity.  It checks a closed canonical line protocol, exact-rational
+// interval comparisons, theorem/domain identity, Gate-S dependency, and the
+// mandated vortex-stretching halt policy.  The outer JSON codec is separately
+// replayed by tools/navier_stokes_receipt_verify.py.
+
+struct Rat {
+    n: i64,
+    d: i64,
+    ok: bool,
+}
+
+struct Decision {
+    status: string,
+    reason: string,
+    arithmetic_status: string,
+    continuum_status: string,
+    solution_link_status: string,
+    theorem_status: string,
+    conclusion_status: string,
+    halt: bool,
+    ratio_upper: string,
+    comparison_margin: string,
+    failed_cutoff: string,
+    evaluated_cutoff_count: i64,
+    mathematical_implication: string,
+    nonclaim: string,
+    transcript: string,
+}
+
+fn bad_rat() {
+    return Rat { n: 0, d: 1, ok: false };
+}
+
+fn rat(n, d) {
+    return Rat { n: n, d: d, ok: true };
+}
+
+fn iabs(value) {
+    if value < 0 { return -value; }
+    return value;
+}
+
+fn gcd_i64(a, b) {
+    let x = iabs(a);
+    let y = iabs(b);
+    while y != 0 {
+        let r = x % y;
+        x = y;
+        y = r;
+    }
+    return x;
+}
+
+fn canonical_int(text) {
+    if text == "" || text == "+0" || text == "-0" { return false; }
+    if starts_with(text, "+") { return false; }
+    let start = 0;
+    if starts_with(text, "-") {
+        if len(text) == 1 { return false; }
+        start = 1;
+    }
+    if len(text) - start > 1 && char_at(text, start) == "0" { return false; }
+    let i = start;
+    while i < len(text) {
+        if !contains("0123456789", char_at(text, i)) { return false; }
+        i = i + 1;
+    }
+    match parse_int_opt(text) {
+        Some(v) => {
+            if v > 1000000000 || v < -1000000000 { return false; }
+            return str(v) == text;
+        },
+        None => return false,
+    }
+}
+
+fn parse_rat_canonical(text) {
+    let pieces = split(text, "/");
+    if len(pieces) == 1 {
+        if !canonical_int(text) { return bad_rat(); }
+        match parse_int_opt(text) {
+            Some(v) => return rat(v, 1),
+            None => return bad_rat(),
+        }
+    }
+    if len(pieces) != 2 { return bad_rat(); }
+    if !canonical_int(pieces[0]) || !canonical_int(pieces[1]) { return bad_rat(); }
+    match parse_int_opt(pieces[0]) {
+        Some(n) => {
+            match parse_int_opt(pieces[1]) {
+                Some(d) => {
+                    if d <= 1 { return bad_rat(); }
+                    if gcd_i64(n, d) != 1 { return bad_rat(); }
+                    return rat(n, d);
+                },
+                None => return bad_rat(),
+            }
+        },
+        None => return bad_rat(),
+    }
+}
+
+fn rat_text(value) {
+    if value.d == 1 { return str(value.n); }
+    return str(value.n) + "/" + str(value.d);
+}
+
+fn safe_mul(a, b) {
+    if a == 0 || b == 0 { return Some(0); }
+    if iabs(a) > 9223372036854775807 / iabs(b) { return None; }
+    return Some(a * b);
+}
+
+fn normalize_rat(n, d) {
+    if d == 0 { return bad_rat(); }
+    let nn = n;
+    let dd = d;
+    if dd < 0 {
+        nn = -nn;
+        dd = -dd;
+    }
+    let g = gcd_i64(nn, dd);
+    if g == 0 { return bad_rat(); }
+    let reduced_n = nn / g;
+    let reduced_d = dd / g;
+    if iabs(reduced_n) > 1000000000 || reduced_d > 1000000000 { return bad_rat(); }
+    return rat(reduced_n, reduced_d);
+}
+
+fn rat_mul(a, b) {
+    if !a.ok || !b.ok { return bad_rat(); }
+    let g1 = gcd_i64(a.n, b.d);
+    let g2 = gcd_i64(b.n, a.d);
+    let an = a.n / g1;
+    let bd = b.d / g1;
+    let bn = b.n / g2;
+    let ad = a.d / g2;
+    match safe_mul(an, bn) {
+        Some(n) => {
+            match safe_mul(ad, bd) {
+                Some(d) => return normalize_rat(n, d),
+                None => return bad_rat(),
+            }
+        },
+        None => return bad_rat(),
+    }
+}
+
+fn rat_add(a, b) {
+    if !a.ok || !b.ok { return bad_rat(); }
+    let g = gcd_i64(a.d, b.d);
+    let left_scale = b.d / g;
+    let right_scale = a.d / g;
+    match safe_mul(a.n, left_scale) {
+        Some(left) => {
+            match safe_mul(b.n, right_scale) {
+                Some(right) => {
+                    if right > 0 && left > 9223372036854775807 - right { return bad_rat(); }
+                    if right < 0 && left < -9223372036854775807 - right { return bad_rat(); }
+                    match safe_mul(a.d, left_scale) {
+                        Some(d) => return normalize_rat(left + right, d),
+                        None => return bad_rat(),
+                    }
+                },
+                None => return bad_rat(),
+            }
+        },
+        None => return bad_rat(),
+    }
+}
+
+fn rat_neg(a) {
+    if !a.ok { return bad_rat(); }
+    return rat(-a.n, a.d);
+}
+
+fn rat_sub(a, b) {
+    return rat_add(a, rat_neg(b));
+}
+
+fn rat_div(a, b) {
+    if !a.ok || !b.ok || b.n == 0 { return bad_rat(); }
+    return rat_mul(a, normalize_rat(b.d, b.n));
+}
+
+fn rat_le(a, b) {
+    let delta = rat_sub(b, a);
+    return delta.ok && delta.n >= 0;
+}
+
+fn rat_lt(a, b) {
+    let delta = rat_sub(b, a);
+    return delta.ok && delta.n > 0;
+}
+
+fn is_hex64(value) {
+    if len(value) != 64 { return false; }
+    let i = 0;
+    while i < len(value) {
+        if !contains("0123456789abcdef", char_at(value, i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn bool_text(value) {
+    if value { return "true"; }
+    return "false";
+}
+
+fn parse_bool_strict(value) {
+    if value == "true" { return 1; }
+    if value == "false" { return 0; }
+    return -1;
+}
+
+fn field_at(items, index, name) {
+    if index < 0 || index >= len(items) { panic("NAVIER_PROTOCOL_FIELD_MISSING"); }
+    let prefix = name + "=";
+    if !starts_with(items[index], prefix) { panic("NAVIER_PROTOCOL_FIELD_ORDER " + name); }
+    return substr(items[index], len(prefix), len(items[index]) - len(prefix));
+}
+
+fn refused(reason) {
+    return Decision {
+        status: "refused",
+        reason: reason,
+        arithmetic_status: "NOT_CHECKED",
+        continuum_status: "NOT_VERIFIED",
+        solution_link_status: "NOT_VERIFIED",
+        theorem_status: "NOT_APPLICABLE",
+        conclusion_status: "NONE",
+        halt: true,
+        ratio_upper: "not_computed",
+        comparison_margin: "not_computed",
+        failed_cutoff: "none",
+        evaluated_cutoff_count: 0,
+        mathematical_implication: "none",
+        nonclaim: "not_a_global_regularity_result",
+        transcript: "refused:" + reason,
+    };
+}
+
+fn indeterminate(reason) {
+    return Decision {
+        status: "indeterminate",
+        reason: reason,
+        arithmetic_status: "NOT_CHECKED",
+        continuum_status: "NOT_VERIFIED",
+        solution_link_status: "NOT_VERIFIED",
+        theorem_status: "NOT_APPLICABLE",
+        conclusion_status: "NONE",
+        halt: false,
+        ratio_upper: "not_computed",
+        comparison_margin: "not_computed",
+        failed_cutoff: "none",
+        evaluated_cutoff_count: 0,
+        mathematical_implication: "none",
+        nonclaim: "not_a_global_regularity_result",
+        transcript: "indeterminate:" + reason,
+    };
+}
+
+fn global_claim(value) {
+    return value == "global_regular"
+        || value == "smooth_for_all_time"
+        || value == "millennium_solved"
+        || value == "clay_problem_solved";
+}
+
+fn operation_claim_matches(operation, requested) {
+    if operation == "gate_s" { return requested == "solution_link_on_scope"; }
+    if operation == "gate_a" { return requested == "energy_on_scope"; }
+    if operation == "gate_b" { return requested == "enstrophy_nonincrease_on_scope"; }
+    if operation == "gate_c" { return requested == "continuation_on_prefix"; }
+    if operation == "gate_d" { return requested == "conditional_regular_on_scope"; }
+    return false;
+}
+
+fn atoms_bounded(values) {
+    for value in values {
+        if len(to_hex(value)) > 8192 { return false; }
+    }
+    return true;
+}
+
+fn common_atoms_bounded(lines) {
+    if len(lines) != 45 { return true; }
+    let names = [
+        "schema", "pack_version", "operation", "requested_claim", "allow_fallback",
+        "dimension", "equation", "density", "forcing", "viscosity", "domain",
+        "domain_geometry", "period", "measure_normalization", "pressure_gauge",
+        "sign_convention", "t0", "t1", "topology", "initial_field_digest",
+        "approximate_field_digest", "reconstruction_digest", "terminal_role",
+        "solution_class", "smooth_initial", "divergence_free_initial",
+        "exact_zero_forcing", "mean_zero", "scope_semantics", "solution_present",
+        "solution_theorem_id", "solution_theorem_sha256", "solution_theorem_locator",
+        "solution_m", "solution_norm_id", "solution_representation_id",
+        "solution_initial_mismatch_upper", "solution_residual_integral_upper",
+        "solution_divergence_defect_upper", "solution_eta_upper",
+        "solution_threshold_lower", "solution_continuum_remainders_certified",
+        "solution_proof_object_id", "solution_proof_object_digest",
+    ];
+    let i = 0;
+    while i < len(names) {
+        if len(to_hex(field_at(lines, i, names[i]))) > 8192 { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn common_model_ok(lines) {
+    if field_at(lines, 0, "schema") != "jackal-navier-stokes-request-v1" { return false; }
+    if field_at(lines, 1, "pack_version") != "1.0.0" { return false; }
+    if field_at(lines, 4, "allow_fallback") != "false" { return false; }
+    if field_at(lines, 5, "dimension") != "3" { return false; }
+    if field_at(lines, 6, "equation") != "incompressible_navier_stokes" { return false; }
+    if field_at(lines, 7, "density") != "1" { return false; }
+    if field_at(lines, 8, "forcing") != "0" { return false; }
+    if field_at(lines, 13, "measure_normalization") != "physical_volume" { return false; }
+    if field_at(lines, 15, "sign_convention") != "dt_u_minus_nu_laplacian_plus_advection_plus_grad_p_eq_0" { return false; }
+    if field_at(lines, 24, "smooth_initial") != "true" { return false; }
+    if field_at(lines, 25, "divergence_free_initial") != "true" { return false; }
+    if field_at(lines, 26, "exact_zero_forcing") != "true" { return false; }
+    let domain = field_at(lines, 10, "domain");
+    if domain != "T3_periodic" && domain != "R3_schwartz_decay" { return false; }
+    if field_at(lines, 11, "domain_geometry") != "periodic_cube_or_whole_space_v1" { return false; }
+    let topology = field_at(lines, 18, "topology");
+    if topology != "closed" && topology != "half_open_terminal" { return false; }
+    if field_at(lines, 22, "terminal_role") != "finite_scope_only" { return false; }
+    if field_at(lines, 23, "solution_class") != "smooth_on_scope" { return false; }
+    if field_at(lines, 28, "scope_semantics") != "bounded_time_scope_only" { return false; }
+    if !is_hex64(field_at(lines, 19, "initial_field_digest"))
+        || !is_hex64(field_at(lines, 20, "approximate_field_digest"))
+        || !is_hex64(field_at(lines, 21, "reconstruction_digest")) { return false; }
+    if domain == "T3_periodic" {
+        if field_at(lines, 12, "period") == "not_applicable" { return false; }
+        if field_at(lines, 14, "pressure_gauge") != "zero_spatial_mean" { return false; }
+        if field_at(lines, 27, "mean_zero") != "true" { return false; }
+    }
+    if domain == "R3_schwartz_decay" {
+        if field_at(lines, 12, "period") != "not_applicable" { return false; }
+        if field_at(lines, 14, "pressure_gauge") != "decay_at_infinity" { return false; }
+    }
+    return true;
+}
+
+fn solution_link_verified(lines) {
+    if field_at(lines, 29, "solution_present") != "true" { return false; }
+    if field_at(lines, 10, "domain") != "T3_periodic" { return false; }
+    if field_at(lines, 30, "solution_theorem_id") != "JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1" { return false; }
+    let zero_digest = "c9ca77221d998a4dadc654091bb27776c2a5e461debe3e88e98f7c1bbba06bcf";
+    if field_at(lines, 31, "solution_theorem_sha256") != "4a26df4e465412aca24de29aeb882fb5c6c36148d16422ffd09f03fd8f3cdc09" { return false; }
+    if field_at(lines, 32, "solution_theorem_locator") != "domain_packs/pde/NAVIER_STOKES_VERIFICATION_SPEC.md#zero-solution-identity" { return false; }
+    if field_at(lines, 34, "solution_norm_id") != "T3_Vm_STOKES_HOMOGENEOUS_PHYSICAL_VOLUME" { return false; }
+    if field_at(lines, 35, "solution_representation_id") != "T3_ZERO_FOURIER_FIELD_V1" { return false; }
+    if field_at(lines, 19, "initial_field_digest") != zero_digest { return false; }
+    if field_at(lines, 20, "approximate_field_digest") != zero_digest { return false; }
+    if field_at(lines, 21, "reconstruction_digest") != zero_digest { return false; }
+    let m = parse_rat_canonical(field_at(lines, 33, "solution_m"));
+    if !m.ok || m.d != 1 || m.n < 3 { return false; }
+    let initial = parse_rat_canonical(field_at(lines, 36, "solution_initial_mismatch_upper"));
+    let residual = parse_rat_canonical(field_at(lines, 37, "solution_residual_integral_upper"));
+    let divergence = parse_rat_canonical(field_at(lines, 38, "solution_divergence_defect_upper"));
+    let eta = parse_rat_canonical(field_at(lines, 39, "solution_eta_upper"));
+    let threshold = parse_rat_canonical(field_at(lines, 40, "solution_threshold_lower"));
+    if !initial.ok || !residual.ok || !divergence.ok || !eta.ok || !threshold.ok { return false; }
+    if initial.n != 0 || residual.n != 0 || divergence.n != 0 || eta.n != 0 || threshold.n <= 0 { return false; }
+    if field_at(lines, 41, "solution_continuum_remainders_certified") != "true" { return false; }
+    if field_at(lines, 42, "solution_proof_object_id") != "JACKAL_T3_ZERO_PROOF_OBJECT_V1" { return false; }
+    if field_at(lines, 43, "solution_proof_object_digest") != "42ac530f66869eafa2e1f82441ef1c47617fb2ee23a8b05e7d13a7aba4eb1e1f" { return false; }
+    return true;
+}
+
+fn common_digests_ok(lines) {
+    if !is_hex64(field_at(lines, 19, "initial_field_digest"))
+        || !is_hex64(field_at(lines, 20, "approximate_field_digest"))
+        || !is_hex64(field_at(lines, 21, "reconstruction_digest")) { return false; }
+    let present = field_at(lines, 29, "solution_present");
+    if present == "false" { return true; }
+    if present != "true" { return false; }
+    return is_hex64(field_at(lines, 31, "solution_theorem_sha256"))
+        && is_hex64(field_at(lines, 43, "solution_proof_object_digest"));
+}
+
+fn validate_rational_common(lines) {
+    let nu = parse_rat_canonical(field_at(lines, 9, "viscosity"));
+    let t0 = parse_rat_canonical(field_at(lines, 16, "t0"));
+    let t1 = parse_rat_canonical(field_at(lines, 17, "t1"));
+    if !nu.ok || !t0.ok || !t1.ok { return false; }
+    if nu.n <= 0 || !rat_lt(t0, t1) { return false; }
+    if field_at(lines, 10, "domain") == "T3_periodic" {
+        let period = parse_rat_canonical(field_at(lines, 12, "period"));
+        if !period.ok || period.n <= 0 { return false; }
+    }
+    return true;
+}
+
+fn gate_s(lines) {
+    if field_at(lines, 44, "gate_payload") != "solution_link" {
+        return refused("gate_payload_schema_invalid");
+    }
+    if field_at(lines, 29, "solution_present") != "true" {
+        return refused("solution_link_not_verified");
+    }
+    if field_at(lines, 37, "solution_residual_integral_upper") == "" {
+        return refused("pde_residual_not_certified");
+    }
+    if field_at(lines, 10, "domain") != "T3_periodic"
+        || field_at(lines, 30, "solution_theorem_id") != "JACKAL_T3_ZERO_SOLUTION_IDENTITY_V1" {
+        return refused("solution_link_theorem_not_admitted_for_domain");
+    }
+    if !solution_link_verified(lines) { return refused("solution_link_evidence_not_verified"); }
+    return Decision {
+        status: "bounded",
+        reason: "zero_solution_identity_verified_on_finite_scope",
+        arithmetic_status: "ARITHMETIC_CHECKED",
+        continuum_status: "CONTINUUM_ENCLOSURE_VERIFIED",
+        solution_link_status: "SOLUTION_LINK_VERIFIED",
+        theorem_status: "THEOREM_APPLICABLE",
+        conclusion_status: "BOUNDED_ON_SCOPE",
+        halt: false,
+        ratio_upper: "not_applicable",
+        comparison_margin: "1",
+        failed_cutoff: "none",
+        evaluated_cutoff_count: 0,
+        mathematical_implication: "exact_zero_solution_exists_on_named_scope",
+        nonclaim: "not_a_global_regularity_result",
+        transcript: "zero_field;residual=0;divergence=0;initial_mismatch=0",
+    };
+}
+
+fn interval_parts(parts, offset) {
+    let lo = parse_rat_canonical(parts[offset]);
+    let hi = parse_rat_canonical(parts[offset + 1]);
+    if !lo.ok || !hi.ok || !rat_le(lo, hi) { return [bad_rat(), bad_rat()]; }
+    return [lo, hi];
+}
+
+fn gate_a(lines) {
+    if field_at(lines, 16, "t0") != "0" { return refused("energy_prefix_requires_t0_zero"); }
+    let payload = split(field_at(lines, 44, "gate_payload"), "|");
+    if !atoms_bounded(payload) { return refused("atom_resource_limit_exceeded"); }
+    if len(payload) != 8 || payload[0] != "energy_prefix" { return refused("gate_payload_schema_invalid"); }
+    if payload[7] != "L2_SQUARED_PHYSICAL_VOLUME" { return refused("norm_normalization_mismatch"); }
+    let energy_t = interval_parts(payload, 1);
+    let diss = interval_parts(payload, 3);
+    let energy_0 = interval_parts(payload, 5);
+    if !energy_t[0].ok || !diss[0].ok || !energy_0[0].ok { return refused("noncanonical_rational"); }
+    if energy_t[0].n < 0 || diss[0].n < 0 || energy_0[0].n < 0 {
+        return refused("negative_energy_or_dissipation");
+    }
+    let nu = parse_rat_canonical(field_at(lines, 9, "viscosity"));
+    let twice = rat(2, 1);
+    let viscous = rat_mul(rat_mul(twice, nu), diss[1]);
+    let lhs = rat_add(energy_t[1], viscous);
+    let margin = rat_sub(energy_0[0], lhs);
+    if !lhs.ok || !margin.ok { return refused("rational_resource_bound_exceeded"); }
+    if margin.n < 0 {
+        let out = indeterminate("energy_interval_condition_not_closed");
+        out.arithmetic_status = "ARITHMETIC_CHECKED";
+        out.comparison_margin = rat_text(margin);
+        out.transcript = "upper(E_t)+2*nu*upper(D)<=lower(E_0);margin=" + rat_text(margin);
+        return out;
+    }
+    if !solution_link_verified(lines) {
+        let out = refused("solution_link_not_verified");
+        out.arithmetic_status = "ARITHMETIC_CHECKED";
+        out.comparison_margin = rat_text(margin);
+        return out;
+    }
+    if energy_t[0].n != 0 || energy_t[1].n != 0 || diss[0].n != 0 || diss[1].n != 0
+        || energy_0[0].n != 0 || energy_0[1].n != 0 {
+        return refused("observable_dependency_mismatch");
+    }
+    return Decision {
+        status: "bounded",
+        reason: "energy_interval_condition_closed_on_linked_scope",
+        arithmetic_status: "ARITHMETIC_CHECKED",
+        continuum_status: "CONTINUUM_ENCLOSURE_VERIFIED",
+        solution_link_status: "SOLUTION_LINK_VERIFIED",
+        theorem_status: "THEOREM_APPLICABLE",
+        conclusion_status: "BOUNDED_ON_SCOPE",
+        halt: false,
+        ratio_upper: "not_applicable",
+        comparison_margin: rat_text(margin),
+        failed_cutoff: "none",
+        evaluated_cutoff_count: 0,
+        mathematical_implication: "energy_inequality_consistent_on_named_prefix",
+        nonclaim: "not_existence_uniqueness_smoothness_or_global_regularity",
+        transcript: "upper(E_t)+2*nu*upper(D)<=lower(E_0);margin=" + rat_text(margin),
+    };
+}
+
+fn gate_b(lines) {
+    let payload = split(field_at(lines, 44, "gate_payload"), "|");
+    if len(payload) != 6 || payload[0] != "vortex_stretching_cutoff_sequence" {
+        return refused("gate_payload_schema_invalid");
+    }
+    if payload[1] != "T3_GLOBAL_ENSTROPHY_IDENTITY_V1" { return refused("enstrophy_identity_not_admitted"); }
+    if field_at(lines, 10, "domain") != "T3_periodic" { return refused("theorem_domain_mismatch"); }
+    if payload[2] != "NU_D_EQUALS_W_L3_PER_T2" { return refused("dimension_mismatch"); }
+    if payload[3] != "fourier_mode_number" { return refused("cutoff_kind_not_admitted"); }
+    let count = parse_rat_canonical(payload[4]);
+    if !count.ok || count.d != 1 || count.n <= 0 { return refused("cutoff_sequence_invalid"); }
+    if count.n > 128 { return refused("cutoff_resource_limit_exceeded"); }
+    if 45 + count.n * 13 > 2048 { return refused("protocol_node_resource_limit_exceeded"); }
+    let records = split(payload[5], ";");
+    if len(records) != count.n { return refused("cutoff_sequence_invalid"); }
+    let nu = parse_rat_canonical(field_at(lines, 9, "viscosity"));
+    let previous = rat(-1, 1);
+    let evaluated = 0;
+    let last_ratio = "not_computed";
+    let last_margin = "not_computed";
+    for record in records {
+        let values = split(record, "~");
+        if len(values) != 13 { return refused("cutoff_certificate_schema_invalid"); }
+        if !atoms_bounded(values) { return refused("atom_resource_limit_exceeded"); }
+        let cutoff = parse_rat_canonical(values[0]);
+        if !cutoff.ok || cutoff.n < 0 || !rat_lt(previous, cutoff) { return refused("cutoff_sequence_invalid"); }
+        previous = cutoff;
+        let w = interval_parts(values, 1);
+        let rw = interval_parts(values, 3);
+        let d = interval_parts(values, 5);
+        let rd = interval_parts(values, 7);
+        if !w[0].ok || !rw[0].ok || !d[0].ok || !rd[0].ok { return refused("noncanonical_rational"); }
+        if rw[0].n < 0 || rd[0].n < 0 { return refused("negative_continuum_remainder"); }
+        if values[9] != "TEST_FIXTURE_EXACT_FINITE_SUPPORT_V1" { return refused("tail_theorem_not_admitted"); }
+        if !is_hex64(values[10]) || !is_hex64(values[11]) {
+            return refused("schema_invalid_digest");
+        }
+        if values[12] != field_at(lines, 21, "reconstruction_digest") {
+            return refused("continuum_remainder_not_certified");
+        }
+        if d[0].n < 0 { return refused("negative_energy_or_dissipation"); }
+        let upper_w = rat_add(w[1], rw[1]);
+        let u_plus = upper_w;
+        if u_plus.n < 0 { u_plus = rat(0, 1); }
+        let d_minus = rat_sub(d[0], rd[1]);
+        evaluated = evaluated + 1;
+        if !u_plus.ok || !d_minus.ok { return refused("rational_resource_bound_exceeded"); }
+        if d_minus.n <= 0 {
+            let out = indeterminate("dissipation_lower_bound_not_positive");
+            out.arithmetic_status = "ARITHMETIC_CHECKED";
+            out.evaluated_cutoff_count = evaluated;
+            out.failed_cutoff = rat_text(cutoff);
+            out.transcript = "d_minus=" + rat_text(d_minus);
+            return out;
+        }
+        let denominator = rat_mul(nu, d_minus);
+        let ratio = rat_div(u_plus, denominator);
+        let margin = rat_sub(denominator, u_plus);
+        if !ratio.ok || !margin.ok { return refused("rational_resource_bound_exceeded"); }
+        last_ratio = rat_text(ratio);
+        last_margin = rat_text(margin);
+        if margin.n < 0 {
+            return Decision {
+                status: "indeterminate",
+                reason: "uncertified_potential_blowup_vortex_stretching",
+                arithmetic_status: "ARITHMETIC_CHECKED",
+                continuum_status: "NOT_VERIFIED",
+                solution_link_status: "NOT_VERIFIED",
+                theorem_status: "NOT_APPLICABLE",
+                conclusion_status: "NONE",
+                halt: true,
+                ratio_upper: last_ratio,
+                comparison_margin: last_margin,
+                failed_cutoff: rat_text(cutoff),
+                evaluated_cutoff_count: evaluated,
+                mathematical_implication: "none",
+                nonclaim: "not_evidence_of_singularity",
+                transcript: "u_plus<=nu*d_minus:false;ratio_upper=" + last_ratio,
+            };
+        }
+    }
+    if !solution_link_verified(lines) {
+        let out = refused("solution_link_not_verified");
+        out.halt = false;
+        out.arithmetic_status = "ARITHMETIC_CHECKED";
+        out.continuum_status = "NOT_VERIFIED";
+        out.ratio_upper = last_ratio;
+        out.comparison_margin = last_margin;
+        out.evaluated_cutoff_count = evaluated;
+        out.transcript = "u_plus<=nu*d_minus:true;ratio_upper=" + last_ratio;
+        return out;
+    }
+    return refused("vortex_observable_not_bound_to_admitted_solution_link");
+}
+
+fn gate_c(lines) {
+    let payload = split(field_at(lines, 44, "gate_payload"), "|");
+    if !atoms_bounded(payload) { return refused("atom_resource_limit_exceeded"); }
+    if len(payload) != 9 || payload[0] != "vorticity_continuation_prefix" {
+        return refused("gate_payload_schema_invalid");
+    }
+    if !is_hex64(payload[2]) { return refused("schema_invalid_digest"); }
+    if payload[1] == "BKM1984_EULER_ONLY" {
+        return refused("euler_theorem_not_applicable_to_navier_stokes");
+    }
+    if payload[1] == "KATO_PONCE_1988_NS_CONTINUATION_DISABLED" {
+        return refused("viscous_continuation_theorem_disabled_pending_audit");
+    }
+    return refused("viscous_continuation_theorem_not_admitted");
+}
+
+fn exponent_condition(p_text, q_text) {
+    let three_over_q = rat(0, 1);
+    if q_text != "inf" {
+        let q = parse_rat_canonical(q_text);
+        if !q.ok || !rat_lt(rat(3, 1), q) { return false; }
+        three_over_q = rat_div(rat(3, 1), q);
+    }
+    if p_text == "inf" { return rat_le(three_over_q, rat(1, 1)); }
+    let p = parse_rat_canonical(p_text);
+    if !p.ok || p.n <= 0 { return false; }
+    let two_over_p = rat_div(rat(2, 1), p);
+    return rat_le(rat_add(two_over_p, three_over_q), rat(1, 1));
+}
+
+fn gate_d(lines) {
+    let payload = split(field_at(lines, 44, "gate_payload"), "|");
+    if !atoms_bounded(payload) { return refused("atom_resource_limit_exceeded"); }
+    if len(payload) != 11 || payload[0] != "serrin_ess_conditional" {
+        return refused("gate_payload_schema_invalid");
+    }
+    if !is_hex64(payload[2]) { return refused("schema_invalid_digest"); }
+    let theorem = payload[1];
+    let domain = field_at(lines, 10, "domain");
+    let ess_sha = "2712fad880a7c626c5b7cdb678052585f502f0bd53594b03e51ea16b149fcc19";
+    if theorem == "ESS2003_THEOREM_1_3_R3_ENDPOINT" {
+        if domain != "R3_schwartz_decay" { return refused("theorem_domain_mismatch"); }
+        if payload[2] != ess_sha || payload[3] != "Theorem 1.3; condition (1.13)" {
+            return refused("theorem_identity_mismatch");
+        }
+        if payload[4] != "inf" || payload[5] != "3" { return refused("ess_endpoint_exponent_mismatch"); }
+    } else if theorem == "ESS2003_THEOREM_1_2_R3_SERRIN" {
+        if domain != "R3_schwartz_decay" { return refused("theorem_domain_mismatch"); }
+        if payload[2] != ess_sha || payload[3] != "Theorem 1.2; conditions (1.9)-(1.10)" {
+            return refused("theorem_identity_mismatch");
+        }
+        if !exponent_condition(payload[4], payload[5]) { return refused("serrin_exponent_condition_not_met"); }
+    } else {
+        return refused("regularity_theorem_not_admitted");
+    }
+    let mixed = interval_parts(payload, 6);
+    let embedding = parse_rat_canonical(payload[10]);
+    if !mixed[0].ok || !embedding.ok { return refused("noncanonical_rational"); }
+    if mixed[0].n < 0 { return refused("negative_norm_enclosure"); }
+    if payload[8] != "true" { return refused("continuum_norm_not_certified"); }
+    if payload[9] != field_at(lines, 21, "reconstruction_digest") { return refused("continuum_norm_not_certified"); }
+    if embedding.n <= 0 { return refused("time_embedding_factor_invalid"); }
+    let out = refused("theorem_preconditions_not_verified");
+    out.halt = false;
+    out.arithmetic_status = "ARITHMETIC_CHECKED";
+    out.continuum_status = "NOT_VERIFIED";
+    out.theorem_status = "THEOREM_IDENTITY_MATCHED_PRECONDITIONS_UNVERIFIED";
+    out.transcript = "conditional_theorem_identity_matched;continuum_norm_and_solution_link_unverified";
+    return out;
+}
+
+fn evaluate(lines) {
+    if len(lines) != 45 { return refused("protocol_field_count_invalid"); }
+    if !common_atoms_bounded(lines) { return refused("atom_resource_limit_exceeded"); }
+    let operation = field_at(lines, 2, "operation");
+    let requested = field_at(lines, 3, "requested_claim");
+    if global_claim(requested) { return refused("global_regular_claim_not_admitted"); }
+    if !operation_claim_matches(operation, requested) { return refused("requested_claim_operation_mismatch"); }
+    if !common_digests_ok(lines) { return refused("schema_invalid_digest"); }
+    if !common_model_ok(lines) { return refused("model_or_precondition_not_admitted"); }
+    if !validate_rational_common(lines) { return refused("noncanonical_rational"); }
+    if operation == "gate_s" { return gate_s(lines); }
+    if operation == "gate_a" { return gate_a(lines); }
+    if operation == "gate_b" { return gate_b(lines); }
+    if operation == "gate_c" { return gate_c(lines); }
+    if operation == "gate_d" { return gate_d(lines); }
+    return refused("operation_not_admitted");
+}
+
+fn decision_text(result, protocol_sha256) {
+    return join([
+        "status=" + result.status,
+        "reason=" + result.reason,
+        "arithmetic_status=" + result.arithmetic_status,
+        "continuum_status=" + result.continuum_status,
+        "solution_link_status=" + result.solution_link_status,
+        "theorem_status=" + result.theorem_status,
+        "conclusion_status=" + result.conclusion_status,
+        "halt=" + bool_text(result.halt),
+        "ratio_upper=" + result.ratio_upper,
+        "comparison_margin=" + result.comparison_margin,
+        "failed_cutoff=" + result.failed_cutoff,
+        "evaluated_cutoff_count=" + str(result.evaluated_cutoff_count),
+        "mathematical_implication=" + result.mathematical_implication,
+        "nonclaim=" + result.nonclaim,
+        "transcript=" + result.transcript,
+        "protocol_sha256=" + protocol_sha256,
+    ], "\n");
+}
+
+fn main() uses(fs.read, io.print) {
+    let argv = args();
+    if len(argv) != 1 { panic("NAVIER_USAGE expected_protocol_path"); }
+    let protocol = read_file(argv[0]);
+    let input_lines = lines(trim(protocol));
+    let result = refused("protocol_resource_limit_exceeded");
+    if len(protocol) <= 1048576 { result = evaluate(input_lines); }
+    let output = decision_text(result, hash_sha256(protocol));
+    if len(output) > 65536 { panic("NAVIER_OUTPUT_RESOURCE_LIMIT"); }
+    print(declassify(
+        output,
+        "validated-bounded-navier-policy-result",
+        "only closed statuses, exact arithmetic, identities, and explicit nonclaims are emitted",
+    ));
+}

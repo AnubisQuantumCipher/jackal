@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JACKAL Hermes plugin — proof-carrying mathematical evidence tool server.
 
-Exposes thirty-four tools (see `tools.json`):
+Exposes thirty-six tools (see `tools.json`):
 
   Formal (proof-carrying, checker-attested):
     * `jackal_range_bound`        emit a `jackal-formal-receipt-v1` receipt
@@ -25,8 +25,19 @@ Exposes thirty-four tools (see `tools.json`):
       content-addressed `jackal-claim-bundle-v1` evidence graph
     * `jackal_verify_bundle`  independent caller-pinned bundle replay
 
-The plugin does NOT ship a new checker or a new evaluator.  It is a
-narrow, fail-closed adapter that binds every call through the SAME
+  Direct Navier--Stokes domain-pack tools (finite-scope, nonclaim-preserving):
+    * `jackal_navier_stokes_check`  run the dedicated Anubis policy kernel,
+      preserve its bounded | indeterminate | refused result, and require an
+      independent receipt replay before returning
+    * `jackal_verify_navier_stokes_receipt`  independently replay a receipt
+      against a separate caller-supplied expected request
+
+The legacy mathematical lanes do NOT ship a new checker or evaluator.  The
+Navier tools are a separate, direct domain-pack lane and are never routed
+through `jackal_claim`; they ship an Anubis policy source plus independent
+Python orchestration/replay, but make no global-regularity, all-time-
+smoothness, or Millennium-Problem claim.  The rest of this plugin is a
+narrow, fail-closed adapter that binds every legacy call through the SAME
 executables the CLI release wrapper does (`jackal-native` +
 `jackal_cert_check`), the SAME shared validator, the SAME formal-status
 gate, and the SAME coverage inventory.  The only new trust surface is
@@ -66,8 +77,12 @@ import hashlib
 import json
 import os
 import re
+import selectors
+import signal
+import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -204,6 +219,12 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "release/claim/unit_registry_v1.json",
             ROOT / "unit_registry_v1.json",
         ]),
+        ("navier_stokes_producer", [
+            ROOT / "tools/navier_stokes_certificate_producer.py",
+        ]),
+        ("navier_stokes_verifier", [
+            ROOT / "tools/navier_stokes_receipt_verify.py",
+        ]),
     ):
         for c in cands:
             if c.exists():
@@ -220,6 +241,18 @@ LAYOUT = _shipped_layout()
 # import-path discovery: that would let an unlisted sibling or .pyc shadow a
 # bundle-hashed runtime module.
 _RUNTIME_FILES = resolve_runtime_files()
+_NAVIER_COMPONENT_LOGICAL_NAMES = {
+    "navier_stokes_producer":
+        "runtime/tools/navier_stokes_certificate_producer.py",
+    "navier_stokes_verifier":
+        "runtime/tools/navier_stokes_receipt_verify.py",
+}
+_NAVIER_COMPONENT_PINS = {
+    label: hashlib.sha256(
+        _RUNTIME_FILES[logical_name].read_bytes()
+    ).hexdigest()
+    for label, logical_name in _NAVIER_COMPONENT_LOGICAL_NAMES.items()
+}
 _EXPECTED_MODULE_PATHS = {
     "release_validate": _RUNTIME_FILES["runtime/release_validate.py"],
     "receipt_verify": _RUNTIME_FILES["runtime/receipt_verify.py"],
@@ -1242,6 +1275,393 @@ def _make_weak_tool(tool_name: str, spec: dict[str, Any]):
     return tool
 
 
+# -- direct Navier--Stokes domain pack (finite-scope, no global claim) --------
+
+_NAVIER_MAX_REQUEST_BYTES = 4 * 1024 * 1024
+_NAVIER_MAX_RECEIPT_BYTES = 16 * 1024 * 1024
+_NAVIER_MAX_SUBPROCESS_OUTPUT_BYTES = 64 * 1024
+_NAVIER_SUBPROCESS_TIMEOUT_SECONDS = 90
+_NAVIER_STATUSES = {"bounded", "indeterminate", "refused"}
+
+
+def _navier_component(label: str) -> tuple[Path, str]:
+    """Return the exact bundle-hashed Navier component or fail closed."""
+    logical_name = _NAVIER_COMPONENT_LOGICAL_NAMES[label]
+    expected_path = _RUNTIME_FILES[logical_name].resolve()
+    path = LAYOUT[label].resolve()
+    if path != expected_path:
+        raise PluginRefusal(
+            "plugin-identity",
+            f"{label} layout path is not the bundle-hashed runtime path",
+        )
+    pin = _NAVIER_COMPONENT_PINS[label]
+    try:
+        live = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise PluginRefusal("plugin-runtime-unreadable", str(exc)) from exc
+    if live != pin:
+        raise PluginRefusal("plugin-identity", f"{label} bytes changed")
+    return path, pin
+
+
+def _navier_toctou(label: str, path: Path, pin: str) -> None:
+    try:
+        live = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise PluginRefusal("plugin-runtime-unreadable", str(exc)) from exc
+    if live != pin:
+        raise PluginRefusal("plugin-identity", f"{label} changed mid-call")
+
+
+def _navier_canonical_json_bytes(
+    value: Any, *, subject: str, maximum_bytes: int,
+) -> bytes:
+    try:
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise PluginRefusal(
+            "plugin-args-schema", f"{subject} is not canonical JSON: {exc}"
+        ) from exc
+    if len(encoded) > maximum_bytes:
+        raise PluginRefusal(
+            "plugin-args-resource-limit",
+            f"{subject} exceeds {maximum_bytes} bytes",
+        )
+    return encoded
+
+
+def _navier_read_regular(path: Path, maximum_bytes: int) -> bytes:
+    try:
+        descriptor = os.open(
+            path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+        )
+    except OSError as exc:
+        raise PluginRefusal("navier-receipt-unavailable", str(exc)) from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise PluginRefusal(
+                "navier-receipt-unavailable", "receipt is not a regular file"
+            )
+        if metadata.st_size < 1 or metadata.st_size > maximum_bytes:
+            raise PluginRefusal(
+                "navier-receipt-resource-limit",
+                f"receipt size {metadata.st_size} is outside 1..{maximum_bytes}",
+            )
+        chunks: list[bytes] = []
+        remaining = maximum_bytes + 1
+        while remaining:
+            block = os.read(descriptor, min(1024 * 1024, remaining))
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+        raw = b"".join(chunks)
+        if len(raw) > maximum_bytes:
+            raise PluginRefusal(
+                "navier-receipt-resource-limit", "receipt grew while reading"
+            )
+        return raw
+    finally:
+        os.close(descriptor)
+
+
+def _navier_process_detail(proc: subprocess.CompletedProcess[bytes]) -> str:
+    raw = (proc.stdout or b"") + b"\n" + (proc.stderr or b"")
+    return raw.decode("utf-8", "replace").strip()[:500]
+
+
+def _terminate_navier_process(process: subprocess.Popen[bytes]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except OSError:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+    try:
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def _communicate_navier_bounded(
+    process: subprocess.Popen[bytes], *, label: str,
+) -> tuple[int, bytes, bytes]:
+    """Drain both component pipes with one aggregate byte/time ceiling."""
+    if process.stdout is None or process.stderr is None:
+        _terminate_navier_process(process)
+        raise PluginRefusal(
+            "navier-subprocess-pipes", f"{label} output pipes unavailable"
+        )
+    buffers = {
+        process.stdout: bytearray(),
+        process.stderr: bytearray(),
+    }
+    total = 0
+    deadline = time.monotonic() + _NAVIER_SUBPROCESS_TIMEOUT_SECONDS
+    selector = selectors.DefaultSelector()
+    try:
+        for stream in buffers:
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ)
+        while selector.get_map():
+            remaining_time = deadline - time.monotonic()
+            if remaining_time <= 0:
+                _terminate_navier_process(process)
+                raise PluginRefusal(
+                    "plugin-subprocess", f"{label} timed out"
+                )
+            events = selector.select(remaining_time)
+            if not events:
+                _terminate_navier_process(process)
+                raise PluginRefusal(
+                    "plugin-subprocess", f"{label} timed out"
+                )
+            for key, _ in events:
+                stream = key.fileobj
+                allowance = _NAVIER_MAX_SUBPROCESS_OUTPUT_BYTES + 1 - total
+                if allowance <= 0:
+                    _terminate_navier_process(process)
+                    raise PluginRefusal(
+                        "navier-subprocess-output-limit",
+                        f"{label} exceeded "
+                        f"{_NAVIER_MAX_SUBPROCESS_OUTPUT_BYTES} output bytes",
+                    )
+                try:
+                    block = os.read(stream.fileno(), min(65_536, allowance))
+                except BlockingIOError:
+                    continue
+                if not block:
+                    selector.unregister(stream)
+                    continue
+                buffers[stream].extend(block)
+                total += len(block)
+                if total > _NAVIER_MAX_SUBPROCESS_OUTPUT_BYTES:
+                    _terminate_navier_process(process)
+                    raise PluginRefusal(
+                        "navier-subprocess-output-limit",
+                        f"{label} exceeded "
+                        f"{_NAVIER_MAX_SUBPROCESS_OUTPUT_BYTES} output bytes",
+                    )
+        remaining_time = deadline - time.monotonic()
+        try:
+            return_code = process.wait(timeout=max(remaining_time, 0))
+        except subprocess.TimeoutExpired as exc:
+            _terminate_navier_process(process)
+            raise PluginRefusal(
+                "plugin-subprocess", f"{label} timed out"
+            ) from exc
+        return (
+            return_code,
+            bytes(buffers[process.stdout]),
+            bytes(buffers[process.stderr]),
+        )
+    finally:
+        selector.close()
+        process.stdout.close()
+        process.stderr.close()
+
+
+def _run_navier_component(
+    label: str, arguments: list[str], *, allowed_exits: set[int],
+) -> subprocess.CompletedProcess[bytes]:
+    path, pin = _navier_component(label)
+    argv = [sys.executable, "-I", "-S", "-B", str(path), *arguments]
+    try:
+        process = subprocess.Popen(
+            argv,
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        _navier_toctou(label, path, pin)
+        raise PluginRefusal(
+            "navier-subprocess-start", f"{label}: {exc}"
+        ) from exc
+    try:
+        return_code, stdout, stderr = _communicate_navier_bounded(
+            process, label=label
+        )
+    finally:
+        _navier_toctou(label, path, pin)
+    proc = subprocess.CompletedProcess(
+        argv, return_code, stdout=stdout, stderr=stderr
+    )
+    if proc.returncode not in allowed_exits:
+        raise PluginRefusal(
+            "navier-subprocess-exit",
+            f"{label} exit {proc.returncode}: {_navier_process_detail(proc)}",
+        )
+    return proc
+
+
+def _navier_receipt_from_path(path: Path) -> dict[str, Any]:
+    raw = _navier_read_regular(path, _NAVIER_MAX_RECEIPT_BYTES)
+    try:
+        receipt = _strict_json_loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+        raise PluginRefusal("navier-receipt-json", str(exc)) from exc
+    if not isinstance(receipt, dict):
+        raise PluginRefusal("navier-receipt-schema", "receipt must be an object")
+    return receipt
+
+
+def _navier_result(receipt: dict[str, Any]) -> dict[str, Any]:
+    result = receipt.get("result")
+    if not isinstance(result, dict):
+        raise PluginRefusal("navier-receipt-schema", "result must be an object")
+    status_value = result.get("status")
+    reason = result.get("reason")
+    halt = result.get("halt")
+    if status_value not in _NAVIER_STATUSES:
+        raise PluginRefusal(
+            "navier-status-contract", f"unexpected status {status_value!r}"
+        )
+    if not isinstance(reason, str) or not reason:
+        raise PluginRefusal("navier-status-contract", "reason must be non-empty")
+    if not isinstance(halt, bool):
+        raise PluginRefusal("navier-status-contract", "halt must be boolean")
+    if status_value == "bounded" and halt is not False:
+        raise PluginRefusal(
+            "navier-status-contract", "bounded result must not halt"
+        )
+    return result
+
+
+def _verify_navier_receipt_files(
+    receipt_path: Path, request_path: Path, receipt: dict[str, Any],
+) -> None:
+    proc = _run_navier_component(
+        "navier_stokes_verifier",
+        ["--receipt", str(receipt_path),
+         "--expected-request", str(request_path)],
+        allowed_exits={0, 2},
+    )
+    if proc.returncode != 0:
+        raise PluginRefusal(
+            "navier-receipt-replay-refused", _navier_process_detail(proc)
+        )
+    stdout_lines = (proc.stdout or b"").decode("utf-8", "replace").splitlines()
+    if "NAVIER_STOKES_RECEIPT_VERIFY=PASS" not in stdout_lines:
+        raise PluginRefusal(
+            "navier-receipt-replay-protocol", "verifier omitted PASS marker"
+        )
+    receipt_sha = receipt.get("receipt_sha256")
+    if not isinstance(receipt_sha, str) or \
+            f"NAVIER_STOKES_RECEIPT_SHA256={receipt_sha}" not in stdout_lines:
+        raise PluginRefusal(
+            "navier-receipt-replay-protocol", "verifier digest marker mismatch"
+        )
+
+
+def tool_navier_stokes_check(args: dict[str, Any]) -> dict[str, Any]:
+    """Produce and independently replay one finite-scope Navier receipt."""
+    _validate_args(args, [], object_keys=["request"])
+    request = args["request"]
+    request_bytes = _navier_canonical_json_bytes(
+        request,
+        subject="request",
+        maximum_bytes=_NAVIER_MAX_REQUEST_BYTES,
+    )
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-navier-") as td:
+        request_path = Path(td) / "request.json"
+        receipt_path = Path(td) / "receipt.json"
+        request_path.write_bytes(request_bytes)
+        proc = _run_navier_component(
+            "navier_stokes_producer",
+            ["--request", str(request_path), "--out", str(receipt_path)],
+            allowed_exits={0, 2, 3},
+        )
+        receipt = _navier_receipt_from_path(receipt_path)
+        result = _navier_result(receipt)
+        expected_exit = {
+            "bounded": 0,
+            "refused": 2,
+            "indeterminate": 3,
+        }[result["status"]]
+        if proc.returncode != expected_exit:
+            raise PluginRefusal(
+                "navier-producer-exit-contract",
+                f"status {result['status']} requires exit {expected_exit}; "
+                f"producer returned {proc.returncode}",
+            )
+        producer_lines = (proc.stdout or b"").decode(
+            "utf-8", "replace"
+        ).splitlines()
+        if f"NAVIER_STOKES_RECEIPT_STATUS={result['status']}" not in producer_lines:
+            raise PluginRefusal(
+                "navier-producer-protocol", "producer status marker mismatch"
+            )
+        receipt_sha = receipt.get("receipt_sha256")
+        if not isinstance(receipt_sha, str) or \
+                f"NAVIER_STOKES_RECEIPT_SHA256={receipt_sha}" not in producer_lines:
+            raise PluginRefusal(
+                "navier-producer-protocol", "producer digest marker mismatch"
+            )
+        _verify_navier_receipt_files(
+            receipt_path, request_path, receipt
+        )
+    return {
+        "status": result["status"],
+        "reason": result["reason"],
+        "halt": result["halt"],
+        "result": result,
+        "receipt": receipt,
+        "receipt_replay": "verified",
+        "verification_scope": "receipt_replay_only",
+        "nonclaims": request.get("nonclaims"),
+    }
+
+
+def tool_verify_navier_stokes_receipt(
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    """Replay a Navier receipt without promoting its mathematical result."""
+    _validate_args(args, [], object_keys=["receipt", "expected_request"])
+    receipt = args["receipt"]
+    expected_request = args["expected_request"]
+    receipt_bytes = _navier_canonical_json_bytes(
+        receipt,
+        subject="receipt",
+        maximum_bytes=_NAVIER_MAX_RECEIPT_BYTES,
+    )
+    request_bytes = _navier_canonical_json_bytes(
+        expected_request,
+        subject="expected_request",
+        maximum_bytes=_NAVIER_MAX_REQUEST_BYTES,
+    )
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-navier-verify-") as td:
+        receipt_path = Path(td) / "receipt.json"
+        request_path = Path(td) / "expected-request.json"
+        receipt_path.write_bytes(receipt_bytes)
+        request_path.write_bytes(request_bytes)
+        _verify_navier_receipt_files(receipt_path, request_path, receipt)
+    result = _navier_result(receipt)
+    return {
+        "status": "verified",
+        "verdict": "PASS",
+        "verification_scope": "receipt_replay_only",
+        "mathematical_status": result["status"],
+        "reason": result["reason"],
+        "halt": result["halt"],
+        "result": result,
+        "receipt_sha256": receipt["receipt_sha256"],
+        "nonclaims": expected_request.get("nonclaims"),
+    }
+
+
 # -- claim-bundle evidence kernel (v1.6.0, additive) ---------------------------
 
 def _claim_component(label: str) -> tuple[Path, str]:
@@ -1437,6 +1857,9 @@ TOOLS = {
     "jackal_atan_rat_bound":    tool_atan_rat_bound,
     "jackal_tanh_rat_bound":    tool_tanh_rat_bound,
     "jackal_verify_receipt":    tool_verify_receipt,
+    "jackal_navier_stokes_check": tool_navier_stokes_check,
+    "jackal_verify_navier_stokes_receipt":
+        tool_verify_navier_stokes_receipt,
     "jackal_claim":             tool_jackal_claim,
     "jackal_verify_bundle":     tool_jackal_verify_bundle,
 }

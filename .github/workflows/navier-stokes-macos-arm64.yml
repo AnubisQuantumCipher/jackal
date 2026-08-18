@@ -1,0 +1,93 @@
+name: JACKAL Navier-Stokes macOS arm64
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      expected_catalog_sha256:
+        description: Caller-pinned SHA-256 of plugin/hermes/tools.json
+        required: true
+        type: string
+      expected_bundle_sha256:
+        description: Caller-pinned Hermes runtime bundle identity
+        required: true
+        type: string
+      expected_outer_manifest_sha256:
+        description: Caller-pinned Navier outer release manifest identity
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  hosted-static-contract:
+    name: Hosted macOS static Navier contract
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Require hosted Apple-silicon Python
+        run: |
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = arm64
+          test -x /opt/homebrew/bin/python3
+
+      - name: Validate catalog JSON without executing the authority runtime
+        run: /opt/homebrew/bin/python3 -B -m json.tool plugin/hermes/tools.json >/dev/null
+
+      - name: Run v1.8 package and outer-manifest contract tests
+        run: |
+          /opt/homebrew/bin/python3 -B tests/navier_stokes_package_v180_test.py
+          /opt/homebrew/bin/python3 -B tests/navier_stokes_release_manifest_test.py
+
+  self-hosted-authoritative:
+    name: Self-hosted exact Anubis Navier package gate
+    if: github.event_name == 'workflow_dispatch'
+    needs: hosted-static-contract
+    runs-on: [self-hosted, macOS, ARM64, jackal-anubis-a733565f237d]
+    timeout-minutes: 30
+    env:
+      JACKAL_NAVIER_EXPECTED_CATALOG_SHA256: ${{ inputs.expected_catalog_sha256 }}
+      JACKAL_NAVIER_EXPECTED_BUNDLE_SHA256: ${{ inputs.expected_bundle_sha256 }}
+      JACKAL_NAVIER_EXPECTED_OUTER_MANIFEST_SHA256: ${{ inputs.expected_outer_manifest_sha256 }}
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Require the authoritative Apple-silicon host
+        run: |
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = arm64
+          test -x /opt/homebrew/bin/python3
+
+      - name: Preflight caller pins and exact logical Anubis locator
+        run: >-
+          /opt/homebrew/bin/python3 -B release/build_package_v180_navier.py preflight
+          --root .
+          --expected-catalog-sha256 "$JACKAL_NAVIER_EXPECTED_CATALOG_SHA256"
+          --expected-bundle-sha256 "$JACKAL_NAVIER_EXPECTED_BUNDLE_SHA256"
+          --expected-outer-manifest-sha256 "$JACKAL_NAVIER_EXPECTED_OUTER_MANIFEST_SHA256"
+
+      - name: Assemble isolated v1.8 Navier successor package
+        run: >-
+          /opt/homebrew/bin/python3 -B release/build_package_v180_navier.py build
+          --root .
+          --destination release/dist/jackal-v1.8.0-navier-macos-arm64
+          --expected-catalog-sha256 "$JACKAL_NAVIER_EXPECTED_CATALOG_SHA256"
+          --expected-bundle-sha256 "$JACKAL_NAVIER_EXPECTED_BUNDLE_SHA256"
+          --expected-outer-manifest-sha256 "$JACKAL_NAVIER_EXPECTED_OUTER_MANIFEST_SHA256"
+
+      - name: Verify the packaged caller-pinned runtime gate
+        run: |
+          PACKAGE_ROOT='release/dist/jackal-v1.8.0-navier-macos-arm64'
+          PACKAGE_INDEX_SHA256=$(/usr/bin/shasum -a 256 "$PACKAGE_ROOT/SHA256SUMS" | /usr/bin/awk '{print $1}')
+          "$PACKAGE_ROOT/jackal-navier-stokes-v1.8" \
+            --expected-package-index-sha256 "$PACKAGE_INDEX_SHA256" \
+            preflight

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """End-to-end dogfood bundles for the v1.6.0 claim kernel (mission §15).
 
-Ten mixed claim graphs, each compiled through the REAL router (repo CLI
+Twelve mixed claim graphs, each compiled through the REAL router (repo CLI
 path), each independently replayed through `tools/claim_bundle_verify.py`
 under caller pins, each negative twin refused for the intended semantic
 reason:
@@ -25,6 +25,10 @@ reason:
   10. repo/plugin parity -> CLI router and Hermes plugin return the same
       canonical root hash and verdict for the same request (package
       parity is proven separately by claim_package_parity_test.py).
+  11. multi-context replay -> current rational and preserved Gaussian
+      receipts verify together through distinct pinned checker/proof tuples.
+  12. request-bound integral -> current v1.7.2 int-cert evidence verifies
+      through its distinct checker/proof tuple and `formal.integral` IR.
 
 Writes deterministic durable evidence (pinned emitted_at, no volatile
 content) to release/evidence/claim_dogfood_v160.json.
@@ -37,6 +41,7 @@ import base64
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -53,8 +58,20 @@ VERIFIER = ROOT / "tools/claim_bundle_verify.py"
 INF_REG = ROOT / "release/claim/inference_registry_v1.json"
 UNIT_REG = ROOT / "release/claim/unit_registry_v1.json"
 CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_cert_check"
+GAUSSIAN_CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_gaussian_check"
+INT_CERT_CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_int_cert_check"
+ARCHIVAL_RANGE_CHECKER = Path(os.environ.get(
+    "JACKAL_V170_ARCHIVAL_RANGE_CHECKER",
+    str(Path.home() / "Library/Application Support/JACKAL/runtimes/v1.7.0/"
+                      "jackal_cert_check")))
+ARCHIVAL_RANGE_INVENTORY = Path(os.environ.get(
+    "JACKAL_V170_ARCHIVAL_RANGE_INVENTORY",
+    str(ARCHIVAL_RANGE_CHECKER.parent / "formal_coverage_inventory.json")))
 INVENTORY = ROOT / "release/coverage/formal_coverage_inventory.json"
-PROOF_ID = ROOT / "release/evidence/range_proof_identity.json"
+PROOF_ID = ROOT / "release/evidence/range_proof_identity_v172.json"
+GAUSSIAN_PROOF_ID = ROOT / "release/evidence/gaussian_proof_identity.json"
+INT_CERT_PROOF_ID = ROOT / "release/evidence/int_cert_proof_identity_v172.json"
+ARCHIVAL_RANGE_PROOF_ID = ROOT / "release/evidence/range_proof_identity.json"
 EVIDENCE_OUT = ROOT / "release/evidence/claim_dogfood_v160.json"
 
 EPOCH = "v1.6.0"
@@ -78,9 +95,22 @@ ENV_EPOCH = sha_file(ROOT / "jackal-native")
 INF_SHA = sha_file(INF_REG)
 UNIT_SHA = sha_file(UNIT_REG)
 CHECKER_SHA = sha_file(CHECKER)
+GAUSSIAN_CHECKER_SHA = sha_file(GAUSSIAN_CHECKER)
+INT_CERT_CHECKER_SHA = sha_file(INT_CERT_CHECKER)
+ARCHIVAL_RANGE_CHECKER_SHA = sha_file(ARCHIVAL_RANGE_CHECKER)
+ARCHIVAL_RANGE_INVENTORY_SHA = sha_file(ARCHIVAL_RANGE_INVENTORY)
 INVENTORY_SHA = sha_file(INVENTORY)
 PROOF_ID_SHA = sha_file(PROOF_ID)
 PROOF_ID_DIGEST = json.loads(PROOF_ID.read_text())["identity_digest_sha256"]
+GAUSSIAN_PROOF_ID_SHA = sha_file(GAUSSIAN_PROOF_ID)
+GAUSSIAN_PROOF_ID_DIGEST = json.loads(
+    GAUSSIAN_PROOF_ID.read_text())["identity_digest_sha256"]
+INT_CERT_PROOF_ID_SHA = sha_file(INT_CERT_PROOF_ID)
+INT_CERT_PROOF_ID_DIGEST = json.loads(
+    INT_CERT_PROOF_ID.read_text())["identity_digest_sha256"]
+ARCHIVAL_RANGE_PROOF_ID_SHA = sha_file(ARCHIVAL_RANGE_PROOF_ID)
+ARCHIVAL_RANGE_PROOF_ID_DIGEST = json.loads(
+    ARCHIVAL_RANGE_PROOF_ID.read_text())["identity_digest_sha256"]
 
 
 def record(rid: str, ok: bool, expect: str, observed: str) -> None:
@@ -141,11 +171,41 @@ def verify(bundle: dict, *, root_prop=None, nonce: str | None = None,
                      "--expected-inventory", INVENTORY_SHA,
                      "--proof-identity", str(PROOF_ID),
                      "--expected-proof-identity-file", PROOF_ID_SHA,
-                     "--expected-proof-identity-digest", PROOF_ID_DIGEST]
+                     "--expected-proof-identity-digest", PROOF_ID_DIGEST,
+                     "--gaussian-checker", str(GAUSSIAN_CHECKER),
+                     "--expected-gaussian-checker", GAUSSIAN_CHECKER_SHA,
+                     "--gaussian-proof-identity", str(GAUSSIAN_PROOF_ID),
+                     "--expected-gaussian-proof-identity-file",
+                     GAUSSIAN_PROOF_ID_SHA,
+                     "--expected-gaussian-proof-identity-digest",
+                     GAUSSIAN_PROOF_ID_DIGEST,
+                     "--int-cert-checker", str(INT_CERT_CHECKER),
+                     "--expected-int-cert-checker", INT_CERT_CHECKER_SHA,
+                     "--int-cert-proof-identity", str(INT_CERT_PROOF_ID),
+                     "--expected-int-cert-proof-identity-file",
+                     INT_CERT_PROOF_ID_SHA,
+                     "--expected-int-cert-proof-identity-digest",
+                     INT_CERT_PROOF_ID_DIGEST,
+                     "--archival-range-checker",
+                     str(ARCHIVAL_RANGE_CHECKER),
+                     "--expected-archival-range-checker",
+                     ARCHIVAL_RANGE_CHECKER_SHA,
+                     "--archival-range-proof-identity",
+                     str(ARCHIVAL_RANGE_PROOF_ID),
+                     "--expected-archival-range-proof-identity-file",
+                     ARCHIVAL_RANGE_PROOF_ID_SHA,
+                     "--expected-archival-range-proof-identity-digest",
+                     ARCHIVAL_RANGE_PROOF_ID_DIGEST,
+                     "--archival-range-inventory",
+                     str(ARCHIVAL_RANGE_INVENTORY),
+                     "--expected-archival-range-inventory",
+                     ARCHIVAL_RANGE_INVENTORY_SHA]
             for producer in ("sqrt_rat_producer.py", "exp_rat_producer.py",
                              "ln_rat_producer.py", "sin_rat_producer.py",
                              "atan_rat_producer.py",
-                             "tanh_rat_producer.py"):
+                             "tanh_rat_producer.py",
+                             "gaussian_certificate.py",
+                             "int_cert_producer.py"):
                 path = ROOT / "tools" / producer
                 if path.exists():
                     argv += ["--trusted-producer", sha_file(path)]
@@ -361,19 +421,21 @@ def dog7_legacy_receipt() -> None:
     receipt = fr.build_variant_formal_receipt(
         variant="ln_rat", release_epoch="v1.5.0", request=req,
         enclosure=(lo, hi), cert_bytes=cert,
-        producer_sha256=sha_file(producer), checker_sha256=CHECKER_SHA,
+        producer_sha256=sha_file(producer),
+        checker_sha256=ARCHIVAL_RANGE_CHECKER_SHA,
         canonical_lo="2", canonical_hi="3",
         request_commitment_b64=fr.request_commitment_b64(
             "range-bound-cert", "ln(x)", "2", "3"),
-        coverage_inventory_sha256=INVENTORY_SHA,
-        proof_identity=fr.load_proof_identity_binding(PROOF_ID),
+        coverage_inventory_sha256=ARCHIVAL_RANGE_INVENTORY_SHA,
+        proof_identity=fr.load_proof_identity_binding(
+            ARCHIVAL_RANGE_PROOF_ID),
         plugin_sha256=None, emitted_at_unix=int(EMITTED))
     receipt_bytes = fr.dump_receipt(receipt).encode()
     fresh = ck.freshness_block(environment_epoch=ENV_EPOCH,
                                emitted_at_unix=EMITTED)
     node = ck.build_receipt_node(receipt=receipt,
                                  receipt_bytes=receipt_bytes,
-                                 checker_sha256=CHECKER_SHA,
+                                 checker_sha256=ARCHIVAL_RANGE_CHECKER_SHA,
                                  freshness=fresh)
     bundle = ck.build_bundle(
         nodes=[node], root_id=node["id"], policy=ck.default_policy(),
@@ -477,6 +539,54 @@ def dog10_repo_plugin_parity() -> None:
     keep("dog10", bundle)
 
 
+def dog11_multi_context_receipts() -> None:
+    bundle, detail = route(request_of([
+        {"id": "r", "op": "enclose", "expression": "ln(x)",
+         "lo": "2", "hi": "3"},
+        {"id": "g", "op": "gaussian",
+         "expression": "exp(-10000000000*(x-0.5000123456789)^2)",
+         "lo": "0", "hi": "1", "tolerance": "1/1000000000000"},
+        {"id": "both", "op": "and", "args": ["r", "g"]},
+    ], "both"))
+    if bundle is None:
+        record("dog11-multi-context-receipts", False, "routed", detail)
+        return
+    verdict, reason, out = verify(bundle)
+    by_id = {node["id"]: node for node in bundle["nodes"]}
+    parent_checkers = {
+        by_id[parent]["checker"]["sha256"]
+        for parent in by_id[bundle["root"]]["parents"]
+    }
+    ok = (verdict == "verified"
+          and parent_checkers == {CHECKER_SHA, GAUSSIAN_CHECKER_SHA}
+          and "mathematical=formal-bounded" in out)
+    record("dog11-multi-context-receipts", ok,
+           "verified current-range plus Gaussian checker contexts",
+           f"{verdict}/{reason} contexts={sorted(parent_checkers)}")
+    keep("dog11", bundle)
+
+
+def dog12_request_bound_integral_receipt() -> None:
+    bundle, detail = route(request_of([
+        {"id": "i", "op": "integrate_cert", "expression": "0",
+         "lo": "0", "hi": "1", "tolerance": "2"},
+    ], "i"))
+    if bundle is None:
+        record("dog12-request-bound-integral", False, "routed", detail)
+        return
+    verdict, reason, out = verify(bundle)
+    root = next(node for node in bundle["nodes"]
+                if node["id"] == bundle["root"])
+    ok = (verdict == "verified"
+          and root["checker"]["sha256"] == INT_CERT_CHECKER_SHA
+          and root["proposition"]["arg"]["fn"] == "formal.integral"
+          and "mathematical=formal-bounded" in out)
+    record("dog12-request-bound-integral", ok,
+           "verified current request-bound int-cert context",
+           f"{verdict}/{reason} checker={root['checker']['sha256'][:16]}")
+    keep("dog12", bundle)
+
+
 def main() -> int:
     dog1_exact_threshold()
     dog2_formal_supplied()
@@ -488,6 +598,8 @@ def main() -> int:
     dog8_laundering()
     dog9_freshness()
     dog10_repo_plugin_parity()
+    dog11_multi_context_receipts()
+    dog12_request_bound_integral_receipt()
     failures = [r for r in ROWS if not r["ok"]]
     doc = {
         "schema": "jackal-claim-dogfood-v1",

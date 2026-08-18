@@ -153,6 +153,14 @@ MODEL_ASSUMPTIONS = [
     "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
     "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
 ]
+RANGE_V2_ASSUMPTIONS = [
+    "Range interval ordering and release-fragment ModelTCB are derived inside the proved checker from requestMatches and checkCert acceptance",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+    "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+    "The pinned evaluator and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
 NON_CLAIMS = [
     "NOT universal correctness across all operators or expressions",
     "Transcendental operators sqrt/exp/ln/tan/cbrt/atan/asin/acos/log10/log2/hypot/atan2 FAIL CLOSED (refused)",
@@ -184,6 +192,15 @@ GAUSSIAN_NON_CLAIMS = [
 
 INT_CERT_ASSUMPTIONS = [
     "Composition theorem premise: TreeTCB tree = Cert.ModelTCB per embedded evaluation certificate (vacuous on the pure-rational fragment)",
+    "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_int_cert_check",
+    "Canonical exact-rational artifact codec (parseIntCert) compiled into jackal_int_cert_check",
+    "The pinned certificate producer and checker bytes executed as their hashes describe",
+    "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+    "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly",
+]
+INT_CERT_V2_ASSUMPTIONS = [
+    "The raw caller expression, bounds, and tolerance are matched inside the proved checkIntCertRequest path and exposed by int_cert_sound",
+    "Every embedded release-fragment ModelTCB and the former TreeTCB are derived inside the proved checker from checkIntCert acceptance",
     "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_int_cert_check",
     "Canonical exact-rational artifact codec (parseIntCert) compiled into jackal_int_cert_check",
     "The pinned certificate producer and checker bytes executed as their hashes describe",
@@ -446,6 +463,217 @@ PROOF_IDENTITY_BINDING_KEYS = {
     "build_attestation_digest_sha256", "soundness_theorem", "authenticated",
 }
 
+RANGE_PROOF_IDENTITY_V1_SCHEMA = "jackal-range-proof-identity-v1"
+RANGE_PROOF_IDENTITY_V2_SCHEMA = "jackal-range-proof-identity-v2"
+INT_CERT_PROOF_IDENTITY_V1_SCHEMA = "jackal-int-cert-proof-identity-v1"
+INT_CERT_PROOF_IDENTITY_V2_SCHEMA = "jackal-int-cert-proof-identity-v2"
+CURRENT_PROOF_RELEASE_EPOCH = "v1.7.2"
+RANGE_ARCHIVAL_RELEASE_EPOCHS = frozenset({"v1.5.0"})
+RATIONAL_ARCHIVAL_RELEASE_EPOCHS = RANGE_ARCHIVAL_RELEASE_EPOCHS
+INT_CERT_ARCHIVAL_RELEASE_EPOCHS = frozenset()
+ARCHIVAL_RANGE_CHECKER_SHA256 = (
+    "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a"
+)
+ARCHIVAL_RANGE_INVENTORY_FILE = (
+    "release/coverage/formal_coverage_inventory_v170.json"
+)
+ARCHIVAL_RANGE_INVENTORY_SHA256 = (
+    "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6"
+)
+ARCHIVAL_INT_CERT_CHECKER_SHA256 = (
+    "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49"
+)
+
+_PROOF_COMPATIBILITY = {
+    ("range", RANGE_PROOF_IDENTITY_V1_SCHEMA, "v1.5.0"): {
+        "file_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+        "mode": "replay-only",
+        "checker_sha256": ARCHIVAL_RANGE_CHECKER_SHA256,
+        "theorem": "JackalIv.Cert.request_bound_certified_release",
+    },
+    ("range", RANGE_PROOF_IDENTITY_V2_SCHEMA, CURRENT_PROOF_RELEASE_EPOCH): {
+        "file_sha256": "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+        "mode": "current",
+        "theorem": "JackalIv.Cert.request_bound_certified_release",
+    },
+    ("int_cert", INT_CERT_PROOF_IDENTITY_V2_SCHEMA, CURRENT_PROOF_RELEASE_EPOCH): {
+        "file_sha256": "a8aefff85666d35cfd5412b10ae3d404260e91a98de53d5f0d2bb9f88f4ffbdf",
+        "mode": "current",
+        "theorem": "JackalIv.IntCert.int_cert_sound",
+    },
+}
+
+
+def proof_compatibility_policy_document() -> dict[str, Any]:
+    """Return the reviewable record generated from the code-authoritative floor."""
+
+    return {
+        "current_release_epoch": CURRENT_PROOF_RELEASE_EPOCH,
+        "lanes": {
+            "int_cert": {
+                "archival_v1": {
+                    "allowed_release_epochs": sorted(INT_CERT_ARCHIVAL_RELEASE_EPOCHS),
+                    "checker_file": "jackal_int_cert_check_v170",
+                    "checker_sha256": ARCHIVAL_INT_CERT_CHECKER_SHA256,
+                    "identity_file": "release/evidence/int_cert_proof_identity.json",
+                    "identity_file_sha256": (
+                        "f0323e312d8b0e05a7200546fd819fc191d5f146d359bb14efec5b1575f16844"
+                    ),
+                    "inventory_file": ARCHIVAL_RANGE_INVENTORY_FILE,
+                    "inventory_file_sha256": ARCHIVAL_RANGE_INVENTORY_SHA256,
+                    "mode": "revoked-refuse",
+                    "reason": (
+                        "v1 artifact-only checker does not bind the raw request "
+                        "expression to the proved QExpr"
+                    ),
+                    "schema": INT_CERT_PROOF_IDENTITY_V1_SCHEMA,
+                },
+                "current": {
+                    "allowed_release_epochs": [CURRENT_PROOF_RELEASE_EPOCH],
+                    "identity_file": "release/evidence/int_cert_proof_identity_v172.json",
+                    "identity_file_sha256": _PROOF_COMPATIBILITY[
+                        (
+                            "int_cert",
+                            INT_CERT_PROOF_IDENTITY_V2_SCHEMA,
+                            CURRENT_PROOF_RELEASE_EPOCH,
+                        )
+                    ]["file_sha256"],
+                    "minimum_schema_version": 2,
+                    "schema": INT_CERT_PROOF_IDENTITY_V2_SCHEMA,
+                },
+            },
+            "rational_variants": {
+                "archival_v1": {
+                    "allowed_release_epochs": sorted(
+                        RATIONAL_ARCHIVAL_RELEASE_EPOCHS
+                    ),
+                    "identity_file": "release/evidence/range_proof_identity.json",
+                    "checker_file": "jackal_cert_check_v170",
+                    "checker_sha256": ARCHIVAL_RANGE_CHECKER_SHA256,
+                    "identity_file_sha256": _PROOF_COMPATIBILITY[
+                        ("range", RANGE_PROOF_IDENTITY_V1_SCHEMA, "v1.5.0")
+                    ]["file_sha256"],
+                    "inventory_file": ARCHIVAL_RANGE_INVENTORY_FILE,
+                    "inventory_file_sha256": ARCHIVAL_RANGE_INVENTORY_SHA256,
+                    "mode": "replay-only",
+                    "schema": RANGE_PROOF_IDENTITY_V1_SCHEMA,
+                },
+                "current": {
+                    "allowed_release_epochs": [CURRENT_PROOF_RELEASE_EPOCH],
+                    "identity_file": "release/evidence/range_proof_identity_v172.json",
+                    "identity_file_sha256": _PROOF_COMPATIBILITY[
+                        (
+                            "range",
+                            RANGE_PROOF_IDENTITY_V2_SCHEMA,
+                            CURRENT_PROOF_RELEASE_EPOCH,
+                        )
+                    ]["file_sha256"],
+                    "minimum_schema_version": 2,
+                    "schema": RANGE_PROOF_IDENTITY_V2_SCHEMA,
+                },
+            },
+            "range": {
+                "archival_v1": {
+                    "allowed_release_epochs": sorted(RANGE_ARCHIVAL_RELEASE_EPOCHS),
+                    "checker_file": "jackal_cert_check_v170",
+                    "checker_sha256": ARCHIVAL_RANGE_CHECKER_SHA256,
+                    "identity_file": "release/evidence/range_proof_identity.json",
+                    "identity_file_sha256": _PROOF_COMPATIBILITY[
+                        ("range", RANGE_PROOF_IDENTITY_V1_SCHEMA, "v1.5.0")
+                    ]["file_sha256"],
+                    "inventory_file": ARCHIVAL_RANGE_INVENTORY_FILE,
+                    "inventory_file_sha256": ARCHIVAL_RANGE_INVENTORY_SHA256,
+                    "mode": "replay-only",
+                    "schema": RANGE_PROOF_IDENTITY_V1_SCHEMA,
+                },
+                "current": {
+                    "allowed_release_epochs": [CURRENT_PROOF_RELEASE_EPOCH],
+                    "identity_file": "release/evidence/range_proof_identity_v172.json",
+                    "identity_file_sha256": _PROOF_COMPATIBILITY[
+                        (
+                            "range",
+                            RANGE_PROOF_IDENTITY_V2_SCHEMA,
+                            CURRENT_PROOF_RELEASE_EPOCH,
+                        )
+                    ]["file_sha256"],
+                    "minimum_schema_version": 2,
+                    "schema": RANGE_PROOF_IDENTITY_V2_SCHEMA,
+                },
+            },
+        },
+        "reversed_interval_policy": "revoked-refuse",
+        "schema": "jackal-proof-compatibility-floor-v1",
+        "unsupported_policy": "refuse",
+    }
+
+
+def proof_identity_receipt_assumptions(
+    *, variant: str, release_epoch: str, proof_identity: dict[str, Any]
+) -> list[str]:
+    """Select assumptions only for an exact admitted schema/epoch/file tuple."""
+
+    if variant == INT_CERT_VARIANT:
+        lane = "int_cert"
+    elif variant == RANGE_VARIANT or variant in RATIONAL_VARIANTS:
+        lane = "range"
+    else:
+        raise ValueError(f"proof compatibility: unsupported variant {variant!r}")
+    if not isinstance(proof_identity, dict):
+        raise ValueError("proof compatibility: proof identity binding is not an object")
+    schema = proof_identity.get("schema")
+    if (
+        variant in RATIONAL_VARIANTS
+        and release_epoch in RATIONAL_ARCHIVAL_RELEASE_EPOCHS
+    ):
+        if schema != RANGE_PROOF_IDENTITY_V1_SCHEMA:
+            raise ValueError(
+                "proof compatibility: archival rational variants require the v1 range schema"
+            )
+        archival_contract = _PROOF_COMPATIBILITY[
+            ("range", RANGE_PROOF_IDENTITY_V1_SCHEMA, "v1.5.0")
+        ]
+        if proof_identity.get("file_sha256") != archival_contract["file_sha256"]:
+            raise ValueError(
+                "proof compatibility: proof identity file is not the pinned record"
+            )
+        if proof_identity.get("soundness_theorem") != archival_contract["theorem"]:
+            raise ValueError("proof compatibility: soundness theorem mismatch")
+        if proof_identity.get("authenticated") is not False:
+            raise ValueError(
+                "proof compatibility: unsigned identity must state authenticated=false"
+            )
+        return list(VARIANT_ASSUMPTION_TABLES[variant])
+    contract = _PROOF_COMPATIBILITY.get((lane, schema, release_epoch))
+    if contract is None:
+        raise ValueError(
+            "proof compatibility: unsupported lane/schema/release tuple "
+            f"{lane!r}/{schema!r}/{release_epoch!r}"
+        )
+    if proof_identity.get("file_sha256") != contract["file_sha256"]:
+        raise ValueError("proof compatibility: proof identity file is not the pinned record")
+    if proof_identity.get("soundness_theorem") != contract["theorem"]:
+        raise ValueError("proof compatibility: soundness theorem mismatch")
+    if proof_identity.get("authenticated") is not False:
+        raise ValueError("proof compatibility: unsigned identity must state authenticated=false")
+
+    if lane == "int_cert":
+        selected = (
+            INT_CERT_V2_ASSUMPTIONS
+            if schema == INT_CERT_PROOF_IDENTITY_V2_SCHEMA
+            else INT_CERT_ASSUMPTIONS
+        )
+    elif variant == RANGE_VARIANT:
+        selected = (
+            RANGE_V2_ASSUMPTIONS
+            if schema == RANGE_PROOF_IDENTITY_V2_SCHEMA
+            else MODEL_ASSUMPTIONS
+        )
+    else:
+        selected = list(VARIANT_ASSUMPTION_TABLES[variant])
+        if schema == RANGE_PROOF_IDENTITY_V2_SCHEMA:
+            selected[0] = RANGE_V2_ASSUMPTIONS[0]
+    return list(selected)
+
 
 def canonical_json_bytes(obj: Any) -> bytes:
     """Canonical JSON encoding used for every digest in the receipt system.
@@ -465,8 +693,17 @@ def load_proof_identity_binding(path: str | Path) -> dict[str, Any]:
     This is a byte/digest binding, not authentication.  The independent
     receipt verifier repeats these checks against a caller-supplied record.
     """
-    identity_path = Path(path)
-    raw = identity_path.read_bytes()
+    return load_proof_identity_binding_bytes(Path(path).read_bytes())
+
+
+def load_proof_identity_binding_bytes(raw: bytes) -> dict[str, Any]:
+    """Self-check a proof/build identity from already-authorized bytes.
+
+    Callers that enforce descriptor identity or execute from private snapshots
+    use this entry point so validation never reopens a mutable pathname.
+    """
+    if not isinstance(raw, bytes):
+        raise TypeError("proof identity bytes required")
     def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, value in pairs:
@@ -646,6 +883,18 @@ def _parse_cert_header(cert_bytes: bytes) -> dict[str, str]:
     return hdr
 
 
+def _require_checker_proof_identity(
+    checker_sha256: str, proof_identity: dict[str, Any]
+) -> None:
+    proof_checker = proof_identity.get("checker_sha256") \
+        if isinstance(proof_identity, dict) else None
+    if checker_sha256 != proof_checker:
+        raise ValueError(
+            "checker/proof identity mismatch: "
+            f"checker={checker_sha256!r} proof={proof_checker!r}"
+        )
+
+
 def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosure: tuple[str, str],
                          cert_bytes: bytes, evaluator_sha256: str, checker_sha256: str,
                          source_anb_sha256: str | None, plugin_sha256: str | None,
@@ -662,6 +911,14 @@ def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosu
     function does NOT re-run the checker — it only serializes the evidence
     the reverifier will consume.
     """
+    if Fraction(canonical_lo) > Fraction(canonical_hi):
+        raise ValueError("range interval order requires canonical_lo <= canonical_hi")
+    assumptions = proof_identity_receipt_assumptions(
+        variant=RANGE_VARIANT,
+        release_epoch=release_epoch,
+        proof_identity=proof_identity,
+    )
+    _require_checker_proof_identity(checker_sha256, proof_identity)
     hdr = _parse_cert_header(cert_bytes)
     sexp = hdr.get("expr", "")
     expr_ops = _operators_in_sexp(sexp) if sexp else set()
@@ -716,7 +973,7 @@ def build_formal_receipt(*, release_epoch: str, request: dict[str, str], enclosu
             "verdict": "ACCEPT",
             "reverify_required": True,
         },
-        "assumptions": list(MODEL_ASSUMPTIONS),
+        "assumptions": assumptions,
         "non_claims": list(NON_CLAIMS),
     }
     receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
@@ -734,6 +991,7 @@ def build_gaussian_formal_receipt(*, release_epoch: str, request: dict[str, str]
                                   plugin_sha256: str | None = None,
                                   emitted_at_unix: int | None = None) -> dict[str, Any]:
     """Assemble the theorem-backed Gaussian variant of jackal-formal-receipt-v1."""
+    _require_checker_proof_identity(checker_sha256, proof_identity)
     hdr = _parse_cert_header(cert_bytes)
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
@@ -804,6 +1062,14 @@ def build_int_cert_formal_receipt(*, release_epoch: str, request: dict[str, str]
                                   emitted_at_unix: int | None = None) -> dict[str, Any]:
     """Assemble the certified composed-integral (`int_cert`) variant of
     jackal-formal-receipt-v1 (v1.7 bound_step composition lane)."""
+    if Fraction(canonical_lo) >= Fraction(canonical_hi):
+        raise ValueError("int-cert interval order requires canonical_lo < canonical_hi")
+    assumptions = proof_identity_receipt_assumptions(
+        variant=INT_CERT_VARIANT,
+        release_epoch=release_epoch,
+        proof_identity=proof_identity,
+    )
+    _require_checker_proof_identity(checker_sha256, proof_identity)
     hdr = _parse_cert_header(cert_bytes)
     sexp = hdr.get("expr", "")
     expr_ops = _operators_in_sexp(sexp) if sexp else set()
@@ -859,7 +1125,7 @@ def build_int_cert_formal_receipt(*, release_epoch: str, request: dict[str, str]
             ],
         },
         "checker": {"verdict": "ACCEPT", "reverify_required": True},
-        "assumptions": list(INT_CERT_ASSUMPTIONS),
+        "assumptions": assumptions,
         "non_claims": list(INT_CERT_NON_CLAIMS),
     }
     receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))
@@ -910,6 +1176,14 @@ def build_variant_formal_receipt(
     """
     if variant not in RATIONAL_VARIANTS:
         raise ValueError(f"build_variant_formal_receipt: unknown variant {variant!r}")
+    if Fraction(canonical_lo) > Fraction(canonical_hi):
+        raise ValueError("range interval order requires canonical_lo <= canonical_hi")
+    assumptions = proof_identity_receipt_assumptions(
+        variant=variant,
+        release_epoch=release_epoch,
+        proof_identity=proof_identity,
+    )
+    _require_checker_proof_identity(checker_sha256, proof_identity)
     admitted_ops = VARIANT_ADMITTED_OPERATOR_SETS[variant]
     admitted_expr = _VARIANT_ADMITTED_EXPRESSION[variant]
     coverage_row = VARIANT_COVERAGE_ROWS[variant]
@@ -976,7 +1250,7 @@ def build_variant_formal_receipt(
             "unsupported_refused": [f"every expression except {admitted_expr}"],
         },
         "checker": {"verdict": "ACCEPT", "reverify_required": True},
-        "assumptions": list(_VARIANT_ASSUMPTIONS[variant]),
+        "assumptions": assumptions,
         "non_claims": list(_VARIANT_NON_CLAIMS[variant]),
     }
     receipt["receipt_digest_sha256"] = sha256_hex(canonical_json_bytes(_receipt_body(receipt)))

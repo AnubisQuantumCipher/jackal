@@ -73,21 +73,19 @@ if "formal_receipt" not in sys.modules:
 from formal_receipt import (  # noqa: E402
     SCHEMA, THEOREM_ID, GAUSSIAN_THEOREM_ID, INT_CERT_THEOREM_ID,
     LEAN_KERNEL_AXIOMS,
-    MODEL_ASSUMPTIONS, NON_CLAIMS, GAUSSIAN_ASSUMPTIONS,
-    GAUSSIAN_NON_CLAIMS, INT_CERT_ASSUMPTIONS, INT_CERT_NON_CLAIMS,
+    NON_CLAIMS, GAUSSIAN_ASSUMPTIONS,
+    GAUSSIAN_NON_CLAIMS, INT_CERT_NON_CLAIMS,
     INT_CERT_ADMITTED_OPERATORS, INT_CERT_VARIANT,
-    RANGE_VARIANT, GAUSSIAN_VARIANT, SQRT_RAT_VARIANT, EXP_RAT_VARIANT,
-    LN_RAT_VARIANT, SIN_RAT_VARIANT, COS_RAT_VARIANT, ATAN_RAT_VARIANT,
-    TANH_RAT_VARIANT,
-    RATIONAL_VARIANTS, ALL_VARIANTS,
-    SQRT_RAT_ASSUMPTIONS, SQRT_RAT_NON_CLAIMS,
-    EXP_RAT_ASSUMPTIONS, EXP_RAT_NON_CLAIMS,
+    GAUSSIAN_VARIANT, RATIONAL_VARIANTS,
     VARIANT_ADMITTED_OPERATOR_SETS, VARIANT_COVERAGE_ROWS,
     VARIANT_OPERATOR_ROWS,
-    VARIANT_ASSUMPTION_TABLES, VARIANT_NON_CLAIM_TABLES,
+    VARIANT_NON_CLAIM_TABLES,
     _VARIANT_ADMITTED_EXPRESSION,
     recompute_receipt_digest, sha256_hex,
     load_proof_identity_binding, PROOF_IDENTITY_BINDING_KEYS,
+    proof_identity_receipt_assumptions,
+    RANGE_PROOF_IDENTITY_V1_SCHEMA, RANGE_PROOF_IDENTITY_V2_SCHEMA,
+    INT_CERT_PROOF_IDENTITY_V1_SCHEMA, INT_CERT_PROOF_IDENTITY_V2_SCHEMA,
     canonical_rat as _shared_canonical_rat,
     request_commitment_b64 as _shared_request_commitment_b64,
     gaussian_request_commitment_b64 as _shared_gaussian_request_commitment_b64,
@@ -217,10 +215,6 @@ _RANGE_RELEASE_NODE_OPS: dict[str, set[str]] = {
     "cos_rat": {"cos"},
     "atan_rat": {"atan"},
     # the release fragment identical.  `num_rounded` likewise absent.
-    # sqrt_rat (§487 fragment extension, v1.4.0): pure-ℚ sqrt via rational
-    # square bracket.  The Lean `releaseNodeOp` allowlist accepts this and
-    # `Runs.sqrtRat` is checker-sound with no libm TCB.
-    "sqrt_rat": {"sqrt"},
     "neg": {"neg"},
     "add": {"add"},
     "sub": {"sub"},
@@ -427,15 +421,23 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
     lka = sorted(set(thm.get("lean_kernel_axioms") or []))
     if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
         raise ReceiptRefusal("theorem-axioms", str(lka))
-    if variant in RATIONAL_VARIANTS:
-        expected_assumptions = VARIANT_ASSUMPTION_TABLES[variant]
-        expected_non_claims = VARIANT_NON_CLAIM_TABLES[variant]
-    elif is_gaussian:
+    if is_gaussian:
         expected_assumptions = GAUSSIAN_ASSUMPTIONS
         expected_non_claims = GAUSSIAN_NON_CLAIMS
     else:
-        expected_assumptions = MODEL_ASSUMPTIONS
-        expected_non_claims = NON_CLAIMS
+        try:
+            expected_assumptions = proof_identity_receipt_assumptions(
+                variant=variant,
+                release_epoch=receipt["release_epoch"],
+                proof_identity=receipt.get("proof_identity"),
+            )
+        except ValueError as exc:
+            raise ReceiptRefusal("proof-compatibility", str(exc)) from exc
+        expected_non_claims = (
+            VARIANT_NON_CLAIM_TABLES[variant]
+            if variant in RATIONAL_VARIANTS
+            else NON_CLAIMS
+        )
     if receipt.get("assumptions") != expected_assumptions:
         raise ReceiptRefusal("receipt-assumptions", "mandatory assumptions changed")
     if receipt.get("non_claims") != expected_non_claims:
@@ -665,9 +667,14 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
             f"record {proof_binding['identity_digest_sha256']} != expected "
             f"{expected_proof_identity_digest}",
         )
+    if not is_gaussian and proof_binding["schema"] not in {
+        RANGE_PROOF_IDENTITY_V1_SCHEMA,
+        RANGE_PROOF_IDENTITY_V2_SCHEMA,
+    }:
+        raise ReceiptRefusal("proof-identity-lane", proof_binding["schema"])
     expected_proof_schema = (
         "jackal-gaussian-proof-identity-v1" if is_gaussian
-        else "jackal-range-proof-identity-v1"
+        else proof_binding["schema"]
     )
     expected_proof_theorem = (
         "JackalIv.GaussianCert.gaussian_integral_check_sound" if is_gaussian
@@ -1027,7 +1034,15 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
     lka = sorted(set(thm.get("lean_kernel_axioms") or []))
     if lka != sorted(set(LEAN_KERNEL_AXIOMS)):
         raise _ic_refuse("theorem-axioms", str(lka))
-    if receipt.get("assumptions") != INT_CERT_ASSUMPTIONS:
+    try:
+        expected_int_assumptions = proof_identity_receipt_assumptions(
+            variant=INT_CERT_VARIANT,
+            release_epoch=receipt.get("release_epoch"),
+            proof_identity=receipt.get("proof_identity"),
+        )
+    except ValueError as exc:
+        raise _ic_refuse("proof-compatibility", str(exc)) from exc
+    if receipt.get("assumptions") != expected_int_assumptions:
         raise _ic_refuse("receipt-assumptions", "mandatory assumptions changed")
     if receipt.get("non_claims") != INT_CERT_NON_CLAIMS:
         raise _ic_refuse("receipt-non-claims", "mandatory non-claims changed")
@@ -1211,7 +1226,10 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
             f"record {proof_binding['identity_digest_sha256']} != expected "
             f"{expected_proof_identity_digest}",
         )
-    if proof_binding["schema"] != "jackal-int-cert-proof-identity-v1":
+    if proof_binding["schema"] not in {
+        INT_CERT_PROOF_IDENTITY_V1_SCHEMA,
+        INT_CERT_PROOF_IDENTITY_V2_SCHEMA,
+    }:
         raise _ic_refuse("proof-identity-lane", proof_binding["schema"])
     if proof_binding["soundness_theorem"] != "JackalIv.IntCert.int_cert_sound":
         raise _ic_refuse("proof-identity-theorem", proof_binding["soundness_theorem"])
@@ -1245,7 +1263,17 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
             os.close(fd)
         try:
             cproc = subprocess.run(
-                [chk_real, cert_path], capture_output=True, text=False, timeout=3600
+                [
+                    chk_real,
+                    cert_path,
+                    req["expression"],
+                    req["canonical_lo"],
+                    req["canonical_hi"],
+                    req["canonical_tolerance"],
+                ],
+                capture_output=True,
+                text=False,
+                timeout=3600,
             )
         except subprocess.TimeoutExpired as exc:
             raise _ic_refuse("checker-timeout", str(exc)) from exc

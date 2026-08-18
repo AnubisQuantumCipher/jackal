@@ -86,8 +86,12 @@ def run_exe(exe: Path, text: str) -> tuple[int, str]:
         fh.write(text)
         p = fh.name
     try:
-        proc = subprocess.run([str(exe), p], capture_output=True, text=True,
-                              timeout=300)
+        proc = subprocess.run(
+            [str(exe), p, "x", "0", "1", "2"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
     finally:
         os.unlink(p)

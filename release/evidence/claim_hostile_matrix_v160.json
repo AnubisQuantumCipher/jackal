@@ -116,9 +116,9 @@
       "ok": true
     },
     {
-      "expect": "bundle.digest=8f0a2cd589593782",
+      "expect": "bundle.digest=2446431d98672e15",
       "id": "S-canonical-roundtrip",
-      "observed": "claim-verify=verified bundle.digest=8f0a2cd5895937823d2d463f24a00ee4c6eb746b0750b2a36a3ce4e53688ee4c root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
+      "observed": "claim-verify=verified bundle.digest=2446431d98672e1545acaa238ed7c5aa2d207f3400a556b7396044d5e0e7c893 root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
       "ok": true
     },
     {
@@ -646,11 +646,11 @@
     {
       "expect": "rendering with conditions",
       "id": "R-pos-conditions-present",
-      "observed": "claim-verify=verified bundle.digest=8f0a2cd5895937823d2d463f24a00ee4c6eb746b0750b2a36a3ce4e53688ee4c root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
+      "observed": "claim-verify=verified bundle.digest=2446431d98672e1545acaa238ed7c5aa2d207f3400a556b7396044d5e0e7c893 root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
       "ok": true
     }
   ],
   "schema": "jackal-claim-hostile-matrix-v1",
   "verdict": "PASS",
-  "verifier": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+  "verifier": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
 }

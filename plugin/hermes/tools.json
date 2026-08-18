@@ -2,7 +2,7 @@
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
   "version": "v1.8.0",
-  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles. v1.7.0 adds the certified bound_step composition lane (jackal_integrate_bound_cert, theorem int_cert_sound). v1.8.0 adds two direct, non-fallback Navier-Stokes finite-scope tools with mandatory independent replay and permanent no-global-regularity/no-all-time-smoothness/no-Millennium-solution nonclaims; the Navier lane is not routed through jackal_claim.",
+  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles. v1.7.0 adds the certified bound_step composition lane (jackal_integrate_bound_cert, theorem int_cert_sound). v1.7.2 closes the range-ordering and composed-integral proof premises and binds current formal tools to the closed-premise v2 proof identities. v1.8.0 adds two direct, non-fallback Navier-Stokes finite-scope tools with mandatory independent replay and permanent no-global-regularity/no-all-time-smoothness/no-Millennium-solution nonclaims; the Navier lane is not routed through jackal_claim.",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
@@ -32,8 +32,13 @@
       "../../formal_coverage_inventory.json"
     ],
     "runtime/range_proof_identity.json": [
+      "../../release/evidence/range_proof_identity_v172.json",
       "../../release/evidence/range_proof_identity.json",
       "../../range_proof_identity.json"
+    ],
+    "runtime/archival_range_proof_identity.json": [
+      "../../release/evidence/range_proof_identity.json",
+      "../../evidence/range_proof_identity_v1.json"
     ],
     "runtime/gaussian_proof_identity.json": [
       "../../release/evidence/gaussian_proof_identity.json",
@@ -105,8 +110,13 @@
       "../../int_cert_release.py"
     ],
     "runtime/int_cert_proof_identity.json": [
+      "../../release/evidence/int_cert_proof_identity_v172.json",
       "../../release/evidence/int_cert_proof_identity.json",
       "../../int_cert_proof_identity.json"
+    ],
+    "runtime/archival_int_cert_proof_identity.json": [
+      "../../release/evidence/int_cert_proof_identity.json",
+      "../../evidence/int_cert_proof_identity_v1.json"
     ],
     "runtime/claim_kernel.py": [
       "../../tools/claim_kernel.py",
@@ -198,7 +208,7 @@
     },
     {
       "name": "jackal_integrate_bound_cert",
-      "description": "Emit a certified composed definite-integral formal receipt (v1.7 bound_step composition): untrusted exact-rational producer mirrors the engine's adaptive subdivision, the pinned Lean-proved jackal_int_cert_check re-checks the whole subdivision-tree certificate (theorem int_cert_sound), and the receipt is independently re-verified before returning. Certified fragment: num/var/neg/add/sub/mul/div/pow(0..4096)/sin/cos/abs in x. Everything else refuses. The weaker float lane jackal_integrate_bound stays status=bounded and is NOT this tool.",
+      "description": "Emit a request-bound certified composed definite-integral formal receipt (v1.7.2): the untrusted exact-rational producer mirrors the engine's adaptive subdivision, the pinned Lean-proved jackal_int_cert_check binds the exact raw expression/bounds/tolerance and re-checks the whole subdivision-tree certificate (theorem int_cert_sound), and the receipt is independently re-verified before returning. Request-unbound v1.7.0 receipts are revoked. Certified fragment: num/var/neg/add/sub/mul/div/pow(0..4096)/sin/cos/abs in x. Everything else refuses. The weaker float lane jackal_integrate_bound stays status=bounded and is NOT this tool.",
       "arguments": {
         "expression": {"type": "string", "required": true,
                        "help": "Integrand in the single variable x, restricted to the certified fragment (num/var/neg/add/sub/mul/div/pow/sin/cos/abs)."},
@@ -219,7 +229,7 @@
     },
     {
       "name": "jackal_verify_receipt",
-      "description": "Re-run the matching pinned Lean-proved range, Gaussian, or composed-integral (int_cert) checker over an embedded certificate.",
+      "description": "Re-run the matching pinned Lean-proved checker over an embedded certificate using a closed epoch/variant registry: current v1.7.2 range/rational and request-bound int_cert, replay-only v1.5.0 range/rational, or Gaussian v1.5.0. Request-unbound v1.7.0 int_cert receipts refuse.",
       "arguments": {
         "receipt": {"type": "object", "required": true,
                     "help": "A jackal-formal-receipt-v1 JSON document."},
@@ -315,7 +325,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -340,7 +350,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -365,7 +375,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -390,7 +400,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -415,7 +425,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -440,7 +450,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -465,7 +475,7 @@
         "checker_verdict": "ACCEPT on success",
         "identities": "{producer_sha256, checker_sha256, plugin_sha256}",
         "theorem_id": "request_bound_certified_release",
-        "release_epoch": "v1.5.0",
+        "release_epoch": "v1.7.2",
         "reason":  "stable refusal class on refusal",
         "detail":  "short human-readable string on refusal"
       }
@@ -762,12 +772,12 @@
     },
     {
       "name": "jackal_claim",
-      "description": "Compile a structured jackal-claim-request-v1 into a canonical, content-addressed jackal-claim-bundle-v1 evidence graph through the deterministic policy router (v1.6.0 evidence kernel). Routes through the existing exact/formal/machine/unit lanes, emits a route trace naming candidates and refusal reasons, and refuses rather than silently downgrading (allow_fallback defaults false). The bundle is independently replayable via jackal_verify_bundle.",
+      "description": "Compile a structured jackal-claim-request-v1 into a canonical, content-addressed jackal-claim-bundle-v1 evidence graph through the deterministic policy router. Routes through exact, current/archival range-family, Gaussian, request-bound composed-integral, machine, and unit lanes; emits a route trace naming candidates and refusal reasons; and refuses rather than silently downgrading (allow_fallback defaults false). The bundle is independently replayable via jackal_verify_bundle.",
       "arguments": {
         "request": {
           "type": "object",
           "required": true,
-          "help": "jackal-claim-request-v1 object: {schema, steps:[{id, op, ...}], root, policy?, nonce?, emitted_at_unix?, max_age_seconds?, expires_at_unix?}. Step ops: input, exact, enclose, gaussian, machine, interval_add/sub/mul/div, threshold, decision, convert, and, model, passthrough, attach."
+          "help": "jackal-claim-request-v1 object: {schema, steps:[{id, op, ...}], root, policy?, nonce?, emitted_at_unix?, max_age_seconds?, expires_at_unix?}. Step ops: input, exact, enclose, gaussian, integrate_cert, machine, interval_add/sub/mul/div, threshold, decision, convert, and, model, passthrough, attach."
         }
       },
       "returns": {
@@ -782,7 +792,7 @@
     },
     {
       "name": "jackal_verify_bundle",
-      "description": "Independently replay a jackal-claim-bundle-v1 against caller-pinned expectations (v1.6.0 evidence kernel). The standalone dependency-free verifier recomputes every canonical byte and hash, revalidates the DAG, re-runs embedded legacy evidence through the existing receipt/exact verifiers and pinned Lean checker, recomputes machine/unit mathematics, re-evaluates every inference rule and assurance-axis propagation, enforces consequence-class floors and policy, and recomputes the deterministic rendering. Returns verified | refused | indeterminate with exact reasons — never a generic green badge.",
+      "description": "Independently replay a jackal-claim-bundle-v1 against caller-pinned expectations. The standalone dependency-free verifier recomputes every canonical byte and hash, revalidates the DAG, selects only the closed current/archival range, Gaussian, or current request-bound int-cert checker/proof tuple, re-runs embedded evidence, recomputes machine/unit mathematics, re-evaluates every inference rule and assurance-axis propagation, enforces consequence-class floors and policy, and recomputes the deterministic rendering. Returns verified | refused | indeterminate with exact reasons — never a generic green badge.",
       "arguments": {
         "bundle": {
           "type": "object",

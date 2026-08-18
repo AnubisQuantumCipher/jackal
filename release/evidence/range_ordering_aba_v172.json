@@ -1,0 +1,38 @@
+{
+  "A_post": {
+    "identity_restored": true,
+    "poison_refused": true
+  },
+  "A_pre": {
+    "clean_accept": true,
+    "poison_refused": true,
+    "reason_class": "interval-order"
+  },
+  "B_model_tcb": {
+    "allowlist_expansion_breaks_proof": true,
+    "build_exit_nonzero": true
+  },
+  "B_ordering_proof": {
+    "build_exit_nonzero": true,
+    "proof_load_bearing": true
+  },
+  "B_runtime_bypass": {
+    "build_exit": 0,
+    "poison_admitted": true
+  },
+  "canonical_post_sha256": {
+    "CertCheckMain.lean": "81ad8de226c15e7c3398e9aaa76abe85981ec0d1f94b958ed455e163361e698c",
+    "CertRequest.lean": "fb57f1c3dfac97362629045f9b6342978150630836a4c3b2f76e6e8f2351073a",
+    "jackal_cert_check": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545"
+  },
+  "canonical_pre_sha256": {
+    "CertCheckMain.lean": "81ad8de226c15e7c3398e9aaa76abe85981ec0d1f94b958ed455e163361e698c",
+    "CertRequest.lean": "fb57f1c3dfac97362629045f9b6342978150630836a4c3b2f76e6e8f2351073a",
+    "jackal_cert_check": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545"
+  },
+  "clean_certificate_sha256": "a8ad03bbd76eb90ed03c1a506ada212f7b715a5cdff8e13987670b85c298a696",
+  "coherent_reversal_sha256": "1ff009f88b6731150bfa6a57c81c799785127c609fa9220c4ddeca081d22b778",
+  "isolation": "throwaway APFS clones; canonical source and executable not rebuilt",
+  "schema": "jackal-range-ordering-aba-v172",
+  "status": "passed"
+}

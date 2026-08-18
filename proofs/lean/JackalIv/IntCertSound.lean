@@ -1,16 +1,15 @@
 /-
 JackalIv/IntCertSound.lean — public certified integrate-bound-cert lane (v1.7).
 
-Soundness of the v1.7 `bound_step` composition checker: an artifact the
-checker accepts encloses the exact integral of the (embedded) integrand over
-the requested interval, under the named `TreeTCB` (= `Cert.ModelTCB` per
-embedded evaluation certificate).
+Soundness of the `bound_step` composition checker: an artifact the checker
+accepts encloses the exact integral of the (embedded) integrand over the
+requested interval.  Every embedded certificate is restricted to the exact
+release fragment, so its `ModelTCB` is derived inside the proof.
 
   int_cert_sound :
-    checkIntCert hdr tree = .ok () → rootQExpr tree = some q → TreeTCB tree →
-      IntervalIntegrable (sem (embedQ q)) volume ↑hdr.req_lo ↑hdr.req_hi
-      ∧ ↑hdr.out_lo ≤ ∫ x in ↑hdr.req_lo..↑hdr.req_hi, sem (embedQ q) x
-      ∧ (∫ x in ↑hdr.req_lo..↑hdr.req_hi, sem (embedQ q) x) ≤ ↑hdr.out_hi
+    checkIntCertRequest rawExpr rawLo rawHi rawTol hdr tree = .ok () →
+      ∃ ast lowered q, the raw request parses and lowers to the exact
+      certificate integrand and the released interval encloses its integral.
 
 Proof architecture (mission §6.3), reusing the existing stack verbatim:
 
@@ -277,6 +276,7 @@ private theorem checkEmbedded_ok {hdr : IntHeader} {q : QExpr} {t : TreeNode}
       (t.a + t.b) / 2 ≤ c.hdr.input_hi) := by
   unfold checkEmbedded at h
   obtain ⟨h1, h⟩ := bind_guard_ok h
+  obtain ⟨_hRelease, h⟩ := bind_guard_ok h
   obtain ⟨h2, h⟩ := bind_guard_ok h
   obtain ⟨_h3, h⟩ := bind_guard_ok h
   refine ⟨h1, beq_iff_eq.mp h2, ?_, ?_⟩
@@ -411,27 +411,29 @@ private theorem leafCerts_cons {hdr : IntHeader} {q : QExpr} {t : TreeNode}
 /-- Build the `Runs` fact of one embedded certificate at chain depth `k`. -/
 private theorem runs_of_embedded {hdr : IntHeader} {q : QExpr} {t : TreeNode}
     {k : Nat} {full : Bool} {c : EvalCert}
-    (hEmb : checkEmbedded hdr q t (k, full) c = .ok ())
-    (hTCB : Cert.ModelTCB c.hdr c.nodes) :
+    (hEmb : checkEmbedded hdr q t (k, full) c = .ok ()) :
     Runs (embedQ (DQiter k q)) (↑c.hdr.input_lo, ↑c.hdr.input_hi)
       (↑c.hdr.output_lo, ↑c.hdr.output_hi) := by
   obtain ⟨hchk, hqx, _, _⟩ := checkEmbedded_ok hEmb
-  exact Cert.cert_check_sound hchk (qexprOf_embed _ _ hqx) hTCB
+  unfold checkEmbedded at hEmb
+  obtain ⟨_hCheck, hEmb⟩ := bind_guard_ok hEmb
+  obtain ⟨hRelease, _hRest⟩ := bind_guard_ok hEmb
+  exact Cert.cert_check_sound hchk (qexprOf_embed _ _ hqx)
+    (Cert.releaseNodesOk_modelTCB hRelease)
 
 /-! ### The composition soundness theorem -/
 
 set_option maxHeartbeats 1600000 in
 /-- **`bound_step` composition soundness** — an artifact accepted by
 `checkIntCert` yields a genuine enclosure of the exact integral of the
-reconstructed integrand over the requested interval, under the named
-`TreeTCB`.  This mechanizes roadmap item (4)'s composition for the public
+reconstructed integrand over the requested interval.  This mechanizes roadmap
+item (4)'s composition for the public
 certified lane: every leaf premise flows through the existing
 `cert_check_sound` / `runs_encloses` / Taylor bridges, and subdivision
 composes by exact partition + interval addition. -/
-theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
+theorem int_cert_core_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
     (hchk : checkIntCert hdr tree = .ok ())
-    (hq : rootQExpr tree = some q)
-    (htcb : TreeTCB tree) :
+    (hq : rootQExpr tree = some q) :
     IntervalIntegrable (sem (embedQ q)) volume ↑hdr.req_lo ↑hdr.req_hi ∧
     ((↑hdr.out_lo : ℝ) ≤
       ∫ x in (↑hdr.req_lo : ℝ)..↑hdr.req_hi, sem (embedQ q) x) ∧
@@ -529,8 +531,7 @@ theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
             rw [hkind, hcs] at hCerts
             rw [show roleSpecs "range" = [(0, true)] from by decide] at hCerts
             obtain ⟨hEmbF, _⟩ := leafCerts_cons hCerts
-            have hTCBF := htcb.cert hmem (show cF ∈ t.certs by rw [hcs]; simp)
-            have hrunF := runs_of_embedded hEmbF hTCBF
+            have hrunF := runs_of_embedded hEmbF
             rw [embedQ_DQ0] at hrunF
             obtain ⟨_, _, hfull, _⟩ := checkEmbedded_ok hEmbF
             obtain ⟨hin1, hin2⟩ := hfull rfl
@@ -553,14 +554,10 @@ theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
             obtain ⟨hEmbF1, hCerts⟩ := leafCerts_cons hCerts
             obtain ⟨hEmbF2, hCerts⟩ := leafCerts_cons hCerts
             obtain ⟨hEmbFm, _⟩ := leafCerts_cons hCerts
-            have hTCBF := htcb.cert hmem (show cF ∈ t.certs by rw [hcs]; simp)
-            have hTCBF1 := htcb.cert hmem (show cF1 ∈ t.certs by rw [hcs]; simp)
-            have hTCBF2 := htcb.cert hmem (show cF2 ∈ t.certs by rw [hcs]; simp)
-            have hTCBFm := htcb.cert hmem (show cFm ∈ t.certs by rw [hcs]; simp)
-            have hrunF := runs_of_embedded hEmbF hTCBF
-            have hrunF1 := runs_of_embedded hEmbF1 hTCBF1
-            have hrunF2 := runs_of_embedded hEmbF2 hTCBF2
-            have hrunFm := runs_of_embedded hEmbFm hTCBFm
+            have hrunF := runs_of_embedded hEmbF
+            have hrunF1 := runs_of_embedded hEmbF1
+            have hrunF2 := runs_of_embedded hEmbF2
+            have hrunFm := runs_of_embedded hEmbFm
             rw [embedQ_DQ0] at hrunF hrunFm
             rw [embedQ_DQ1] at hrunF1
             rw [embedQ_DQ2] at hrunF2
@@ -602,20 +599,13 @@ theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
             obtain ⟨hEmbF4, hCerts⟩ := leafCerts_cons hCerts
             obtain ⟨hEmbFm, hCerts⟩ := leafCerts_cons hCerts
             obtain ⟨hEmbF2m, _⟩ := leafCerts_cons hCerts
-            have hTCBF := htcb.cert hmem (show cF ∈ t.certs by rw [hcs]; simp)
-            have hTCBF1 := htcb.cert hmem (show cF1 ∈ t.certs by rw [hcs]; simp)
-            have hTCBF2 := htcb.cert hmem (show cF2 ∈ t.certs by rw [hcs]; simp)
-            have hTCBF3 := htcb.cert hmem (show cF3 ∈ t.certs by rw [hcs]; simp)
-            have hTCBF4 := htcb.cert hmem (show cF4 ∈ t.certs by rw [hcs]; simp)
-            have hTCBFm := htcb.cert hmem (show cFm ∈ t.certs by rw [hcs]; simp)
-            have hTCBF2m := htcb.cert hmem (show cF2m ∈ t.certs by rw [hcs]; simp)
-            have hrunF := runs_of_embedded hEmbF hTCBF
-            have hrunF1 := runs_of_embedded hEmbF1 hTCBF1
-            have hrunF2 := runs_of_embedded hEmbF2 hTCBF2
-            have hrunF3 := runs_of_embedded hEmbF3 hTCBF3
-            have hrunF4 := runs_of_embedded hEmbF4 hTCBF4
-            have hrunFm := runs_of_embedded hEmbFm hTCBFm
-            have hrunF2m := runs_of_embedded hEmbF2m hTCBF2m
+            have hrunF := runs_of_embedded hEmbF
+            have hrunF1 := runs_of_embedded hEmbF1
+            have hrunF2 := runs_of_embedded hEmbF2
+            have hrunF3 := runs_of_embedded hEmbF3
+            have hrunF4 := runs_of_embedded hEmbF4
+            have hrunFm := runs_of_embedded hEmbFm
+            have hrunF2m := runs_of_embedded hEmbF2m
             rw [embedQ_DQ0] at hrunF hrunFm
             rw [embedQ_DQ1] at hrunF1
             rw [embedQ_DQ2] at hrunF2 hrunF2m
@@ -670,9 +660,50 @@ theorem int_cert_sound (hdr : IntHeader) (tree : List TreeNode) (q : QExpr)
     exact ⟨hrootInv.1, le_trans hrel1 hrootInv.2.1,
       le_trans hrootInv.2.2 hrel2⟩
 
+/-- **Raw-request-bound composed-integral soundness.**  An ACCEPT from the
+public checker proves not merely an enclosure for an artifact-selected
+`QExpr`, but that the caller's raw expression parses and lowers to that exact
+certificate expression.  Canonical caller bounds and tolerance are also
+matched inside the checker. -/
+theorem int_cert_sound (rawExpr rawLo rawHi rawTol : String)
+    (hdr : IntHeader) (tree : List TreeNode)
+    (hchk : checkIntCertRequest rawExpr rawLo rawHi rawTol hdr tree = .ok ()) :
+    ∃ ast lowered : Parser.RawExpr, ∃ q : QExpr,
+      Parser.parseRaw rawExpr = some ast ∧
+      Cert.lowerRaw ast = some lowered ∧
+      rootRawExpr tree = some lowered ∧
+      rootQExpr tree = some q ∧
+      lowered.toExpr = embedQ q ∧
+      Cert.parseRatCanon rawLo.toList = some hdr.req_lo ∧
+      Cert.parseRatCanon rawHi.toList = some hdr.req_hi ∧
+      Cert.parseRatCanon rawTol.toList = some hdr.tol ∧
+      IntervalIntegrable (sem lowered.toExpr) volume ↑hdr.req_lo ↑hdr.req_hi ∧
+      ((↑hdr.out_lo : ℝ) ≤
+        ∫ x in (↑hdr.req_lo : ℝ)..↑hdr.req_hi, sem lowered.toExpr x) ∧
+      ((∫ x in (↑hdr.req_lo : ℝ)..↑hdr.req_hi, sem lowered.toExpr x)
+        ≤ (↑hdr.out_hi : ℝ)) := by
+  obtain ⟨hmatch, hcore⟩ := checkIntCertRequest_ok hchk
+  obtain ⟨hlo, hhi, htol, ast, lowered, hparse, hlower, hraw⟩ :=
+    intRequestMatches_true hmatch
+  obtain ⟨q, hq⟩ := checkIntCert_rootQExpr_exists hcore
+  have hsyntax : lowered.toExpr = embedQ q :=
+    rootRawExpr_rootQExpr_embed hraw hq
+  have hcoreSound := int_cert_core_sound hdr tree q hcore hq
+  have hrequested :
+      IntervalIntegrable (sem lowered.toExpr) volume ↑hdr.req_lo ↑hdr.req_hi ∧
+      ((↑hdr.out_lo : ℝ) ≤
+        ∫ x in (↑hdr.req_lo : ℝ)..↑hdr.req_hi, sem lowered.toExpr x) ∧
+      ((∫ x in (↑hdr.req_lo : ℝ)..↑hdr.req_hi, sem lowered.toExpr x)
+        ≤ (↑hdr.out_hi : ℝ)) := by
+    rw [hsyntax]
+    exact hcoreSound
+  exact ⟨ast, lowered, q, hparse, hlower, hraw, hq, hsyntax,
+    hlo, hhi, htol, hrequested⟩
+
 /-! ### Axiom audit — the lane flagship theorems -/
 
 #print axioms int_cert_sound
+#print axioms int_cert_core_sound
 #print axioms range_leaf_sound
 #print axioms taylor2_leaf_sound
 #print axioms taylor4_leaf_sound

@@ -46,6 +46,7 @@ REFUSE_PREFIX = "REFUSE reason="
 sys.path.insert(0, str(ROOT / "tools"))
 
 CHECK_TIMEOUT = 300
+REQUEST_BY_SOURCE: dict[str, tuple[str, str, str, str]] = {}
 
 
 class HarnessError(Exception):
@@ -69,7 +70,14 @@ def produce(expr: str, lo: str, hi: str, tol: str) -> str:
                          "--upper", hi, "--tolerance", tol])
     if proc.returncode != 0:
         raise HarnessError(f"producer refused: {proc.stderr.strip()}")
-    return proc.stdout
+    artifact = proc.stdout
+    source = next(
+        line.split(" ", 1)[1]
+        for line in artifact.splitlines()
+        if line.startswith("source ")
+    )
+    REQUEST_BY_SOURCE[source] = (expr, lo, hi, tol)
+    return artifact
 
 
 def producer_refusal(expr: str, lo: str, hi: str, tol: str) -> str:
@@ -92,8 +100,16 @@ def run_checker(artifact_text: str) -> tuple[int, str, str]:
         fh.write(artifact_text)
         path = fh.name
     try:
+        source = next(
+            (line.split(" ", 1)[1] for line in artifact_text.splitlines()
+             if line.startswith("source ")),
+            "",
+        )
+        request = REQUEST_BY_SOURCE.get(source)
+        if request is None:
+            raise HarnessError(f"raw request unavailable for source {source!r}")
         proc = subprocess.run(
-            [str(CHECKER_BIN), path],
+            [str(CHECKER_BIN), path, *request],
             capture_output=True, text=True, timeout=CHECK_TIMEOUT,
         )
         return proc.returncode, proc.stdout or "", proc.stderr or ""
@@ -271,8 +287,8 @@ def main() -> int:
 
     # X3 tolerance tightened after the fact.
     p = bsp.clone(t4); p["tol"] = Fraction(1, 10**12)
-    ok, det = expect_refuse(bsp.emit(p), "policy-violation")
-    record("X3-tolerance-changed", "poison", "policy-violation", ok, det)
+    ok, det = expect_refuse(bsp.emit(p), "request-mismatch")
+    record("X3-tolerance-changed", "poison", "request-mismatch", ok, det)
 
     # X4 epoch/model pin changed.
     bad = replace_line(bsp.emit(t4), "model ", "model jackal-iv-model-v0")
@@ -414,7 +430,14 @@ def produce_with_cap(expr: str, lo: str, hi: str, tol: str, cap: int) -> str:
                          "--degree-cap", str(cap)])
     if proc.returncode != 0:
         raise HarnessError(f"producer refused: {proc.stderr.strip()}")
-    return proc.stdout
+    artifact = proc.stdout
+    source = next(
+        line.split(" ", 1)[1]
+        for line in artifact.splitlines()
+        if line.startswith("source ")
+    )
+    REQUEST_BY_SOURCE[source] = (expr, lo, hi, tol)
+    return artifact
 
 
 if __name__ == "__main__":

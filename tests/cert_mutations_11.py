@@ -63,7 +63,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "plugin" / "hermes"))
 import release_validate as rv  # noqa: E402
-from formal_receipt import recompute_receipt_digest  # noqa: E402
+from formal_receipt import (  # noqa: E402
+    CURRENT_PROOF_RELEASE_EPOCH,
+    recompute_receipt_digest,
+)
 from bundle_hash import compute_bundle_hash  # noqa: E402
 
 
@@ -90,7 +93,7 @@ def _manifest_ids() -> tuple[str, str, str]:
 
 EVAL_ID, CHK_ID, PLUGIN_ID = _manifest_ids()
 SOURCE_ID = sha_file(ROOT / "jackal_calc.anb")
-RANGE_PROOF = ROOT / "release" / "evidence" / "range_proof_identity.json"
+RANGE_PROOF = ROOT / "release" / "evidence" / "range_proof_identity_v172.json"
 RANGE_PROOF_FILE_ID = sha_file(RANGE_PROOF)
 RANGE_PROOF_DIGEST = json.loads(RANGE_PROOF.read_text())["identity_digest_sha256"]
 INVENTORY_ID = sha_file(INVENTORY)
@@ -120,7 +123,7 @@ def _fresh_formal_receipt(expr: str = _BASE_EXPR, lo: str = _BASE_LO, hi: str = 
             expected_evaluator=EVAL_ID, expected_checker=CHK_ID,
             formal_receipt_path=p,
             plugin_sha256=plugin_sha256 or PLUGIN_ID,
-            release_epoch="v1.3.0")
+            release_epoch=CURRENT_PROOF_RELEASE_EPOCH)
         return json.loads(Path(p).read_text())
 
 
@@ -163,13 +166,12 @@ def _run_verifier_on_receipt(receipt: dict, checker: Path | None = None,
             "--checker", str(checker or CHECKER),
             "--expected-evaluator", expected_eval or EVAL_ID,
             "--expected-checker", expected_chk or CHK_ID,
-            "--expected-release-epoch", "v1.3.0",
+            "--expected-release-epoch", CURRENT_PROOF_RELEASE_EPOCH,
             "--expected-command", "range-bound-cert",
             "--expected-expression", _BASE_EXPR,
             "--expected-input-lo", _BASE_LO,
             "--expected-input-hi", _BASE_HI,
-            "--proof-identity", str(ROOT / "release" / "evidence" /
-                                     "range_proof_identity.json"),
+            "--proof-identity", str(RANGE_PROOF),
             "--expected-proof-identity-file", RANGE_PROOF_FILE_ID,
             "--expected-proof-identity-digest", RANGE_PROOF_DIGEST,
             "--expected-inventory", INVENTORY_ID]
@@ -715,7 +717,7 @@ def main() -> int:
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "harness": "cert_mutations_11.py",
-        "release_epoch": "v1.3.0",
+        "release_epoch": CURRENT_PROOF_RELEASE_EPOCH,
         "evaluator_sha256": EVAL_ID,
         "checker_sha256": CHK_ID,
         "plugin_hermes_sha256": PLUGIN_ID,

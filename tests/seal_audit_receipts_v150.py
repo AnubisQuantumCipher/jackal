@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.5.0 seal audit — receipt-envelope adversarial probes (§audit-D).
+"""v1.5.0 seal audit — archival receipt-envelope adversarial probes.
 
 Five probes on a FRESH v1.5.0 variant receipt beyond the 42 locks in
 tests/receipt_semantic_mutations.py, each attacking the result/certificate
@@ -14,6 +14,16 @@ binding rather than a single field digest:
        + outer digest recomputed — every hash internally consistent;
        only the Lean checker re-run can catch it              -> refuse.
 
+This battery is a HISTORICAL replay gate: it pins the exact archival
+v1.7.0 range checker (05c3518…de8a) plus the archival coverage
+inventory (18ff7b1d…ba6) plus the archival range proof identity plus
+``release_epoch="v1.5.0"``.  The current v1.7.2 checker/inventory/proof
+tuple is intentionally NOT used here; a cross-mixed tuple is a banned
+configuration (see docs/superpowers/plans/2026-08-17-jackal-gate0-
+checker-contract.md, Blocker C).  For the same probes against the
+current v1.7.2 tuple, see the receipt_semantic_mutations sweep and the
+claim_hostile matrix.
+
 Writes release/evidence/seal_audit_receipts_v150.json.
 """
 from __future__ import annotations
@@ -22,6 +32,7 @@ import base64
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -38,14 +49,23 @@ from formal_receipt import (  # noqa: E402
     _parse_cert_header,
 )
 
-CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_cert_check"
-INVENTORY = ROOT / "release/coverage/formal_coverage_inventory.json"
+# Archival v1.7.0 checker + inventory used for the v1.5.0 receipt replay.
+# Env overrides mirror the claim_hostile matrix so a foreign runtime root
+# can be pinned without editing this file.
+ARCHIVAL_CHECKER = Path(os.environ.get(
+    "JACKAL_V170_ARCHIVAL_RANGE_CHECKER",
+    str(Path.home() / "Library/Application Support/JACKAL/runtimes/v1.7.0/"
+                      "jackal_cert_check")))
+ARCHIVAL_INVENTORY = Path(os.environ.get(
+    "JACKAL_V170_ARCHIVAL_RANGE_INVENTORY",
+    str(ARCHIVAL_CHECKER.parent / "formal_coverage_inventory.json")))
+CHECKER = ARCHIVAL_CHECKER
+INVENTORY = ARCHIVAL_INVENTORY
 PROOF_ID = ROOT / "release/evidence/range_proof_identity.json"
 PRODUCER = ROOT / "tools/ln_rat_producer.py"
 EVIDENCE = ROOT / "release/evidence/seal_audit_receipts_v150.json"
 REQ = {"command": "range-bound-cert", "expression": "ln(x)",
        "input_lo": "2", "input_hi": "3"}
-
 ROWS: list[dict] = []
 
 

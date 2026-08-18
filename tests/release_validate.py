@@ -45,6 +45,7 @@ from formal_receipt import (  # noqa: E402
     canonical_rat as _shared_canonical_rat,
     request_commitment_b64 as _shared_request_commitment_b64,
     build_formal_receipt, dump_receipt, load_proof_identity_binding,
+    CURRENT_PROOF_RELEASE_EPOCH,
     require_fresh_output, write_new_file_atomic,
 )
 
@@ -167,7 +168,7 @@ def validate_release(*, expr: str, lo: str, hi: str, evaluator: str, checker: st
                      workdir: str | None = None, receipt_path: str | None = None,
                      formal_receipt_path: str | None = None,
                      plugin_sha256: str | None = None,
-                     release_epoch: str = "v1.3.0",
+                     release_epoch: str = CURRENT_PROOF_RELEASE_EPOCH,
                      post_check_mutate=None) -> dict:
     """Run the full bound release pipeline. Returns a receipt dict on success;
     raises ReleaseRefusal (stable class) on any failure. `post_check_mutate` is
@@ -422,10 +423,20 @@ def _emit_formal_receipt(path: str | Path, *, receipt: dict, cert_bytes: bytes,
         coverage_inventory_sha256 = sha256_file(str(fsg.INVENTORY))
     except Exception as exc:  # noqa: BLE001
         raise ReleaseRefusal("receipt-inventory", str(exc)) from exc
+    proof_name = (
+        "range_proof_identity_v172.json"
+        if release_epoch == CURRENT_PROOF_RELEASE_EPOCH
+        else "range_proof_identity.json"
+    )
     proof_candidates = [
-        os.path.join(_here, "..", "release", "evidence", "range_proof_identity.json"),
-        os.path.join(_here, "range_proof_identity.json"),
+        os.path.join(_here, "..", "release", "evidence", proof_name),
+        os.path.join(_here, proof_name),
     ]
+    if release_epoch == CURRENT_PROOF_RELEASE_EPOCH:
+        # Installed runtimes may expose the current identity under the stable
+        # package name; the code-authoritative compatibility floor validates
+        # its exact schema and file digest before a receipt can be emitted.
+        proof_candidates.append(os.path.join(_here, "range_proof_identity.json"))
     proof_path = next((candidate for candidate in proof_candidates
                        if os.path.isfile(candidate)), None)
     if proof_path is None:
@@ -502,7 +513,7 @@ def _cli() -> int:
                     help="emit jackal-formal-receipt-v1 JSON (embedded cert; §7)")
     ap.add_argument("--plugin-sha256", default=None,
                     help="pin the Hermes plugin binary hash into the formal receipt")
-    ap.add_argument("--release-epoch", default="v1.3.0",
+    ap.add_argument("--release-epoch", default=CURRENT_PROOF_RELEASE_EPOCH,
                     help="release epoch label recorded in the formal receipt")
     ap.add_argument("--expected-source", default=None,
                     help="caller-pinned jackal_calc.anb SHA-256")

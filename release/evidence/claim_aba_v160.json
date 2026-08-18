@@ -1,5 +1,5 @@
 {
-  "inference_registry_sha256": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
+  "inference_registry_sha256": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082",
   "layers": [
     {
       "case_failed_under_poison": true,
@@ -10,9 +10,9 @@
       "observed_under_poison": "refused/policy-pin-mismatch",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
-      "sha_poisoned": "19899f40aa9c913009c7a9045e2c11a2979c0517da9a74bcf994dd90b2dcc5b5",
-      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+      "sha_a": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22",
+      "sha_poisoned": "76074d216203ad6874b45d55bde31bb5cffd9a8cc2a24a40bf45d99c2a0a452c",
+      "sha_restored": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
     },
     {
       "case_failed_under_poison": true,
@@ -23,9 +23,9 @@
       "observed_under_poison": "refused/registry-semantics-mismatch",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
-      "sha_poisoned": "8139bda1f695a9f3a7fd8f8bbea4387095e33999387679b2628647945b163d71",
-      "sha_restored": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672"
+      "sha_a": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082",
+      "sha_poisoned": "10cf9210739719d564ada052a61bbce1db4ea54378cbcfb3109410b697e00b4c",
+      "sha_restored": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082"
     },
     {
       "case_failed_under_poison": true,
@@ -36,9 +36,9 @@
       "observed_under_poison": "verified/",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
-      "sha_poisoned": "2c1fd7851228087ca08e886c9e54e09e1e06cdf1277dcbd4c615bded7db307cc",
-      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+      "sha_a": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22",
+      "sha_poisoned": "6e08416c25abc7872d1b008d8e05faa8fee2d62313caeccb82e97a53888d49e5",
+      "sha_restored": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
     },
     {
       "case_failed_under_poison": true,
@@ -49,9 +49,9 @@
       "observed_under_poison": "refused/evidence-prop-mismatch",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
-      "sha_poisoned": "93448b7a2dfe225746248ba80f8c059040ba414f77585471c7a3a29a4fe0f136",
-      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+      "sha_a": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22",
+      "sha_poisoned": "43fa31fd3b938a135992939d1d6982af405d9043abf81f8f1168e512e49ada5c",
+      "sha_restored": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
     },
     {
       "case_failed_under_poison": true,
@@ -75,9 +75,9 @@
       "observed_under_poison": "refused/machine-cert-invalid",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
-      "sha_poisoned": "babdc907b178c10280cad83ce03f9a61080509b8994ea29e8f8fbd4224f04de2",
-      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+      "sha_a": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22",
+      "sha_poisoned": "ffd91dea0d8de5dec3c088f1e31249926006055bc47cc74e84118be0e6053ee9",
+      "sha_restored": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
     },
     {
       "case_failed_under_poison": true,
@@ -85,12 +85,12 @@
       "intent": "dropping the provenance condition from the permitted rendering hides a load-bearing axis",
       "layer": "renderer",
       "matrix_failed_under_poison": true,
-      "observed_under_poison": "claim-verify=verified bundle.digest=8f0a2cd5895937823d2d463f24a00ee4c6eb746b0750b2a36a3ce4e53688ee4c root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
+      "observed_under_poison": "claim-verify=verified bundle.digest=2446431d98672e1545acaa238ed7c5aa2d207f3400a556b7396044d5e0e7c893 root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954",
-      "sha_poisoned": "4e74371e514ac21ae851bc190feae9f4f2560490f41ec1cc6a12b6e18c31996d",
-      "sha_restored": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+      "sha_a": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22",
+      "sha_poisoned": "f305dc929ae8463fc50eccf5bc291c989a2761db04c9300a448d25b35e10bed7",
+      "sha_restored": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
     }
   ],
   "post_restore_green": true,
@@ -98,5 +98,5 @@
   "schema": "jackal-claim-aba-v1",
   "unit_registry_sha256": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c",
   "verdict": "PASS",
-  "verifier_sha256": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+  "verifier_sha256": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
 }

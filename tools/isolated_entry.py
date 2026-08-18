@@ -142,6 +142,7 @@ def _emit_variant_receipt(argv: list[str]) -> int:
     ap.add_argument("--output", required=True)
     ns = ap.parse_args(argv)
     import formal_receipt as fr
+    destination = fr.require_fresh_output(ns.output)
     cert_bytes = Path(ns.cert).read_bytes()
     prod_sha = hashlib.sha256(Path(ns.producer).read_bytes()).hexdigest()
     chk_sha = hashlib.sha256(Path(ns.checker).read_bytes()).hexdigest()
@@ -164,7 +165,8 @@ def _emit_variant_receipt(argv: list[str]) -> int:
         proof_identity=proof,
         plugin_sha256=None,
     )
-    Path(ns.output).write_text(fr.dump_receipt(receipt))
+    fr.write_new_file_atomic(
+        destination, fr.dump_receipt(receipt).encode("utf-8"))
     return 0
 
 

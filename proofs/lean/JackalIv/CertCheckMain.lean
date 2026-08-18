@@ -50,7 +50,7 @@ def runRequestBound (s command rawExpr rawLo rawHi : String) :
     Except String Header := do
   let (hdr, nodes) ← checkedCert s
   if requestMatches command rawExpr rawLo rawHi hdr nodes then .ok hdr
-  else .error "requestMatches rejected operation/expression/limits/status/release-fragment"
+  else .error "requestMatches rejected operation/expression/limits/status/interval-order/release-fragment"
 
 def reject (e : String) : IO UInt32 := do
   (← IO.getStderr).putStrLn ("REJECT " ++ e)

@@ -28,14 +28,16 @@ Leaf certificate roles, mirroring the shipped `bound_step` control flow
                                            bounds, F2m = ieval (D² f) over the
                                            padded midpoint interval
 
-The named TCB of the composition soundness theorem is `TreeTCB`: the
-conjunction of the existing `Cert.ModelTCB` over every embedded certificate.
+`TreeTCB` records the historical v1 external-premise shape for archival proof
+identity.  The current composition checker restricts every embedded
+certificate to `Cert.releaseNodesOk`, and `int_cert_sound` derives each
+`Cert.ModelTCB` internally instead of consuming `TreeTCB`.
 A `Prop` hypothesis — never a Lean axiom (vacuously provable when every
 embedded certificate stays in the pure-ℚ fragment).
 
 No `sorry`, no axiom, no `native_decide`, no `@[implemented_by]`.
 -/
-import JackalIv.CertSound
+import JackalIv.CertRequest
 import JackalIv.IntCertQExpr
 
 namespace JackalIv.IntCert
@@ -144,11 +146,23 @@ def rootQExpr (tree : List TreeNode) : Option QExpr :=
       | [] => none
       | c :: _ => qexprOf c.nodes
 
+/-- The exact parser-shaped integrand reconstructed from the same first
+role-F certificate used by `rootQExpr`.  The public request matcher compares
+the caller's parsed/lowered source against this tree, so an untrusted producer
+cannot relabel a certificate for one expression as another request. -/
+def rootRawExpr (tree : List TreeNode) : Option Parser.RawExpr :=
+  match tree.find? (fun t => isLeafKind t.kind) with
+  | none => none
+  | some t =>
+      match t.certs with
+      | [] => none
+      | c :: _ => Cert.rawExprOf c.nodes
+
 /-! ### The named TCB -/
 
-/-- The composition theorem's ONE named TCB: the existing `Cert.ModelTCB`
-(libm + const-rounding facts) for every embedded evaluation certificate of
-every tree node.  A `Prop` hypothesis, never an axiom. -/
+/-- Archival v1 premise shape: the existing `Cert.ModelTCB` for every embedded
+evaluation certificate.  Retained so historical identities remain legible;
+the current public composition theorem does not consume this proposition. -/
 def TreeTCB (tree : List TreeNode) : Prop :=
   ∀ t ∈ tree, ∀ c ∈ t.certs, Cert.ModelTCB c.hdr c.nodes
 

@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "jackal-capabilities-v1",
+  "title": "JACKAL machine-owned capability manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "tools", "refusal_vocabulary", "assurance_ceilings",
+    "coverage_inventory", "epochs", "platform", "bundle_admissibility",
+    "skills", "packs", "profiles", "docs"
+  ],
+  "properties": {
+    "schema": {"const": "jackal-capabilities-v1"},
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "names"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1},
+        "names": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "refusal_vocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_bundle_verify", "exact_verify"],
+      "properties": {
+        "claim_bundle_verify": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "exact_verify": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "assurance_ceilings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_provenance_order", "model_validity_order", "model_identity",
+        "mathematical_order", "mathematical_ranks", "implementation_order",
+        "artifact_flags", "producer_emittable_provenance",
+        "never_granted_implementation"
+      ],
+      "properties": {
+        "input_provenance_order": {"type": "array", "items": {"type": "string"}},
+        "model_validity_order": {"type": "array", "items": {"type": "string"}},
+        "model_identity": {"type": "string"},
+        "mathematical_order": {"type": "array", "items": {"type": "string"}},
+        "mathematical_ranks": {"type": "object"},
+        "implementation_order": {"type": "array", "items": {"type": "string"}},
+        "artifact_flags": {"type": "array", "items": {"type": "string"}},
+        "producer_emittable_provenance": {"type": "array", "items": {"type": "string"}},
+        "never_granted_implementation": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "coverage_inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "formal_fragment", "refused_from_formal", "rows"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "formal_fragment": {"type": "array", "items": {"type": "string"}},
+        "refused_from_formal": {"type": "array", "items": {"type": "string"}},
+        "rows": {"type": "integer", "minimum": 1}
+      }
+    },
+    "epochs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_release_epoch", "schemas"],
+      "properties": {
+        "claim_release_epoch": {"type": "string"},
+        "schemas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "bundle", "policy", "machine"],
+          "properties": {
+            "node": {"type": "string"},
+            "bundle": {"type": "string"},
+            "policy": {"type": "string"},
+            "machine": {"type": "string"}
+          }
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch"],
+      "properties": {"os": {"type": "string"}, "arch": {"type": "string"}}
+    },
+    "bundle_admissibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "admitted_contexts", "revoked_lanes", "revoked_checker_sha256",
+        "revoked_checker_present_in_repo"
+      ],
+      "properties": {
+        "admitted_contexts": {"type": "array", "items": {"type": "string"}},
+        "revoked_lanes": {"type": "array", "items": {"type": "string"}},
+        "revoked_checker_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "revoked_checker_present_in_repo": {"const": false}
+      }
+    },
+    "skills": {"type": "array", "items": {"type": "string"}},
+    "packs": {"type": "array", "items": {"type": "string"}},
+    "profiles": {"type": "array", "items": {"type": "string"}},
+    "docs": {"type": "object", "additionalProperties": {"type": "boolean"}}
+  }
+}

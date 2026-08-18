@@ -1,5 +1,5 @@
 {
- "bundle_digest_sha256": "1500aa6866051c281dc108b2c34bd851e32b55443aec15fe038e5d7be1696a47",
+ "bundle_digest_sha256": "6467fcd3ffb4e54ac396f540fcee8a2e29028117ef7050bafc090dadec5335bd",
  "engine_identity": {
   "evaluator_sha256": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
   "source_anb_sha256": "34870c66276005272d9ab48a3cc1261ba0e0317a9e45089b1acfb07acc0efd25"
@@ -302,7 +302,7 @@
   "schema": "jackal-claim-policy-v1"
  },
  "registries": {
-  "inference_registry_sha256": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
+  "inference_registry_sha256": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082",
   "unit_registry_sha256": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c"
  },
  "release_epoch": "v1.6.0",

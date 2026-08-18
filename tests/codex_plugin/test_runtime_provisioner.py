@@ -360,7 +360,11 @@ class RuntimeProvisionerTests(unittest.TestCase):
                     total_timeout=0.05,
                 )
             elapsed = time.monotonic() - started
-            self.assertLess(elapsed, 0.15)
+            # Hosted CI runners (macOS arm64) have observed ~0.17s of
+            # scheduling jitter on top of the 0.05s deadline; the intent
+            # is that the interrupt fires within a small multiple of the
+            # total timeout, not a fixed sub-second wall time.
+            self.assertLess(elapsed, 0.5)
             self.assertFalse(output.exists())
 
     def test_stream_download_preserves_preexisting_destination(self):

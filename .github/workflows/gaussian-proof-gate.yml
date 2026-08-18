@@ -29,14 +29,14 @@ jobs:
       - name: Verify proof identities and exact theorem axiom sets
         run: |
           python3 release/tools/gaussian_proof_identity.py check --lane gaussian --proof-only
-          python3 release/tools/gaussian_proof_identity.py check --lane range --proof-only
-          python3 release/tools/gaussian_proof_identity.py check --lane int-cert --proof-only
+          python3 release/tools/range_proof_identity.py check --lane range --proof-only
+          python3 release/tools/range_proof_identity.py check --lane int-cert --proof-only
 
       # The committed checker hashes are for the recorded macOS/arm64 builds.
       # A release seal must additionally run the full, platform-matching gate:
       # python3 release/tools/gaussian_proof_identity.py check --lane gaussian
-      # python3 release/tools/gaussian_proof_identity.py check --lane range
-      # python3 release/tools/gaussian_proof_identity.py check --lane int-cert
+      # python3 release/tools/range_proof_identity.py check --lane range
+      # python3 release/tools/range_proof_identity.py check --lane int-cert
 
   claim-kernel-admission:
     name: claim-kernel admission and surface locks (engine-free)

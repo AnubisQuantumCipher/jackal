@@ -3,7 +3,7 @@
 **Date:** 2026-08-19
 **Branch:** `feat/domain-pack-protocol`
 **Engine source digest at close:** `jackal_calc.anb` =
-`982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0`
+`f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e`
 **Anubis compiler pin:** `anubis-a733565f237d`
 (`a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2`)
 
@@ -138,9 +138,13 @@ what refuses it, not a side-effect of a digest check.
 
 ```
 $ python3 -I -S -B tools/domain_pack_verify.py
-{"pack_count":3,"operation_count":4,"status":"accepted",
+{"pack_count":3,"operation_count":5,"status":"accepted",
  "anubis_execution_status":"NOT_EXECUTED","assurance_status":"NOT_MINTED", ...}
 ```
+
+(`operation_count` was 4 when this record was first written and is 5 since
+`decision.matrix.rank.v2` was registered — see §2. The line above was re-observed
+from a fresh run on this machine, not edited to match.)
 
 Note the verifier's own honesty: it records that Anubis was not executed and that
 assurance was not minted. A manifest ceiling is an upper bound, never a grant.
@@ -191,9 +195,12 @@ checker cannot see that. It says so rather than implying otherwise.
 
 ### `jackal.decision.matrix`
 
-One operation, `decision.matrix.rank.v1` -> `decision-rank`. Selects argmax/argmin
+Two operations. `decision.matrix.rank.v1` -> `decision-rank` selects argmax/argmin
 of caller-declared integer scores under a caller-declared criterion and records
-the margin to the runner-up. Observed:
+the margin to the runner-up. `decision.matrix.rank.v2` -> `decision-rank-v2`
+additionally requires a declared unit from a closed vocabulary and is documented
+in "Closing the blocklist gap" below; v1 is retained byte-identical. Observed for
+v1:
 
 ```
 $ run ... -- decision-rank vendor_pick latency_ms min alpha 120 beta 95 gamma 210
@@ -248,8 +255,63 @@ plausible reasoning about a blocklist rather than from running it, which is the
 same defect class as the W6 overstatement recorded in §5. `optimal`, `ideal` and
 `b3st` do pass, and were observed passing. The screen raises the cost of
 laundering a value judgment; it does not close it. Closing it properly needs a
-declared unit or measurement provenance on the criterion, which is a protocol
-change, not a word-list change. `[NEEDS-HUMAN]` for a future protocol revision.
+declared unit or measurement provenance on the criterion — which is what
+`decision.matrix.rank.v2` below now does, additively, for callers who opt into it.
+
+### Closing the blocklist gap — `decision.matrix.rank.v2`
+
+`decision.matrix.rank.v2` -> `decision-rank-v2` takes the criterion PLUS a
+declared unit and refuses any unit outside a closed vocabulary. The vocabulary is
+not invented here: it is exactly the 66 canonical unit ids of the pinned
+`release/claim/unit_registry_v1.json` (`jackal-unit-registry-v1`) minus `one`, the
+dimensionless identity, which is excluded because declaring it says nothing about
+what the numbers measure. Reusing that registry rather than writing a second unit
+list is deliberate; the mechanism that keeps engine, checker and registry from
+drifting is `DecisionUnitVocabularyTest`, which re-derives the set from the
+registry file and probes the live engine for every member.
+
+v1 is retained byte-identical and still accepts `most_elegant`. Narrowing a
+shipped operation's accepted inputs would break its callers, so v2 is the closed
+lane and v1's gap is asserted as a gap
+(`test_known_gap_substring_blocklist_misses_optimal`).
+
+Observed, on the engine at the digest recorded in the appendix:
+
+```
+$ decision-rank-v2 d_v2 latency_ms   ms          min alpha 120 beta 90
+status=exact selected=beta margin=30 unit=ms
+consequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement
+decision-cert={"claim":{...,"unit":"ms"},"kind":"decision-rank-v2","schema":"jackal-decision-cert-v2","witness":{}}
+
+$ decision-rank-v2 d_v2 most_elegant elegance    max alpha 1 beta 2  ->  decision-unit-unknown
+$ decision-rank-v2 d_v2 most_elegant ""          max alpha 1 beta 2  ->  decision-unit-missing
+$ decision-rank-v2 d_v2 most_elegant             max alpha 1 beta 2  ->  pack-request-arity
+$ decision-rank-v2 d_v2 b3st         elegance    max alpha 1 beta 2  ->  decision-unit-unknown
+$ decision-rank-v2 d_v2 optimal_score one        max alpha 1 beta 2  ->  decision-unit-unknown
+$ decision-rank-v2 d_v2 latency_ms   millisecond min alpha 120 beta 90 -> decision-unit-unknown
+$ decision-rank-v2 d_v2 latency_ms   Ms          min alpha 120 beta 90 -> decision-unit-unknown
+$ decision-rank-v2 d_v2 best_score   ms          min alpha 120 beta 90 -> decision-value-judgment
+$ decision-rank    d_v1 most_elegant             max alpha 1 beta 2  ->  selected=beta (ACCEPTED, v1 unchanged)
+```
+
+The last two rows are the ones that matter. `best_score ms` shows the v1 word list
+is retained as a *second* gate rather than replaced; `decision-rank` on
+`most_elegant` shows v1's surface was not narrowed. Aliases (`millisecond`) and
+case variants (`Ms`) are refused because the registry confines aliases to input
+canonicalisation and because `mW` and `MW` differ by 10^6.
+
+**What v2 does not close, stated rather than hidden.** A caller who declares an
+admissible unit and names the criterion however they like is admitted:
+`most_elegant` in `ms` ranks. No checker in this protocol can tell that a number
+labelled `ms` is not a duration. That residual is asserted as a test
+(`test_known_residual_v2_cannot_detect_a_mislabelled_criterion`) and as a manifest
+nonclaim (`a_declared_unit_is_not_a_measurement`), not left as folklore.
+
+The evidence contract was NOT widened to a new evidence kind: v2 reuses
+`decision-cert` with a second admissible response schema under the same single
+checker identity, so the consequence-ceiling matrix in §1 is unchanged (still 3
+kinds, 12 cells) and `tests/cross_pack_non_laundering_test.py` passes without
+edits.
 
 **Arity encoding, a deliberate judgement call.** `decision-rank` is variadic
 (7..15 operation arguments) but the protocol's `argument_schema` has no notion of
@@ -258,7 +320,9 @@ optional positions and the verifier requires
 `max_arguments = 15` with 15 enumerated positions. Declaring the minimum instead
 would set a resource bound the engine legitimately exceeds, which is strictly
 worse. Growing the protocol an explicit min/max arity is the correct long-term
-fix and was **not** done here, because it is a schema change.
+fix and was **not** done here, because it is a schema change. `decision-rank-v2`
+follows the same encoding one slot wider: 8..16 operation arguments, declared as
+`max_arguments = 16` with 16 enumerated positions, the extra one being `unit`.
 
 ---
 
@@ -512,19 +576,19 @@ same defect as the one §5.1 records.
 
 | artifact | sha256 |
 |---|---|
-| `jackal_calc.anb` | `982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0` |
-| `domain_packs/PACK_SPEC.md` | `b0a015b3aa6c6428a0f11bd5746dfe45e4d81b12fd9fe97c16ef7b8342b218a4` |
+| `jackal_calc.anb` | `f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e` |
+| `domain_packs/PACK_SPEC.md` | `2d76022dc2375fa3a235f05890c8b3a36ac77b008ecc5d58fb658deb253a947a` |
 | `domain_packs/PACK_SCHEMA.json` | `ae15411cff7b126d1365d5fe8857bba9da5f6ef21d50dcdfab279e9634bc0073` |
-| `domain_packs/registry_v1.json` | `d6ed6a725c7112da0a7f7950ea0807334077f61dca4b32f3a9103f266e3a7f3d` |
-| `domain_packs/core/manifest.json` | `6672a6e238923fbca4aa599770b8e9d0b47744f05ba9b5398f701f5e0028b2dd` |
-| `domain_packs/programming/manifest.json` | `75516d97b67e170fead12813596ae9ccfc93ec3daf2d2c82a5c09140139c3f9b` |
-| `domain_packs/decision/manifest.json` | `96d34b288886b3bdeba470a5cb63dba7d57cb33e0041e3e4421c38d29bdd0ea7` |
+| `domain_packs/registry_v1.json` | `e0f825798777f9680046e2b1b944fdbc89ddd44f8882b9047fc789c10725f7a4` |
+| `domain_packs/core/manifest.json` | `427b51d6527be15286efce9ec5c90b369950f57ddb438c93e2616233e290190d` |
+| `domain_packs/programming/manifest.json` | `59480b72f8ea51739859599c243b86167fb66ed3ffc519e492ca5d9f7c6605ba` |
+| `domain_packs/decision/manifest.json` | `e7a8187c367a64f092c6e54bf3dd2b593265e93b8727fdffbc4bba220830e911` |
 | `domain_packs/core/core_pack.anb` | `5c9e23ce102366c3e7bb2aa01c78ace6d4bc20bd2d35e0813fd62bd3c324d405` |
 | `domain_packs/programming/programming_pack.anb` | `f590ed33b757fda476db5b2771e0f0a50addc838721a97b562471cc75f2153f6` |
-| `domain_packs/decision/decision_pack.anb` | `55e4083ce1711e0ee40d2aeb939d7806877dddef67ccb782ae061b0d0b26fb75` |
-| `tools/domain_pack_verify.py` | `814792976b448f33f736cc215afaa8278612f921616dc904fa192bb3c30b5445` |
+| `domain_packs/decision/decision_pack.anb` | `8ed19f5873a2f468e01c8cb00ed0a4c39c262d84764a7559bd4e8def6a8c4b0f` |
+| `tools/domain_pack_verify.py` | `22984f511208af2d7a318f1a43306d95a4b0f61876d8b44f34f39a2ded6d573d` |
 | `tools/test_exists_verify.py` | `598cb99e1eb70c9410ca87345efee346f73e43aaf3625427dca17ea04231caea` |
-| `tools/decision_verify.py` | `bc3471352c2685dbf4848b0a2ba7daab63ace443cca043c258f36642a70e5af4` |
+| `tools/decision_verify.py` | `f1ad7c9fbd4c1d899dbb4bebabbbeb97e97a56bd4b279ad7d8ec3722bf12e0f6` |
 | `tools/exact_verify.py` | `2c07e6257ce1524de3e31374371c6d5859dce710767156de2566ec77fa1883a7` |
 | `tools/profile_verify.py` | `3af6f11df5ff2b6bc9582ff162660286224f3cf74cce8f57b68d86140f34c3c7` |
 | `tools/lcm_differential_gate.py` | `dad22643e8ab913e91a3689463f5b392cb0dc9071cefb9023f45ef19ff4ff119` |
@@ -537,10 +601,10 @@ Self-digests and profile digests, read from inside the files:
 
 | field | value |
 |---|---|
-| `registry_v1.json` `registry_digest_sha256` | `1e0a4b85685335874b42f88435f996b4376e84b8fcf75f4eea2039b5c3f54a37` |
-| `jackal.core.exact` `manifest_digest_sha256` | `5f39360199285272177ae80a67eaba775ab32c4c412ca4ecc10b1225e6abe684` |
-| `jackal.decision.matrix` `manifest_digest_sha256` | `d16c16809177909258eb4a284d28f051b60f459ce6a643ba3c24c9b105969a17` |
-| `jackal.programming.source` `manifest_digest_sha256` | `688d46f0f0b3eb5a26ba6fc21094a2897854f91801bcc3b317e6d4b21d30d8b1` |
+| `registry_v1.json` `registry_digest_sha256` | `3da40d85c885626f01030152d23a010e0d354e822a53ac2e49e9f82a7f43a9d8` |
+| `jackal.core.exact` `manifest_digest_sha256` | `ab851801be878e9b2ac366a992d6e1a3c709527caaffeafd8c5f3e8752f7f0b4` |
+| `jackal.decision.matrix` `manifest_digest_sha256` | `9dde3c3c60920aef6bb13d131f2a9b76b57925eea7d46fd6376749c316710b04` |
+| `jackal.programming.source` `manifest_digest_sha256` | `4bad241e732829bbe2c0c88790addcdb63329e9b19c7ba7c520fc910d330b890` |
 | profile `core` `profile_digest_sha256` | `6957117f0401e87e38e9e616ba4ecdd100ad5a6882be3d7b8a899ae7658407ea` |
 | profile `formal` `profile_digest_sha256` | `dfd876efed154ba40f223115b4cdd9c7f30cc29bcdce63bfff025f0f58f9f0b6` |
 | profile `full` `profile_digest_sha256` | `f90e6838c0facbafa89329462451e167fcb4a251d75d328c7a6f12ead2aa0c7a` |

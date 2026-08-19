@@ -94,9 +94,17 @@ TRUSTED_V1_EVIDENCE_CONTRACTS = {
     },
     "decision-cert": {
         "response_schema": "jackal-decision-cert-v1",
+        # A second response schema, NOT a second contract. `jackal-decision-cert-v2`
+        # is the closed-unit lane of the same evidence kind: same single checker
+        # identity below, same assurance ceiling, same consequence bound. What
+        # the closure rule requires is that the set of admissible (kind, schema)
+        # pairs be enumerated here and that each be carried by exactly one
+        # checker; a kind with two schemas and one checker satisfies that, and a
+        # schema absent from this tuple is still refused.
+        "additional_response_schemas": ("jackal-decision-cert-v2",),
         "checker_path": "tools/decision_verify.py",
         "checker_sha256": (
-            "bc3471352c2685dbf4848b0a2ba7daab63ace443cca043c258f36642a70e5af4"
+            "f1ad7c9fbd4c1d899dbb4bebabbbeb97e97a56bd4b279ad7d8ec3722bf12e0f6"
         ),
         "assurance_ceiling": "exact",
         "consequence_bound": "decision-boundary",
@@ -571,13 +579,22 @@ def _verify_operation(
     checker_path = bounded_text(checker["path"], f"{context}.checker.path", 512)
     checker_digest = digest_token(checker["sha256"], f"{context}.checker.sha256")
     contract = TRUSTED_V1_EVIDENCE_CONTRACTS.get(evidence_kind)
-    if contract is None or {
-        "response_schema": response_schema,
+    if contract is None:
+        refuse(f"v1 evidence contract mismatch: {operation_id}")
+    # The admissible response schemas for a kind are enumerated, closed, and
+    # carried by exactly one checker identity. A kind may name more than one
+    # schema (a versioned lane over the same evidence), but never more than one
+    # checker, and never a schema absent from the tuple below.
+    admitted_schemas = (
+        contract["response_schema"],
+        *contract.get("additional_response_schemas", ()),
+    )
+    if response_schema not in admitted_schemas or {
         "checker_path": checker_path,
         "checker_sha256": checker_digest,
         "assurance_ceiling": assurance,
     } != {key: contract[key] for key in (
-        "response_schema", "checker_path", "checker_sha256", "assurance_ceiling",
+        "checker_path", "checker_sha256", "assurance_ceiling",
     )}:
         refuse(f"v1 evidence contract mismatch: {operation_id}")
     _, checker_raw = read_bound_artifact(

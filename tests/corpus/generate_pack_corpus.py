@@ -80,6 +80,12 @@ DECISION_PACK = "jackal.decision.matrix"
 OP_TEST_EXISTS = "programming.source.test_exists.v1"
 OP_CLAIM_CITES = "programming.source.claim_cites_test.v1"
 OP_DECISION_RANK = "decision.matrix.rank.v1"
+OP_DECISION_RANK_V2 = "decision.matrix.rank.v2"
+UNIT_REGISTRY = "release/claim/unit_registry_v1.json"
+# The one canonical unit id the v2 lane deliberately does NOT admit. Declaring
+# the dimensionless identity says nothing about what the numbers measure, so it
+# would reopen the escape hatch the closed vocabulary exists to shut.
+UNIT_REGISTRY_EXCLUSIONS = ("one",)
 
 # `ANUBIS_PANIC: <class>: <detail>`. The trailing colon is required so the
 # engine's generic `wrong number of arguments` panic -- which names no class --
@@ -118,6 +124,28 @@ def test_exists_module():
 
 def sha256_file(relative: str) -> str:
     return hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+
+
+def admitted_units_from_registry() -> tuple[str, ...]:
+    """The v2 closed unit vocabulary, derived from the pinned registry file.
+
+    Single derivation used by both the corpus and `tests/decision_pack_test.py`,
+    so the engine's hardcoded list and the checker's mirror are always compared
+    against the registry rather than against a retyped copy of themselves.
+    """
+    document = json.loads((ROOT / UNIT_REGISTRY).read_text(encoding="utf-8"))
+    if document.get("schema") != "jackal-unit-registry-v1":
+        raise CorpusError(f"{UNIT_REGISTRY} is not jackal-unit-registry-v1")
+    units = document.get("units")
+    if not isinstance(units, dict) or not units:
+        raise CorpusError(f"{UNIT_REGISTRY} declares no units")
+    missing = [name for name in UNIT_REGISTRY_EXCLUSIONS if name not in units]
+    if missing:
+        raise CorpusError(
+            f"excluded unit ids are absent from {UNIT_REGISTRY}, so the exclusion "
+            f"list is stale rather than deliberate: {missing}"
+        )
+    return tuple(name for name in units if name not in UNIT_REGISTRY_EXCLUSIONS)
 
 
 def declarations(relative: str, symbol: str) -> list[int]:
@@ -345,6 +373,10 @@ def apply_tamper(certificate: str, prefix: str, tamper: dict) -> str:
         cursor[path[-1]] = tamper["value"]
     elif operation == "delete_envelope_key":
         del payload[tamper["key"]]
+    elif operation == "delete_claim_key":
+        del payload["claim"][tamper["key"]]
+    elif operation == "set_envelope_value":
+        payload[tamper["key"]] = tamper["value"]
     else:
         raise CorpusError(f"unknown tamper op {operation!r}")
     return prefix + json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -937,6 +969,239 @@ def decision_specs() -> list[dict]:
             "checker's canonical-integer shape does not. The checker is the "
             "stricter of the two, so nothing is admitted that should not be; "
             "recorded here so the asymmetry is visible rather than folklore"
+        ),
+    )
+
+    # ----------------------------------------------------------------------
+    # decision.matrix.rank.v2 -- the closed-unit lane.
+    #
+    # v1 stays exactly as recorded above, gap and all. Everything below is the
+    # second operation, where admissibility is decided by a declared unit drawn
+    # from `release/claim/unit_registry_v1.json` rather than by the criterion's
+    # spelling. Note which criteria appear: `throughput_rps` cannot be expressed
+    # in this lane because `rps` is not a registry unit, so the rate cases
+    # declare `Hz`. That friction is the mechanism working, not a rough edge.
+    # ----------------------------------------------------------------------
+    add(
+        case_id="positive_v2_declared_unit_min",
+        case_class="positive",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_min", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        note="the same argmin as v1, with the unit carried into the certificate",
+    )
+    add(
+        case_id="positive_v2_declared_unit_max_rate",
+        case_class="positive",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_max", "request_rate", "Hz", "max", "alpha", "120", "beta", "400", "gamma", "250"],
+        note="a rate ranks as Hz; `rps` is not a canonical id and would refuse",
+    )
+    add(
+        case_id="positive_v2_ratio_unit_percent",
+        case_class="positive",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_pct", "error_rate", "percent", "min", "alpha", "7", "beta", "3"],
+        note=(
+            "a dimensionless ratio is admissible because `percent` still names "
+            "what is counted; the bare identity `one` does not and is refused"
+        ),
+    )
+    add(
+        case_id="positive_v2_six_options_upper_bound",
+        case_class="positive",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=[
+            "d_v2_six", "energy_used", "kWh", "min",
+            "a", "6", "b", "5", "c", "4", "d", "3", "e", "2", "f", "1",
+        ],
+        note="the protocol upper bound of six options holds in the v2 lane too",
+    )
+
+    add(
+        case_id="refusal_v2_unit_outside_the_closed_vocabulary",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "most_elegant", "elegance", "max", "alpha", "1", "beta", "2"],
+        expected_refusal="decision-unit-unknown",
+        note=(
+            "the criterion v1 accepts. There is no unit for elegance, so the "
+            "closed vocabulary refuses it however it is spelled"
+        ),
+    )
+    add(
+        case_id="refusal_v2_unit_declared_empty",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "most_elegant", "", "max", "alpha", "1", "beta", "2"],
+        expected_refusal="decision-unit-missing",
+    )
+    add(
+        case_id="refusal_v2_unit_omitted_entirely",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "most_elegant", "max", "alpha", "1", "beta", "2"],
+        expected_refusal="pack-request-arity",
+        note=(
+            "omitting the argument is an arity refusal rather than a unit one: "
+            "with positional argv there is no slot left to be empty"
+        ),
+    )
+    add(
+        case_id="refusal_v2_route_arity_rejects_a_missing_unit",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "most_elegant", "max", "alpha", "1", "beta", "2"],
+        route_only=True,
+        expected_refusal="pack-request-arity",
+        note="the pack's own route guard refuses before the engine is reached",
+    )
+    add(
+        case_id="refusal_v2_leetspeak_criterion_with_a_bogus_unit",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "b3st", "elegance", "max", "alpha", "1", "beta", "2"],
+        expected_refusal="decision-unit-unknown",
+        note="`b3st` defeats the word list; it cannot defeat the unit set",
+    )
+    add(
+        case_id="refusal_v2_dimensionless_identity_is_not_a_unit",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "optimal_score", "one", "max", "alpha", "1", "beta", "2"],
+        expected_refusal="decision-unit-unknown",
+        note=(
+            "`one` is a canonical registry id and is still refused here: it is "
+            "the deliberate exclusion, and this row is what proves it is live"
+        ),
+    )
+    add(
+        case_id="refusal_v2_value_judgment_survives_an_admissible_unit",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "best_score", "ms", "min", "alpha", "120", "beta", "90"],
+        expected_refusal="decision-value-judgment",
+        note="the v1 word list is retained as a second gate, not replaced",
+    )
+    add(
+        case_id="refusal_v2_alias_is_not_a_canonical_unit",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "latency_ms", "millisecond", "min", "alpha", "120", "beta", "90"],
+        expected_refusal="decision-unit-unknown",
+        note=(
+            "the registry lists `millisecond` as an alias for input "
+            "canonicalisation only; this lane records what it is given, so it "
+            "admits canonical ids only"
+        ),
+    )
+    add(
+        case_id="refusal_v2_unit_comparison_is_case_sensitive",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "latency_ms", "Ms", "min", "alpha", "120", "beta", "90"],
+        expected_refusal="decision-unit-unknown",
+        note=(
+            "case matters by design: `mW` and `MW` differ by a factor of a "
+            "million, so a case-insensitive match would admit the wrong unit"
+        ),
+    )
+    add(
+        case_id="refusal_v2_duplicate_label",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "latency_ms", "ms", "min", "alpha", "5", "alpha", "6"],
+        expected_refusal="decision-duplicate-label",
+    )
+    add(
+        case_id="refusal_v2_top_two_tie",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "latency_ms", "ms", "max", "alpha", "5", "beta", "5"],
+        expected_refusal="decision-margin-zero",
+    )
+    add(
+        case_id="refusal_v2_sense_unknown",
+        case_class="refusal",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2", "latency_ms", "ms", "minimise", "alpha", "5", "beta", "6"],
+        expected_refusal="decision-sense-unknown",
+    )
+
+    add(
+        case_id="poison_v2_unit_replaced_with_a_bogus_token",
+        case_class="poison",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_tamper", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        tamper={"op": "set_claim", "path": ["unit"], "value": "elegance"},
+        expected_verdict="REFUSE cert-unit-not-admitted",
+        note="the checker holds the same closed vocabulary, so neither door opens",
+    )
+    add(
+        case_id="poison_v2_unit_replaced_with_the_dimensionless_identity",
+        case_class="poison",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_tamper", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        tamper={"op": "set_claim", "path": ["unit"], "value": "one"},
+        expected_verdict="REFUSE cert-unit-not-admitted",
+    )
+    add(
+        case_id="poison_v2_unit_key_deleted",
+        case_class="poison",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_tamper", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        tamper={"op": "delete_claim_key", "key": "unit"},
+        expected_verdict="REFUSE cert-claim-keys",
+        note="a v2 certificate without a unit is not a v1 certificate",
+    )
+    add(
+        case_id="poison_v2_criterion_rewritten_to_a_value_judgment",
+        case_class="poison",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_tamper", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        tamper={"op": "set_claim", "path": ["criterion"], "value": "best_latency"},
+        expected_verdict="REFUSE cert-value-judgment",
+    )
+    add(
+        case_id="poison_v2_margin_inflated",
+        case_class="poison",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_tamper", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        tamper={"op": "set_claim", "path": ["margin"], "value": "9000"},
+        expected_verdict="REFUSE cert-margin-mismatch",
+        note="the shared recomputation still bites in the v2 lane",
+    )
+    add(
+        case_id="poison_v2_kind_downgraded_to_v1",
+        case_class="poison",
+        operation_id=OP_DECISION_RANK_V2,
+        engine_command="decision-rank-v2",
+        argv=["d_v2_tamper", "latency_ms", "ms", "min", "alpha", "120", "beta", "90"],
+        tamper={"op": "set_envelope_value", "key": "kind", "value": "decision-rank"},
+        expected_verdict="REFUSE cert-kind-unexpected",
+        note=(
+            "a v2 certificate cannot be relabelled into the v1 lane to shed the "
+            "unit requirement"
         ),
     )
     return specs

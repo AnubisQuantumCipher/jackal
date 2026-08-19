@@ -333,11 +333,18 @@ class DecisionCheckerRefusalTest(DecisionPackCase):
 
 
 class DecisionKnownGapTest(DecisionPackCase):
-    """Gaps that are open today, asserted as gaps.
+    """The v1 lane's open gap, asserted as a gap.
 
     A test that pins current behaviour is not an endorsement of it. These exist
     so that the next person reads the limitation from a test rather than
     rediscovering it in production.
+
+    The gap below is now CLOSED in a second operation, `decision.matrix.rank.v2`
+    (see `DecisionV2GapClosedTest`), and deliberately still OPEN in v1. v1 is a
+    shipped, versioned operation with a frozen corpus; narrowing its accepted
+    input surface would break its callers, so it is retained unchanged and v2 is
+    the closed lane. Every assertion in this class is byte-for-byte the one that
+    was here before v2 landed.
     """
 
     def test_known_gap_substring_blocklist_misses_optimal(self) -> None:
@@ -348,18 +355,20 @@ class DecisionKnownGapTest(DecisionPackCase):
         catches the obvious spellings and nothing else. A criterion named
         `optimal_score` is exactly as much a value judgment as `best_score`, and
         `b3st` is the same word with a digit in it, yet both are ACCEPTED
-        end-to-end by the engine AND by the independent checker.
+        end-to-end by the v1 engine command AND by the independent checker.
 
-        This test asserts the ACCEPT deliberately. It documents the gap; it does
-        not bless it.
+        This test asserts the ACCEPT deliberately. It documents the gap in v1; it
+        does not bless it, and v1 is retained unchanged only for compatibility
+        with its existing callers.
 
-        Closing it needs a different mechanism, not a longer word list: a
-        blocklist over free text can always be spelled around. The fix is to
-        require a *declared unit* on the criterion (`ms`, `rps`, `bytes`,
-        `ppm`, ...) drawn from a closed vocabulary, so that admissibility is
-        decided by what the number measures rather than by which letters the
-        caller chose. Until that lands, this pack can be handed a value judgment
-        with a creative name and will rank on it.
+        Closing it needed a different mechanism, not a longer word list: a
+        blocklist over free text can always be spelled around. That mechanism is
+        `decision.matrix.rank.v2`, which requires a *declared unit* from the
+        closed vocabulary of `release/claim/unit_registry_v1.json`, so
+        admissibility is decided by what the number measures rather than by which
+        letters the caller chose. `DecisionV2GapClosedTest` runs these same four
+        criteria through v2 and asserts each is refused by a named class. Through
+        v1, as below, they still rank.
         """
         for criterion in ("optimal_score", "ideal_score", "b3st", "most_elegant"):
             with self.subTest(criterion=criterion):
@@ -390,6 +399,401 @@ class DecisionKnownGapTest(DecisionPackCase):
                     "decision-rank", "d_gap", criterion, "max", "alpha", "1", "beta", "2"
                 )
                 self.assertEqual(observed.refusal_class, "decision-value-judgment")
+
+
+class DecisionV2PositiveTest(DecisionPackCase):
+    """The v2 lane accepts, and mints a certificate the checker verifies.
+
+    This class is the discrimination control for every v2 refusal below. A suite
+    made only of refusals cannot tell "correctly refuses an inadmissible unit"
+    from "the operation does not exist in this binary": both refuse. These tests
+    fail outright against an engine without `decision-rank-v2`, and they assert
+    the `unit` field is carried all the way into the certificate, which no other
+    operation in the repository emits.
+    """
+
+    def test_positive_v2_declared_unit_min_is_accepted(self) -> None:
+        observed, verdict = self.replay("positive_v2_declared_unit_min")
+        self.assertIn("status=exact selected=beta margin=30 unit=ms", observed.stdout)
+        self.assertIn("a-declared-unit-is-not-a-measurement", observed.stdout)
+        assert verdict is not None
+        self.assertEqual(verdict.summary, "ACCEPT")
+        certificate = observed.certificate(GEN.DECISION_PREFIX)
+        payload = json.loads(certificate[len(GEN.DECISION_PREFIX) :])
+        self.assertEqual(payload["schema"], "jackal-decision-cert-v2")
+        self.assertEqual(payload["kind"], "decision-rank-v2")
+        self.assertEqual(payload["claim"]["unit"], "ms")
+        self.assertEqual(payload["claim"]["selected"], "beta")
+        self.assertEqual(payload["claim"]["margin"], "30")
+        self.assertIn("admitted from the closed vocabulary", verdict.stdout)
+        self.assertIn("a declared unit is a declaration, not a measurement", verdict.stdout)
+
+    def test_positive_v2_declared_unit_max_rate_is_accepted(self) -> None:
+        observed, verdict = self.replay("positive_v2_declared_unit_max_rate")
+        assert verdict is not None
+        self.assertEqual(verdict.summary, "ACCEPT")
+        claim = self.claim(observed.certificate(GEN.DECISION_PREFIX))
+        self.assertEqual(claim["unit"], "Hz")
+        self.assertEqual(claim["selected"], "beta")
+        self.assertEqual(claim["margin"], "150")
+
+    def test_positive_v2_ratio_unit_percent_is_accepted(self) -> None:
+        observed, verdict = self.replay("positive_v2_ratio_unit_percent")
+        assert verdict is not None
+        self.assertEqual(verdict.summary, "ACCEPT")
+        self.assertEqual(self.claim(observed.certificate(GEN.DECISION_PREFIX))["unit"], "percent")
+
+    def test_positive_v2_six_options_upper_bound_is_accepted(self) -> None:
+        observed, verdict = self.replay("positive_v2_six_options_upper_bound")
+        assert verdict is not None
+        self.assertEqual(verdict.summary, "ACCEPT")
+        claim = self.claim(observed.certificate(GEN.DECISION_PREFIX))
+        self.assertEqual(len(claim["options"]), 6)
+        self.assertEqual(claim["unit"], "kWh")
+
+    def test_v2_route_parity_is_byte_identical_to_the_direct_command(self) -> None:
+        for case_id in (
+            "positive_v2_declared_unit_min",
+            "positive_v2_six_options_upper_bound",
+        ):
+            with self.subTest(case=case_id):
+                row = self.row(case_id)
+                argv = list(row["argv"])
+                direct = self.engine.run("decision-rank-v2", *argv)
+                routed = self.engine.route(
+                    self.corpus["pack_id"], GEN.OP_DECISION_RANK_V2, *argv
+                )
+                self.assertEqual(direct.returncode, 0, direct.stderr[-800:])
+                self.assertEqual(routed.returncode, 0, routed.stderr[-800:])
+                self.assertEqual(routed.stdout, direct.stdout)
+                self.assertIn("jackal-decision-cert-v2", routed.stdout)
+                self.assertTrue(row["route_parity"])
+
+    def test_v2_selection_agrees_with_v1_on_the_same_numbers(self) -> None:
+        """Differential gate against the two lanes drifting apart.
+
+        `cmd_decision_rank_v2` is a separate implementation from
+        `cmd_decision_rank`, because v1 is frozen and must not be edited. The
+        price of that is two copies of the same argmax/argmin, so this runs both
+        over identical numbers and compares what they selected. If someone later
+        fixes a tie-break or a margin in one and not the other, this fails.
+        """
+        cases = [
+            ("max", ["alpha", "120", "beta", "400", "gamma", "250"]),
+            ("min", ["alpha", "120", "beta", "400", "gamma", "250"]),
+            ("max", ["alpha", "-40", "beta", "-7"]),
+            ("min", ["alpha", "-40", "beta", "-7"]),
+            ("max", ["a", "1", "b", "2", "c", "3", "d", "4", "e", "5", "f", "6"]),
+            ("min", ["a", "0", "b", "-9", "c", "9"]),
+        ]
+        for sense, options in cases:
+            with self.subTest(sense=sense, options=tuple(options)):
+                v1 = self.engine.run("decision-rank", "d_diff", "latency_ms", sense, *options)
+                v2 = self.engine.run(
+                    "decision-rank-v2", "d_diff", "latency_ms", "ms", sense, *options
+                )
+                self.assertEqual(v1.returncode, 0, v1.stderr[-400:])
+                self.assertEqual(v2.returncode, 0, v2.stderr[-400:])
+                one = self.claim(v1.certificate(GEN.DECISION_PREFIX))
+                two = self.claim(v2.certificate(GEN.DECISION_PREFIX))
+                self.assertEqual(
+                    {key: one[key] for key in ("selected", "runner_up", "margin", "options")},
+                    {key: two[key] for key in ("selected", "runner_up", "margin", "options")},
+                )
+
+
+class DecisionV2EngineRefusalTest(DecisionPackCase):
+    """Every v2 refusal, asserted by its specific named class.
+
+    `assertEngineRefusal` compares `observed.refusal_class` to an exact string
+    parsed out of the engine's `ANUBIS_PANIC` line. A bare nonzero-exit check
+    would not distinguish a unit-vocabulary refusal from `pack-operation-unknown`
+    raised by an engine where v2 does not exist at all.
+    """
+
+    def test_refusal_v2_unit_outside_the_closed_vocabulary(self) -> None:
+        self.assertEngineRefusal(
+            "refusal_v2_unit_outside_the_closed_vocabulary", "decision-unit-unknown"
+        )
+
+    def test_refusal_v2_unit_declared_empty(self) -> None:
+        self.assertEngineRefusal("refusal_v2_unit_declared_empty", "decision-unit-missing")
+
+    def test_refusal_v2_unit_omitted_entirely(self) -> None:
+        self.assertEngineRefusal("refusal_v2_unit_omitted_entirely", "pack-request-arity")
+
+    def test_refusal_v2_route_arity_rejects_a_missing_unit(self) -> None:
+        self.assertEngineRefusal(
+            "refusal_v2_route_arity_rejects_a_missing_unit", "pack-request-arity"
+        )
+
+    def test_refusal_v2_leetspeak_criterion_with_a_bogus_unit(self) -> None:
+        self.assertEngineRefusal(
+            "refusal_v2_leetspeak_criterion_with_a_bogus_unit", "decision-unit-unknown"
+        )
+
+    def test_refusal_v2_dimensionless_identity_is_not_a_unit(self) -> None:
+        self.assertEngineRefusal(
+            "refusal_v2_dimensionless_identity_is_not_a_unit", "decision-unit-unknown"
+        )
+
+    def test_refusal_v2_value_judgment_survives_an_admissible_unit(self) -> None:
+        # Belt and braces: the unit is fine, the criterion is not. v2 keeps the
+        # v1 word list as a second gate instead of replacing it.
+        self.assertEngineRefusal(
+            "refusal_v2_value_judgment_survives_an_admissible_unit",
+            "decision-value-judgment",
+        )
+
+    def test_refusal_v2_alias_is_not_a_canonical_unit(self) -> None:
+        self.assertEngineRefusal(
+            "refusal_v2_alias_is_not_a_canonical_unit", "decision-unit-unknown"
+        )
+
+    def test_refusal_v2_unit_comparison_is_case_sensitive(self) -> None:
+        self.assertEngineRefusal(
+            "refusal_v2_unit_comparison_is_case_sensitive", "decision-unit-unknown"
+        )
+
+    def test_refusal_v2_duplicate_label(self) -> None:
+        self.assertEngineRefusal("refusal_v2_duplicate_label", "decision-duplicate-label")
+
+    def test_refusal_v2_top_two_tie(self) -> None:
+        self.assertEngineRefusal("refusal_v2_top_two_tie", "decision-margin-zero")
+
+    def test_refusal_v2_sense_unknown(self) -> None:
+        self.assertEngineRefusal("refusal_v2_sense_unknown", "decision-sense-unknown")
+
+
+class DecisionV2CheckerRefusalTest(DecisionPackCase):
+    """The independent checker holds the same closed vocabulary as the engine."""
+
+    def test_poison_v2_unit_replaced_with_a_bogus_token(self) -> None:
+        self.assertCheckerRefusal(
+            "poison_v2_unit_replaced_with_a_bogus_token", "cert-unit-not-admitted"
+        )
+
+    def test_poison_v2_unit_replaced_with_the_dimensionless_identity(self) -> None:
+        self.assertCheckerRefusal(
+            "poison_v2_unit_replaced_with_the_dimensionless_identity",
+            "cert-unit-not-admitted",
+        )
+
+    def test_poison_v2_unit_key_deleted(self) -> None:
+        self.assertCheckerRefusal("poison_v2_unit_key_deleted", "cert-claim-keys")
+
+    def test_poison_v2_criterion_rewritten_to_a_value_judgment(self) -> None:
+        self.assertCheckerRefusal(
+            "poison_v2_criterion_rewritten_to_a_value_judgment", "cert-value-judgment"
+        )
+
+    def test_poison_v2_margin_inflated(self) -> None:
+        self.assertCheckerRefusal("poison_v2_margin_inflated", "cert-margin-mismatch")
+
+    def test_poison_v2_kind_downgraded_to_v1(self) -> None:
+        self.assertCheckerRefusal("poison_v2_kind_downgraded_to_v1", "cert-kind-unexpected")
+
+    def test_control_v2_untampered_certificate_is_still_accepted(self) -> None:
+        # Non-vacuity control for the v2 tampering column: same minting call,
+        # same checker, no mutation -- ACCEPT. So each refusal above is
+        # attributable to its mutation rather than to the v2 lane being broken.
+        row = self.row("poison_v2_unit_replaced_with_a_bogus_token")
+        observed = self.engine.run("decision-rank-v2", *row["argv"])
+        self.assertEqual(observed.returncode, 0, observed.stderr[-800:])
+        verdict = GEN.check_decision(observed.certificate(GEN.DECISION_PREFIX))
+        self.assertEqual(verdict.summary, "ACCEPT", verdict.line)
+
+    def test_control_v1_certificates_are_unaffected_by_the_v2_lane(self) -> None:
+        """The checker gained a lane; it did not change the one it had.
+
+        A v1 certificate still verifies, and a v1 certificate with a `unit`
+        smuggled into its claim is still refused on the v1 key set -- the unit
+        gate does not become reachable by adding a field to a v1 envelope.
+        """
+        row = self.row("positive_decision_min")
+        observed = self.engine.run("decision-rank", *row["argv"])
+        certificate = observed.certificate(GEN.DECISION_PREFIX)
+        self.assertEqual(GEN.check_decision(certificate).summary, "ACCEPT")
+
+        payload = json.loads(certificate[len(GEN.DECISION_PREFIX) :])
+        self.assertEqual(payload["schema"], "jackal-decision-cert-v1")
+        payload["claim"]["unit"] = "ms"
+        smuggled = GEN.DECISION_PREFIX + json.dumps(
+            payload, sort_keys=True, separators=(",", ":")
+        )
+        verdict = GEN.check_decision(smuggled)
+        self.assertEqual(verdict.reason_class, "cert-claim-keys", verdict.line)
+
+
+class DecisionV2GapClosedTest(DecisionPackCase):
+    """The gap `DecisionKnownGapTest` documents, closed in the v2 lane.
+
+    Paired assertions on the same four criteria: through v1 they still rank
+    (retained unchanged for compatibility), through v2 every one is refused by a
+    named class. That pairing is the evidence the closure is real -- a v2-only
+    refusal list would also be produced by an operation that refuses everything.
+    """
+
+    GAP_CRITERIA = ("optimal_score", "ideal_score", "b3st", "most_elegant")
+
+    def test_v2_refuses_every_criterion_the_v1_blocklist_misses(self) -> None:
+        for criterion in self.GAP_CRITERIA:
+            with self.subTest(criterion=criterion, unit="<none>"):
+                # No unit slot at all: the argument list is one short.
+                observed = self.engine.run(
+                    "decision-rank-v2", "d_gap", criterion, "max", "alpha", "1", "beta", "2"
+                )
+                self.assertEqual(observed.refusal_class, "pack-request-arity")
+                self.assertNotIn(GEN.DECISION_PREFIX, observed.stdout)
+            with self.subTest(criterion=criterion, unit=""):
+                observed = self.engine.run(
+                    "decision-rank-v2", "d_gap", criterion, "", "max", "alpha", "1", "beta", "2"
+                )
+                self.assertEqual(observed.refusal_class, "decision-unit-missing")
+                self.assertNotIn(GEN.DECISION_PREFIX, observed.stdout)
+            for bogus in ("elegance", "goodness", "one", "score", "points"):
+                with self.subTest(criterion=criterion, unit=bogus):
+                    observed = self.engine.run(
+                        "decision-rank-v2", "d_gap", criterion, bogus, "max",
+                        "alpha", "1", "beta", "2",
+                    )
+                    self.assertEqual(
+                        observed.refusal_class,
+                        "decision-unit-unknown",
+                        f"{criterion} in {bogus!r} was not refused by the closed vocabulary",
+                    )
+                    self.assertNotIn(GEN.DECISION_PREFIX, observed.stdout)
+
+    def test_v1_still_accepts_the_same_criteria_and_is_retained_unchanged(self) -> None:
+        # The compatibility half of the pair. v1 is a shipped operation with a
+        # frozen corpus; v2 is additive and does not narrow v1's input surface.
+        # If this ever starts failing, v1's accepted inputs changed and its
+        # callers broke -- which is the outcome v2 exists to avoid.
+        for criterion in self.GAP_CRITERIA:
+            with self.subTest(criterion=criterion):
+                observed = self.engine.run(
+                    "decision-rank", "d_gap", criterion, "max", "alpha", "1", "beta", "2"
+                )
+                self.assertEqual(observed.returncode, 0, observed.stderr[-400:])
+                certificate = observed.certificate(GEN.DECISION_PREFIX)
+                self.assertIn("jackal-decision-cert-v1", certificate)
+                self.assertEqual(GEN.check_decision(certificate).summary, "ACCEPT")
+
+    def test_known_residual_v2_cannot_detect_a_mislabelled_criterion(self) -> None:
+        """What v2 does NOT close, asserted rather than left as folklore.
+
+        A caller who declares an admissible unit and names the criterion however
+        they like is admitted: `most_elegant` in `ms` ranks. v2 removes the
+        free-text escape (no unit exists for elegance, so the honest request is
+        refused) and the word list still catches the obvious spellings, but
+        nothing in this protocol can tell that a number labelled `ms` is not a
+        duration. The certificate says exactly what was declared and no more.
+        """
+        observed = self.engine.run(
+            "decision-rank-v2", "d_residual", "most_elegant", "ms", "max",
+            "alpha", "1", "beta", "2",
+        )
+        self.assertEqual(observed.returncode, 0, observed.stderr[-400:])
+        claim = self.claim(observed.certificate(GEN.DECISION_PREFIX))
+        self.assertEqual(claim["unit"], "ms")
+        self.assertEqual(claim["criterion"], "most_elegant")
+
+
+class DecisionUnitVocabularyTest(DecisionPackCase):
+    """Three copies of the unit vocabulary, forced to agree.
+
+    The engine cannot read JSON, so its list is hardcoded in `jackal_calc.anb`;
+    the checker mirrors it in `ADMITTED_UNITS`; the authority is
+    `release/claim/unit_registry_v1.json`. Two vocabularies with no mechanism
+    forcing agreement diverge -- this is that mechanism, and it compares against
+    the registry file and a live engine rather than against a retyped copy.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.registry_units = GEN.admitted_units_from_registry()
+        cls.checker = GEN._load_module("jackal_decision_verify", GEN.DECISION_CHECKER)
+
+    def test_checker_vocabulary_is_exactly_the_registry_minus_the_exclusions(self) -> None:
+        self.assertEqual(set(self.checker.ADMITTED_UNITS), set(self.registry_units))
+        self.assertEqual(len(self.checker.ADMITTED_UNITS), len(set(self.checker.ADMITTED_UNITS)))
+        # Non-vacuity: the exclusion list must name real registry ids, or the
+        # set equality above would be comparing against a stale filter.
+        document = json.loads((ROOT / GEN.UNIT_REGISTRY).read_text(encoding="utf-8"))
+        for excluded in GEN.UNIT_REGISTRY_EXCLUSIONS:
+            with self.subTest(excluded=excluded):
+                self.assertIn(excluded, document["units"])
+                self.assertNotIn(excluded, self.checker.ADMITTED_UNITS)
+
+    def test_engine_admits_every_unit_the_registry_declares(self) -> None:
+        for unit in self.registry_units:
+            with self.subTest(unit=unit):
+                observed = self.engine.run(
+                    "decision-rank-v2", "d_units", "measured_quantity", unit, "max",
+                    "alpha", "1", "beta", "2",
+                )
+                self.assertEqual(
+                    observed.returncode,
+                    0,
+                    f"the registry declares {unit!r} but the engine refused it: "
+                    f"{observed.refusal_class}",
+                )
+                claim = self.claim(observed.certificate(GEN.DECISION_PREFIX))
+                self.assertEqual(claim["unit"], unit)
+                self.assertEqual(
+                    GEN.check_decision(observed.certificate(GEN.DECISION_PREFIX)).summary,
+                    "ACCEPT",
+                    f"the engine admits {unit!r} but the checker does not",
+                )
+
+    def test_engine_refuses_the_excluded_ids_and_the_registry_aliases(self) -> None:
+        document = json.loads((ROOT / GEN.UNIT_REGISTRY).read_text(encoding="utf-8"))
+        probes = list(GEN.UNIT_REGISTRY_EXCLUSIONS) + sorted(document["aliases"])[:6] + [
+            "elegance",
+            "goodness",
+            "utils",
+            "MS",
+            "Kwh",
+        ]
+        for unit in probes:
+            with self.subTest(unit=unit):
+                observed = self.engine.run(
+                    "decision-rank-v2", "d_units", "measured_quantity", unit, "max",
+                    "alpha", "1", "beta", "2",
+                )
+                self.assertEqual(
+                    observed.refusal_class,
+                    "decision-unit-unknown",
+                    f"{unit!r} is not an admitted canonical id but was not refused as one",
+                )
+
+    def test_instrument_removing_one_unit_turns_an_accepted_case_into_a_refusal(self) -> None:
+        """Non-vacuity control on the checker's unit gate itself.
+
+        The gate is only load-bearing if it can fail. A freshly imported copy of
+        the checker verifies a real `ms` certificate, then the same certificate is
+        refused after `ms` is removed from that copy's vocabulary -- with no other
+        change to the certificate or to any other rule. The file on disk is never
+        touched, and every subprocess-driven case in this module still runs
+        against the real, unmodified checker.
+        """
+        row = self.row("positive_v2_declared_unit_min")
+        observed = self.engine.run("decision-rank-v2", *row["argv"])
+        self.assertEqual(observed.returncode, 0, observed.stderr[-800:])
+        certificate = observed.certificate(GEN.DECISION_PREFIX)
+
+        probe = GEN._load_module("probe_decision_verify_units", GEN.DECISION_CHECKER)
+        self.assertIn("ms", probe.ADMITTED_UNITS)
+        self.assertTrue(probe.verify(certificate))
+
+        probe.ADMITTED_UNITS = tuple(u for u in probe.ADMITTED_UNITS if u != "ms")
+        with self.assertRaises(probe.Refusal) as caught:
+            probe.verify(certificate)
+        self.assertEqual(caught.exception.reason_class, "cert-unit-not-admitted")
+
+        # And the real checker, untouched on disk, still accepts it.
+        self.assertEqual(GEN.check_decision(certificate).summary, "ACCEPT")
 
 
 class DecisionCheckerGuardsAreLoadBearingTest(DecisionPackCase):
@@ -508,11 +912,25 @@ class DecisionCaseCensusTest(DecisionPackCase):
             for n in dir(DecisionCheckerGuardsAreLoadBearingTest) + dir(DecisionHarnessTest)
             if n.startswith("test_instrument_") or n.startswith("test_")
         ]
+        # The v2 lane is counted separately so a census that stays flat while v2
+        # grows is visible rather than absorbed into the v1 totals.
+        v2_positive = [n for n in dir(DecisionV2PositiveTest) if n.startswith("test_positive_v2_")]
+        v2_refusal = [n for n in dir(DecisionV2EngineRefusalTest) if n.startswith("test_refusal_v2_")]
+        v2_poison = [n for n in dir(DecisionV2CheckerRefusalTest) if n.startswith("test_poison_v2_")]
+        v2_control = [
+            n
+            for n in dir(DecisionV2CheckerRefusalTest) + dir(DecisionV2GapClosedTest)
+            if n.startswith("test_control_") or n.startswith("test_known_residual_")
+        ]
+        v2_vocabulary = [n for n in dir(DecisionUnitVocabularyTest) if n.startswith("test_")]
         print(
             f"\ndecision_case_census positive={len(positive)} "
             f"engine_refusal={len(refusal)} checker_refusal={len(poison)} "
             f"control={len(control)} known_gap={len(gaps)} "
             f"instrument={len(instrument)} "
+            f"v2_positive={len(v2_positive)} v2_engine_refusal={len(v2_refusal)} "
+            f"v2_checker_refusal={len(v2_poison)} v2_control={len(v2_control)} "
+            f"v2_vocabulary={len(v2_vocabulary)} "
             f"corpus_cases={len(self.rows)} corpus_counts={self.corpus['case_counts']}",
             file=sys.stderr,
         )
@@ -522,6 +940,11 @@ class DecisionCaseCensusTest(DecisionPackCase):
         self.assertGreaterEqual(len(control), 2)
         self.assertGreaterEqual(len(gaps), 1)
         self.assertGreaterEqual(len(instrument), 8)
+        self.assertGreaterEqual(len(v2_positive), 4)
+        self.assertGreaterEqual(len(v2_refusal), 9)
+        self.assertGreaterEqual(len(v2_poison), 6)
+        self.assertGreaterEqual(len(v2_control), 3)
+        self.assertGreaterEqual(len(v2_vocabulary), 4)
 
 
 if __name__ == "__main__":

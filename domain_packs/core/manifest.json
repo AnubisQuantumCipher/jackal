@@ -14,7 +14,7 @@
   "engine": {
     "authority": "anubis-safe-mode",
     "entry_source_path": "jackal_calc.anb",
-    "entry_source_sha256": "982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0",
+    "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
     "route_source_path": "domain_packs/core/core_pack.anb",
     "route_source_sha256": "5c9e23ce102366c3e7bb2aa01c78ace6d4bc20bd2d35e0813fd62bd3c324d405",
     "route_command": "pack-route"
@@ -78,5 +78,5 @@
       ]
     }
   ],
-  "manifest_digest_sha256": "5f39360199285272177ae80a67eaba775ab32c4c412ca4ecc10b1225e6abe684"
+  "manifest_digest_sha256": "ab851801be878e9b2ac366a992d6e1a3c709527caaffeafd8c5f3e8752f7f0b4"
 }

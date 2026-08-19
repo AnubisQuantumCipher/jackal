@@ -640,7 +640,7 @@ One route ABI for every pack:
 ```
 
 A route MUST preserve the direct command's stdout **bytes exactly** — a route is
-an addressing mechanism, never a second implementation. Verified for all four
+an addressing mechanism, never a second implementation. Verified for all five
 operations by capturing both stdouts and running `cmp`: byte-identical in every
 case.
 
@@ -650,6 +650,7 @@ case.
 | `jackal.programming.source` | `programming.source.test_exists.v1` | `test-exists` | 5 | `test-exists-cert` | `exact` | `informational` |
 | `jackal.programming.source` | `programming.source.claim_cites_test.v1` | `claim-cites-test` | 6 | `test-exists-cert` | `exact` | `informational` |
 | `jackal.decision.matrix` | `decision.matrix.rank.v1` | `decision-rank` | 7..15 | `decision-cert` | `exact` | `decision-boundary` |
+| `jackal.decision.matrix` | `decision.matrix.rank.v2` | `decision-rank-v2` | 8..16 | `decision-cert` | `exact` | `decision-boundary` |
 
 **The anti-laundering boundary — the point of the whole protocol.** Assurance
 and consequence are two different axes and a pack must declare both.
@@ -694,6 +695,12 @@ never a grant.
 # consequence=decision-boundary note=the-declared-criterion-remains-the-callers-...
 # decision-cert={"claim":{...},"kind":"decision-rank","schema":"jackal-decision-cert-v1",...}
 
+# Same, in the closed-unit lane: the criterion needs a unit from a fixed vocabulary.
+./jackal decision-rank-v2 d1 latency_ms ms min alpha 120 beta 90
+# status=exact selected=beta margin=30 unit=ms
+# consequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-...
+# decision-cert={"claim":{...,"unit":"ms"},"kind":"decision-rank-v2","schema":"jackal-decision-cert-v2",...}
+
 # Independent replay — each checker recomputes every field from the real bytes:
 ./jackal test-exists ... | sed -n 's/^test-exists-cert=//p' > cert.json
 python3 -I -S -B tools/test_exists_verify.py --cert cert.json --root .   # ACCEPT / REFUSE <class>
@@ -709,21 +716,37 @@ the declaration, re-counts it, and refuses a symlinked or escaping path
 `cert-claim-text-absent`, `cert-citation-dangling`).
 `tools/decision_verify.py` recomputes the selection, runner-up and margin from
 the certificate's own option array (`cert-selection-mismatch`,
-`cert-margin-mismatch`, `cert-margin-zero`, `cert-value-judgment`). Both print
-`ACCEPT` or `REFUSE <class>` and exit 0 only on `ACCEPT`.
+`cert-margin-mismatch`, `cert-margin-zero`, `cert-value-judgment`) and, in the v2
+lane, refuses any unit outside the closed vocabulary (`cert-unit-not-admitted`).
+Both print `ACCEPT` or `REFUSE <class>` and exit 0 only on `ACCEPT`.
 
 `decision-rank` refuses rather than ranks whenever ranking would be a value
 judgment (`decision-value-judgment`), a tie (`decision-margin-zero`), an
 ambiguous label set (`decision-duplicate-label`), or an unknown sense
 (`decision-sense-unknown`). Accepting a caller's numeric criterion is **not** a
 claim that the criterion is the right one to optimise, and the certificate's own
-`consequence` line says so. **Known gap, stated rather than hidden:** that
+`consequence` line says so. **Known gap in v1, stated rather than hidden:** that
 screen is a substring blocklist and is incomplete — measured, both
 `decision-rank d1 optimal min alpha 120 beta 90` and
-`decision-rank d1 b3st min alpha 120 beta 90` are ACCEPTED. It raises the cost
-of laundering a value judgment; it does not close it. Closing it needs a
-declared unit or measurement provenance on the criterion, which is a protocol
-change and was not made.
+`decision-rank d1 b3st min alpha 120 beta 90` are ACCEPTED. A longer word list
+never fixes this, because free text can always be spelled around one.
+
+`decision-rank-v2` is the lane where that gap is closed, by a different
+mechanism: it requires a **declared unit** and refuses any unit outside a closed
+vocabulary — exactly the 66 canonical ids of `release/claim/unit_registry_v1.json`
+minus `one`, the dimensionless identity, which is excluded because declaring it
+says nothing about what the numbers measure. Nobody can name a unit for elegance,
+so `decision-rank-v2 d1 most_elegant elegance max a 1 b 2` refuses with
+`decision-unit-unknown`, and so does `b3st`, `optimal_score one`, the alias
+`millisecond`, and the case variant `Ms`. The v1 word list is **retained as a
+second gate**, not replaced: `decision-rank-v2 d1 best_score ms min a 120 b 90`
+still refuses with `decision-value-judgment`. v1 is retained unchanged, gap and
+all, because narrowing a shipped operation's accepted inputs breaks its callers.
+
+What v2 does **not** establish: that the values were measured in the declared
+unit. `most_elegant` in `ms` is admitted — the certificate then says exactly that,
+a ranking over caller-declared millisecond values, and nothing more. Manifest
+nonclaim: `a_declared_unit_is_not_a_measurement`.
 
 Finally, the verifier is honest about its own limits — it checks metadata,
 identity and policy, and says so in its own output rather than letting a reader
@@ -731,7 +754,7 @@ assume more:
 
 ```bash
 python3 -I -S -B tools/domain_pack_verify.py
-# {"pack_count":3,"operation_count":4,"status":"accepted",
+# {"pack_count":3,"operation_count":5,"status":"accepted",
 #  "anubis_execution_status":"NOT_EXECUTED","assurance_status":"NOT_MINTED", ...}
 ```
 
@@ -748,7 +771,7 @@ python3 -I -S -B tools/domain_pack_verify.py
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |
 | Exact algebra (certificate-bearing) | `canon poly-canon poly-eq poly-gcd ratfunc-canon roots-isolate alg-sign alg-cmp` |
 | Number theory (certificate-bearing) | `xgcd mod-pow mod-inv crt divides prime-cert` |
-| Domain packs (routed, certificate-bearing) | `pack-route` plus the routed commands `test-exists claim-cites-test decision-rank` — structural-source and decision certificates whose consequence ceilings are declared separately from their assurance ceilings (see "Domain packs" above) |
+| Domain packs (routed, certificate-bearing) | `pack-route` plus the routed commands `test-exists claim-cites-test decision-rank decision-rank-v2` — structural-source and decision certificates whose consequence ceilings are declared separately from their assurance ceilings (see "Domain packs" above) |
 | Worksheet | `worksheet` (persistent variables across `;`) |
 | Exact integers | `big-add big-mul big-pow big-fact big-ncr` |
 | Numerical laboratory | `matrix2 solve2 integrate-x2 derivative-x3` |

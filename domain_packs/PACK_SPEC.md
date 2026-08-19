@@ -93,15 +93,17 @@ uses the existing `evidence_admit / exact-cert` adapter. `exact` is therefore a
 ceiling after independent replay, not a promise attached to raw stdout.
 
 The v1 verifier carries a closed evidence-contract allowlist with three
-entries. Each binds an evidence kind to exactly one response schema, exactly
-one independent checker at an exact pinned digest, one assurance ceiling, and
-one consequence bound:
+entries. Each binds an evidence kind to an enumerated, closed set of admissible
+response schemas, exactly one independent checker at an exact pinned digest, one
+assurance ceiling, and one consequence bound. A kind may name more than one
+response schema when it has versioned lanes over the same evidence, but never
+more than one checker, and a schema absent from its kind's set is refused:
 
-| evidence kind | response schema | checker | assurance | consequence bound |
+| evidence kind | response schema(s) | checker | assurance | consequence bound |
 | --- | --- | --- | --- | --- |
 | `exact-cert` | `jackal-exact-cert-v1` | `tools/exact_verify.py` | `exact` | `safety-critical` |
 | `test-exists-cert` | `jackal-test-exists-cert-v1` | `tools/test_exists_verify.py` | `exact` | `informational` |
-| `decision-cert` | `jackal-decision-cert-v1` | `tools/decision_verify.py` | `exact` | `decision-boundary` |
+| `decision-cert` | `jackal-decision-cert-v1`, `jackal-decision-cert-v2` | `tools/decision_verify.py` | `exact` | `decision-boundary` |
 
 A pack cannot nominate a substitute checker, response schema,
 registered-but-weaker inference rule, or newly repinned checker and inherit an
@@ -186,3 +188,7 @@ Publication requires:
 - A decision pack orders options by a declared, recomputable numeric criterion.
   It does not rank options by preference, goodness, or worth, and it does not
   establish that the declared criterion is the right one to decide on.
+- A declared unit is a declaration, not a measurement. The closed-vocabulary
+  gate on `decision.matrix.rank.v2` establishes that the caller named a unit the
+  pinned unit registry knows; it cannot establish that the option values were
+  measured in that unit, or measured at all.

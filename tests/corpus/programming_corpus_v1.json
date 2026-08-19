@@ -881,12 +881,12 @@
     "path": "tools/test_exists_verify.py",
     "sha256": "598cb99e1eb70c9410ca87345efee346f73e43aaf3625427dca17ea04231caea"
   },
-  "corpus_digest_sha256": "f1a8729549b2631a7643e6e6a260a93e568fad07e8636961925e2c8728a6a499",
+  "corpus_digest_sha256": "d157db5c95202e034b84409f1a597a86a1ee904b15367718aadaf58c59370759",
   "corpus_version": "1",
   "engine": {
     "anubis_pin": "anubis-a733565f237d",
     "entry_source_path": "jackal_calc.anb",
-    "entry_source_sha256": "982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0",
+    "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
     "harness_mode": "prebuilt-native"
   },
   "fixtures": [

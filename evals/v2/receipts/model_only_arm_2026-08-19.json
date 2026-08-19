@@ -1,0 +1,330 @@
+{
+  "arm": "model-only",
+  "date_utc": "2026-08-19",
+  "method": "one stateless completion() per item, no tools, no history, no retries",
+  "system_prompt": "You are answering a mathematics question with no tools and no calculator. Give the exact answer. Do not show working. Answer in one short line.",
+  "corpus": {
+    "source": "evals/v2/corpus.py",
+    "items": 50,
+    "aggregate_digest_note": "see evals/v2/hidden_set_v1.json; this arm did not recompute it"
+  },
+  "scoreable": 34,
+  "excluded": {
+    "refusal_expected": {
+      "n": 8,
+      "reason": "corpus.py:19 excludes from accuracy by design"
+    },
+    "programming_status": {
+      "n": 6,
+      "reason": "assert facts about bytes on disk; unanswerable without file access"
+    },
+    "ra.canon.half_plus_third.v1": {
+      "n": 1,
+      "reason": "requires JACKAL's internal canonical S-expression form and a SHA-256 digest of it: tool-format, not mathematics"
+    },
+    "en.range_bound_cert.x2_unit.v1": {
+      "n": 1,
+      "reason": "requires emitting a JACKAL certificate envelope: tool-format, not mathematics"
+    }
+  },
+  "instrument_validation": {
+    "positive_control": "34/34",
+    "negative_control": "0/34",
+    "scorer_defects_found_and_fixed": 3,
+    "first_reading_before_repair": "31/33",
+    "bias_direction_of_defects": "against the untooled arm, i.e. flattering to the tool"
+  },
+  "graded": 33,
+  "correct": 33,
+  "accuracy": 1.0,
+  "ungraded_api_error": [
+    "ei.mod_pow.fermat_p64.v1"
+  ],
+  "subsets": {
+    "answer_exceeds_i64": {
+      "n": 8,
+      "correct": 8
+    },
+    "lcm_overflow_engine_was_wrong_until_this_branch": {
+      "n": 3,
+      "correct": 3,
+      "item_ids": [
+        "ei.lcm.overflow_2_62_x3.v1",
+        "ei.lcm.overflow_3_x2_62.v1",
+        "ei.lcm.overflow_i64max_x2.v1"
+      ]
+    }
+  },
+  "non_claims": [
+    "n=33, one model, one run. Not an effect size; no significance claimed.",
+    "Not a claim about any specific named model family; measures whatever completion() routes to.",
+    "100% is evidence this corpus does not test what tools provide, NOT that tools are unnecessary.",
+    "Temperature/sampling/model identity were not pinned; a rerun may differ."
+  ],
+  "results": [
+    {
+      "item_id": "ei.mod_pow.small.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "24",
+      "answer": "24",
+      "correct": true
+    },
+    {
+      "item_id": "ei.mod_pow.zero_zero_mod5.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "1",
+      "answer": "1",
+      "correct": true
+    },
+    {
+      "item_id": "ei.mod_pow.zero_zero_mod1.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "0",
+      "answer": "0",
+      "correct": true
+    },
+    {
+      "item_id": "ei.mod_pow.u64_saturated.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "0",
+      "answer": "0",
+      "correct": true
+    },
+    {
+      "item_id": "ei.gcd.240_46.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "2",
+      "answer": "2",
+      "correct": true
+    },
+    {
+      "item_id": "ei.gcd.big_coprime.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "1",
+      "answer": "1",
+      "correct": true
+    },
+    {
+      "item_id": "ei.lcm.12_18.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "36",
+      "answer": "36",
+      "correct": true
+    },
+    {
+      "item_id": "ei.lcm.overflow_2_62_x3.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "13835058055282163712",
+      "answer": "13835058055282163712",
+      "correct": true
+    },
+    {
+      "item_id": "ei.lcm.overflow_3_x2_62.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "13835058055282163712",
+      "answer": "13835058055282163712",
+      "correct": true
+    },
+    {
+      "item_id": "ei.lcm.overflow_i64max_x2.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "18446744073709551614",
+      "answer": "18446744073709551614",
+      "correct": true
+    },
+    {
+      "item_id": "ei.xgcd.240_46.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "2",
+      "answer": "g = 2, with u = −9, v = 47.",
+      "correct": true
+    },
+    {
+      "item_id": "ei.xgcd.big.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "1",
+      "answer": "1·4611686018427387904 + (−1537228672809129301)·3 = 1",
+      "correct": true
+    },
+    {
+      "item_id": "ei.mod_inv.3_11.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "4",
+      "answer": "4",
+      "correct": true
+    },
+    {
+      "item_id": "ei.mod_inv.big.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "3074457345618258603",
+      "answer": "**3074457345618258603**",
+      "correct": true
+    },
+    {
+      "item_id": "ei.crt.2mod3_3mod5.v1",
+      "category": "exact_integer",
+      "kind": "crt",
+      "truth": "(8, 15)",
+      "answer": "x ≡ 8 (mod 15)",
+      "correct": true
+    },
+    {
+      "item_id": "ei.crt.5mod7_10mod11.v1",
+      "category": "exact_integer",
+      "kind": "crt",
+      "truth": "(54, 77)",
+      "answer": "x ≡ 54 (mod 77)",
+      "correct": true
+    },
+    {
+      "item_id": "ei.crt.modulus_over_i64.v1",
+      "category": "exact_integer",
+      "kind": "crt",
+      "truth": "(5, 13835058055282163712)",
+      "answer": "x ≡ 5 (mod 13835058055282163712)",
+      "correct": true
+    },
+    {
+      "item_id": "ei.divides.true.v1",
+      "category": "exact_integer",
+      "kind": "bool",
+      "truth": "true",
+      "answer": "Yes.",
+      "correct": true
+    },
+    {
+      "item_id": "ei.divides.false.v1",
+      "category": "exact_integer",
+      "kind": "bool",
+      "truth": "false",
+      "answer": "No — 11 is odd, so 2 does not divide it.",
+      "correct": true
+    },
+    {
+      "item_id": "ei.prime_cert.p64.v1",
+      "category": "exact_integer",
+      "kind": "verdict",
+      "truth": "prime",
+      "answer": "Yes — it is prime (it is 2⁶⁴ − 59, the largest prime below 2⁶⁴).",
+      "correct": true
+    },
+    {
+      "item_id": "ei.prime_cert.composite4.v1",
+      "category": "exact_integer",
+      "kind": "verdict",
+      "truth": "composite",
+      "answer": "No — 4 = 2 × 2, so 2 is a divisor.",
+      "correct": true
+    },
+    {
+      "item_id": "ei.poly_eq.square.v1",
+      "category": "exact_integer",
+      "kind": "bool",
+      "truth": "true",
+      "answer": "Yes.",
+      "correct": true
+    },
+    {
+      "item_id": "ei.big_mul.over_i64.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "13835058055282163712",
+      "answer": "13835058055282163712",
+      "correct": true
+    },
+    {
+      "item_id": "ei.big_ncr.68_34.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "28453041475240576740",
+      "answer": "**28,453,041,475,240,576,740**",
+      "correct": true
+    },
+    {
+      "item_id": "ei.big_fact.20.v1",
+      "category": "exact_integer",
+      "kind": "int",
+      "truth": "2432902008176640000",
+      "answer": "20! = 2,432,902,008,176,640,000",
+      "correct": true
+    },
+    {
+      "item_id": "ei.hex.255.v1",
+      "category": "exact_integer",
+      "kind": "text",
+      "truth": "0xFF",
+      "answer": "0xFF",
+      "correct": true
+    },
+    {
+      "item_id": "ei.bin.5.v1",
+      "category": "exact_integer",
+      "kind": "text",
+      "truth": "0b101",
+      "answer": "101",
+      "correct": true
+    },
+    {
+      "item_id": "ra.rat.seven_halves.v1",
+      "category": "rational",
+      "kind": "rat",
+      "truth": "7/2",
+      "answer": "7/2",
+      "correct": true
+    },
+    {
+      "item_id": "ra.rat.point1_plus_point2.v1",
+      "category": "rational",
+      "kind": "rat",
+      "truth": "3/10",
+      "answer": "0.3",
+      "correct": true
+    },
+    {
+      "item_id": "ra.rat.product_over_i64.v1",
+      "category": "rational",
+      "kind": "rat",
+      "truth": "13835058055282163712",
+      "answer": "13835058055282163712",
+      "correct": true
+    },
+    {
+      "item_id": "en.range_bound.x2_unit.v1",
+      "category": "enclosure",
+      "kind": "encl",
+      "truth": "(Fraction(0, 1), Fraction(1, 1))",
+      "answer": "[0, 1]",
+      "correct": true
+    },
+    {
+      "item_id": "en.range_bound.expx_unit.v1",
+      "category": "enclosure",
+      "kind": "encl",
+      "truth": "(Fraction(1, 1), Fraction(543656365691809, 200000000000000))",
+      "answer": "[1, e]",
+      "correct": true
+    },
+    {
+      "item_id": "en.integrate_bound.x2_unit.v1",
+      "category": "enclosure",
+      "kind": "encl",
+      "truth": "(Fraction(1, 3), Fraction(1, 3))",
+      "answer": "[1/3, 1/3] — or numerically, [0.333, 0.334].",
+      "correct": true
+    }
+  ]
+}

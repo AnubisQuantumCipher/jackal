@@ -26,17 +26,20 @@ agree will diverge.
   time. `jackal.programming.source` with two operations —
   `programming.source.test_exists.v1` -> `test-exists` (5 args) and
   `programming.source.claim_cites_test.v1` -> `claim-cites-test` (6 args) — and
-  `jackal.decision.matrix` with one, `decision.matrix.rank.v1` -> `decision-rank`
-  (variadic 7..15). With the pre-existing `jackal.core.exact /
-  core.exact.mod_pow.v1 -> mod-pow`, the verifier now accepts 3 packs and 4
-  operations. Route ABI unchanged: `pack-route <pack_id> <operation_id>
-  <args...>`, and every route was confirmed to preserve the direct command's
-  stdout bytes exactly (`cmp` over captured stdout, byte-identical for all four).
+  `jackal.decision.matrix` with two, `decision.matrix.rank.v1` -> `decision-rank`
+  (variadic 7..15) and `decision.matrix.rank.v2` -> `decision-rank-v2` (variadic
+  8..16, the extra slot being a declared unit from a closed vocabulary). With the
+  pre-existing `jackal.core.exact / core.exact.mod_pow.v1 -> mod-pow`, the
+  verifier now accepts 3 packs and 5 operations. Route ABI unchanged: `pack-route
+  <pack_id> <operation_id> <args...>`, and every route was confirmed to preserve
+  the direct command's stdout bytes exactly (`cmp` over captured stdout,
+  byte-identical for all five).
 - **Two new evidence contracts**, each with an independent checker that
   recomputes every field from the real bytes rather than trusting the engine:
   `test-exists-cert` / `jackal-test-exists-cert-v1` / `tools/test_exists_verify.py`
-  (`598cb99e1eb70c94…`) and `decision-cert` / `jackal-decision-cert-v1` /
-  `tools/decision_verify.py` (`bc3471352c2685db…`). Both print `ACCEPT` or
+  (`598cb99e1eb70c94…`) and `decision-cert` / `jackal-decision-cert-v1` plus
+  `jackal-decision-cert-v2` / `tools/decision_verify.py`
+  (`f1ad7c9fbd4c1d89…`). Both print `ACCEPT` or
   `REFUSE <class>` and exit 0 only on `ACCEPT`.
 - **The anti-laundering boundary is declared per-axis and enforced.**
   `test-exists-cert` carries assurance ceiling `exact` and consequence ceiling
@@ -98,12 +101,12 @@ agree will diverge.
 ### Identities on this branch (read from disk, not transcribed)
 
 ```text
-source     jackal_calc.anb                     982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0
-registry   domain_packs/registry_v1.json       d6ed6a725c7112da0a7f7950ea0807334077f61dca4b32f3a9103f266e3a7f3d
-pack       domain_packs/programming/manifest   75516d97b67e170fead12813596ae9ccfc93ec3daf2d2c82a5c09140139c3f9b
-pack       domain_packs/decision/manifest      96d34b288886b3bdeba470a5cb63dba7d57cb33e0041e3e4421c38d29bdd0ea7
+source     jackal_calc.anb                     f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e
+registry   domain_packs/registry_v1.json       e0f825798777f9680046e2b1b944fdbc89ddd44f8882b9047fc789c10725f7a4
+pack       domain_packs/programming/manifest   59480b72f8ea51739859599c243b86167fb66ed3ffc519e492ca5d9f7c6605ba
+pack       domain_packs/decision/manifest      e7a8187c367a64f092c6e54bf3dd2b593265e93b8727fdffbc4bba220830e911
 checker    tools/test_exists_verify.py         598cb99e1eb70c9410ca87345efee346f73e43aaf3625427dca17ea04231caea
-checker    tools/decision_verify.py            bc3471352c2685dbf4848b0a2ba7daab63ace443cca043c258f36642a70e5af4
+checker    tools/decision_verify.py            f1ad7c9fbd4c1d899dbb4bebabbbeb97e97a56bd4b279ad7d8ec3722bf12e0f6
 gate       tools/lcm_differential_gate.py      dad22643e8ab913e91a3689463f5b392cb0dc9071cefb9023f45ef19ff4ff119
 registry   release/claim/inference_registry_v1.json (registry_version 2)
                                                c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0
@@ -117,7 +120,7 @@ compiler   anubis-a733565f237d                 a733565f237df171e7cf93b9b37700a42
 Two rows do not match the working tree and were **not hand-edited**:
 
 ```text
-source                    jackal_calc.anb                            pinned 638d28dc9811…  on disk 982d53110f6c…
+source                    jackal_calc.anb                            pinned 638d28dc9811…  on disk f579b6f59bc0…
 claim_inference_registry  release/claim/inference_registry_v1.json   pinned e7134ec30f3b…  on disk c70b33d5aee8…
 ```
 
@@ -142,12 +145,20 @@ of everything that is locally checkable — not a general drift.
 - `claim-cites-test` **resolves** a citation; it does not validate one. A
   document may cite a real test that checks something entirely different.
 - Accepting a caller's numeric criterion is never a claim that the criterion is
-  the right one to optimise. Value judgments refuse rather than rank — and that
-  screen is a **substring blocklist and is incomplete**: measured, criteria
-  spelled `optimal`, `ideal`, and leetspeak such as `b3st` are ACCEPTED, while
-  `best` and `preference_score` refuse. Closing it needs a declared unit or
-  measurement provenance on the criterion, which is a protocol change and was
-  not made.
+  the right one to optimise. Value judgments refuse rather than rank — and in
+  `decision.matrix.rank.v1` that screen is a **substring blocklist and is
+  incomplete**: measured, criteria spelled `optimal`, `ideal`, and leetspeak such
+  as `b3st` are ACCEPTED, while `best` and `preference_score` refuse. v1 is
+  retained exactly that way, because narrowing a shipped operation's accepted
+  inputs breaks its callers. `decision.matrix.rank.v2` is the closed lane: it
+  requires a declared unit from the canonical vocabulary of
+  `release/claim/unit_registry_v1.json` (minus the dimensionless `one`), so
+  `most_elegant` and `b3st` are refused there however they are spelled
+  (`decision-unit-unknown`), and the v1 word list still runs as a second gate
+  (`best_score` in `ms` refuses with `decision-value-judgment`). What v2 still
+  cannot do is detect a caller who declares an admissible unit for numbers that
+  are not measured in it; that residual is asserted as a test and as the manifest
+  nonclaim `a_declared_unit_is_not_a_measurement`.
 - `tools/domain_pack_verify.py` checks metadata, identity and policy only. It
   records `anubis_execution_status=NOT_EXECUTED` and
   `assurance_status=NOT_MINTED` in its own output. A declared manifest ceiling is

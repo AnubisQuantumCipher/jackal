@@ -13,9 +13,10 @@ Accept (exit 0, stdout):
 Refuse (exit 1, stderr):
   REFUSE reason=<class>[:<detail>]
 
-The verdict is computed by the PROVED `parseIntCert` + `checkIntCert`
+The verdict is computed by the PROVED `parseIntCert` +
+`checkIntCertRequest`
 (no `native_decide`, no `@[implemented_by]` anywhere on the path); the
-enclosure meaning of an accept is exactly `int_cert_sound` under `TreeTCB`.
+enclosure meaning of an accept is exactly raw-request-bound `int_cert_sound`.
 The artifact status class is pinned `bounded`: an accept never self-inflates —
 `formal-bounded` is derived downstream by the fail-closed release validator
 (request-commitment binding + TOCTOU executable identity), exactly like the
@@ -29,14 +30,14 @@ open JackalIv.IntCert
 
 def main (args : List String) : IO UInt32 := do
   match args with
-  | [path] => do
+  | [path, rawExpr, rawLo, rawHi, rawTol] => do
       let text ← IO.FS.readFile path
       match parseIntCert text with
       | .error e =>
           IO.eprintln s!"REFUSE reason={e}"
           return 1
       | .ok (hdr, tree) =>
-          match checkIntCert hdr tree with
+          match checkIntCertRequest rawExpr rawLo rawHi rawTol hdr tree with
           | .error e =>
               IO.eprintln s!"REFUSE reason={e}"
               return 1
@@ -48,5 +49,6 @@ def main (args : List String) : IO UInt32 := do
                 s!"output {lo} {hi}")
               return 0
   | _ => do
-      IO.eprintln "usage: jackal_int_cert_check <artifact>"
+      IO.eprintln
+        "usage: jackal_int_cert_check <artifact> <raw-expression> <lo> <hi> <tolerance>"
       return 2

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "jackel": {
+      "command": "/bin/zsh",
+      "args": [
+        "./scripts/launch_mcp.zsh"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "JACKAL_HOME"
+      ],
+      "tool_timeout_sec": 3700
+    }
+  }
+}

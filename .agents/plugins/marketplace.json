@@ -1,0 +1,20 @@
+{
+  "name": "anubis-quantum-cipher",
+  "interface": {
+    "displayName": "Anubis Quantum Cipher"
+  },
+  "plugins": [
+    {
+      "name": "jackel",
+      "source": {
+        "source": "local",
+        "path": "./plugins/jackel"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

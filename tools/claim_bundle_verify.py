@@ -149,7 +149,8 @@ MACHINE_OVERFLOWABLE = {"add", "sub", "mul", "neg", "shl", "convert"}
 MACHINE_UNARY = {"not", "neg", "convert"} | MACHINE_SHIFT_OPS
 APP_FNS = {"gcd": (2, 2), "mod_inv": (2, 2), "mod_pow": (3, 3),
            "crt_solve": (4, 32), "formal.range": (2, 2),
-           "formal.gaussian_integral": (3, 3)}
+           "formal.gaussian_integral": (3, 3),
+           "formal.integral": (3, 3)}
 PRED_ARITIES = {"denominator_nonzero": (1, 1), "threshold_robust": (3, 3),
                 "prime": (1, 1), "composite": (1, 1),
                 "formal.range_enclosure": (3, 3)}
@@ -213,7 +214,8 @@ REASON_CLASSES = (
     "orphan-node", "parent-duplicate", "parent-missing", "parent-order",
     "policy-pin-mismatch", "policy-schema", "policy-violation",
     "prop-budget", "prop-schema", "provenance-upgrade",
-    "rat-not-canonical", "registry-inference-mismatch",
+    "rat-not-canonical", "receipt-context-unsupported",
+    "registry-inference-mismatch",
     "registry-semantics-mismatch", "registry-unit-mismatch",
     "render-mismatch", "residual-missing", "root-missing",
     "root-proposition-mismatch", "rule-arity", "rule-invalid",
@@ -868,36 +870,129 @@ def expected_residuals(parents: list[dict]) -> list[str]:
 
 
 # ------------------------------------------------------------ legacy dispatch
+RANGE_RECEIPT_VARIANTS = {
+    "range", "sqrt_rat", "exp_rat", "ln_rat", "sin_rat", "cos_rat",
+    "atan_rat", "tanh_rat",
+}
+CURRENT_RANGE_RECEIPT_EPOCH = "v1.7.2"
+ARCHIVAL_RANGE_RECEIPT_EPOCH = "v1.5.0"
+GAUSSIAN_RECEIPT_EPOCH = "v1.5.0"
+INT_CERT_RECEIPT_EPOCH = "v1.7.2"
+
+
+class ReceiptContext:
+    """One closed checker/proof tuple selected by variant and epoch.
+
+    The CLI cannot add arbitrary contexts: it can only populate the four
+    named tuples below, and selection never consults receipt-supplied paths
+    or digests.
+    """
+
+    def __init__(self, *, label: str, checker, expected_checker,
+                 inventory, expected_inventory,
+                 proof_identity, expected_proof_identity_file,
+                 expected_proof_identity_digest) -> None:
+        self.label = label
+        self.checker = checker
+        self.expected_checker = expected_checker
+        self.inventory = inventory
+        self.expected_inventory = expected_inventory
+        self.proof_identity = proof_identity
+        self.expected_proof_identity_file = expected_proof_identity_file
+        self.expected_proof_identity_digest = \
+            expected_proof_identity_digest
+
+
 class LegacyContext:
     def __init__(self, args) -> None:
         self.receipt_verifier = args.receipt_verifier
         self.exact_verifier = args.exact_verifier
-        self.checker = args.checker
-        self.expected_checker = args.expected_checker
         self.expected_evaluator = args.expected_evaluator
         self.inventory = args.inventory
         self.expected_inventory = args.expected_inventory
-        self.proof_identity = args.proof_identity
-        self.expected_proof_identity_file = args.expected_proof_identity_file
-        self.expected_proof_identity_digest = \
-            args.expected_proof_identity_digest
+        self.current_range = ReceiptContext(
+            label="current-range-v172",
+            checker=args.checker,
+            expected_checker=args.expected_checker,
+            inventory=args.inventory,
+            expected_inventory=args.expected_inventory,
+            proof_identity=args.proof_identity,
+            expected_proof_identity_file=args.expected_proof_identity_file,
+            expected_proof_identity_digest=
+                args.expected_proof_identity_digest)
+        self.gaussian = ReceiptContext(
+            label="gaussian-v150",
+            checker=args.gaussian_checker,
+            expected_checker=args.expected_gaussian_checker,
+            inventory=args.inventory,
+            expected_inventory=args.expected_inventory,
+            proof_identity=args.gaussian_proof_identity,
+            expected_proof_identity_file=
+                args.expected_gaussian_proof_identity_file,
+            expected_proof_identity_digest=
+                args.expected_gaussian_proof_identity_digest)
+        self.current_int_cert = ReceiptContext(
+            label="current-int-cert-v172",
+            checker=args.int_cert_checker,
+            expected_checker=args.expected_int_cert_checker,
+            inventory=args.inventory,
+            expected_inventory=args.expected_inventory,
+            proof_identity=args.int_cert_proof_identity,
+            expected_proof_identity_file=
+                args.expected_int_cert_proof_identity_file,
+            expected_proof_identity_digest=
+                args.expected_int_cert_proof_identity_digest)
+        self.archival_range = ReceiptContext(
+            label="archival-range-v150",
+            checker=args.archival_range_checker,
+            expected_checker=args.expected_archival_range_checker,
+            inventory=args.archival_range_inventory,
+            expected_inventory=args.expected_archival_range_inventory,
+            proof_identity=args.archival_range_proof_identity,
+            expected_proof_identity_file=
+                args.expected_archival_range_proof_identity_file,
+            expected_proof_identity_digest=
+                args.expected_archival_range_proof_identity_digest)
         self.trusted_producers = set(args.trusted_producer or [])
         if args.expected_evaluator:
             self.trusted_producers.add(args.expected_evaluator)
 
-    def require_receipt_infra(self) -> None:
-        needed = [self.receipt_verifier, self.checker,
-                  self.expected_checker, self.inventory,
-                  self.expected_inventory, self.proof_identity,
-                  self.expected_proof_identity_file,
-                  self.expected_proof_identity_digest]
+    def receipt_context(self, *, variant: str,
+                        release_epoch: str) -> ReceiptContext:
+        if variant == "gaussian":
+            if release_epoch != GAUSSIAN_RECEIPT_EPOCH:
+                raise Refusal(
+                    "receipt-context-unsupported",
+                    f"gaussian/{release_epoch!r} is not an admitted tuple")
+            return self.gaussian
+        if variant == "int_cert":
+            if release_epoch != INT_CERT_RECEIPT_EPOCH:
+                raise Refusal(
+                    "receipt-context-unsupported",
+                    f"int_cert/{release_epoch!r} is not an admitted tuple")
+            return self.current_int_cert
+        if variant in RANGE_RECEIPT_VARIANTS:
+            if release_epoch == CURRENT_RANGE_RECEIPT_EPOCH:
+                return self.current_range
+            if release_epoch == ARCHIVAL_RANGE_RECEIPT_EPOCH:
+                return self.archival_range
+            raise Refusal(
+                "receipt-context-unsupported",
+                f"{variant}/{release_epoch!r} is not an admitted tuple")
+        raise Refusal("receipt-context-unsupported",
+                      f"variant {variant!r} is not claim-admissible")
+
+    def require_receipt_infra(self, selected: ReceiptContext) -> None:
+        needed = [self.receipt_verifier, selected.checker,
+                  selected.expected_checker, selected.inventory,
+                  selected.expected_inventory, selected.proof_identity,
+                  selected.expected_proof_identity_file,
+                  selected.expected_proof_identity_digest]
         if any(v in (None, "") for v in needed):
             raise Indeterminate(
                 "legacy-verifier-unavailable",
-                "formal-receipt evidence requires --receipt-verifier, "
-                "--checker, --expected-checker, --inventory, "
-                "--expected-inventory, --proof-identity and both "
-                "proof-identity pins")
+                f"formal-receipt evidence requires the complete "
+                f"{selected.label} checker/proof tuple plus inventory pins")
 
     def require_exact_infra(self) -> None:
         if self.exact_verifier in (None, ""):
@@ -909,7 +1004,6 @@ class LegacyContext:
 def dispatch_receipt(ctx: LegacyContext, payload: bytes,
                      params: dict) -> dict:
     """Runs the EXISTING receipt_verify.py; returns parsed stdout fields."""
-    ctx.require_receipt_infra()
     receipt = strict_loads(payload, what="receipt payload")
     if not isinstance(receipt, dict):
         raise Refusal("evidence-verify-failed", "receipt not an object")
@@ -922,6 +1016,12 @@ def dispatch_receipt(ctx: LegacyContext, payload: bytes,
     epoch = params.get("expected_release_epoch")
     if not isinstance(epoch, str):
         raise Refusal("rule-params", "expected_release_epoch missing")
+    variant = receipt.get("variant", "range")
+    if not isinstance(variant, str):
+        raise Refusal("receipt-context-unsupported", "variant is not a string")
+    selected = ctx.receipt_context(variant=variant,
+                                   release_epoch=epoch)
+    ctx.require_receipt_infra(selected)
     idents = params.get("expected_identities")
     if (not isinstance(idents, dict)
             or set(idents.keys()) != {"evaluator_sha256", "checker_sha256"}):
@@ -929,30 +1029,30 @@ def dispatch_receipt(ctx: LegacyContext, payload: bytes,
     evaluator = idents["evaluator_sha256"]
     if evaluator not in ctx.trusted_producers:
         raise Refusal("evidence-producer-untrusted", str(evaluator)[:64])
-    if idents["checker_sha256"] != ctx.expected_checker:
+    if idents["checker_sha256"] != selected.expected_checker:
         raise Refusal("evidence-verify-failed",
-                      "params checker != pinned checker")
+                      f"params checker != pinned {selected.label} checker")
     with tempfile.TemporaryDirectory(prefix="jackal-claim-verify-") as td:
         rpath = Path(td) / "receipt.json"
         rpath.write_bytes(payload)
         argv = [sys.executable, "-I", "-S", "-B",
                 str(ctx.receipt_verifier),
                 "--receipt", str(rpath),
-                "--checker", str(ctx.checker),
+                "--checker", str(selected.checker),
                 "--expected-evaluator", evaluator,
-                "--expected-checker", ctx.expected_checker,
+                "--expected-checker", selected.expected_checker,
                 "--expected-release-epoch", epoch,
                 "--expected-command", req["command"],
                 "--expected-expression", req["expression"],
                 "--expected-input-lo", req["input_lo"],
                 "--expected-input-hi", req["input_hi"],
-                "--inventory", str(ctx.inventory),
-                "--expected-inventory", ctx.expected_inventory,
-                "--proof-identity", str(ctx.proof_identity),
+                "--inventory", str(selected.inventory),
+                "--expected-inventory", selected.expected_inventory,
+                "--proof-identity", str(selected.proof_identity),
                 "--expected-proof-identity-file",
-                ctx.expected_proof_identity_file,
+                selected.expected_proof_identity_file,
                 "--expected-proof-identity-digest",
-                ctx.expected_proof_identity_digest]
+                selected.expected_proof_identity_digest]
         if "tolerance" in req:
             argv += ["--expected-tolerance", req["tolerance"]]
         try:
@@ -971,6 +1071,8 @@ def dispatch_receipt(ctx: LegacyContext, payload: bytes,
     if "status=verified verdict=ACCEPT" not in (proc.stdout or ""):
         raise Refusal("evidence-verify-failed", "no verified status line")
     return {"receipt": receipt, "stdout_fields": out,
+            "expected_checker": selected.expected_checker,
+            "context": selected.label,
             "stdout": proc.stdout or ""}
 
 
@@ -985,6 +1087,14 @@ def derive_receipt_prop(receipt: dict) -> dict:
     if variant == "gaussian":
         return {"t": "in",
                 "arg": {"t": "app", "fn": "formal.gaussian_integral",
+                        "args": [{"t": "str", "v": req["expression"]},
+                                 domain,
+                                 {"t": "rat",
+                                  "v": req["canonical_tolerance"]}]},
+                "set": enclosure}
+    if variant == "int_cert":
+        return {"t": "in",
+                "arg": {"t": "app", "fn": "formal.integral",
                         "args": [{"t": "str", "v": req["expression"]},
                                  domain,
                                  {"t": "rat",
@@ -2188,7 +2298,7 @@ def verify_evidence_admit(node: dict, ctx: LegacyContext) -> None:
         if node["producer"] is None or node["checker"] is None or \
                 node["producer"]["sha256"] != \
                 receipt["identities"]["evaluator_sha256"] or \
-                node["checker"]["sha256"] != ctx.expected_checker:
+                node["checker"]["sha256"] != result["expected_checker"]:
             raise Refusal("rule-invalid",
                           "receipt node must bind producer/checker "
                           "identities")
@@ -2310,6 +2420,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--proof-identity")
     p.add_argument("--expected-proof-identity-file")
     p.add_argument("--expected-proof-identity-digest")
+    p.add_argument("--gaussian-checker")
+    p.add_argument("--expected-gaussian-checker")
+    p.add_argument("--gaussian-proof-identity")
+    p.add_argument("--expected-gaussian-proof-identity-file")
+    p.add_argument("--expected-gaussian-proof-identity-digest")
+    p.add_argument("--int-cert-checker")
+    p.add_argument("--expected-int-cert-checker")
+    p.add_argument("--int-cert-proof-identity")
+    p.add_argument("--expected-int-cert-proof-identity-file")
+    p.add_argument("--expected-int-cert-proof-identity-digest")
+    p.add_argument("--archival-range-checker")
+    p.add_argument("--expected-archival-range-checker")
+    p.add_argument("--archival-range-proof-identity")
+    p.add_argument("--expected-archival-range-proof-identity-file")
+    p.add_argument("--expected-archival-range-proof-identity-digest")
+    p.add_argument("--archival-range-inventory")
+    p.add_argument("--expected-archival-range-inventory")
     p.add_argument("--trusted-producer", action="append", default=[])
     p.add_argument("--max-bundle-bytes", type=int,
                    default=MAX_BUNDLE_BYTES)

@@ -1,5 +1,5 @@
 {
-  "checker_binary_sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49",
+  "checker_binary_sha256": "f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617",
   "non_claims": [
     "the producer is untrusted; trust lives only in checker acceptance",
     "producer-vs-engine tree fidelity is differential evidence, not proof",
@@ -125,15 +125,15 @@
       "expected": "request-mismatch",
       "id": "X2-bounds-changed",
       "kind": "poison",
-      "observed": "observed=request-mismatch line='REFUSE reason=request-mismatch:domain'",
+      "observed": "observed=request-mismatch line='REFUSE reason=request-mismatch:raw-expression'",
       "ok": true
     },
     {
       "artifact_sha256": null,
-      "expected": "policy-violation",
+      "expected": "request-mismatch",
       "id": "X3-tolerance-changed",
       "kind": "poison",
-      "observed": "observed=policy-violation line='REFUSE reason=policy-violation:local-tolerance'",
+      "observed": "observed=request-mismatch line='REFUSE reason=request-mismatch:raw-expression'",
       "ok": true
     },
     {

@@ -1,0 +1,38 @@
+{
+  "name": "jackel",
+  "version": "0.1.0+codex.20260817222758",
+  "description": "Expose JACKAL's claim-aware mathematical evidence kernel to Codex.",
+  "author": {
+    "name": "Anubis Quantum Cipher",
+    "url": "https://github.com/AnubisQuantumCipher"
+  },
+  "homepage": "https://github.com/AnubisQuantumCipher/jackal",
+  "repository": "https://github.com/AnubisQuantumCipher/jackal",
+  "license": "MIT",
+  "keywords": [
+    "jackel",
+    "mathematics",
+    "numerical-trust",
+    "formal-verification",
+    "evidence",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "JACKAL",
+    "shortDescription": "Claim-aware computation with explicit evidence classes",
+    "longDescription": "Use JACKAL's complete mathematical evidence kernel from Codex, with exact, checked, estimated, bounded, formal-bounded, model-based, verified, indeterminate, and refused results preserved at their original assurance level. Formal-bounded applies only to checker-admitted fragments. Requires Apple Silicon macOS, Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python), and the pinned sealed v1.7.0 runtime.",
+    "developerName": "Anubis Quantum Cipher",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/AnubisQuantumCipher/jackal",
+    "defaultPrompt": [
+      "Classify and verify this numerical claim with JACKAL.",
+      "Find the strongest supported bound and refuse any silent downgrade.",
+      "Verify this receipt or claim bundle against my pinned expectations."
+    ]
+  }
+}

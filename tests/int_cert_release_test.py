@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.7.0 integrate-bound-cert end-to-end release test.
+"""JACKAL v1.7.2 integrate-bound-cert end-to-end release test.
 
 Exercises the certified composed-integral release lane:
 
@@ -73,13 +73,18 @@ def _emit(expr: str, lo: str, hi: str, tol: str) -> tuple[int, bytes, str]:
     return cp.returncode, cp.stdout, cp.stderr.decode()
 
 
-def _check_cert(cert_bytes: bytes) -> tuple[int, str, str]:
+def _check_cert(cert_bytes: bytes, expr: str, lo: str, hi: str,
+                tol: str) -> tuple[int, str, str]:
     with tempfile.NamedTemporaryFile(suffix=".jic", delete=False) as fh:
         fh.write(cert_bytes)
         path = fh.name
     try:
-        cp = subprocess.run([str(CHECKER), path], capture_output=True,
-                            text=True, timeout=300)
+        cp = subprocess.run(
+            [str(CHECKER), path, expr, lo, hi, tol],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
         return cp.returncode, cp.stdout, cp.stderr
     finally:
         Path(path).unlink()
@@ -94,17 +99,38 @@ def _enclosure_of(cert_bytes: bytes) -> tuple[Fraction, Fraction]:
 
 
 def _oracle(expr: str, lo: str, hi: str):
-    import mpmath
+    try:
+        import mpmath
+    except ImportError:
+        # Dependency-free deterministic fallback for this fixed corpus.  The
+        # formal checker remains authority; these are only containment
+        # cross-checks and must never silently skip in a release gate.
+        import math
+
+        a, b = Fraction(lo), Fraction(hi)
+        if expr == "sin(x)":
+            return 1.0 - math.cos(float(b)) - (1.0 - math.cos(float(a)))
+        if expr == "abs(x-1/3)":
+            c = Fraction(1, 3)
+            return float(((c - a) ** 2 + (b - c) ** 2) / 2)
+        if expr == "x^3-x":
+            antiderivative = lambda t: t ** 4 / 4 - t ** 2 / 2
+            return float(antiderivative(b) - antiderivative(a))
+        raise ValueError(f"oracle expression unsupported: {expr}")
     mpmath.mp.dps = 50
-    x = mpmath.mpf(0)
     fns = {
         "sin(x)": lambda t: mpmath.sin(t),
         "abs(x-1/3)": lambda t: abs(t - mpmath.mpf(1) / 3),
         "x^3-x": lambda t: t ** 3 - t,
     }
     f = fns[expr]
-    return mpmath.quad(f, [mpmath.mpf(Fraction(lo).numerator) / Fraction(lo).denominator,
-                           mpmath.mpf(Fraction(hi).numerator) / Fraction(hi).denominator])
+    return mpmath.quad(
+        f,
+        [
+            mpmath.mpf(Fraction(lo).numerator) / Fraction(lo).denominator,
+            mpmath.mpf(Fraction(hi).numerator) / Fraction(hi).denominator,
+        ],
+    )
 
 
 def main() -> int:
@@ -135,7 +161,7 @@ def main() -> int:
         if rc != 0:
             continue
         kept[expr] = cert
-        crc, cout, cerr = _check_cert(cert)
+        crc, cout, cerr = _check_cert(cert, expr, lo, hi, tol)
         check(f"checker-accept[{expr}]",
               crc == 0 and cout.startswith(ACCEPT_PREFIX), (cerr or cout).strip())
         enc_lo, enc_hi = _enclosure_of(cert)
@@ -146,8 +172,8 @@ def main() -> int:
             inside = (float(enc_lo) <= truth <= float(enc_hi))
             check(f"oracle-containment[{expr}]", bool(inside),
                   f"oracle={truth} enclosure=[{float(enc_lo)},{float(enc_hi)}]")
-        except ImportError:
-            print(f"SKIP oracle-containment[{expr}] mpmath unavailable")
+        except (ArithmeticError, ValueError) as exc:
+            check(f"oracle-containment[{expr}]", False, str(exc))
 
     # -- fail-closed refusals ------------------------------------------------
     rc, _, err = _emit("tan(x)", "0", "1", "1/10")
@@ -170,7 +196,7 @@ def main() -> int:
 
         lines[out_i] = f"output {frac_str(n_lo)} {frac_str(n_hi)}"
         tampered = ("\n".join(lines) + "\n").encode()
-        trc, tout, terr = _check_cert(tampered)
+        trc, tout, terr = _check_cert(tampered, "sin(x)", "0", "1", "1/100")
         refused_cls = any(cls in (terr + tout) for cls in
                           ("forged-enclosure", "released-interval-mismatch"))
         check("tamper-narrowed-output", trc != 0 and refused_cls,
@@ -179,7 +205,7 @@ def main() -> int:
         stale = base.decode().replace(
             "checker jackal-iv-bound-step-v1",
             "checker jackal-iv-bound-step-v0", 1).encode()
-        src, sout, serr = _check_cert(stale)
+        src, sout, serr = _check_cert(stale, "sin(x)", "0", "1", "1/100")
         check("tamper-stale-pin", src != 0 and "stale-identity" in (serr + sout),
               (serr or sout).strip())
 
@@ -208,7 +234,7 @@ def main() -> int:
                 "--checker", str(CHECKER),
                 "--expected-evaluator", pinned_producer,
                 "--expected-checker", pinned_checker,
-                "--expected-release-epoch", "v1.7.0",
+                "--expected-release-epoch", "v1.7.2",
                 "--expected-command", "integrate-bound-cert",
                 "--expected-expression", "sin(x)",
                 "--expected-input-lo", "0",
@@ -218,7 +244,7 @@ def main() -> int:
                 str(ROOT / "release/coverage/formal_coverage_inventory.json"),
                 "--expected-inventory", rows.get("coverage-inventory", ""),
                 "--proof-identity",
-                str(ROOT / "release/evidence/int_cert_proof_identity.json"),
+                str(ROOT / "release/evidence/int_cert_proof_identity_v172.json"),
                 "--expected-proof-identity-file",
                 rows.get("int-cert-proof-identity", ""),
                 "--expected-proof-identity-digest",

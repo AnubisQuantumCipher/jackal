@@ -33,6 +33,7 @@ from formal_receipt import (  # noqa: E402
     canonical_rat,
     int_cert_request_commitment_b64,
     load_proof_identity_binding,
+    CURRENT_PROOF_RELEASE_EPOCH,
     require_fresh_output,
     write_new_file_atomic,
 )
@@ -188,7 +189,16 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
         cert_path.write_bytes(cert_bytes)
         cert_path.chmod(0o600)
         checked = subprocess.run(
-            [str(checker), str(cert_path)], capture_output=True, timeout=args.timeout
+            [
+                str(checker),
+                str(cert_path),
+                args.expression,
+                canonical_lo,
+                canonical_hi,
+                canonical_tolerance,
+            ],
+            capture_output=True,
+            timeout=args.timeout,
         )
     stdout_bytes = checked.stdout or b""
     if checked.returncode != 0 or not stdout_bytes.startswith(ACCEPT_PREFIX) \
@@ -232,10 +242,17 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
         raise Refusal("formal-status-mismatch", status)
 
     here = Path(__file__).resolve().parent
+    proof_name = (
+        "int_cert_proof_identity_v172.json"
+        if args.release_epoch == CURRENT_PROOF_RELEASE_EPOCH
+        else "int_cert_proof_identity.json"
+    )
     proof_candidates = [
-        here.parent / "release" / "evidence" / "int_cert_proof_identity.json",
-        here / "int_cert_proof_identity.json",
+        here.parent / "release" / "evidence" / proof_name,
+        here / proof_name,
     ]
+    if args.release_epoch == CURRENT_PROOF_RELEASE_EPOCH:
+        proof_candidates.append(here / "int_cert_proof_identity.json")
     proof_path = next((candidate for candidate in proof_candidates
                        if candidate.is_file()), None)
     if proof_path is None:
@@ -296,7 +313,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-proof-identity-file", required=True)
     result.add_argument("--expected-proof-identity-digest", required=True)
     result.add_argument("--plugin-sha256")
-    result.add_argument("--release-epoch", default="v1.7.0")
+    result.add_argument("--release-epoch", default=CURRENT_PROOF_RELEASE_EPOCH)
     result.add_argument("--timeout", type=int, default=300)
     return result
 

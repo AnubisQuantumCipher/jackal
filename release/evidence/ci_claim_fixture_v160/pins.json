@@ -1,8 +1,8 @@
 {
-  "bundle_digest_sha256": "1500aa6866051c281dc108b2c34bd851e32b55443aec15fe038e5d7be1696a47",
-  "bundle_sha256": "2d12f1e19fec1cf00b5f5c254db61d2f12e4ba3aa3988a8ada625bab96259ce0",
+  "bundle_digest_sha256": "6467fcd3ffb4e54ac396f540fcee8a2e29028117ef7050bafc090dadec5335bd",
+  "bundle_sha256": "b8eb6893e790f560959248b8157bcdea60d2dcafc915ecee7820f875fb855f68",
   "expected_environment_epoch": "8617ad087f859f58a1e742032588cd011c9716bab8fe5477e7b0a318dfded88e",
-  "expected_inference_registry_sha256": "e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672",
+  "expected_inference_registry_sha256": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082",
   "expected_policy_sha256": "3ef0655ad2a3f9b553f7c4b9f7af2d4cfdd71c150f4a0337b0da0cea32fd8410",
   "expected_release_epoch": "v1.6.0",
   "expected_unit_registry_sha256": "d2d30dfe2a74d58a5ef31b551ea628106390bfccd72ad34d1cb37381c58d114c",

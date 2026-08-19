@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.4.1 fail-closed sweep.
+"""JACKAL v1.7.2 fail-closed sweep.
 
 Confirms every load-bearing surface — the release wrapper, the Hermes plugin,
 and the independent receipt verifier — refuses with a stable class for every
@@ -14,6 +14,12 @@ Rows covered:
     request.expression / request.input_hi / result.enclosure_hi /
     identities.evaluator / theorem.id / fragment.expression_operators /
     certificate.sha256.
+
+The current gate is pinned to the coherent v1.7.2 tuple: current checker,
+current inventory, current v2 range proof identity, and epoch v1.7.2.
+Mixing the current binaries with a stale proof identity or epoch is a
+banned tuple; see docs/superpowers/plans/2026-08-17-jackal-gate0-checker-contract.md
+(Blocker B) for the migration rationale.
 
 Emits `release/evidence/fail_closed_sweep.jsonl` with a per-row transcript
 and a SHA-256 footer.  Exit 0 iff every row refuses (never bounded), the
@@ -37,7 +43,10 @@ sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "plugin" / "hermes"))
 import release_validate as rv  # noqa: E402
-from formal_receipt import recompute_receipt_digest  # noqa: E402
+from formal_receipt import (  # noqa: E402
+    CURRENT_PROOF_RELEASE_EPOCH,
+    recompute_receipt_digest,
+)
 
 MANIFEST = ROOT / "release" / "MANIFEST.sha256"
 
@@ -58,7 +67,7 @@ PLUGIN = ROOT / "plugin" / "hermes" / "jackal_hermes"
 WRAPPER = ROOT / "jackal-cert-release"
 CHECKER = ROOT / "proofs" / "lean" / ".lake" / "build" / "bin" / "jackal_cert_check"
 SOURCE_ID = hashlib.sha256((ROOT / "jackal_calc.anb").read_bytes()).hexdigest()
-RANGE_PROOF = ROOT / "release" / "evidence" / "range_proof_identity.json"
+RANGE_PROOF = ROOT / "release" / "evidence" / "range_proof_identity_v172.json"
 RANGE_PROOF_FILE_ID = hashlib.sha256(RANGE_PROOF.read_bytes()).hexdigest()
 RANGE_PROOF_DIGEST = json.loads(RANGE_PROOF.read_text())["identity_digest_sha256"]
 INVENTORY_ID = hashlib.sha256((ROOT / "release" / "coverage" /
@@ -129,7 +138,8 @@ def _fresh_receipt() -> dict:
         rv.validate_release(expr="x^2+1", lo="1", hi="2",
                             evaluator="jackal-native", checker=str(CHECKER),
                             expected_evaluator=EV, expected_checker=CK,
-                            formal_receipt_path=p, release_epoch="v1.3.0")
+                            formal_receipt_path=p,
+                            release_epoch=CURRENT_PROOF_RELEASE_EPOCH)
         return json.loads(Path(p).read_text())
 
 
@@ -144,13 +154,13 @@ def _run_verifier(receipt: dict, extra: list[str] | None = None) -> tuple[int, s
                                 "--expected-evaluator", EV,
                                 "--expected-checker", CK,
                                 "--expected-source", SOURCE_ID,
-                                "--expected-release-epoch", "v1.3.0",
+                                "--expected-release-epoch",
+                                CURRENT_PROOF_RELEASE_EPOCH,
                                 "--expected-command", "range-bound-cert",
                                 "--expected-expression", "x^2+1",
                                 "--expected-input-lo", "1",
                                 "--expected-input-hi", "2",
-                                "--proof-identity", str(ROOT / "release" / "evidence" /
-                                                         "range_proof_identity.json"),
+                                "--proof-identity", str(RANGE_PROOF),
                                 "--expected-proof-identity-file", RANGE_PROOF_FILE_ID,
                                 "--expected-proof-identity-digest", RANGE_PROOF_DIGEST,
                                 "--expected-inventory", INVENTORY_ID,

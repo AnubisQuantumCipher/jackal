@@ -112,6 +112,14 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "proofs/lean/.lake/build/bin/jackal_cert_check",
             ROOT / "jackal_cert_check",
         ]),
+        ("archival_range_checker", [
+            ROOT / "jackal_cert_check_v170",
+            Path.home() / "Library/Application Support/JACKAL/runtimes/v1.7.0/jackal_cert_check",
+        ]),
+        ("archival_range_inventory", [
+            ROOT / "evidence/formal_coverage_inventory_v170.json",
+            Path.home() / "Library/Application Support/JACKAL/runtimes/v1.7.0/formal_coverage_inventory.json",
+        ]),
         ("gaussian_producer", [
             ROOT / "tools/gaussian_certificate.py",
             ROOT / "gaussian_certificate.py",
@@ -145,16 +153,26 @@ def _shipped_layout() -> dict[str, Path]:
             ROOT / "formal_coverage_inventory.json",
         ]),
         ("range_proof_identity", [
+            ROOT / "release/evidence/range_proof_identity_v172.json",
             ROOT / "release/evidence/range_proof_identity.json",
             ROOT / "range_proof_identity.json",
+        ]),
+        ("archival_range_proof_identity", [
+            ROOT / "release/evidence/range_proof_identity.json",
+            ROOT / "evidence/range_proof_identity_v1.json",
         ]),
         ("gaussian_proof_identity", [
             ROOT / "release/evidence/gaussian_proof_identity.json",
             ROOT / "gaussian_proof_identity.json",
         ]),
         ("int_cert_proof_identity", [
+            ROOT / "release/evidence/int_cert_proof_identity_v172.json",
             ROOT / "release/evidence/int_cert_proof_identity.json",
             ROOT / "int_cert_proof_identity.json",
+        ]),
+        ("archival_int_cert_proof_identity", [
+            ROOT / "release/evidence/int_cert_proof_identity.json",
+            ROOT / "evidence/int_cert_proof_identity_v1.json",
         ]),
         ("sqrt_rat_producer", [
             ROOT / "tools/sqrt_rat_producer.py",
@@ -210,6 +228,8 @@ def _shipped_layout() -> dict[str, Path]:
                 layout[name] = c
                 break
         else:
+            if name in {"archival_range_checker", "archival_range_inventory"}:
+                continue
             raise SystemExit(f"plugin-layout-missing: {name} in {[str(x) for x in cands]}")
     return layout
 
@@ -242,6 +262,8 @@ import formal_status_gate as fsg  # noqa: E402
 import gaussian_release as gr  # noqa: E402
 import int_cert_release as icr  # noqa: E402
 from formal_receipt import (  # noqa: E402
+    CURRENT_PROOF_RELEASE_EPOCH,
+    RANGE_ARCHIVAL_RELEASE_EPOCHS,
     _operators_in_sexp as sexp_ops,
     build_variant_formal_receipt,
     SQRT_RAT_VARIANT,
@@ -400,6 +422,14 @@ def _load_pinned_inventory_id() -> str:
     )
 
 
+def _load_pinned_archival_inventory_id() -> str:
+    return _manifest_alias(
+        {"archival-range-coverage-inventory",
+         "archival_range_coverage_inventory"},
+        "archival range coverage inventory",
+    )
+
+
 def _load_pinned_proof_ids(lane: str) -> tuple[str, str]:
     """Read exact proof-identity file and internal-digest pins.
 
@@ -414,6 +444,36 @@ def _load_pinned_proof_ids(lane: str) -> tuple[str, str]:
         _manifest_alias(file_labels, f"{lane} proof identity"),
         _manifest_alias(digest_labels, f"{lane} proof digest"),
     )
+
+
+def _load_pinned_archival_proof_ids(lane: str) -> tuple[str, str]:
+    lane_us = lane.replace("-", "_")
+    file_labels = {
+        f"archival-{lane}-proof-identity",
+        f"archival_{lane_us}_proof_identity",
+    }
+    digest_labels = {
+        f"archival-{lane}-proof-digest",
+        f"archival_{lane_us}_proof_digest",
+    }
+    return (
+        _manifest_alias(file_labels, f"archival {lane} proof identity"),
+        _manifest_alias(digest_labels, f"archival {lane} proof digest"),
+    )
+
+
+def _archival_checker(lane: str) -> tuple[Path, str]:
+    if lane != "range":
+        raise PluginRefusal("proof-compatibility",
+                            f"archival {lane} replay is revoked")
+    key = "archival_range_checker"
+    if key not in LAYOUT:
+        raise PluginRefusal("archival-runtime-unavailable", key)
+    labels = {
+        f"archival-{lane}-checker",
+        f"archival_{lane.replace('-', '_')}_checker",
+    }
+    return LAYOUT[key], _manifest_alias(labels, key)
 
 
 def _admitted_operators() -> set[str]:
@@ -476,7 +536,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_checker=ck_expected,
                 formal_receipt_path=formal_path,
                 plugin_sha256=PLUGIN_HASH,
-                release_epoch="v1.5.0",
+                release_epoch=CURRENT_PROOF_RELEASE_EPOCH,
             )
             receipt = _strict_json_loads(Path(formal_path).read_bytes())
             rerun = vr.verify_receipt(
@@ -491,7 +551,7 @@ def tool_range_bound(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
                 expected_source=_load_pinned_source_id(),
-                expected_release_epoch="v1.5.0",
+                expected_release_epoch=CURRENT_PROOF_RELEASE_EPOCH,
                 expected_request={
                     "command": "range-bound-cert",
                     "expression": expr,
@@ -618,7 +678,7 @@ def tool_integrate_bound_cert(args: dict[str, Any]) -> dict[str, Any]:
             expected_checker=checker_expected,
             receipt=str(receipt_path),
             plugin_sha256=PLUGIN_HASH,
-            release_epoch="v1.7.0",
+            release_epoch=CURRENT_PROOF_RELEASE_EPOCH,
             timeout=300,
         )
         try:
@@ -635,7 +695,7 @@ def tool_integrate_bound_cert(args: dict[str, Any]) -> dict[str, Any]:
                 expected_proof_identity_file=proof_file_expected,
                 expected_proof_identity_digest=proof_digest_expected,
                 expected_plugin=PLUGIN_HASH,
-                expected_release_epoch="v1.7.0",
+                expected_release_epoch=CURRENT_PROOF_RELEASE_EPOCH,
                 expected_request={
                     "command": "integrate-bound-cert",
                     "expression": args["expression"],
@@ -701,10 +761,15 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
         _validate_args(args, string_keys, object_keys=["receipt"])
     except PluginRefusal as refusal:
         return _refuse(refusal.reason, refusal.detail)
+    epoch = args["expected_release_epoch"]
+    archival_receipt_context = False
+    inventory_path = LAYOUT["inventory"]
+    inventory_expected = _load_pinned_inventory_id()
     if cert_schema == "jackal-gaussian-integral-cert v1":
         ev_expected, ck_expected = _load_pinned_gaussian_ids()
         checker = LAYOUT["gaussian_checker"]
         proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("gaussian")
+        proof_identity_path = LAYOUT["gaussian_proof_identity"]
         expected_source_val = None
         expected_request = {
             "command": args["expected_command"],
@@ -714,9 +779,15 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
             "tolerance": args["expected_tolerance"],
         }
     elif cert_schema == "jackal-int-cert v1":
-        ev_expected, ck_expected = _load_pinned_int_cert_ids()
-        checker = LAYOUT["int_cert_checker"]
-        proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("int-cert")
+        ev_expected, current_checker_expected = _load_pinned_int_cert_ids()
+        if epoch == CURRENT_PROOF_RELEASE_EPOCH:
+            checker = LAYOUT["int_cert_checker"]
+            ck_expected = current_checker_expected
+            proof_file_expected, proof_digest_expected = \
+                _load_pinned_proof_ids("int-cert")
+            proof_identity_path = LAYOUT["int_cert_proof_identity"]
+        else:
+            return _refuse("proof-compatibility", f"unsupported int-cert epoch {epoch!r}")
         expected_source_val = None
         expected_request = {
             "command": args["expected_command"],
@@ -728,8 +799,27 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
     else:
         # variant is optional in the envelope; missing = range (backward compat)
         variant = receipt.get("variant") or "range"
-        checker = LAYOUT["checker"]
-        proof_file_expected, proof_digest_expected = _load_pinned_proof_ids("range")
+        if epoch in RANGE_ARCHIVAL_RELEASE_EPOCHS:
+            archival_receipt_context = True
+            checker, ck_expected = _archival_checker("range")
+            if "archival_range_inventory" not in LAYOUT:
+                return _refuse(
+                    "archival-runtime-unavailable",
+                    "archival_range_inventory",
+                )
+            inventory_path = LAYOUT["archival_range_inventory"]
+            inventory_expected = _load_pinned_archival_inventory_id()
+            proof_file_expected, proof_digest_expected = \
+                _load_pinned_archival_proof_ids("range")
+            proof_identity_path = LAYOUT["archival_range_proof_identity"]
+        elif epoch == CURRENT_PROOF_RELEASE_EPOCH:
+            checker = LAYOUT["checker"]
+            _, ck_expected = _load_pinned_ids()
+            proof_file_expected, proof_digest_expected = \
+                _load_pinned_proof_ids("range")
+            proof_identity_path = LAYOUT["range_proof_identity"]
+        else:
+            return _refuse("proof-compatibility", f"unsupported range epoch {epoch!r}")
         expected_request = {
             "command": args["expected_command"],
             "expression": args["expected_expression"],
@@ -739,29 +829,43 @@ def tool_verify_receipt(args: dict[str, Any]) -> dict[str, Any]:
         if variant in _VARIANT_PRODUCER_LABELS:
             label = _VARIANT_PRODUCER_LABELS[variant]
             ev_expected = _manifest_alias({label}, label)
-            _, ck_expected = _load_pinned_ids()
             expected_source_val = None
         else:
-            ev_expected, ck_expected = _load_pinned_ids()
+            ev_expected, _current_checker_expected = _load_pinned_ids()
             expected_source_val = _load_pinned_source_id()
+    receipt_plugin = receipt.get("identities", {}).get("plugin_sha256")
+    archival_plugin = _manifest_alias(
+        {"archival-plugin-hermes", "archival_plugin_hermes"},
+        "archival plugin identity",
+    )
+    if receipt_plugin is None:
+        expected_plugin = None
+    elif cert_schema == "jackal-gaussian-integral-cert v1" and \
+            receipt_plugin in {PLUGIN_HASH, archival_plugin}:
+        # Gaussian checker/proof bytes and its v1.5 epoch are intentionally
+        # unchanged, so both exact plugin generations are valid contexts.
+        expected_plugin = receipt_plugin
+    elif archival_receipt_context and receipt_plugin == archival_plugin:
+        expected_plugin = archival_plugin
+    elif not archival_receipt_context and receipt_plugin == PLUGIN_HASH:
+        expected_plugin = PLUGIN_HASH
+    else:
+        return _refuse(
+            "plugin-identity",
+            "receipt plugin is not valid for the selected proof epoch",
+        )
     try:
         result = vr.verify_receipt(
             receipt=receipt,
             checker=str(checker),
             expected_evaluator=ev_expected,
             expected_checker=ck_expected,
-            inventory_path=LAYOUT["inventory"],
-            expected_inventory_sha256=_load_pinned_inventory_id(),
-            proof_identity_path=(
-                LAYOUT["gaussian_proof_identity"]
-                if cert_schema == "jackal-gaussian-integral-cert v1"
-                else LAYOUT["int_cert_proof_identity"]
-                if cert_schema == "jackal-int-cert v1"
-                else LAYOUT["range_proof_identity"]
-            ),
+            inventory_path=inventory_path,
+            expected_inventory_sha256=inventory_expected,
+            proof_identity_path=proof_identity_path,
             expected_proof_identity_file=proof_file_expected,
             expected_proof_identity_digest=proof_digest_expected,
-            expected_plugin=PLUGIN_HASH,
+            expected_plugin=expected_plugin,
             expected_source=expected_source_val,
             expected_release_epoch=args["expected_release_epoch"],
             expected_request=expected_request,
@@ -897,7 +1001,7 @@ def _rational_bound_result(
     inv_sha = hashlib.sha256(inv_bytes).hexdigest()
     receipt = build_variant_formal_receipt(
         variant=variant,
-        release_epoch="v1.5.0",
+        release_epoch=CURRENT_PROOF_RELEASE_EPOCH,
         request={"command": "range-bound-cert", "expression": expr,
                  "input_lo": lo, "input_hi": hi},
         enclosure=(encl_lo, encl_hi),
@@ -1358,6 +1462,14 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
     ev_expected, ck_expected = _load_pinned_ids()
     proof_file_expected, proof_digest_expected = \
         _load_pinned_proof_ids("range")
+    gaussian_producer_expected, gaussian_checker_expected = \
+        _load_pinned_gaussian_ids()
+    gaussian_proof_file_expected, gaussian_proof_digest_expected = \
+        _load_pinned_proof_ids("gaussian")
+    int_producer_expected, int_checker_expected = \
+        _load_pinned_int_cert_ids()
+    int_proof_file_expected, int_proof_digest_expected = \
+        _load_pinned_proof_ids("int-cert")
     with tempfile.TemporaryDirectory(prefix="jackal-plugin-claim-") as td:
         bundle_path = os.path.join(td, "bundle.json")
         prop_path = os.path.join(td, "root_prop.json")
@@ -1387,7 +1499,45 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
                 _load_pinned_inventory_id(),
                 "--proof-identity", str(LAYOUT["range_proof_identity"]),
                 "--expected-proof-identity-file", proof_file_expected,
-                "--expected-proof-identity-digest", proof_digest_expected]
+                "--expected-proof-identity-digest", proof_digest_expected,
+                "--gaussian-checker", str(LAYOUT["gaussian_checker"]),
+                "--expected-gaussian-checker",
+                gaussian_checker_expected,
+                "--gaussian-proof-identity",
+                str(LAYOUT["gaussian_proof_identity"]),
+                "--expected-gaussian-proof-identity-file",
+                gaussian_proof_file_expected,
+                "--expected-gaussian-proof-identity-digest",
+                gaussian_proof_digest_expected,
+                "--int-cert-checker", str(LAYOUT["int_cert_checker"]),
+                "--expected-int-cert-checker", int_checker_expected,
+                "--int-cert-proof-identity",
+                str(LAYOUT["int_cert_proof_identity"]),
+                "--expected-int-cert-proof-identity-file",
+                int_proof_file_expected,
+                "--expected-int-cert-proof-identity-digest",
+                int_proof_digest_expected]
+        if "archival_range_checker" in LAYOUT and \
+                "archival_range_inventory" in LAYOUT:
+            archival_checker, archival_checker_expected = \
+                _archival_checker("range")
+            archival_proof_file_expected, archival_proof_digest_expected = \
+                _load_pinned_archival_proof_ids("range")
+            argv += [
+                "--archival-range-checker", str(archival_checker),
+                "--expected-archival-range-checker",
+                archival_checker_expected,
+                "--archival-range-proof-identity",
+                str(LAYOUT["archival_range_proof_identity"]),
+                "--expected-archival-range-proof-identity-file",
+                archival_proof_file_expected,
+                "--expected-archival-range-proof-identity-digest",
+                archival_proof_digest_expected,
+                "--archival-range-inventory",
+                str(LAYOUT["archival_range_inventory"]),
+                "--expected-archival-range-inventory",
+                _load_pinned_archival_inventory_id(),
+            ]
         if "expected_nonce" in args:
             if not isinstance(args["expected_nonce"], str):
                 raise PluginRefusal("plugin-args-schema",
@@ -1399,6 +1549,8 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
             pin = _MANIFEST_ROWS.get(label)
             if pin:
                 argv += ["--trusted-producer", pin]
+        argv += ["--trusted-producer", gaussian_producer_expected]
+        argv += ["--trusted-producer", int_producer_expected]
         try:
             proc = subprocess.run(argv, capture_output=True, text=True,
                                   timeout=3600)

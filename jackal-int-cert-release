@@ -1,5 +1,5 @@
 #!/bin/sh
-# JACKAL v1.7.0 fail-closed formal-release gate — certified composed integral.
+# JACKAL v1.7.2 fail-closed formal-release gate — certified composed integral.
 #
 # Emits `status=formal-bounded` ONLY when the int-cert release binder confirms
 # the whole bound chain: exact request commitment (jackal-req-v3-int-cert),
@@ -48,7 +48,7 @@ exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" int-cert \
     --receipt "$5" \
     --inventory "$ROOT/release/coverage/formal_coverage_inventory.json" \
     --expected-inventory "$EXPECTED_INVENTORY" \
-    --proof-identity "$ROOT/release/evidence/int_cert_proof_identity.json" \
+    --proof-identity "$ROOT/release/evidence/int_cert_proof_identity_v172.json" \
     --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
     --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
-    --release-epoch v1.7.0
+    --release-epoch v1.7.2

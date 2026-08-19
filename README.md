@@ -56,9 +56,10 @@ So the calculator an AI needs is not more buttons. It is the properties JACKAL i
   `integrate-bound` prints a **conditional enclosure** under the stated f64/libm model;
   `jackal-gaussian-release` adds a distinct **zero-libm formal enclosure** for checker-accepted
   canonical `exp(-A*(x-mu)^2)` requests and refuses every unsupported formal request without
-  downgrade (see "Formal Gaussian integration" below); and `jackal-int-cert-release` (v1.7.0)
+  downgrade (see "Formal Gaussian integration" below); and `jackal-int-cert-release` (v1.7.2)
   emits a **Lean-checked composed enclosure** over the certified fragment — the compiled proved
-  checker re-checks the entire subdivision tree (theorem `int_cert_sound`) while `integrate-bound`
+  checker binds the exact raw expression/bounds/tolerance, re-checks the entire subdivision tree
+  (theorem `int_cert_sound`), and refuses every v1.7.0 request-unbound receipt while `integrate-bound`
   itself stays conditional/`bounded`. Bisection ships residuals; symbolic derivatives ship their own
   numeric verification line. Only the `rat`/`big-*` lanes are exact.
 - **Machine-readable epistemic classes** — metadata-bearing lanes print `status=` as the first
@@ -361,8 +362,9 @@ How it works, and exactly what it claims:
   2-ulp model; the still-fail-closed operators; the bigint/rational lanes (checked in-language by
   the Anubis SMT checker, outside this Lean scope); that the Anubis emitter faithfully produces
   its certificate (tested, not proven); `bound_step` release composition — now **mechanized for
-  the certificate lane** (v1.7.0: theorem `int_cert_sound`, re-checked by the compiled
-  `jackal_int_cert_check` on every `jackal-int-cert-release` receipt); and the one remaining
+  the request-bound certificate lane** (v1.7.2: theorem `int_cert_sound`, re-checked by the
+  compiled `jackal_int_cert_check` against the exact caller expression/bounds/tolerance on every
+  `jackal-int-cert-release` receipt; the request-unbound v1.7.0 epoch is revoked); and the one remaining
   bridge, source→native refinement, which remains **open and unclaimed**. The engine's
   printed `implementation-tested-not-mechanized` residual therefore stays, accurately: the
   *model* is proven for all inputs, `range-bound-cert` results carry a proof-checked witness, and
@@ -508,19 +510,27 @@ divisor, never a probabilistic verdict labeled exact.  General symbolic
 simplification and equality outside these fragments remain refused, exactly
 as before.
 
-## v1.7.0: certified bound_step composition (additive)
+## v1.7.2: request-bound certified bound_step composition (additive)
 
-v1.7.0 mechanizes the composed-integral bridge for a dedicated
-certificate lane: `./jackal-int-cert-release "<expr>" <lo> <hi> <tol>
-<receipt.json>` (plugin tool `jackal_integrate_bound_cert`).  The
-producer (`tools/int_cert_producer.py`) is **untrusted**: it mirrors the
-engine's adaptive subdivision in exact rational arithmetic and emits a
-`jackal-int-cert v1` certificate.  The trust anchor is the independently
+v1.7.0 introduced the composed-integral artifact checker, but that checker
+did not bind the raw caller expression to the Q-expression inside the
+artifact. Its formal replay epoch is therefore revoked: historical v1.7.0
+receipts and checker bytes are retained only as negative evidence and cannot
+produce a current formal result.
+
+v1.7.2 closes that boundary for a dedicated certificate lane:
+`./jackal-int-cert-release "<expr>" <lo> <hi> <tol> <receipt.json>`
+(plugin tool `jackal_integrate_bound_cert`). The producer
+(`tools/int_cert_producer.py`) is **untrusted**: it mirrors the engine's
+adaptive subdivision in exact rational arithmetic and emits a
+`jackal-int-cert v1` certificate. The trust anchor is the independently
 compiled Lean-proved checker `jackal_int_cert_check` (checker pin
-`jackal-iv-bound-step-v1`), which re-checks the whole subdivision-tree
-certificate and accepts only under theorem `int_cert_sound`; the
-resulting `jackal-formal-receipt-v1` receipt (variant `int_cert`) is
-`status=formal-bounded`.  Certified fragment:
+`jackal-iv-bound-step-v1`), whose public `checkIntCertRequest` path parses and
+lowers the exact raw expression, checks canonical bounds and tolerance, ties
+that lowered expression to the tree root, re-checks the whole subdivision
+tree, and accepts only under theorem `int_cert_sound`; the resulting
+`jackal-formal-receipt-v1` receipt (variant `int_cert`) is
+`status=formal-bounded`. Certified fragment:
 `num`/`var`/`neg`/`add`/`sub`/`mul`/`div`/`pow` (exponent 0..4096)/
 `sin`/`cos`/`abs` in `x` — everything else refuses, never downgrades.
 The weaker float lane (`integrate-bound` / `jackal_integrate_bound`,
@@ -591,10 +601,10 @@ The kernel is deliberately small and closed:
 - **Interval-composed enclosures cap at `mathematical=bounded`**: hull
   arithmetic is recomputed by the Python verifier, not the Lean checker;
   formal parents keep `formal-bounded` in their own nodes.  The graph
-  never flattens.  The v1.7.0 certified composed-integral lane is the
-  exception ONLY as direct receipt evidence — `int_cert` receipts enter
-  the graph at `formal-bounded` through the receipt adapter — while the
-  claim kernel's own hull arithmetic still caps at `bounded`.
+  never flattens. Current request-bound v1.7.2 `int_cert` receipts enter the
+  graph at `formal-bounded` through their dedicated checker/proof context;
+  revoked v1.7.0 receipts refuse. The claim kernel's own hull arithmetic
+  still caps at `bounded`.
 
 Hermes exposes the kernel as two additive tools — `jackal_claim` and
 `jackal_verify_bundle` — alongside the 31 unchanged v1.5.0 tools (33 at

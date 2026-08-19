@@ -23,8 +23,15 @@ sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
 
 MANIFEST="$ROOT/release/MANIFEST.sha256"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
+GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
+INT_CERT_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_int_cert_check"
+ARCHIVAL_RANGE_CHECKER="${JACKAL_V170_ARCHIVAL_RANGE_CHECKER:-$HOME/Library/Application Support/JACKAL/runtimes/v1.7.0/jackal_cert_check}"
+ARCHIVAL_RANGE_INVENTORY="${JACKAL_V170_ARCHIVAL_RANGE_INVENTORY:-$(dirname "$ARCHIVAL_RANGE_CHECKER")/formal_coverage_inventory.json}"
 INVENTORY="$ROOT/release/coverage/formal_coverage_inventory.json"
-PROOF_ID="$ROOT/release/evidence/range_proof_identity.json"
+PROOF_ID="$ROOT/release/evidence/range_proof_identity_v172.json"
+GAUSSIAN_PROOF_ID="$ROOT/release/evidence/gaussian_proof_identity.json"
+INT_CERT_PROOF_ID="$ROOT/release/evidence/int_cert_proof_identity_v172.json"
+ARCHIVAL_RANGE_PROOF_ID="$ROOT/release/evidence/range_proof_identity.json"
 INF_REG="$ROOT/release/claim/inference_registry_v1.json"
 UNIT_REG="$ROOT/release/claim/unit_registry_v1.json"
 
@@ -32,6 +39,12 @@ EXPECTED_CHECKER=$(awk '$1=="checker"{print $NF}' "$MANIFEST")
 EXPECTED_EVALUATOR=$(awk '$1=="evaluator"{print $NF}' "$MANIFEST")
 PROOF_DIGEST=$(python3 -I -S -B -c "import json,sys; \
 print(json.load(open(sys.argv[1]))['identity_digest_sha256'])" "$PROOF_ID")
+GAUSSIAN_PROOF_DIGEST=$(python3 -I -S -B -c "import json,sys; \
+print(json.load(open(sys.argv[1]))['identity_digest_sha256'])" "$GAUSSIAN_PROOF_ID")
+INT_CERT_PROOF_DIGEST=$(python3 -I -S -B -c "import json,sys; \
+print(json.load(open(sys.argv[1]))['identity_digest_sha256'])" "$INT_CERT_PROOF_ID")
+ARCHIVAL_RANGE_PROOF_DIGEST=$(python3 -I -S -B -c "import json,sys; \
+print(json.load(open(sys.argv[1]))['identity_digest_sha256'])" "$ARCHIVAL_RANGE_PROOF_ID")
 
 set -- "$@" \
   --expected-inference-registry "$INF_REG" \
@@ -48,11 +61,44 @@ set -- "$@" \
   --expected-inventory "$(sha "$INVENTORY")" \
   --proof-identity "$PROOF_ID" \
   --expected-proof-identity-file "$(sha "$PROOF_ID")" \
-  --expected-proof-identity-digest "$PROOF_DIGEST"
+  --expected-proof-identity-digest "$PROOF_DIGEST" \
+  --gaussian-checker "$GAUSSIAN_CHECKER" \
+  --expected-gaussian-checker "$(awk '$1=="gaussian-checker"{print $NF}' "$MANIFEST")" \
+  --gaussian-proof-identity "$GAUSSIAN_PROOF_ID" \
+  --expected-gaussian-proof-identity-file "$(sha "$GAUSSIAN_PROOF_ID")" \
+  --expected-gaussian-proof-identity-digest "$GAUSSIAN_PROOF_DIGEST" \
+  --int-cert-checker "$INT_CERT_CHECKER" \
+  --expected-int-cert-checker "$(awk '$1=="int-cert-checker"{print $NF}' "$MANIFEST")" \
+  --int-cert-proof-identity "$INT_CERT_PROOF_ID" \
+  --expected-int-cert-proof-identity-file "$(sha "$INT_CERT_PROOF_ID")" \
+  --expected-int-cert-proof-identity-digest "$INT_CERT_PROOF_DIGEST"
+
+if [ -f "$ARCHIVAL_RANGE_CHECKER" ] && [ ! -L "$ARCHIVAL_RANGE_CHECKER" ] && \
+   [ -f "$ARCHIVAL_RANGE_INVENTORY" ] && [ ! -L "$ARCHIVAL_RANGE_INVENTORY" ]; then
+  ARCHIVAL_RANGE_CHECKER_PIN=$(awk '$1=="archival-range-checker"{print $NF}' "$MANIFEST")
+  ARCHIVAL_RANGE_INVENTORY_PIN=$(awk '$1=="archival-range-coverage-inventory"{print $NF}' "$MANIFEST")
+  if [ -n "$ARCHIVAL_RANGE_CHECKER_PIN" ] && [ -n "$ARCHIVAL_RANGE_INVENTORY_PIN" ]; then
+    set -- "$@" \
+      --archival-range-checker "$ARCHIVAL_RANGE_CHECKER" \
+      --expected-archival-range-checker "$ARCHIVAL_RANGE_CHECKER_PIN" \
+      --archival-range-proof-identity "$ARCHIVAL_RANGE_PROOF_ID" \
+      --expected-archival-range-proof-identity-file "$(sha "$ARCHIVAL_RANGE_PROOF_ID")" \
+      --expected-archival-range-proof-identity-digest "$ARCHIVAL_RANGE_PROOF_DIGEST" \
+      --archival-range-inventory "$ARCHIVAL_RANGE_INVENTORY" \
+      --expected-archival-range-inventory "$ARCHIVAL_RANGE_INVENTORY_PIN"
+  fi
+fi
 
 for producer in sqrt_rat exp_rat ln_rat sin_rat atan_rat tanh_rat; do
   pin=$(awk -v l="${producer}_producer" '$1==l{print $NF}' "$MANIFEST")
   [ -n "$pin" ] && set -- "$@" --trusted-producer "$pin"
 done
+
+GAUSSIAN_PRODUCER_PIN=$(awk '$1=="gaussian-producer"{print $NF}' "$MANIFEST")
+[ -n "$GAUSSIAN_PRODUCER_PIN" ] && \
+  set -- "$@" --trusted-producer "$GAUSSIAN_PRODUCER_PIN"
+INT_CERT_PRODUCER_PIN=$(awk '$1=="int-cert-producer"{print $NF}' "$MANIFEST")
+[ -n "$INT_CERT_PRODUCER_PIN" ] && \
+  set -- "$@" --trusted-producer "$INT_CERT_PRODUCER_PIN"
 
 exec python3 -I -S -B "$ROOT/tools/claim_bundle_verify.py" "$@"

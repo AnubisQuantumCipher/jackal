@@ -1,20 +1,22 @@
 {
   "bundle_digests": {
-    "dog1": "7e0abf53114203905fe389f4ce3858d80a614fc1b2e0a001a12b8e9274af17ae",
-    "dog10": "3b73928099cc51bd0b75988ca02512e365097d455cb476fd8254cbb09d9734b2",
-    "dog2": "3c01577c34f92f7c0b5f557bf4980a354595320c82984ca8d52bc793190a244d",
-    "dog3": "69c625979a100c9be01084ec31470acab1efcc4c765cbb1633ebcb19be747c53",
-    "dog4": "5a066230d237ec2e87acb5c0d37549cbf1042fe6ac88d4551acb6c184b399e46",
-    "dog5": "c6a49959ff4a84a2b1d4928680ab5711e61b9a9e5c3a416fda35269f3d9796c9",
-    "dog6-checked": "7efc60f6fcb7ca6db14ee0e2a23b5e9fd7766b13105f2cd1e57f23b1b44d8a2b",
-    "dog6-wrap": "8d3a8d0cf7418e743f257a8e66f6e88a15df7c996f2fef14633d17d3472b43c8",
-    "dog7": "9b386f8f570c91082de0fcca638a0456c388eadc5a77c72715332f47f0ecfae3",
-    "dog8": "01a3b2415f4239c26e811d382b84bf6556f784a45bbc77f9b2045103cafdceaa",
-    "dog9": "265a0afa66d65831e7863dc7ae4a03d3c5d5ff7b4c958c7a0f6938e7a8d60272"
+    "dog1": "361b8daf3221e9a75eb2c15afcb493bfb6d17bcf6aa49eb2fbbe455e0ca3853d",
+    "dog10": "17938c0c1f4d48f729dc5c8dd38b7825deb51a027c666e91650a047caa9f5408",
+    "dog11": "0547ba0445f4b0fa9a34aff547958d29170e16124208742d36ea75d20871e2da",
+    "dog12": "d0cc97979b0eb626a9921c50dab23a44d27c402e9f8c28cb9a42cd5f69f1520d",
+    "dog2": "185523481cce8a761165d47371cc2be96454fade55ff5c2ad6c5ceb3a85e8a6f",
+    "dog3": "0b910683bee3b60e8115f67accc6e817dbced31925db1a8a0fb0417089e4515e",
+    "dog4": "2f71150805303adf54fece8ee54247ce9479e13fb504ad0530f2915414da4374",
+    "dog5": "7217fd94d3ef24f0f235c8db55d81216deb920e459b470e7405baa9cf403479e",
+    "dog6-checked": "4142f6c6d3095e39ed63c523263cf9e78049ef8afa3998e0b68fb0457b847c6a",
+    "dog6-wrap": "e8a176f2b3ae47bc2e1df53765de3475a9b8ae1ec9d686dbd5ce94c92708b965",
+    "dog7": "e1744d46210212544e8f5ad614bd3f9237cae766bfad4208b25422a0661fa0dd",
+    "dog8": "28c6293e47841dac38aaa0ea55ffdce650160a40126fc7aa1d5b63d5d22dd503",
+    "dog9": "8b4fbcebfe48e48ddf5b197be547695e12029713fb143abd28b04f02ef6e29fe"
   },
   "engine": "20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083",
   "release_epoch": "v1.6.0",
-  "router": "ccab2cce27770297698ae107c59a8d147d81c5f2ff0cd7d686a11d4390d095eb",
+  "router": "02328cf177a0423bdc5cbca6ec0ea946bb0679bbd3dc6c24140d32598e575afb",
   "rows": [
     {
       "expect": "verified bounded margin=1",
@@ -103,7 +105,7 @@
     {
       "expect": "identical root and bundle digest",
       "id": "dog10-repo-plugin-parity",
-      "observed": "cli=3b73928099cc51bd plugin=3b73928099cc51bd",
+      "observed": "cli=17938c0c1f4d48f7 plugin=17938c0c1f4d48f7",
       "ok": true
     },
     {
@@ -111,9 +113,21 @@
       "id": "dog10-parity-verifies",
       "observed": "verified/",
       "ok": true
+    },
+    {
+      "expect": "verified current-range plus Gaussian checker contexts",
+      "id": "dog11-multi-context-receipts",
+      "observed": "verified/ contexts=['ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb', 'f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545']",
+      "ok": true
+    },
+    {
+      "expect": "verified current request-bound int-cert context",
+      "id": "dog12-request-bound-integral",
+      "observed": "verified/ checker=f8347cbd18d52085",
+      "ok": true
     }
   ],
   "schema": "jackal-claim-dogfood-v1",
   "verdict": "PASS",
-  "verifier": "79d579d1be966e857436f67012e0fc79304dce789a66f590d77a2d57ccd97954"
+  "verifier": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22"
 }

@@ -135,6 +135,7 @@
     "crt_solve": {"arity": [4, 32], "args": "rat-int-even"},
     "formal.range": {"arity": [2, 2], "args": "str-expr,interval"},
     "formal.gaussian_integral": {"arity": [3, 3], "args": "str-expr,interval,rat"},
+    "formal.integral": {"arity": [3, 3], "args": "str-expr,interval,rat"},
     "machine": {"pattern": "^m\\.(add|sub|mul|and|or|xor|not|shl|shr_logical|shr_arith|rotl|rotr|neg|convert|eq|lt|le|gt|ge)\\.w(8|16|32|64)\\.(s|u)\\.(wrap|checked)$"}
   },
   "predicates": {

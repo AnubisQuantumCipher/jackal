@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Guard: the v1.6.0 claim replay must stay pinned to archived v1.6.0 bytes.
+"""Guard: the v1.6.0 claim replay must stay pinned to archived registry bytes.
 
-The hosted-CI gate `release/tools/ci_claim_admission.py` replays a frozen
+The hosted-CI gate `release/tools/ci_claim_admission.py` replays a recorded
 v1.6.0 claim bundle. That bundle records the inference-registry digest inside
-its own body, so the replay is only honest if it is fed the registry bytes as
-they existed at v1.6.0.
+its own body, so the replay is only honest if it is fed the exact registry
+bytes that digest names -- from the immutable archive, never from the mutable
+live file.
 
 The live `release/claim/inference_registry_v1.json` has since moved to
 registry_version 2. The tempting "fix" when the gate goes red is to repoint the
-replay at the live file and repin the fixture. That would make recorded v1.6.0
-evidence assert a verification against bytes that did not exist at v1.6.0 --
-laundering, and precisely the defect the claim program exists to catch.
+replay at the live file and repin the fixture. That would make recorded
+evidence assert a verification against bytes it was never verified against --
+laundering, and precisely the defect the claim program exists to catch. The
+legitimate direction is the reverse: the archived bytes must be made equal to
+what the fixture already pins.
 
 These tests make that judgement mechanical rather than a comment someone can
 delete: they read the constant the gate actually uses, inspect the argv it

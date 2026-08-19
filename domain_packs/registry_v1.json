@@ -10,7 +10,7 @@
   "pack_verifier_path": "tools/domain_pack_verify.py",
   "pack_verifier_sha256": "814792976b448f33f736cc215afaa8278612f921616dc904fa192bb3c30b5445",
   "inference_registry_path": "release/claim/inference_registry_v1.json",
-  "inference_registry_sha256": "97fb22c14e7a76d8edc7875df14725f7c4edeb47ad70903c2a10e7ed46a45efd",
+  "inference_registry_sha256": "c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0",
   "packs": [
     {
       "pack_id": "jackal.core.exact",
@@ -53,5 +53,5 @@
       ]
     }
   ],
-  "registry_digest_sha256": "c42371afa320d5e8d97e205fccdccfe34affca2b9f306d6ef097745450d2504b"
+  "registry_digest_sha256": "1e0a4b85685335874b42f88435f996b4376e84b8fcf75f4eea2039b5c3f54a37"
 }

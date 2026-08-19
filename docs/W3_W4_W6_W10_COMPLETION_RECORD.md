@@ -351,7 +351,7 @@ section cannot drift from the artifacts the way a hand-copied digest can.
 | `jackal_calc.anb` | `982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0` |
 | `domain_packs/PACK_SPEC.md` | `b0a015b3aa6c6428a0f11bd5746dfe45e4d81b12fd9fe97c16ef7b8342b218a4` |
 | `domain_packs/PACK_SCHEMA.json` | `ae15411cff7b126d1365d5fe8857bba9da5f6ef21d50dcdfab279e9634bc0073` |
-| `domain_packs/registry_v1.json` | `3c97272f92297826c7b2a3aa78cf4625854cbf54ce641d036674acc32f9e10fb` |
+| `domain_packs/registry_v1.json` | `d6ed6a725c7112da0a7f7950ea0807334077f61dca4b32f3a9103f266e3a7f3d` |
 | `domain_packs/core/manifest.json` | `6672a6e238923fbca4aa599770b8e9d0b47744f05ba9b5398f701f5e0028b2dd` |
 | `domain_packs/programming/manifest.json` | `75516d97b67e170fead12813596ae9ccfc93ec3daf2d2c82a5c09140139c3f9b` |
 | `domain_packs/decision/manifest.json` | `96d34b288886b3bdeba470a5cb63dba7d57cb33e0041e3e4421c38d29bdd0ea7` |
@@ -364,14 +364,14 @@ section cannot drift from the artifacts the way a hand-copied digest can.
 | `tools/exact_verify.py` | `2c07e6257ce1524de3e31374371c6d5859dce710767156de2566ec77fa1883a7` |
 | `tools/profile_verify.py` | `3af6f11df5ff2b6bc9582ff162660286224f3cf74cce8f57b68d86140f34c3c7` |
 | `tools/lcm_differential_gate.py` | `dad22643e8ab913e91a3689463f5b392cb0dc9071cefb9023f45ef19ff4ff119` |
-| `release/claim/inference_registry_v1.json` | `97fb22c14e7a76d8edc7875df14725f7c4edeb47ad70903c2a10e7ed46a45efd` |
-| `release/claim/archive/inference_registry_v1__registry_version_1.json` | `e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672` |
+| `release/claim/inference_registry_v1.json` | `c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0` |
+| `release/claim/archive/inference_registry_v1__registry_version_1.json` | `e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082` |
 
 Self-digests and profile digests, read from inside the files:
 
 | field | value |
 |---|---|
-| `registry_v1.json` `registry_digest_sha256` | `c42371afa320d5e8d97e205fccdccfe34affca2b9f306d6ef097745450d2504b` |
+| `registry_v1.json` `registry_digest_sha256` | `1e0a4b85685335874b42f88435f996b4376e84b8fcf75f4eea2039b5c3f54a37` |
 | `jackal.core.exact` `manifest_digest_sha256` | `5f39360199285272177ae80a67eaba775ab32c4c412ca4ecc10b1225e6abe684` |
 | `jackal.decision.matrix` `manifest_digest_sha256` | `d16c16809177909258eb4a284d28f051b60f459ce6a643ba3c24c9b105969a17` |
 | `jackal.programming.source` `manifest_digest_sha256` | `688d46f0f0b3eb5a26ba6fc21094a2897854f91801bcc3b317e6d4b21d30d8b1` |
@@ -380,9 +380,18 @@ Self-digests and profile digests, read from inside the files:
 | profile `full` `profile_digest_sha256` | `f90e6838c0facbafa89329462451e167fcb4a251d75d328c7a6f12ead2aa0c7a` |
 | eval corpus `aggregate_digest` | `41f4cbded9f2c6cb8f5b4ec95833e246364b6c45f6704dabe7e7c7dc189ff573` |
 
-The archived registry hashes to `e7c999c34312288fc35d4e1ecab2cef244dd447174283f0e132e8ebee7277672`,
-byte-identical to `git show HEAD:release/claim/inference_registry_v1.json`, which is what
-keeps the frozen v1.6.0 replay honest.
+The archived registry hashes to `e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082`,
+byte-identical to `git show 9a81b4c:release/claim/inference_registry_v1.json` — the last
+registry_version 1 state of the live file, and exactly the digest the v1.6.0 fixture
+records in both `pins.json` and its bundle body. That equality is what keeps the v1.6.0
+replay honest; `release/evidence/**` was not touched to obtain it.
+
+`origin/master` was merged into this branch (merge commit) because master had already
+moved the live registry (adding the `formal.integral` app function, `e7c999c3` ->
+`e7134ec3`) and refreshed the v1.6.0 fixture pin to match in commit 9a81b4c. Before that
+merge, the branch head and the PR merge commit were two different trees, so the same
+`ci_claim_admission.py` passed on `push` and failed on `pull_request`. The merged live
+registry is registry_version 2 with `formal.integral` present, `c70b33d5...`.
 
 ### Gate results at close
 

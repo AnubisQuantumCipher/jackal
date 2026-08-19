@@ -219,6 +219,63 @@ class PackageV172ContractTests(unittest.TestCase):
         self.assertIn("formal_coverage_inventory_v170.json", boundary)
         self.assertIn("jackal_cert_check_v170", boundary)
 
+    def test_nonclaims_bound_the_domain_pack_surface(self) -> None:
+        """The packaged boundary must state what the domain packs do NOT
+        establish.  A pack routes structural and decision facts whose
+        assurance ceiling is `exact`; without these sentences a reader can
+        reasonably read `exact` as `the code is correct`, which is the exact
+        laundering the consequence ceiling exists to prevent.  Each
+        assertion pins one bullet by a phrase that appears nowhere else in
+        the builder."""
+        boundary = self.source.split(
+            'cat > "$PKG/NON-CLAIMS.txt" <<\'EOF\'', 1
+        )[1].split("EOF", 1)[0]
+        normalized = " ".join(boundary.split())
+        # structure-not-correctness
+        self.assertIn(
+            "programming-status pack establishes STRUCTURE, never "
+            "correctness", normalized)
+        self.assertIn(
+            "whether that test executes, passes, asserts anything, or "
+            "covers what a surrounding document claims it covers",
+            normalized)
+        # a citation is resolved, not validated
+        self.assertIn(
+            "claim-cites-test RESOLVES a citation; it does not validate "
+            "one", normalized)
+        # the criterion is the caller's, and value judgments refuse
+        self.assertIn(
+            "never a claim that it is the right one to optimise",
+            normalized)
+        self.assertIn("Value judgments are refused, not ranked", normalized)
+        # the verifier's own admission
+        self.assertIn("anubis_execution_status=NOT_EXECUTED", boundary)
+        self.assertIn("assurance_status=NOT_MINTED", boundary)
+
+    def test_nonclaims_admit_the_value_judgment_blocklist_gap(self) -> None:
+        """The value-judgment screen is a substring blocklist, so it is
+        defeated by synonyms and by leetspeak.  This is the one bullet a
+        future reader is most likely to find embarrassing and quietly drop,
+        so it gets its own test.  The measured words are named literally:
+        a bullet that admitted incompleteness in the abstract, without
+        naming a spelling that actually passes, would be unfalsifiable
+        hedging rather than a disclosure."""
+        boundary = self.source.split(
+            'cat > "$PKG/NON-CLAIMS.txt" <<\'EOF\'', 1
+        )[1].split("EOF", 1)[0]
+        normalized = " ".join(boundary.split())
+        self.assertIn(
+            "value-judgment screen is a substring blocklist and is "
+            "INCOMPLETE", normalized)
+        self.assertIn(
+            "criteria spelled optimal, ideal, and leetspeak such as b3st "
+            "are ACCEPTED", normalized)
+        # The gap must be paired with what would actually close it, so the
+        # disclosure cannot be read as an unfixable fact of life.
+        self.assertIn(
+            "declared unit or measurement provenance on the criterion",
+            normalized)
+
     def test_provenance_receipt_records_archival_inventory(self) -> None:
         """Blocker D+E: the PROVENANCE-RECEIPT.txt must carry a row that
         binds the packaged archival inventory bytes, not only the archival

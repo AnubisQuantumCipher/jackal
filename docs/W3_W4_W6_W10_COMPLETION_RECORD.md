@@ -55,7 +55,10 @@ lcm 0 5  -> 0       lcm 0 0 -> 0       lcm 7 7  -> 7      lcm 1 1  -> 1
 lcm -12 18 -> 36    lcm 12 -18 -> 36
 ```
 
-Guard: `tools/lcm_differential_gate.py`, a 40-case frozen boundary corpus that
+Guard: `tools/lcm_differential_gate.py`, a **39**-case frozen boundary corpus (10
+rows exceeding `i64`; `len(CORPUS)` read from the file, and matching the
+`cases=39 overflow_rows=10` the gate itself prints below — an earlier draft of
+this line said 40, which was a miscount) that
 compares the engine's `lcm` against the engine's own `rat` lane, plus Python's
 `math.lcm` as a **test-only** third opinion (never an assurance source, per
 `PACK_SPEC` §1). The gate refuses to report PASS if no corpus row exceeded `i64`
@@ -227,12 +230,26 @@ that the criterion is the right one to optimise. That sentence is in the pack
 source, the certificate's own `consequence` line, and the manifest nonclaims.
 
 **Known limitation, stated rather than hidden:** the value-judgment screen is a
-substring blocklist of 20 words. A blocklist is inherently incomplete — a
-criterion spelled `optimal`, `preference_score`, or `b3st` will pass. It raises
-the cost of laundering a value judgment; it does not close it. Closing it properly
-needs a declared unit or measurement provenance on the criterion, which is a
-protocol change, not a word-list change. `[NEEDS-HUMAN]` for a future protocol
-revision.
+substring blocklist of 20 words. A blocklist is inherently incomplete. Measured
+against the shipped engine, one word per row:
+
+```
+decision-rank d1 optimal          min alpha 120 beta 90  ->  selected=beta   (ACCEPTED)
+decision-rank d1 ideal            min alpha 120 beta 90  ->  selected=beta   (ACCEPTED)
+decision-rank d1 b3st             min alpha 120 beta 90  ->  selected=beta   (ACCEPTED)
+decision-rank d1 best             min alpha 120 beta 90  ->  decision-value-judgment
+decision-rank d1 preference_score min alpha 120 beta 90  ->  decision-value-judgment
+```
+
+An earlier draft of this paragraph listed `preference_score` among the words that
+pass. It does not — it refuses, because `preference` is on the list. The
+correction matters more than the word: the sentence had been written from
+plausible reasoning about a blocklist rather than from running it, which is the
+same defect class as the W6 overstatement recorded in §5. `optimal`, `ideal` and
+`b3st` do pass, and were observed passing. The screen raises the cost of
+laundering a value judgment; it does not close it. Closing it properly needs a
+declared unit or measurement provenance on the criterion, which is a protocol
+change, not a word-list change. `[NEEDS-HUMAN]` for a future protocol revision.
 
 **Arity encoding, a deliberate judgement call.** `decision-rank` is variadic
 (7..15 operation arguments) but the protocol's `argument_schema` has no notion of
@@ -316,6 +333,62 @@ model arms require live model sessions, which this offline runner deliberately
 does not perform. The `>= 90% verifier use on eligible autonomous tasks`
 requirement from W3 likewise cannot be measured without those sessions.
 
+`tools/eval_v2_gate.py` makes that unmeasurability a **verdict rather than a
+remembered caveat**: it is three-valued (`EVAL_V2_GATE_PASS` exit 0,
+`EVAL_V2_GATE_FAIL` exit 1, `EVAL_V2_GATE_NOT_MEASURABLE` exit 3, usage error 2)
+and reports requirement 1 as NOT_MEASURABLE for four distinct named reasons,
+never as satisfied:
+
+- `reason=forced-mode-verifier-use-by-construction` on a forced receipt, where
+  `metrics.py` reads `verifier_use_rate` `1.000000`. That 1.0 is the harness
+  describing itself, not an agent choosing to verify.
+- `reason=no-transcript-supplied` on an autonomous receipt with
+  `transcript_path=None`, where `metrics.py` reads `0.000000`. That zero is an
+  absent transcript, not a model declining to verify. Reporting either number as
+  the requirement would be a vacuous metric of exactly the kind the two bullets
+  above refuse.
+- `reason=profile-identity-absent`, which fires **even on a receipt that does
+  carry a transcript**, because `evals/v2/protocol.md` scopes requirement 1 to
+  "the `autonomous` mode at the profile a live agent would actually receive", and
+  its "Row identity" section states that "A row missing an identity field is not
+  aggregated" while listing profile identity and `profile_digest_sha256` among
+  the required fields.
+- `reason=profile-identity-mismatch` when a receipt names a profile whose digest
+  does not match the shipped one.
+
+Both profile reasons are **observed firing**, not merely present in the source:
+`python3 -m unittest tests.eval_v2_gate_test.Requirement1NotMeasurable -v` ->
+`Ran 7 tests ... OK`, including `test_missing_profile_identity_is_not_measurable`
+and `test_wrong_profile_digest_is_not_measurable`, which drive synthetic
+autonomous receipts that DO carry `transcript_path`. The accurate scope limit is
+narrower: what has never been observed is either reason on a receipt from a
+**live model session**, because no such receipt exists. `runner.py` emits no
+profile identity at all — `grep -cE 'profile_id|profile_digest_sha256' evals/v2/runner.py`
+returns `0` — so it cannot produce a row the protocol would aggregate.
+
+(An earlier draft of this section called the profile reason "source-verified, not
+observed firing". That understated the evidence and was corrected on the report
+of the agent that wrote the gate, after re-running the test here. Understating
+evidence is a smaller sin than overstating it and still worth fixing, because a
+later reader deciding whether to trust the gate would have been told the code
+path was unexercised when it is covered by two passing tests.)
+
+So closing requirement 1 needs a live transcript **and** a producer change to
+`runner.py` so rows carry a profile identity. `runner.py` was **not** patched.
+
+Reproduced on this machine, exact bytes of this branch:
+
+```
+$ python3 evals/v2/runner.py --mode forced      --out /tmp/dc_forced.json
+$ python3 evals/v2/runner.py --mode autonomous  --out /tmp/dc_auto.json
+$ python3 tools/eval_v2_gate.py --results /tmp/dc_forced.json --results /tmp/dc_auto.json
+req2 ... verdict=PASS   silent_downgrade_count = 0  forced, rows=25
+                        silent_downgrade_count = 0  autonomous, rows=25
+req3 ... verdict=PASS   profile_verify exit=0, tools_declared=34
+EVAL_V2_GATE_NOT_MEASURABLE exit=3
+EVAL_V2_GATE_NOT_MEASURABLE is not a pass: exit 3
+```
+
 ---
 
 ## 5. Honest status against the plan
@@ -324,11 +397,12 @@ requirement from W3 likewise cannot be measured without those sessions.
 |---|---|---|
 | engine `lcm` defect | **closed** | before/after outputs + differential gate |
 | W4 protocol + evidence contracts | **closed** | verifier accepts 3 packs / 4 ops; ceiling matrix; archival fix |
-| W6 programming pack | **closed** | parity + soundness refusals + nonclaims |
-| W6 decision pack | **closed** | parity + 5 refusal paths + independent checker |
+| W6 programming pack — behaviour | **closed** | route byte-parity + soundness refusals + independent checker + manifest nonclaims |
+| W6 decision pack — behaviour | **closed** | route byte-parity + 5 refusal paths + independent checker |
+| W6 — the plan's named artifact list | **was OPEN when this table first said "closed"; closed by the companion commit in this wave** | see §5.1 |
 | W6 other packs (units, linear algebra, statistics, ODE/PDE) | **NOT DONE** | out of scope this wave |
 | W3 profiles | **closed** | verifier + 26 tests |
-| W3 `>=90%` autonomous verifier-use enforcement | **NOT MEASURED** | needs live model sessions |
+| W3 `>=90%` autonomous verifier-use enforcement | **NOT MEASURABLE, now machine-readably so** | `tools/eval_v2_gate.py` (added in the companion commit) reports `EVAL_V2_GATE_NOT_MEASURABLE` exit 3 with `req1 reason=no-transcript-supplied`; requirements 2 and 3 PASS. Still needs live model sessions. |
 | W10 harness + frozen hidden set | **closed** | 50/50 forced run |
 | W10 cross-system comparison | **NOT DONE** | needs live model sessions |
 | `release/MANIFEST.sha256` | **STALE, deliberately** | generator needs build artifacts absent here |
@@ -339,12 +413,102 @@ engine and Lean binaries: `source jackal_calc.anb` and
 to make a gate green is the same class of act as repinning frozen evidence.
 
 W7/W8/W9/W11 are untouched and remain OPEN.
+
+### 5.1 Correction: what "closed" meant when first written
+
+The two W6 rows above originally read simply **closed**. That was an
+overstatement and it is being recorded as one rather than quietly rewritten.
+
+What was true when it was written. The behaviour was verified by hand and the
+evidence in §2 is real: both routes were confirmed byte-identical to their direct
+commands; the soundness refusals were observed firing from the independent
+checkers; all five decision refusal paths were observed; and the anti-laundering
+boundary was — and is — genuinely under test, in
+`tests/domain_pack_contract_test.py::test_structural_programming_fact_cannot_be_laundered_upward`
+(that file: 26 tests, `python3 -m unittest tests.domain_pack_contract_test` ->
+`Ran 26 tests ... OK`).
+
+What was not true. The governing plan's W6 section names four in-scope artifacts
+under **Files** (plan lines 338, 340, 341, 342): "one manifest and frozen corpus
+beside each pack", `tests/programming_pack_test.py`,
+`tests/decision_pack_test.py`, and `tests/cross_pack_non_laundering_test.py`.
+(Line 339, `tests/stem_pack_test.py`, belongs to the STEM pack, which this wave
+never claimed. The plan itself is **not** in this repository — it lives at
+`/Users/sicarii/Worktrees/jackal-codex-plugin/docs/superpowers/plans/2026-08-17-jackal-macos-juggernaut-program.md`;
+the bare path cited at the top of this record is that file, not a local one.)
+When this table first said "closed", the manifests existed and **the three named
+test files and the per-pack frozen corpora did not exist at all**. The
+anti-laundering coverage lived inside `tests/domain_pack_contract_test.py`, which
+is real coverage but is not the named artifact. A reader checking the plan's file
+list against disk would have found four of its items missing while the record
+said the workstream was closed.
+
+How the error happened, and why it is worth this much text. "Closed" was decided
+against the substantive question — *does the pack behave correctly and refuse the
+things it must refuse?* — and then reported as though it had been decided against
+the plan's checklist. Nobody fabricated anything. Every command in §2 was run and
+every output is real. **The claim was grounded and still outran its evidence,
+because the evidence answered a different question than the claim asserted.**
+
+That is precisely the failure `programming.source.claim_cites_test.v1` exists to
+detect: a document making a claim, citing a real artifact, and the artifact not
+establishing the claim. §2 records the motivating instance — an agent's
+documentation asserting a test verified every polynomial moment through degree 23
+when the test checked only degree 0. This record then committed the same class of
+error about itself, one section later. Two independent instances in one wave is
+the argument for the operation, not a counterargument.
+
+The lead's own audit of this document against disk caught it — not a reviewer,
+not CI. That is worth stating plainly, because a gate that no instrument enforces
+depends entirely on someone choosing to re-read their own claims adversarially.
+
+Resolution, as observed on disk rather than as intended. All four of the plan's
+in-scope W6 artifacts now exist: `tests/programming_pack_test.py`,
+`tests/decision_pack_test.py`, `tests/cross_pack_non_laundering_test.py`, and the
+frozen corpora (`tests/corpus/programming_corpus_v1.json`,
+`tests/corpus/decision_corpus_v1.json`, six fixture files, and their generator
+`tests/corpus/generate_pack_corpus.py`). When this paragraph was first drafted
+those seven paths were untracked working-tree files. They are now **tracked**:
+commit `574dd55` ("test(w6): add the three named pack suites and frozen corpora
+the plan requires", 12 files, 4795 insertions) added them, and
+`git ls-files --error-unmatch` succeeds for all seven on this branch.
+
+One deliberate deviation from the plan's wording, recorded rather than glossed:
+the plan says "one manifest and frozen corpus **beside each pack**", which would
+put the corpora under `domain_packs/programming/` and `domain_packs/decision/`.
+They live under `tests/corpus/` instead, and the reason is measured rather than
+assumed: `tools/domain_pack_verify.py:422` compares the on-disk inventory of
+`domain_packs/` against the manifest-declared file *and directory* sets with a
+plain `!=`, so any undeclared `domain_packs/*/corpus/` entry forces
+`refuse("domain-pack inventory mismatch")`, and declaring it would have meant
+editing a pinned manifest to admit test data.
+The manifests are beside their packs as the plan requires; only the corpora moved.
+
+A reader who finds any of those paths **absent** should treat the plan's W6 file
+list as **still open**, regardless of what the table above says — the table is a
+claim and the filesystem is the evidence.
+
 ---
 
 ## 6. Digest appendix — generated from disk at close, not transcribed
 
 Every value below was read from the working tree by hashing the file, so this
 section cannot drift from the artifacts the way a hand-copied digest can.
+
+**This appendix is incomplete by construction, and says so rather than looking
+complete.** It omits the W6 artifacts named in §5.1 — the three pack test files
+and everything under `tests/corpus/` — because those paths were still untracked
+and in flux when it was generated (they are tracked as of `574dd55`; this
+appendix was **not** regenerated afterwards and still does not hash them), and a
+digest table that lists a file whose
+bytes may change before the commit is worse than one that admits the gap. The two
+`eval_v2_gate` rows below WERE hashed here, with `shasum -a 256` on this machine
+against the committed, clean working-tree copies (`git status --short` empty for
+both, `git ls-files --error-unmatch` succeeds for both) — not copied from the
+sibling agent's report, which independently reported the same two digests.
+Whoever seals on top of this branch must regenerate the whole appendix from disk.
+A digest table that quietly listed a file it had not itself hashed would be the
+same defect as the one §5.1 records.
 
 | artifact | sha256 |
 |---|---|
@@ -364,6 +528,8 @@ section cannot drift from the artifacts the way a hand-copied digest can.
 | `tools/exact_verify.py` | `2c07e6257ce1524de3e31374371c6d5859dce710767156de2566ec77fa1883a7` |
 | `tools/profile_verify.py` | `3af6f11df5ff2b6bc9582ff162660286224f3cf74cce8f57b68d86140f34c3c7` |
 | `tools/lcm_differential_gate.py` | `dad22643e8ab913e91a3689463f5b392cb0dc9071cefb9023f45ef19ff4ff119` |
+| `tools/eval_v2_gate.py` | `1a90a58f919f8bed30855c7c1d0bdfbb374e8c4bea8e417402189e1948a06f67` |
+| `tests/eval_v2_gate_test.py` | `8d8d8c3e6a58b9b1e7a51b19a0923cd1672f93218083aa4ec0199469942cb09f` |
 | `release/claim/inference_registry_v1.json` | `c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0` |
 | `release/claim/archive/inference_registry_v1__registry_version_1.json` | `e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082` |
 

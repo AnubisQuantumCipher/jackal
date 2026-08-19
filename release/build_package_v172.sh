@@ -611,6 +611,27 @@ JACKAL v1.7.2 — explicit boundary
 - Unsupported proof epochs and fragments refuse.
 - Gaussian, pure-rational, exact-CAS, and claim-kernel lanes preserve their
   prior assurance classes. No lane is silently upgraded.
+- A programming-status pack establishes STRUCTURE, never correctness.
+  test-exists says only that a declaration-shaped occurrence of a named
+  symbol exists in bytes at a claimed content hash.  It says nothing
+  about whether that test executes, passes, asserts anything, or covers
+  what a surrounding document claims it covers.
+- claim-cites-test RESOLVES a citation; it does not validate one.  A
+  document may cite a real test that checks something entirely
+  different, and this checker cannot see that.
+- The decision pack orders options by a caller-declared numeric
+  criterion.  Accepting that criterion is never a claim that it is the
+  right one to optimise.  Value judgments are refused, not ranked.
+- The value-judgment screen is a substring blocklist and is INCOMPLETE.
+  Measured on the shipped engine: criteria spelled optimal, ideal, and
+  leetspeak such as b3st are ACCEPTED, while best and preference_score
+  refuse.  Closing that gap requires a declared unit or measurement
+  provenance on the criterion, which is a protocol change and was not
+  made.
+- The domain-pack verifier checks metadata, identity, and policy only.
+  It records anubis_execution_status=NOT_EXECUTED and
+  assurance_status=NOT_MINTED in its own output: a declared manifest
+  ceiling is an upper bound on what a consumer may claim, never a grant.
 - No universal correctness, source-to-native refinement, input-truth proof,
   operating-system proof, or authenticated builder claim is made.
 EOF

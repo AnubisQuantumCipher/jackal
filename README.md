@@ -616,6 +616,125 @@ compatibility, rendering), A→B→A tamper gates over the seven claim trust
 layers, ten end-to-end dogfood graphs, and a fresh-extraction three-way
 parity gate ship in `release/evidence/claim_*_v160.json`.
 
+## Domain packs — carrying the discipline past mathematics (protocol v1, additive)
+
+Everything above certifies *mathematics*. A **domain pack** is the mechanism for
+carrying the same epistemic discipline into claims that are not arithmetic at
+all — without letting them inherit arithmetic's strength. A pack is a
+digest-sealed manifest (`jackal-domain-pack-manifest-v1`) that declares, per
+operation, the engine command it routes to, the exact argument schema, the
+response schema, the independent checker, the evidence kind, an **assurance
+ceiling**, a *separate* **consequence ceiling**, the enumerated refusal classes,
+resource budgets, and permanent nonclaims. `fallback.allowed` is always `false`
+with reason exactly `fallback_forbidden`: a pack that cannot answer refuses, and
+never degrades to a weaker lane behind the caller's back. The protocol, its v1
+ceilings and its mandatory nonclaims are specified in
+[`domain_packs/PACK_SPEC.md`](domain_packs/PACK_SPEC.md) and bound by
+`domain_packs/registry_v1.json`; the declared compatibility window is
+`v1.8.0 <= release < v2.0.0`.
+
+One route ABI for every pack:
+
+```bash
+./jackal pack-route <pack_id> <operation_id> <args...>
+```
+
+A route MUST preserve the direct command's stdout **bytes exactly** — a route is
+an addressing mechanism, never a second implementation. Verified for all four
+operations by capturing both stdouts and running `cmp`: byte-identical in every
+case.
+
+| pack | operation | command | args | evidence kind | assurance ceiling | consequence ceiling |
+|---|---|---|---|---|---|---|
+| `jackal.core.exact` | `core.exact.mod_pow.v1` | `mod-pow` | 3 | `exact-cert` | `exact` | `safety-critical` |
+| `jackal.programming.source` | `programming.source.test_exists.v1` | `test-exists` | 5 | `test-exists-cert` | `exact` | `informational` |
+| `jackal.programming.source` | `programming.source.claim_cites_test.v1` | `claim-cites-test` | 6 | `test-exists-cert` | `exact` | `informational` |
+| `jackal.decision.matrix` | `decision.matrix.rank.v1` | `decision-rank` | 7..15 | `decision-cert` | `exact` | `decision-boundary` |
+
+**The anti-laundering boundary — the point of the whole protocol.** Assurance
+and consequence are two different axes and a pack must declare both.
+`test-exists-cert` carries assurance ceiling **`exact`** and consequence ceiling
+**`informational`**. The `exact` is honest: whether a declaration-shaped
+occurrence of a symbol exists in a file at a claimed content hash is a
+byte-exact structural fact, decided by recomputation, with no estimate anywhere
+in it. The `informational` is equally honest, and it is the load-bearing half:
+**a test existing is never evidence that the code under test is correct.** So a
+structural programming fact may be as strong as arithmetic about *what the bytes
+say* and must still never reach a safety-critical conclusion about *what the
+code does*. `tools/domain_pack_verify.py` enforces the consequence ceiling
+mechanically, not only the assurance ceiling — the comparison against each
+evidence contract's `consequence_bound` is a hard refusal in the verifier itself,
+not advice. The full observed accept/refuse matrix, and the control showing the
+refusal comes from that guard rather than from a digest check (flip only the
+bound and the identical digest-coherent tree becomes accepted), are recorded in
+[`docs/W3_W4_W6_W10_COMPLETION_RECORD.md`](docs/W3_W4_W6_W10_COMPLETION_RECORD.md)
+§1. `exact-cert` keeps `safety-critical` and `decision-cert` sits between at
+`decision-boundary`; a ceiling is an upper bound on what a consumer may declare,
+never a grant.
+
+```bash
+# Structural fact about source bytes — exact, and deliberately informational.
+./jackal test-exists tools/lcm_differential_gate.py <sha256> _run 108 1
+# status=structural-exact symbol=_run line=108 count=1
+# consequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct
+# test-exists-cert={"claim":{...},"kind":"test-exists","schema":"jackal-test-exists-cert-v1",...}
+
+# The same fact through the pack route — byte-identical stdout.
+./jackal pack-route jackal.programming.source programming.source.test_exists.v1 \
+    tools/lcm_differential_gate.py <sha256> _run 108 1
+
+# Does a document's claim cite a test that actually exists?
+./jackal claim-cites-test <doc> <doc_sha256> "<claim text>" <test> <test_sha256> <symbol>
+# status=structural-exact cited_symbol=_run
+# consequence=informational note=citation-resolves-it-does-not-establish-the-cited-test-covers-the-claim
+
+# Order options by a caller-declared numeric criterion, with the margin recorded.
+./jackal decision-rank d1 latency_ms min alpha 120 beta 90
+# status=exact selected=beta margin=30
+# consequence=decision-boundary note=the-declared-criterion-remains-the-callers-...
+# decision-cert={"claim":{...},"kind":"decision-rank","schema":"jackal-decision-cert-v1",...}
+
+# Independent replay — each checker recomputes every field from the real bytes:
+./jackal test-exists ... | sed -n 's/^test-exists-cert=//p' > cert.json
+python3 -I -S -B tools/test_exists_verify.py --cert cert.json --root .   # ACCEPT / REFUSE <class>
+python3 -I -S -B tools/decision_verify.py --cert decision.json           # ACCEPT / REFUSE <class>
+```
+
+The engine validates canonical *form* only; the checkers are what make a claim
+un-mintable by lying. `tools/test_exists_verify.py` re-hashes the file, re-finds
+the declaration, re-counts it, and refuses a symlinked or escaping path
+(`cert-path-symlink`, `cert-path-escape`, `cert-content-hash-mismatch`,
+`cert-symbol-absent`, `cert-declaration-count-mismatch`,
+`cert-declaration-line-mismatch`, `cert-absence-as-existence`,
+`cert-claim-text-absent`, `cert-citation-dangling`).
+`tools/decision_verify.py` recomputes the selection, runner-up and margin from
+the certificate's own option array (`cert-selection-mismatch`,
+`cert-margin-mismatch`, `cert-margin-zero`, `cert-value-judgment`). Both print
+`ACCEPT` or `REFUSE <class>` and exit 0 only on `ACCEPT`.
+
+`decision-rank` refuses rather than ranks whenever ranking would be a value
+judgment (`decision-value-judgment`), a tie (`decision-margin-zero`), an
+ambiguous label set (`decision-duplicate-label`), or an unknown sense
+(`decision-sense-unknown`). Accepting a caller's numeric criterion is **not** a
+claim that the criterion is the right one to optimise, and the certificate's own
+`consequence` line says so. **Known gap, stated rather than hidden:** that
+screen is a substring blocklist and is incomplete — measured, both
+`decision-rank d1 optimal min alpha 120 beta 90` and
+`decision-rank d1 b3st min alpha 120 beta 90` are ACCEPTED. It raises the cost
+of laundering a value judgment; it does not close it. Closing it needs a
+declared unit or measurement provenance on the criterion, which is a protocol
+change and was not made.
+
+Finally, the verifier is honest about its own limits — it checks metadata,
+identity and policy, and says so in its own output rather than letting a reader
+assume more:
+
+```bash
+python3 -I -S -B tools/domain_pack_verify.py
+# {"pack_count":3,"operation_count":4,"status":"accepted",
+#  "anubis_execution_status":"NOT_EXECUTED","assurance_status":"NOT_MINTED", ...}
+```
+
 ## Command atlas
 
 | World | Commands |
@@ -629,6 +748,7 @@ parity gate ship in `release/evidence/claim_*_v160.json`.
 | Exact rationals | `rat` (canonical p/q + labeled f64 approx) |
 | Exact algebra (certificate-bearing) | `canon poly-canon poly-eq poly-gcd ratfunc-canon roots-isolate alg-sign alg-cmp` |
 | Number theory (certificate-bearing) | `xgcd mod-pow mod-inv crt divides prime-cert` |
+| Domain packs (routed, certificate-bearing) | `pack-route` plus the routed commands `test-exists claim-cites-test decision-rank` — structural-source and decision certificates whose consequence ceilings are declared separately from their assurance ceilings (see "Domain packs" above) |
 | Worksheet | `worksheet` (persistent variables across `;`) |
 | Exact integers | `big-add big-mul big-pow big-fact big-ncr` |
 | Numerical laboratory | `matrix2 solve2 integrate-x2 derivative-x3` |
@@ -688,6 +808,24 @@ printed enclosure ever excludes the independently computed truth. See
 - Numeric calculations use Anubis's current IEEE-754 floating-point runtime, not arbitrary precision.
 - `ncr` computes exactly every binomial coefficient representable in i64 (gcd-reduced multiply)
   and fails closed at the i64 boundary rather than wrapping; `C(66,33)` is the largest central case.
+- `lcm` was a **mislabeled epistemic class and was fixed, not documented around**. It computed
+  `positive_abs(a / gcd * b)` in `i64`, which wraps once the true least common multiple exceeds
+  `2^63 - 1`, while `maturity` declared the command `class=exact` with
+  `residual=none-observed-within-grammar-and-budgets`. Measured on shipped binaries:
+  `lcm 4611686018427387904 3` returned `4611686018427387904` — smaller than one of its own
+  inputs, which no least common multiple can be. The quotient `a / g` is still reduced in `i64`
+  (exact, since `|a/g| <= |a|`) and the final product now goes through the same
+  arbitrary-precision lane that backs `big-mul`, so no `i64` product remains on the path; the
+  same request now returns `13835058055282163712`. Guarded by
+  `tools/lcm_differential_gate.py`: a frozen 39-case boundary corpus, 10 rows of which exceed
+  `i64`, comparing `lcm` against the engine's own `rat` lane, and refusing to report PASS if no
+  row exceeded `i64` — so the gate cannot decay into a rubber stamp.
+- `gcd` and `lcm` now **refuse `i64::MIN`** with `int-min-unrepresentable`. `positive_abs` wraps
+  at `i64::MIN`, and the `requires` contract on `gcd_safe` is not runtime-enforced on this
+  toolchain: measured, `gcd -9223372036854775808 6` previously returned `-2`, and a negative gcd
+  is impossible. An unenforced precondition under a `class=exact` label is the same defect as the
+  `lcm` wrap, so the precondition is now checked where it belongs instead of being left to a
+  downstream string validator that happened to reject the interpolated text.
 - `shl`/`shr` use the i64 two's-complement register model; shift counts outside 0..63 fail closed.
 - `div` by zero fails closed rather than printing IEEE infinity.
 - The claim card prints its canonical preimage (`canonical=`), so the SHA-256 fingerprint is
@@ -758,7 +896,9 @@ printed enclosure ever excludes the independently computed truth. See
   simplifier. Non-smooth integrands (`abs`, `floor`, `min`, …) get the pure range form, whose
   certified width converges only linearly — practical tolerances there are ~1e-4 on unit
   spans, and the budget refusal names that honestly.
-- The `status=` epistemic classes (`exact`, `bounded`, `checked`, `estimated`, `model-based`)
+- The `status=` epistemic classes (`exact`, `structural-exact` — the domain-pack source lanes,
+  whose separate `consequence=` line is the load-bearing half — `bounded`, `formal-bounded`,
+  `checked`, `estimated`, `model-based`)
   are printed on metadata-bearing lanes only; bare-number lanes (`eval`, `big-*`,
   single-command arithmetic) keep their historical byte-stable output and are graded in
   `jackal maturity` instead. Refusals exit nonzero with a named reason on stderr through the

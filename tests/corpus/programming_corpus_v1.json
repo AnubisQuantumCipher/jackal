@@ -1,0 +1,926 @@
+{
+  "authority": "anubis-safe-mode",
+  "case_counts": {
+    "poison": 10,
+    "positive": 9,
+    "refusal": 11
+  },
+  "cases": [
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "13",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_single_declaration",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"13\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_python_target line=13 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"13\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "2e0a9fca18cfc0261753d7cc997c76b78db5323360a4207f53520755eda57a67"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "one genuine Python declaration, line and count derived from find_declarations",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_twice",
+        "27",
+        "2"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_two_declarations_first_line",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"2\",\"declaration_line\":\"27\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_twice\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_python_twice line=27 count=2\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"2\",\"declaration_line\":\"27\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_twice\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "ea2e0add90dc46eff87487f79600dc9ad94fef94f85dbca6172fb157350897b8"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "a name declared twice; declaration_count 2 must be stated truthfully",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_twice",
+        "35",
+        "2"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_two_declarations_second_line",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"2\",\"declaration_line\":\"35\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_twice\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_python_twice line=35 count=2\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"2\",\"declaration_line\":\"35\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_twice\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "e8488c716d40c71a8933f62e991d394e821161a7a8d82cb57cbb1a639df51015"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "declaration_line must be one of the declarations, not only the first",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "CorpusPythonHolder",
+        "32",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_class_declaration",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"32\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"CorpusPythonHolder\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=CorpusPythonHolder line=32 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"32\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"CorpusPythonHolder\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "047d80b74c6a3e8771c575d3cdb2b723e9b6d139d38ed473c98c9e1a115b1f8a"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "a class declaration is a declaration for this checker",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_docstring_only.py",
+        "4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c",
+        "corpus_docstring_anchor",
+        "18",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_docstring_fixture_anchor",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"18\",\"file_path\":\"tests/corpus/fixtures/poison_docstring_only.py\",\"file_sha256\":\"4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c\",\"symbol\":\"corpus_docstring_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_docstring_anchor line=18 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"18\",\"file_path\":\"tests/corpus/fixtures/poison_docstring_only.py\",\"file_sha256\":\"4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c\",\"symbol\":\"corpus_docstring_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "30e6b279da8c8917166f7dd6dc15744055b039f06301ec0b125bcc96af4d9c2e"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "control: the file whose phantom is refused still yields its real symbol",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_rust_raw_string.rs",
+        "39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1",
+        "corpus_rust_raw_anchor",
+        "14",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_rust_raw_string_fixture_anchor",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"14\",\"file_path\":\"tests/corpus/fixtures/poison_rust_raw_string.rs\",\"file_sha256\":\"39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1\",\"symbol\":\"corpus_rust_raw_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_rust_raw_anchor line=14 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"14\",\"file_path\":\"tests/corpus/fixtures/poison_rust_raw_string.rs\",\"file_sha256\":\"39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1\",\"symbol\":\"corpus_rust_raw_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "c7deeb3db1ec15afa73f26999cbaf49db02cebbddd45617dd75cac6220ab1e32"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "control for the non-Python blanking path: a real Rust fn is found",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_rust_line_comment.rs",
+        "97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca",
+        "corpus_rust_comment_anchor",
+        "17",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_rust_comment_fixture_anchor",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"17\",\"file_path\":\"tests/corpus/fixtures/poison_rust_line_comment.rs\",\"file_sha256\":\"97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca\",\"symbol\":\"corpus_rust_comment_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_rust_comment_anchor line=17 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"17\",\"file_path\":\"tests/corpus/fixtures/poison_rust_line_comment.rs\",\"file_sha256\":\"97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca\",\"symbol\":\"corpus_rust_comment_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "5e9118d73f25d35861b04f9f263ed964ab6ab216664a009231c70d7614b4fbee"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "control: comment blanking does not blind the scanner to real code",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_rust_block_comment.rs",
+        "bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1",
+        "corpus_rust_block_anchor",
+        "20",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_test_exists_rust_block_comment_fixture_anchor",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"20\",\"file_path\":\"tests/corpus/fixtures/poison_rust_block_comment.rs\",\"file_sha256\":\"bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1\",\"symbol\":\"corpus_rust_block_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_rust_block_anchor line=20 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"20\",\"file_path\":\"tests/corpus/fixtures/poison_rust_block_comment.rs\",\"file_sha256\":\"bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1\",\"symbol\":\"corpus_rust_block_anchor\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "5c2637541c85882fe62ab1289b43ff4ec364da95a99766ce09cd166ceb2d4b79"
+      },
+      "engine_command": "test-exists",
+      "invocation": "direct",
+      "note": "control: block-comment blanking does not blind the scanner to real code",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/claim_source_doc.md",
+        "41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad",
+        "The fixture module declares a Python helper named corpus_python_target.",
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_claim_cites_test_citation_resolves",
+      "certificate": "test-exists-cert={\"claim\":{\"claim_text\":\"The fixture module declares a Python helper named corpus_python_target.\",\"doc_path\":\"tests/corpus/fixtures/claim_source_doc.md\",\"doc_sha256\":\"41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad\",\"symbol\":\"corpus_python_target\",\"test_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"test_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\"},\"kind\":\"claim-cites-test\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact cited_symbol=corpus_python_target\nconsequence=informational note=citation-resolves-it-does-not-establish-the-cited-test-covers-the-claim\ntest-exists-cert={\"claim\":{\"claim_text\":\"The fixture module declares a Python helper named corpus_python_target.\",\"doc_path\":\"tests/corpus/fixtures/claim_source_doc.md\",\"doc_sha256\":\"41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad\",\"symbol\":\"corpus_python_target\",\"test_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"test_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\"},\"kind\":\"claim-cites-test\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "98ac11ef78e2a3704ba09f0900f9d070d682e011efe325a2753bc47be40b2fc1"
+      },
+      "engine_command": "claim-cites-test",
+      "invocation": "direct",
+      "note": "claim text occurs verbatim in the doc and the cited symbol exists",
+      "operation_id": "programming.source.claim_cites_test.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "deadbeef",
+        "corpus_python_target",
+        "13",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_file_sha256_not_64_hex",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-hex64",
+        "refusal_detail": "file_sha256 must be exactly 64 hex digits; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "prog-hex64",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "/etc/passwd",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "corpus_python_target",
+        "1",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_absolute_file_path",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-path",
+        "refusal_detail": "file_path must be repository-relative; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "prog-path",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "../etc/passwd",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "corpus_python_target",
+        "1",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_parent_traversal_file_path",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-path",
+        "refusal_detail": "file_path must not contain a parent traversal; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "prog-path",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus-python-target",
+        "13",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_symbol_not_an_identifier",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-symbol",
+        "refusal_detail": "symbol contains a byte outside [A-Za-z0-9_]; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "prog-symbol",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "0",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_declaration_line_zero",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-uint",
+        "refusal_detail": "declaration_line is 1-based and must not be 0; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "prog-uint",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "13",
+        "0"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_declaration_count_zero_is_an_absence",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-absent",
+        "refusal_detail": "declaration_count is 0, which is an absence, not an existence claim; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "prog-absent",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "13"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_route_arity_test_exists",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-request-arity",
+        "refusal_detail": "programming.source.test_exists.v1 requires exactly 5 arguments; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "pack-request-arity",
+      "invocation": "pack-route",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_only": true,
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "13",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_unknown_pack_id",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-id-unknown",
+        "refusal_detail": "requested pack is not registered; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "pack-id-unknown",
+      "invocation": "pack-route",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_only": true,
+      "route_pack_id": "jackal.programming.absent",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "13",
+        "1"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_unknown_operation_id",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-operation-unknown",
+        "refusal_detail": "no fallback is permitted; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "test-exists",
+      "expected_refusal": "pack-operation-unknown",
+      "invocation": "pack-route",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_only": true,
+      "route_operation_id": "programming.source.absent.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/claim_source_doc.md",
+        "41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad",
+        "",
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_empty_claim_text",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-text",
+        "refusal_detail": "claim_text must not be empty; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "claim-cites-test",
+      "expected_refusal": "prog-text",
+      "invocation": "direct",
+      "operation_id": "programming.source.claim_cites_test.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/claim_source_doc.md",
+        "41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad",
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_claim_text_over_2048_bytes",
+      "checker": null,
+      "engine": {
+        "refusal_class": "prog-text",
+        "refusal_detail": "claim_text exceeds 2048 bytes; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "claim-cites-test",
+      "expected_refusal": "prog-text",
+      "invocation": "direct",
+      "operation_id": "programming.source.claim_cites_test.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "corpus_python_target",
+        "13",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_stale_content_hash",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"13\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-content-hash-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-content-hash-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_python_target line=13 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"13\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "d24441c4cd1f269b7a6c5b2e6b3740f719083705fcfb36794ffffce37d1e1680"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-content-hash-mismatch",
+      "invocation": "direct",
+      "note": "a well-formed hash that is not the file's hash",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "999",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_declaration_line_wrong",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"999\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-declaration-line-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-declaration-line-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_python_target line=999 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"999\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "2269e588e946d2ac1e64ea082844d8da4222a9801fe9f7c2af1cbacc775d22f0"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-declaration-line-mismatch",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target",
+        "13",
+        "2"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_declaration_count_inflated",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"2\",\"declaration_line\":\"13\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-declaration-count-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-declaration-count-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_python_target line=13 count=2\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"2\",\"declaration_line\":\"13\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_python_target\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "dca2166747fea9f033770985cf3f3199c208c146fd74a850d2384fd95b975f3e"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-declaration-count-mismatch",
+      "invocation": "direct",
+      "note": "claiming two declarations of a symbol declared once",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_absent_from_fixture",
+        "1",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_symbol_absent_entirely",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"1\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_absent_from_fixture\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-symbol-absent",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-symbol-absent"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_absent_from_fixture line=1 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"1\",\"file_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"file_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\",\"symbol\":\"corpus_absent_from_fixture\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "ca76f4990868e3706feeb06c973604246adc50f983c939fcdb65a72328957cc1"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-symbol-absent",
+      "invocation": "direct",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_docstring_only.py",
+        "4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c",
+        "corpus_docstring_phantom",
+        "6",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_declaration_only_in_python_docstring",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"6\",\"file_path\":\"tests/corpus/fixtures/poison_docstring_only.py\",\"file_sha256\":\"4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c\",\"symbol\":\"corpus_docstring_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-symbol-absent",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-symbol-absent"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_docstring_phantom line=6 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"6\",\"file_path\":\"tests/corpus/fixtures/poison_docstring_only.py\",\"file_sha256\":\"4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c\",\"symbol\":\"corpus_docstring_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "f7b8427ed75cb49764635ff7fc6713db4ec27fd3063e3fea65c064b991fd9ac8"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-symbol-absent",
+      "invocation": "direct",
+      "note": "the symbol is declaration-shaped inside a docstring and nowhere else",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_rust_raw_string.rs",
+        "39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1",
+        "corpus_raw_string_phantom",
+        "16",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_declaration_only_in_rust_raw_string",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"16\",\"file_path\":\"tests/corpus/fixtures/poison_rust_raw_string.rs\",\"file_sha256\":\"39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1\",\"symbol\":\"corpus_raw_string_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-symbol-absent",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-symbol-absent"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_raw_string_phantom line=16 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"16\",\"file_path\":\"tests/corpus/fixtures/poison_rust_raw_string.rs\",\"file_sha256\":\"39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1\",\"symbol\":\"corpus_raw_string_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "d887c74fda865c67dc8a3d5c2a683e586d4a37bd32dd6af1a00c516748e112aa"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-symbol-absent",
+      "invocation": "direct",
+      "note": "declaration-shaped text inside an r\"...\" literal is not a declaration",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_rust_line_comment.rs",
+        "97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca",
+        "corpus_line_comment_phantom",
+        "9",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_declaration_only_in_line_comment",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"9\",\"file_path\":\"tests/corpus/fixtures/poison_rust_line_comment.rs\",\"file_sha256\":\"97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca\",\"symbol\":\"corpus_line_comment_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-symbol-absent",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-symbol-absent"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_line_comment_phantom line=9 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"9\",\"file_path\":\"tests/corpus/fixtures/poison_rust_line_comment.rs\",\"file_sha256\":\"97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca\",\"symbol\":\"corpus_line_comment_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "ef7b9ac251b4e7fa186019574de37ffb87cf68cf5bd22df4c9257b0629535296"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-symbol-absent",
+      "invocation": "direct",
+      "note": "commented-out code is not code. Attributed honestly: this one is refused by the line anchor in the declaration patterns, not by the comment-blanking pass -- see the instrument test in tests/programming_pack_test.py",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/poison_rust_block_comment.rs",
+        "bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1",
+        "corpus_block_comment_phantom",
+        "15",
+        "1"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_declaration_only_in_block_comment",
+      "certificate": "test-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"15\",\"file_path\":\"tests/corpus/fixtures/poison_rust_block_comment.rs\",\"file_sha256\":\"bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1\",\"symbol\":\"corpus_block_comment_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-symbol-absent",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-symbol-absent"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact symbol=corpus_block_comment_phantom line=15 count=1\nconsequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct\ntest-exists-cert={\"claim\":{\"declaration_count\":\"1\",\"declaration_line\":\"15\",\"file_path\":\"tests/corpus/fixtures/poison_rust_block_comment.rs\",\"file_sha256\":\"bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1\",\"symbol\":\"corpus_block_comment_phantom\"},\"kind\":\"test-exists\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "85a05e7cc067fa500b2e014a8b586fd8346acc0e18dd91d4701076d1f3a9a713"
+      },
+      "engine_command": "test-exists",
+      "expected_verdict": "REFUSE cert-symbol-absent",
+      "invocation": "direct",
+      "note": "the phantom line carries no comment marker of its own, so the comment-blanking pass is the only thing that refuses it",
+      "operation_id": "programming.source.test_exists.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/claim_source_doc.md",
+        "41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad",
+        "The fixture module proves corpus_python_target is correct.",
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_python_target"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_claim_text_not_in_document",
+      "certificate": "test-exists-cert={\"claim\":{\"claim_text\":\"The fixture module proves corpus_python_target is correct.\",\"doc_path\":\"tests/corpus/fixtures/claim_source_doc.md\",\"doc_sha256\":\"41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad\",\"symbol\":\"corpus_python_target\",\"test_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"test_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\"},\"kind\":\"claim-cites-test\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-claim-text-absent",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-claim-text-absent"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact cited_symbol=corpus_python_target\nconsequence=informational note=citation-resolves-it-does-not-establish-the-cited-test-covers-the-claim\ntest-exists-cert={\"claim\":{\"claim_text\":\"The fixture module proves corpus_python_target is correct.\",\"doc_path\":\"tests/corpus/fixtures/claim_source_doc.md\",\"doc_sha256\":\"41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad\",\"symbol\":\"corpus_python_target\",\"test_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"test_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\"},\"kind\":\"claim-cites-test\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "cc43166d3455200e711c976f0269672dbcbb424a871e94e4db85d48e16455c72"
+      },
+      "engine_command": "claim-cites-test",
+      "expected_verdict": "REFUSE cert-claim-text-absent",
+      "invocation": "direct",
+      "note": "the quoted claim does not occur verbatim in the cited document",
+      "operation_id": "programming.source.claim_cites_test.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "tests/corpus/fixtures/claim_source_doc.md",
+        "41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad",
+        "The fixture module declares a Python helper named corpus_absent_from_fixture.",
+        "tests/corpus/fixtures/genuine_python_decls.py",
+        "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19",
+        "corpus_absent_from_fixture"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_citation_dangles",
+      "certificate": "test-exists-cert={\"claim\":{\"claim_text\":\"The fixture module declares a Python helper named corpus_absent_from_fixture.\",\"doc_path\":\"tests/corpus/fixtures/claim_source_doc.md\",\"doc_sha256\":\"41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad\",\"symbol\":\"corpus_absent_from_fixture\",\"test_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"test_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\"},\"kind\":\"claim-cites-test\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-citation-dangling",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/test_exists_verify.py",
+        "verdict": "REFUSE cert-citation-dangling"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=structural-exact cited_symbol=corpus_absent_from_fixture\nconsequence=informational note=citation-resolves-it-does-not-establish-the-cited-test-covers-the-claim\ntest-exists-cert={\"claim\":{\"claim_text\":\"The fixture module declares a Python helper named corpus_absent_from_fixture.\",\"doc_path\":\"tests/corpus/fixtures/claim_source_doc.md\",\"doc_sha256\":\"41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad\",\"symbol\":\"corpus_absent_from_fixture\",\"test_path\":\"tests/corpus/fixtures/genuine_python_decls.py\",\"test_sha256\":\"eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19\"},\"kind\":\"claim-cites-test\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "c7d400e8aec2447767a3b92d1e2c5a0a5bec669aed766a0cdb03fd15a582101b"
+      },
+      "engine_command": "claim-cites-test",
+      "expected_verdict": "REFUSE cert-citation-dangling",
+      "invocation": "direct",
+      "note": "the document's sentence is real; the test it names is not",
+      "operation_id": "programming.source.claim_cites_test.v1",
+      "route_parity": true
+    }
+  ],
+  "checker": {
+    "path": "tools/test_exists_verify.py",
+    "sha256": "598cb99e1eb70c9410ca87345efee346f73e43aaf3625427dca17ea04231caea"
+  },
+  "corpus_digest_sha256": "f1a8729549b2631a7643e6e6a260a93e568fad07e8636961925e2c8728a6a499",
+  "corpus_version": "1",
+  "engine": {
+    "anubis_pin": "anubis-a733565f237d",
+    "entry_source_path": "jackal_calc.anb",
+    "entry_source_sha256": "982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0",
+    "harness_mode": "prebuilt-native"
+  },
+  "fixtures": [
+    {
+      "path": "tests/corpus/fixtures/genuine_python_decls.py",
+      "sha256": "eaa70efea4ea4009e98657fcf112fc2b8fa71a55f31a9100df4bf27948d2ef19"
+    },
+    {
+      "path": "tests/corpus/fixtures/poison_docstring_only.py",
+      "sha256": "4a0e6e550300c0f75ba09d94f0fdd0219513072cadd29751931766e44cb78a1c"
+    },
+    {
+      "path": "tests/corpus/fixtures/poison_rust_raw_string.rs",
+      "sha256": "39239bc16f0dcde865621e72ddae5e5fc4acf1b1d2c374b5de537b687393e1b1"
+    },
+    {
+      "path": "tests/corpus/fixtures/poison_rust_line_comment.rs",
+      "sha256": "97bbabd0dab942268d80ec4798e1532347a106f9d5d270e13e84ac6027f14cca"
+    },
+    {
+      "path": "tests/corpus/fixtures/poison_rust_block_comment.rs",
+      "sha256": "bbb7518880b74ac0d2da90fa784e104ff676432001a050e3a3d4aa15e959f0c1"
+    },
+    {
+      "path": "tests/corpus/fixtures/claim_source_doc.md",
+      "sha256": "41c5a28f456166c2d5b73c9e03391cbf2c438741e459893cbb34919b7db233ad"
+    }
+  ],
+  "generated_by": "tests/corpus/generate_pack_corpus.py",
+  "nonclaims": [
+    "a_frozen_observation_is_not_a_proof_of_correctness",
+    "the_refusal_classes_recorded_here_are_not_exhaustive",
+    "an_accepted_certificate_says_nothing_about_the_code_it_names"
+  ],
+  "pack_id": "jackal.programming.source",
+  "schema": "jackal-pack-corpus-v1"
+}

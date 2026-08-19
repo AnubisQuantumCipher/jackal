@@ -1,0 +1,12 @@
+{
+  "schema": "jackal-agent-profile-v1",
+  "profile_id": "core",
+  "description": "Default surface for an autonomous agent: the three claim/verification front doors, and no bare producer lane. This is not a claim that nothing on this profile computes. jackal_claim compiles caller-supplied steps — input, exact, enclose, gaussian, machine, interval_add/sub/mul/div, threshold, decision, convert, and, model, passthrough, attach — and those steps do mint fresh numeric evidence into the bundle. What core buys is narrower and mechanical: every number an agent restricted to this profile can reach arrives inside a canonical, content-addressed jackal-claim-bundle-v1 whose assurance and consequence classes were assigned by the deterministic policy router rather than asserted by the caller, whose route trace names each candidate lane and every refusal reason, and which refuses rather than silently downgrading (allow_fallback defaults false). jackal_verify_bundle independently replays such a bundle against caller-pinned expectations using the standalone dependency-free verifier, which recomputes every canonical byte and hash, re-evaluates every inference rule and assurance-axis propagation and enforces the consequence-class floors, so a bundle can be refuted without trusting whoever produced it. jackal_verify_receipt re-runs the matching pinned Lean-proved range, Gaussian, or composed-integral (int_cert) checker over an embedded certificate, so a formal-bounded receipt can be re-checked without re-running the producer. The remaining 31 tools are bare producers: they return a value and a status directly, with no bundle, no route trace and no independent replay path. Reaching one is an explicit operator act — select the formal or full profile.",
+  "tools": [
+    "jackal_verify_receipt",
+    "jackal_claim",
+    "jackal_verify_bundle"
+  ],
+  "immutable": true,
+  "profile_digest_sha256": "6957117f0401e87e38e9e616ba4ecdd100ad5a6882be3d7b8a899ae7658407ea"
+}

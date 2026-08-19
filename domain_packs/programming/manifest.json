@@ -1,0 +1,177 @@
+{
+  "schema": "jackal-domain-pack-manifest-v1",
+  "protocol_version": "1",
+  "pack_id": "jackal.programming.source",
+  "pack_version": "1.0.0",
+  "description": "Closed Anubis routing for byte-exact structural facts about source files. Structure only: nothing here is evidence that any code is correct.",
+  "compatibility": {
+    "jackal_release_min": "v1.8.0",
+    "jackal_release_max_exclusive": "v2.0.0",
+    "protocol_min": "1",
+    "protocol_max": "1"
+  },
+  "request_abi": "argv-v1",
+  "engine": {
+    "authority": "anubis-safe-mode",
+    "entry_source_path": "jackal_calc.anb",
+    "entry_source_sha256": "982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0",
+    "route_source_path": "domain_packs/programming/programming_pack.anb",
+    "route_source_sha256": "f590ed33b757fda476db5b2771e0f0a50addc838721a97b562471cc75f2153f6",
+    "route_command": "pack-route"
+  },
+  "operations": [
+    {
+      "operation_id": "programming.source.test_exists.v1",
+      "engine_command": "test-exists",
+      "argument_schema": [
+        {
+          "name": "file_path",
+          "type": "path_token",
+          "max_bytes": 512
+        },
+        {
+          "name": "file_sha256",
+          "type": "content_digest",
+          "max_bytes": 64
+        },
+        {
+          "name": "symbol",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "declaration_line",
+          "type": "canonical_positive_integer",
+          "max_bytes": 18
+        },
+        {
+          "name": "declaration_count",
+          "type": "canonical_positive_integer",
+          "max_bytes": 18
+        }
+      ],
+      "response_schema": "jackal-test-exists-cert-v1",
+      "checker": {
+        "path": "tools/test_exists_verify.py",
+        "sha256": "598cb99e1eb70c9410ca87345efee346f73e43aaf3625427dca17ea04231caea"
+      },
+      "evidence_kind": "test-exists-cert",
+      "inference_rule": "evidence_admit",
+      "assurance_ceiling": "exact",
+      "consequence_ceiling": "informational",
+      "refusal_classes": [
+        "pack-id-unknown",
+        "pack-operation-unknown",
+        "pack-request-arity",
+        "prog-path",
+        "prog-hex64",
+        "prog-symbol",
+        "prog-uint",
+        "prog-absent",
+        "checker-rejected"
+      ],
+      "fallback": {
+        "allowed": false,
+        "reason": "fallback_forbidden"
+      },
+      "resources": {
+        "max_request_bytes": 16384,
+        "max_response_bytes": 65536,
+        "max_arguments": 5,
+        "max_argument_bytes": 4096,
+        "timeout_ms": 120000,
+        "memory_bytes": 536870912,
+        "max_depth": 1,
+        "max_nodes": 1
+      },
+      "nonclaims": [
+        "no_input_truth",
+        "no_universal_soundness",
+        "raw_output_requires_independent_verification",
+        "test_existence_is_not_correctness",
+        "citation_resolution_is_not_coverage",
+        "declaration_shape_is_not_execution",
+        "content_hash_is_not_provenance"
+      ]
+    },
+    {
+      "operation_id": "programming.source.claim_cites_test.v1",
+      "engine_command": "claim-cites-test",
+      "argument_schema": [
+        {
+          "name": "doc_path",
+          "type": "path_token",
+          "max_bytes": 512
+        },
+        {
+          "name": "doc_sha256",
+          "type": "content_digest",
+          "max_bytes": 64
+        },
+        {
+          "name": "claim_text",
+          "type": "utf8_text",
+          "max_bytes": 2048
+        },
+        {
+          "name": "test_path",
+          "type": "path_token",
+          "max_bytes": 512
+        },
+        {
+          "name": "test_sha256",
+          "type": "content_digest",
+          "max_bytes": 64
+        },
+        {
+          "name": "symbol",
+          "type": "utf8_text",
+          "max_bytes": 256
+        }
+      ],
+      "response_schema": "jackal-test-exists-cert-v1",
+      "checker": {
+        "path": "tools/test_exists_verify.py",
+        "sha256": "598cb99e1eb70c9410ca87345efee346f73e43aaf3625427dca17ea04231caea"
+      },
+      "evidence_kind": "test-exists-cert",
+      "inference_rule": "evidence_admit",
+      "assurance_ceiling": "exact",
+      "consequence_ceiling": "informational",
+      "refusal_classes": [
+        "pack-id-unknown",
+        "pack-operation-unknown",
+        "pack-request-arity",
+        "prog-path",
+        "prog-hex64",
+        "prog-symbol",
+        "prog-text",
+        "checker-rejected"
+      ],
+      "fallback": {
+        "allowed": false,
+        "reason": "fallback_forbidden"
+      },
+      "resources": {
+        "max_request_bytes": 16384,
+        "max_response_bytes": 65536,
+        "max_arguments": 6,
+        "max_argument_bytes": 4096,
+        "timeout_ms": 120000,
+        "memory_bytes": 536870912,
+        "max_depth": 1,
+        "max_nodes": 1
+      },
+      "nonclaims": [
+        "no_input_truth",
+        "no_universal_soundness",
+        "raw_output_requires_independent_verification",
+        "test_existence_is_not_correctness",
+        "citation_resolution_is_not_coverage",
+        "cited_test_may_check_something_else",
+        "content_hash_is_not_provenance"
+      ]
+    }
+  ],
+  "manifest_digest_sha256": "688d46f0f0b3eb5a26ba6fc21094a2897854f91801bcc3b317e6d4b21d30d8b1"
+}

@@ -1,8 +1,8 @@
 {
   "schema": "jackal-inference-registry-v1",
-  "registry_version": "2",
+  "registry_version": "1",
   "release_epoch": "v1.6.0",
-  "notes": "Closed rule set for jackal-claim-bundle-v1 graphs. The independent verifier re-evaluates every rule from canonical parent propositions; anything outside this registry refuses. Axis caps: 'meet' = minimum rank over parents per SPEC.md section 4; entries listed as caps are upper bounds applied AFTER the meet. registry_version 2 is additive and changes no rule, axis, consequence floor, or budget: evidence_admit additionally admits the domain-pack evidence kinds 'test-exists-cert' and 'decision-cert', each taking only 'evidence_kind', following the 'exact-cert' precedent. release_epoch remains v1.6.0 because no v1.6.0 semantics changed; the file bytes did change, so every caller-side byte pin recorded against registry_version 1 is now stale and must be repinned or replayed against archived registry_version 1 bytes rather than this file.",
+  "notes": "Closed rule set for jackal-claim-bundle-v1 graphs. The independent verifier re-evaluates every rule from canonical parent propositions; anything outside this registry refuses. Axis caps: 'meet' = minimum rank over parents per SPEC.md section 4; entries listed as caps are upper bounds applied AFTER the meet.",
   "axis_orders": {
     "input_provenance": ["unknown", "supplied", "integrity-bound", "observed", "authenticated-source", "measured"],
     "model_validity": ["unknown", "assumed", "calibrated", "empirically-validated"],
@@ -29,10 +29,10 @@
     "evidence_admit": {
       "parents": [0, 0],
       "params_keys": "see evidence_admit_params_by_kind",
-      "evidence_kinds": ["formal-receipt", "exact-cert", "machine-int-cert", "test-exists-cert", "decision-cert"],
+      "evidence_kinds": ["formal-receipt", "exact-cert", "machine-int-cert"],
       "mathematical_cap": null,
       "implementation_cap": null,
-      "notes": "Axes fixed by the adapter table in SPEC.md section 6; caps not applicable because the adapter dictates exact values. Admission here is vocabulary only: it makes a kind nameable by a domain-pack manifest and says nothing about what any consequence class that kind may carry."
+      "notes": "Axes fixed by the adapter table in SPEC.md section 6; caps not applicable because the adapter dictates exact values."
     },
     "and_intro": {
       "parents": [2, 16],
@@ -180,9 +180,7 @@
   "evidence_admit_params_by_kind": {
     "formal-receipt": ["evidence_kind", "expected_request", "expected_release_epoch", "expected_identities"],
     "exact-cert": ["evidence_kind"],
-    "machine-int-cert": ["evidence_kind"],
-    "test-exists-cert": ["evidence_kind"],
-    "decision-cert": ["evidence_kind"]
+    "machine-int-cert": ["evidence_kind"]
   },
   "budgets": {
     "max_bundle_bytes": 4194304,

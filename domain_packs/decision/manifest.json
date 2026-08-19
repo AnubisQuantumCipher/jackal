@@ -1,0 +1,149 @@
+{
+  "schema": "jackal-domain-pack-manifest-v1",
+  "protocol_version": "1",
+  "pack_id": "jackal.decision.matrix",
+  "pack_version": "1.0.0",
+  "description": "Closed Anubis routing for deterministic decision matrices. Orders options by a caller-declared, recomputable numeric criterion; refuses to rank on preference, goodness, or worth.",
+  "compatibility": {
+    "jackal_release_min": "v1.8.0",
+    "jackal_release_max_exclusive": "v2.0.0",
+    "protocol_min": "1",
+    "protocol_max": "1"
+  },
+  "request_abi": "argv-v1",
+  "engine": {
+    "authority": "anubis-safe-mode",
+    "entry_source_path": "jackal_calc.anb",
+    "entry_source_sha256": "982d53110f6c92d788625482b8133a0fd605e0ef0e5d55fa1e2e44c0b01ee7a0",
+    "route_source_path": "domain_packs/decision/decision_pack.anb",
+    "route_source_sha256": "55e4083ce1711e0ee40d2aeb939d7806877dddef67ccb782ae061b0d0b26fb75",
+    "route_command": "pack-route"
+  },
+  "operations": [
+    {
+      "operation_id": "decision.matrix.rank.v1",
+      "engine_command": "decision-rank",
+      "argument_schema": [
+        {
+          "name": "decision_id",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "criterion",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "sense",
+          "type": "utf8_text",
+          "max_bytes": 3
+        },
+        {
+          "name": "option_1_label",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "option_1_value",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "option_2_label",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "option_2_value",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "option_3_label",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "option_3_value",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "option_4_label",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "option_4_value",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "option_5_label",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "option_5_value",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "option_6_label",
+          "type": "utf8_text",
+          "max_bytes": 256
+        },
+        {
+          "name": "option_6_value",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        }
+      ],
+      "response_schema": "jackal-decision-cert-v1",
+      "checker": {
+        "path": "tools/decision_verify.py",
+        "sha256": "bc3471352c2685dbf4848b0a2ba7daab63ace443cca043c258f36642a70e5af4"
+      },
+      "evidence_kind": "decision-cert",
+      "inference_rule": "evidence_admit",
+      "assurance_ceiling": "exact",
+      "consequence_ceiling": "decision-boundary",
+      "refusal_classes": [
+        "pack-id-unknown",
+        "pack-operation-unknown",
+        "pack-request-arity",
+        "prog-symbol",
+        "decision-sense-unknown",
+        "decision-duplicate-label",
+        "decision-margin-zero",
+        "decision-value-judgment",
+        "checker-rejected"
+      ],
+      "fallback": {
+        "allowed": false,
+        "reason": "fallback_forbidden"
+      },
+      "resources": {
+        "max_request_bytes": 16384,
+        "max_response_bytes": 65536,
+        "max_arguments": 15,
+        "max_argument_bytes": 4096,
+        "timeout_ms": 120000,
+        "memory_bytes": 536870912,
+        "max_depth": 1,
+        "max_nodes": 1
+      },
+      "nonclaims": [
+        "no_input_truth",
+        "no_universal_soundness",
+        "raw_output_requires_independent_verification",
+        "criterion_choice_is_not_established",
+        "ranking_is_never_a_value_judgment",
+        "declared_option_values_are_not_measurements",
+        "a_margin_is_not_a_confidence_interval"
+      ]
+    }
+  ],
+  "manifest_digest_sha256": "d16c16809177909258eb4a284d28f051b60f459ce6a643ba3c24c9b105969a17"
+}

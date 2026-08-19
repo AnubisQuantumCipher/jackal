@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AnubisQuantumCipher/jackal/schemas/jackal_agent_profile.schema.json",
+  "title": "JACKAL agent profile v1",
+  "description": "Immutable declaration of the JACKAL tool surface an agent host may expose. A profile is a name list and nothing more: it grants no capability, performs no computation, and can never raise an assurance class. The engine remains the only authority for calculation, routing, assurance, and refusal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "profile_id",
+    "description",
+    "tools",
+    "immutable",
+    "profile_digest_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "description": "Pinned document schema identifier.",
+      "const": "jackal-agent-profile-v1"
+    },
+    "profile_id": {
+      "description": "Profile identity; must equal the file stem.",
+      "type": "string",
+      "enum": [
+        "core",
+        "formal",
+        "full"
+      ]
+    },
+    "description": {
+      "description": "Operator-readable justification for the exact tool set, including why each admitted lane belongs in this profile.",
+      "type": "string",
+      "minLength": 32,
+      "maxLength": 8192
+    },
+    "tools": {
+      "description": "Tool names, each of which must exist in plugin/hermes/tools.json, listed in tools.json declaration order.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 64,
+        "pattern": "^jackal_[a-z0-9]+(?:_[a-z0-9]+)*$"
+      }
+    },
+    "immutable": {
+      "description": "Mutation lock. Shipped profiles are always true; the verifier refuses a shipped profile that declares false.",
+      "type": "boolean"
+    },
+    "profile_digest_sha256": {
+      "description": "SHA-256 over the canonical JSON encoding (sorted keys, separators (\",\", \":\"), ensure_ascii=False) of this object with profile_digest_sha256 omitted.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

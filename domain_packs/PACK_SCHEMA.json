@@ -1,0 +1,48 @@
+{
+  "schema": "jackal-domain-pack-contract-schema-v1",
+  "protocol_version": "1",
+  "authority": "anubis-safe-mode",
+  "manifest_schema": "jackal-domain-pack-manifest-v1",
+  "registry_schema": "jackal-domain-pack-registry-v1",
+  "request_abis": [
+    "argv-v1"
+  ],
+  "assurance_ceiling_source": "release/claim/inference_registry_v1.json#axis_orders.mathematical",
+  "consequence_class_source": "release/claim/inference_registry_v1.json#consequence_classes",
+  "fallback": {
+    "allowed": false,
+    "reason": "fallback_forbidden"
+  },
+  "resource_keys": [
+    "max_request_bytes",
+    "max_response_bytes",
+    "max_arguments",
+    "max_argument_bytes",
+    "timeout_ms",
+    "memory_bytes",
+    "max_depth",
+    "max_nodes"
+  ],
+  "limits": {
+    "max_json_bytes": 1048576,
+    "max_artifact_bytes": 8388608,
+    "max_pack_artifact_bytes": 16777216,
+    "max_packs": 64,
+    "max_operations_per_pack": 256,
+    "max_total_operations": 4096,
+    "max_request_bytes": 1048576,
+    "max_response_bytes": 4194304,
+    "max_arguments": 64,
+    "max_argument_bytes": 16384,
+    "max_timeout_ms": 600000,
+    "max_memory_bytes": 1073741824,
+    "max_depth": 64,
+    "max_nodes": 4096,
+    "max_text_bytes": 4096
+  },
+  "required_nonclaims": [
+    "no_input_truth",
+    "no_universal_soundness",
+    "raw_output_requires_independent_verification"
+  ]
+}

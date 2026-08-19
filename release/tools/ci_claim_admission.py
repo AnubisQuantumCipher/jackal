@@ -13,6 +13,12 @@ independent recompute — on the hosted platform.  It does NOT run the
 macOS-only engine, the Lean-checked formal lanes, or the full 38-gate
 aggregate; those remain local sealed evidence.  The recorded environment
 epoch is replayed as a caller pin, exactly as a downstream verifier would.
+
+The inference registry this replay pins is the archived registry_version 1
+copy under `release/claim/archive/`, not the live registry file.  A v1.6.0
+replay must see v1.6.0 bytes; the live registry is free to evolve without
+either breaking this gate or being able to silently rewrite what v1.6.0
+was verified against.
 """
 from __future__ import annotations
 
@@ -24,6 +30,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "release/evidence/ci_claim_fixture_v160"
 
+# The v1.6.0 fixture replays against the inference registry as it existed at
+# v1.6.0 (registry_version 1, e7c999c3...), archived byte-for-byte here. It is
+# deliberately NOT the live `release/claim/inference_registry_v1.json`, which
+# has since moved to registry_version 2 to admit the domain-pack evidence
+# kinds.
+#
+# Do not "fix" a mismatch here by repointing this constant at the live registry
+# and repinning the fixture. The v1.6.0 bundle records the registry digest
+# inside its own body; rewriting that pin would make recorded evidence assert a
+# replay against bytes that did not exist at v1.6.0. That is laundering, and it
+# is the precise defect this gate exists to detect. If the live registry must
+# change, archive its bytes and add a new epoch fixture — never restate an old
+# one. `tests/ci_claim_archive_pin_test.py` fails if this is repointed.
+HISTORICAL_V160_INFERENCE_REGISTRY = (
+    ROOT / "release/claim/archive/inference_registry_v1__registry_version_1.json"
+)
+
 
 def verify(bundle: Path, pins: dict) -> subprocess.CompletedProcess:
     argv = [
@@ -34,7 +57,7 @@ def verify(bundle: Path, pins: dict) -> subprocess.CompletedProcess:
         "--expected-root-proposition", str(FIXTURE / "root_prop.json"),
         "--expected-policy-sha256", pins["expected_policy_sha256"],
         "--expected-inference-registry",
-        str(ROOT / "release/claim/inference_registry_v1.json"),
+        str(HISTORICAL_V160_INFERENCE_REGISTRY),
         "--expected-inference-registry-sha256",
         pins["expected_inference_registry_sha256"],
         "--expected-unit-registry",

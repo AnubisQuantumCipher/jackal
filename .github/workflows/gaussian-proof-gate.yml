@@ -46,16 +46,32 @@ jobs:
       - name: Check out exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Mechanical 34-tool inventory lock
+      - name: Mechanical 38-tool inventory and pack-reachability lock
         run: |
           python3 - <<'PY'
           import json
           tools = json.load(open("plugin/hermes/tools.json"))["tools"]
           names = sorted(t["name"] for t in tools)
-          assert len(names) == 34, f"expected 34 tools, found {len(names)}"
+          assert len(names) == 38, f"expected 38 tools, found {len(names)}"
           assert "jackal_claim" in names and "jackal_verify_bundle" in names
           assert "jackal_integrate_bound_cert" in names
-          print(f"34-tool inventory locked: {len(names)} tools")
+          # Every domain-pack operation must be reachable through some tool.
+          # `core.exact.mod_pow.v1` routes to the `mod-pow` engine command that
+          # `jackal_mod_pow` already exposes, so it is exempt BY NAME.
+          registry = json.load(open("domain_packs/registry_v1.json"))
+          blob = {t["name"]: json.dumps(t, sort_keys=True) for t in tools}
+          exempt = {"core.exact.mod_pow.v1"}
+          for pack in registry["packs"]:
+              for op in pack["operation_ids"]:
+                  if op in exempt:
+                      continue
+                  owners = sorted(n for n, x in blob.items() if op in x)
+                  assert len(owners) == 1, f"{op} exposed by {owners}, expected 1"
+          full = json.load(open("plugin/hermes/profiles/full.json"))["tools"]
+          assert full == [t["name"] for t in tools], "full profile != tools.json order"
+          print(f"38-tool inventory locked: {len(names)} tools; "
+                f"{sum(len(p['operation_ids']) for p in registry['packs'])} "
+                "pack operations reachable")
           PY
 
       - name: v1.5.0 compatibility floor (additive-only surface lock)

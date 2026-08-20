@@ -2,7 +2,7 @@
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
   "version": "v1.7.2",
-  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles. v1.7.2 closes the range-ordering and composed-integral proof premises and binds current formal tools to the closed-premise v2 proof identities.",
+  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles. v1.7.2 closes the range-ordering and composed-integral proof premises and binds current formal tools to the closed-premise v2 proof identities. Additive since v1.7.2: four domain-pack lanes (jackal-domain-pack-protocol v1) carry the same refusal discipline OUTSIDE mathematics — jackal_test_exists and jackal_claim_cites_test state byte-exact structural facts about source files at consequence ceiling informational, and jackal_decision_rank / jackal_decision_rank_v2 order options by a caller-declared recomputable numeric criterion at consequence ceiling decision-boundary. Every pack lane routes through pack-route, re-runs its manifest-pinned independent checker over the emitted certificate, and is NOT formal: assurance ceiling exact, no Lean checker, no theorem, and a consequence ceiling that never rises with the assurance class.",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
@@ -755,6 +755,115 @@
         "report": "full verifier output lines (axes, artifact flags, freshness, assumptions, residual non-claims, decision binding, rendering token, permitted text)",
         "reason": "stable refusal class on refusal/indeterminate",
         "detail": "short human-readable detail"
+      }
+    },
+    {
+      "name": "jackal_test_exists",
+      "description": "Domain pack jackal.programming.source, operation programming.source.test_exists.v1, routed through pack-route. States one byte-exact STRUCTURAL fact: a declaration-shaped occurrence of `symbol` exists at `declaration_line` in a file whose content hash is exactly `file_sha256`, and the file contains exactly `declaration_count` such occurrences. The engine validates the canonical FORM; the manifest-pinned independent checker tools/test_exists_verify.py then recomputes every claimed field from the real bytes on disk and only an ACCEPT verdict returns success, so a misstated hash, line or count refuses instead of minting a certificate. ASSURANCE ceiling exact; CONSEQUENCE ceiling informational, and the second does not rise with the first: a test-exists-cert is NEVER evidence that the code under test is correct, that the test executes, that it is collected by any runner, or that it asserts anything at all. NOT formal: no Lean checker and no theorem are involved. Do not cite this certificate in support of a correctness claim.",
+      "arguments": {
+        "file_path":         {"type": "string", "required": true,
+                              "help": "Repository-relative path token; absolute paths and parent traversal refuse `prog-path`."},
+        "file_sha256":       {"type": "string", "required": true,
+                              "help": "Exactly 64 lowercase hex characters; the checker recomputes it from the file bytes."},
+        "symbol":            {"type": "string", "required": true,
+                              "help": "Identifier of the declaration; a non-identifier refuses `prog-symbol`."},
+        "declaration_line":  {"type": "string", "required": true,
+                              "help": "1-based line of the declaration as a canonical positive integer."},
+        "declaration_count": {"type": "string", "required": true,
+                              "help": "Total declaration-shaped occurrences of `symbol` in the file; `0` refuses `prog-absent`."}
+      },
+      "returns": {
+        "status": "structural-exact | refused",
+        "assurance_ceiling": "exact",
+        "consequence_ceiling": "informational",
+        "checker_rerun": "ACCEPT on success (tools/test_exists_verify.py, digest pinned by the pack manifest)",
+        "certificate": "the verbatim jackal-test-exists-cert-v1 envelope line",
+        "identities": "{registry_file_sha256, registry_digest_sha256, pack_verifier_sha256, pack_manifest_sha256, evaluator_sha256, checker_sha256, plugin_sha256}",
+        "non_claims": "the operation's pinned nonclaims plus the consequence-ceiling and not-manifest-pinned statements",
+        "reason": "stable refusal class on refusal (prog-path, prog-hex64, prog-symbol, prog-uint, prog-absent, pack-request-arity, checker-rejected, ...)",
+        "detail": "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_claim_cites_test",
+      "description": "Domain pack jackal.programming.source, operation programming.source.claim_cites_test.v1, routed through pack-route. Resolves a citation: `claim_text` occurs verbatim in the document at `doc_path`/`doc_sha256`, and `symbol` has a declaration-shaped occurrence in the cited test file at `test_path`/`test_sha256`. Resolution is all this establishes. It does NOT establish that the cited test covers, exercises or supports the claim — the cited test may check something entirely different, which is the exact defect this operation exists to bound rather than hide. The manifest-pinned tools/test_exists_verify.py re-runs over the certificate and only ACCEPT returns success, so a claim text absent from the document or a dangling citation refuses. ASSURANCE ceiling exact; CONSEQUENCE ceiling informational, and the second does not rise with the first. NOT formal: no Lean checker and no theorem are involved.",
+      "arguments": {
+        "doc_path":    {"type": "string", "required": true,
+                        "help": "Repository-relative path of the document making the claim."},
+        "doc_sha256":  {"type": "string", "required": true,
+                        "help": "Exactly 64 lowercase hex characters for the document bytes."},
+        "claim_text":  {"type": "string", "required": true,
+                        "help": "The claim sentence, verbatim, 1..2048 bytes; it must occur in the document."},
+        "test_path":   {"type": "string", "required": true,
+                        "help": "Repository-relative path of the cited test file."},
+        "test_sha256": {"type": "string", "required": true,
+                        "help": "Exactly 64 lowercase hex characters for the cited test file bytes."},
+        "symbol":      {"type": "string", "required": true,
+                        "help": "Identifier the citation resolves to inside the cited test file."}
+      },
+      "returns": {
+        "status": "structural-exact | refused",
+        "assurance_ceiling": "exact",
+        "consequence_ceiling": "informational",
+        "checker_rerun": "ACCEPT on success (tools/test_exists_verify.py, digest pinned by the pack manifest)",
+        "certificate": "the verbatim jackal-test-exists-cert-v1 envelope line (kind claim-cites-test)",
+        "identities": "{registry_file_sha256, registry_digest_sha256, pack_verifier_sha256, pack_manifest_sha256, evaluator_sha256, checker_sha256, plugin_sha256}",
+        "non_claims": "includes cited_test_may_check_something_else and citation_resolution_is_not_coverage",
+        "reason": "stable refusal class on refusal (prog-path, prog-hex64, prog-symbol, prog-text, pack-request-arity, checker-rejected, ...)",
+        "detail": "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_decision_rank",
+      "description": "Domain pack jackal.decision.matrix, operation decision.matrix.rank.v1, routed through pack-route. Orders 2..6 labelled options by a caller-declared numeric criterion and emits a jackal-decision-cert-v1 naming the selected option, the runner-up and the exact margin; the manifest-pinned tools/decision_verify.py recomputes the whole ordering from the certificate's own option values and only ACCEPT returns success. Criterion admissibility is decided by the engine against a fixed word list, so a bare value judgment refuses `decision-value-judgment`; a top-two tie refuses `decision-margin-zero`. ASSURANCE ceiling exact; CONSEQUENCE ceiling decision-boundary. The arithmetic is exact and the choice of criterion is not: the declared criterion and the declared option values remain the caller's, this result is not a claim that the criterion is the right one, the values are not measurements, and the margin is not a confidence interval. For the closed-unit lane that additionally requires a declared unit, use jackal_decision_rank_v2. NOT formal: no Lean checker and no theorem are involved.",
+      "arguments": {
+        "decision_id": {"type": "string", "required": true,
+                        "help": "Caller's identifier for this decision, bound into the certificate. Bytes are restricted to [A-Za-z0-9_]; anything else refuses `prog-symbol`."},
+        "criterion":   {"type": "string", "required": true,
+                        "help": "The declared numeric criterion (e.g. 'latency_ms'); a value judgment refuses `decision-value-judgment`."},
+        "sense":       {"type": "string", "required": true,
+                        "help": "Exactly 'min' or 'max'; anything else refuses `decision-sense-unknown`."},
+        "options":     {"type": "string", "required": true,
+                        "help": "2..6 whitespace-separated `label value` pairs, e.g. 'a 10 b 20 c 30'. Values are canonical integers. A label containing whitespace shifts the pairing and refuses `pack-args-shape`; it is never silently re-paired."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "assurance_ceiling": "exact",
+        "consequence_ceiling": "decision-boundary",
+        "checker_rerun": "ACCEPT on success (tools/decision_verify.py, digest pinned by the pack manifest)",
+        "certificate": "the verbatim jackal-decision-cert-v1 envelope line",
+        "fields": "selected=, margin=, consequence=, note=",
+        "identities": "{registry_file_sha256, registry_digest_sha256, pack_verifier_sha256, pack_manifest_sha256, evaluator_sha256, checker_sha256, plugin_sha256}",
+        "reason": "stable refusal class on refusal (decision-value-judgment, decision-sense-unknown, decision-duplicate-label, decision-margin-zero, pack-request-arity, pack-args-shape, checker-rejected, ...)",
+        "detail": "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_decision_rank_v2",
+      "description": "Domain pack jackal.decision.matrix, operation decision.matrix.rank.v2, routed through pack-route. Same deterministic ordering as jackal_decision_rank, plus a REQUIRED declared unit drawn from a closed vocabulary: the 65 canonical ids of release/claim/unit_registry_v1.json excluding the dimensionless identity `one` (66 ids in the registry, `one` is not admitted here). Matching is exact-token and case-sensitive; an alias, a spelled-out name such as 'millisecond', a different case, or the dimensionless identity all refuse `decision-unit-unknown`, and an empty unit refuses `decision-unit-missing`. Emits jackal-decision-cert-v2, re-checked by the manifest-pinned tools/decision_verify.py; only ACCEPT returns success. ASSURANCE ceiling exact; CONSEQUENCE ceiling decision-boundary. Honest residual: a declared unit is NOT a measurement. The closed vocabulary forces the caller to name a dimension, and nothing more — a value-judgment criterion that survives the engine's word list is still accepted when a real unit is declared (`most_elegant` in `ms` ranks), and the values themselves remain caller-declared. NOT formal: no Lean checker and no theorem are involved.",
+      "arguments": {
+        "decision_id": {"type": "string", "required": true,
+                        "help": "Caller's identifier for this decision, bound into the certificate. Bytes are restricted to [A-Za-z0-9_]; anything else refuses `prog-symbol`."},
+        "criterion":   {"type": "string", "required": true,
+                        "help": "The declared numeric criterion; a value judgment refuses `decision-value-judgment` even with an admissible unit."},
+        "unit":        {"type": "string", "required": true,
+                        "help": "One canonical unit id from release/claim/unit_registry_v1.json, excluding `one`. Exact token, case-sensitive: 'ms' is admitted, 'millisecond' and 'MS' refuse `decision-unit-unknown`."},
+        "sense":       {"type": "string", "required": true,
+                        "help": "Exactly 'min' or 'max'; anything else refuses `decision-sense-unknown`."},
+        "options":     {"type": "string", "required": true,
+                        "help": "2..6 whitespace-separated `label value` pairs, e.g. 'a 10 b 20 c 30'. Values are canonical integers. A label containing whitespace shifts the pairing and refuses `pack-args-shape`; it is never silently re-paired."}
+      },
+      "returns": {
+        "status": "exact | refused",
+        "assurance_ceiling": "exact",
+        "consequence_ceiling": "decision-boundary",
+        "checker_rerun": "ACCEPT on success (tools/decision_verify.py, digest pinned by the pack manifest)",
+        "certificate": "the verbatim jackal-decision-cert-v2 envelope line",
+        "fields": "selected=, margin=, unit=, consequence=, note=",
+        "identities": "{registry_file_sha256, registry_digest_sha256, pack_verifier_sha256, pack_manifest_sha256, evaluator_sha256, checker_sha256, plugin_sha256}",
+        "non_claims": "includes a_declared_unit_is_not_a_measurement",
+        "reason": "stable refusal class on refusal (decision-unit-missing, decision-unit-unknown, decision-value-judgment, decision-sense-unknown, decision-duplicate-label, decision-margin-zero, pack-request-arity, pack-args-shape, checker-rejected, ...)",
+        "detail": "short human-readable string on refusal"
       }
     }
   ]

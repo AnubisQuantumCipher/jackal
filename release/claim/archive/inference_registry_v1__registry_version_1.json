@@ -1,0 +1,198 @@
+{
+  "schema": "jackal-inference-registry-v1",
+  "registry_version": "1",
+  "release_epoch": "v1.6.0",
+  "notes": "Closed rule set for jackal-claim-bundle-v1 graphs. The independent verifier re-evaluates every rule from canonical parent propositions; anything outside this registry refuses. Axis caps: 'meet' = minimum rank over parents per SPEC.md section 4; entries listed as caps are upper bounds applied AFTER the meet.",
+  "axis_orders": {
+    "input_provenance": ["unknown", "supplied", "integrity-bound", "observed", "authenticated-source", "measured"],
+    "model_validity": ["unknown", "assumed", "calibrated", "empirically-validated"],
+    "model_validity_identity": "not-applicable",
+    "mathematical": ["refused", "indeterminate", "estimated", "model-based", "checked", "bounded", "formal-bounded", "exact"],
+    "mathematical_ranks": {"refused": 0, "indeterminate": 1, "estimated": 2, "model-based": 2, "checked": 3, "bounded": 4, "formal-bounded": 5, "exact": 6},
+    "implementation": ["unknown", "directly-trusted", "campaign-tested", "independently-recomputed", "checker-derived", "source-native-refined"],
+    "artifact_flags": ["content_addressed", "reproducible_built", "authenticated", "transparency_logged"]
+  },
+  "producer_emittable": {
+    "input_provenance": ["unknown", "supplied", "integrity-bound"],
+    "implementation_never": ["source-native-refined"]
+  },
+  "rules": {
+    "input_declare": {
+      "parents": [0, 0],
+      "params_keys": ["source_description", "declared_provenance"],
+      "params_optional": ["source_id"],
+      "proposition_forms": ["in", "eq"],
+      "mathematical_cap": "checked",
+      "implementation_cap": "directly-trusted",
+      "notes": "Parentless supplied-input declaration. Provenance above integrity-bound refuses in v1."
+    },
+    "evidence_admit": {
+      "parents": [0, 0],
+      "params_keys": "see evidence_admit_params_by_kind",
+      "evidence_kinds": ["formal-receipt", "exact-cert", "machine-int-cert"],
+      "mathematical_cap": null,
+      "implementation_cap": null,
+      "notes": "Axes fixed by the adapter table in SPEC.md section 6; caps not applicable because the adapter dictates exact values."
+    },
+    "and_intro": {
+      "parents": [2, 16],
+      "params_keys": [],
+      "mathematical_cap": null,
+      "implementation_cap": "independently-recomputed",
+      "notes": "Conclusion is the ordered conjunction of parent propositions."
+    },
+    "equality_substitute": {
+      "parents": [2, 2],
+      "params_keys": [],
+      "mathematical_cap": null,
+      "implementation_cap": "independently-recomputed",
+      "notes": "Parent 1 must be a typed eq; every occurrence of lhs in parent 2's proposition is replaced by rhs."
+    },
+    "interval_add": {
+      "parents": [2, 2],
+      "params_keys": [],
+      "mathematical_cap": "bounded",
+      "implementation_cap": "independently-recomputed",
+      "notes": "Exact rational outward hull; conclusion interval must equal the hull exactly."
+    },
+    "interval_sub": {
+      "parents": [2, 2],
+      "params_keys": [],
+      "mathematical_cap": "bounded",
+      "implementation_cap": "independently-recomputed"
+    },
+    "interval_mul": {
+      "parents": [2, 2],
+      "params_keys": [],
+      "mathematical_cap": "bounded",
+      "implementation_cap": "independently-recomputed"
+    },
+    "interval_div": {
+      "parents": [2, 2],
+      "params_keys": [],
+      "mathematical_cap": "bounded",
+      "implementation_cap": "independently-recomputed",
+      "notes": "Verifier independently re-proves 0 outside the denominator interval from parent 2's canonical proposition; refusal class interval-div-zero."
+    },
+    "unit_convert_linear": {
+      "parents": [1, 1],
+      "params_keys": ["target_unit"],
+      "mathematical_cap": null,
+      "implementation_cap": "independently-recomputed",
+      "notes": "Exact rational scale ratio; identical dimension vector; both units linear."
+    },
+    "unit_convert_affine": {
+      "parents": [1, 1],
+      "params_keys": ["target_unit"],
+      "mathematical_cap": null,
+      "implementation_cap": "independently-recomputed",
+      "notes": "Point values only; affine-represented quantities never flow through add/sub/mul/div."
+    },
+    "threshold_from_enclosure": {
+      "parents": [1, 1],
+      "params_keys": ["op", "threshold"],
+      "ops": ["lt", "le", "gt", "ge"],
+      "mathematical_cap": null,
+      "implementation_cap": "independently-recomputed",
+      "notes": "Valid only when the entire certified enclosure establishes the comparison."
+    },
+    "robust_decision": {
+      "parents": [1, 1],
+      "params_keys": ["decision_id", "action", "consequence_class"],
+      "mathematical_cap": null,
+      "implementation_cap": "independently-recomputed",
+      "notes": "Binds decision metadata and the exact certified safety margin; margin recomputed by the verifier."
+    },
+    "model_condition": {
+      "parents": [1, 1],
+      "params_keys": ["added_assumptions"],
+      "mathematical_cap": null,
+      "implementation_cap": null,
+      "axis_preserve": true,
+      "notes": "Extends assumptions; model_validity never upgraded."
+    },
+    "provenance_passthrough": {
+      "parents": [1, 1],
+      "params_keys": [],
+      "mathematical_cap": null,
+      "implementation_cap": null,
+      "axis_preserve": true,
+      "notes": "input_provenance never upgraded."
+    },
+    "artifact_attestation_attach": {
+      "parents": [1, 1],
+      "params_keys": ["attestations"],
+      "mathematical_cap": null,
+      "implementation_cap": null,
+      "axis_preserve": true,
+      "notes": "Only artifact flags may change; every new true flag requires a declared attestation record; all other axes must equal the parent's exactly."
+    }
+  },
+  "app_functions": {
+    "gcd": {"arity": [2, 2], "args": "rat-int"},
+    "mod_inv": {"arity": [2, 2], "args": "rat-int"},
+    "mod_pow": {"arity": [3, 3], "args": "rat-int"},
+    "crt_solve": {"arity": [4, 32], "args": "rat-int-even"},
+    "formal.range": {"arity": [2, 2], "args": "str-expr,interval"},
+    "formal.gaussian_integral": {"arity": [3, 3], "args": "str-expr,interval,rat"},
+    "formal.integral": {"arity": [3, 3], "args": "str-expr,interval,rat"},
+    "machine": {"pattern": "^m\\.(add|sub|mul|and|or|xor|not|shl|shr_logical|shr_arith|rotl|rotr|neg|convert|eq|lt|le|gt|ge)\\.w(8|16|32|64)\\.(s|u)\\.(wrap|checked)$"}
+  },
+  "predicates": {
+    "denominator_nonzero": {"arity": [1, 1]},
+    "threshold_robust": {"arity": [3, 3]},
+    "prime": {"arity": [1, 1]},
+    "composite": {"arity": [1, 1]},
+    "exact_opaque": {"pattern": "^exact:(poly-canon|poly-eq|poly-gcd|ratfunc-canon|roots-isolate)$"},
+    "formal.range_enclosure": {"arity": [3, 3]},
+    "machine_overflow": {"pattern": "^m\\.overflow\\.(add|sub|mul|neg|shl|convert)\\.w(8|16|32|64)\\.(s|u)\\.checked$"}
+  },
+  "consequence_classes": {
+    "informational": {
+      "mathematical_min": "estimated",
+      "implementation_min": "directly-trusted",
+      "input_provenance_min": "unknown",
+      "model_validity_allowed": ["not-applicable", "unknown", "assumed", "calibrated", "empirically-validated"],
+      "margin_positive": false
+    },
+    "advisory": {
+      "mathematical_min": "checked",
+      "implementation_min": "directly-trusted",
+      "input_provenance_min": "supplied",
+      "model_validity_allowed": ["not-applicable", "unknown", "assumed", "calibrated", "empirically-validated"],
+      "margin_positive": false
+    },
+    "decision-boundary": {
+      "mathematical_min": "bounded",
+      "implementation_min": "independently-recomputed",
+      "input_provenance_min": "supplied",
+      "model_validity_allowed": ["not-applicable", "assumed", "calibrated", "empirically-validated"],
+      "margin_positive": true
+    },
+    "safety-critical": {
+      "mathematical_min": "formal-bounded",
+      "implementation_min": "independently-recomputed",
+      "input_provenance_min": "supplied",
+      "model_validity_allowed": ["not-applicable", "calibrated", "empirically-validated"],
+      "margin_positive": true
+    }
+  },
+  "residual_propagation": "child residual_non_claims = fixed v1 residual set, then parents' residuals in first-seen order; residuals never disappear",
+  "evidence_admit_params_by_kind": {
+    "formal-receipt": ["evidence_kind", "expected_request", "expected_release_epoch", "expected_identities"],
+    "exact-cert": ["evidence_kind"],
+    "machine-int-cert": ["evidence_kind"]
+  },
+  "budgets": {
+    "max_bundle_bytes": 4194304,
+    "max_nodes": 128,
+    "max_depth": 32,
+    "max_parents": 16,
+    "max_prop_nodes": 512,
+    "max_prop_depth": 64,
+    "max_string_bytes": 4096,
+    "max_int_digits": 4096,
+    "max_assumptions": 64,
+    "max_conjuncts": 16
+  }
+}

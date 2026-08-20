@@ -29,21 +29,34 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_TOOLS = REPO_ROOT / "plugin/hermes/tools.json"
 TEST_RUNTIME_ENVIRONMENT = real_provisioner.runtime_subprocess_environment({})
 
+# The REPO surface size, read from the file under test.  It is deliberately not
+# `adapter.EXPECTED_TOOL_COUNT`: that constant locks the SEALED RELEASE catalog
+# the provisioner downloads (pinned by `provision_runtime.SHA256SUMS_SHA256`),
+# and the repo surface moves ahead of a release between seals.  Conflating the
+# two is what makes a repo-side surface addition look like an adapter failure.
+RUNTIME_TOOL_COUNT = len(
+    json.loads(RUNTIME_TOOLS.read_text(encoding="utf-8"))["tools"]
+)
+
 
 class MCPAdapterSchemaTests(unittest.TestCase):
     def setUp(self):
         self.runtime_document = json.loads(RUNTIME_TOOLS.read_text(encoding="utf-8"))
 
     def test_all_runtime_tools_become_draft_07_object_schemas(self):
-        definitions = adapter.build_tool_definitions(self.runtime_document, expected_count=34)
+        definitions = adapter.build_tool_definitions(
+            self.runtime_document, expected_count=RUNTIME_TOOL_COUNT)
         records = self.runtime_document["tools"]
 
-        self.assertEqual(len(definitions), 34)
+        self.assertEqual(len(definitions), RUNTIME_TOOL_COUNT)
         self.assertEqual(
             [definition["name"] for definition in definitions],
             [record["name"] for record in records],
         )
-        self.assertEqual(len({definition["name"] for definition in definitions}), 34)
+        self.assertEqual(
+            len({definition["name"] for definition in definitions}),
+            RUNTIME_TOOL_COUNT,
+        )
 
         for record, definition in zip(records, definitions, strict=True):
             with self.subTest(tool=record["name"]):
@@ -72,16 +85,20 @@ class MCPAdapterSchemaTests(unittest.TestCase):
         duplicate = copy.deepcopy(self.runtime_document)
         duplicate["tools"][1]["name"] = duplicate["tools"][0]["name"]
         with self.assertRaises(adapter.CatalogError):
-            adapter.build_tool_definitions(duplicate, expected_count=34)
+            adapter.build_tool_definitions(duplicate, expected_count=RUNTIME_TOOL_COUNT)
 
         unsupported = copy.deepcopy(self.runtime_document)
         unsupported["tools"][0]["arguments"]["expression"]["type"] = "number"
         with self.assertRaises(adapter.CatalogError):
-            adapter.build_tool_definitions(unsupported, expected_count=34)
+            adapter.build_tool_definitions(unsupported, expected_count=RUNTIME_TOOL_COUNT)
 
     def test_catalog_requires_exact_tool_count(self):
-        with self.assertRaises(adapter.CatalogError):
-            adapter.build_tool_definitions(self.runtime_document, expected_count=33)
+        """Non-vacuity for the derived count: an off-by-one must still refuse."""
+        for wrong in (RUNTIME_TOOL_COUNT - 1, RUNTIME_TOOL_COUNT + 1):
+            with self.subTest(expected_count=wrong):
+                with self.assertRaises(adapter.CatalogError):
+                    adapter.build_tool_definitions(
+                        self.runtime_document, expected_count=wrong)
 
     def test_backend_object_is_preserved_and_has_stable_compact_text(self):
         backend = {
@@ -1835,6 +1852,15 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         launcher = hermes / "jackal_hermes"
         launcher.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         launcher.chmod(0o755)
+        # These fixtures seed the snapshot with the REPO catalog rather than the
+        # sealed release catalog the provisioner downloads, so the adapter's
+        # expected count is locked to the repo surface here.  The module
+        # constant itself stays pinned to that release (see RUNTIME_TOOL_COUNT)
+        # and is repinned at seal time, not by a repo-side surface addition.
+        count_patch = mock.patch.object(
+            adapter, "EXPECTED_TOOL_COUNT", RUNTIME_TOOL_COUNT)
+        count_patch.start()
+        self.addCleanup(count_patch.stop)
         self.provisioner = types.SimpleNamespace(
             EPOCH="v1.7.0",
             ASSET="jackal-v1.7.0-macos-arm64.tar.gz",
@@ -1948,7 +1974,7 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             output_limit=self.provisioner.SELFTEST_OUTPUT_LIMIT,
             expected_tree_sha256=self.provisioner.SHA256SUMS_SHA256,
         )
-        self.assertEqual(len(server.tool_definitions), 34)
+        self.assertEqual(len(server.tool_definitions), RUNTIME_TOOL_COUNT)
         self.assertNotEqual(server.runtime_root, self.runtime)
         self.assertEqual(server.runtime_root, self.snapshot_owners[0].root)
         self.assertEqual(
@@ -2029,7 +2055,7 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         verifier_module.verify_manifest.assert_called_once_with(
             plugin_root, plugin_root / "PLUGIN_IDENTITY.sha256"
         )
-        self.assertEqual(len(server.tool_definitions), 34)
+        self.assertEqual(len(server.tool_definitions), RUNTIME_TOOL_COUNT)
         asyncio.run(server.close())
 
     def test_snapshot_is_cleaned_when_post_copy_startup_refuses(self):

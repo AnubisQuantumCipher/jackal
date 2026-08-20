@@ -1,6 +1,10 @@
 // JACKAL CALC — a pocket laboratory for programmers and scientists.
 // Safe-mode, deterministic, offline. Invoke with arguments after `--`.
 
+import domain_packs.core.core_pack;
+import domain_packs.programming.programming_pack;
+import domain_packs.decision.decision_pack;
+
 fn positive_abs(value: i64) -> i64
     requires(value > -9223372036854775807)
     ensures(result >= 0)
@@ -4205,6 +4209,591 @@ fn cmd_mod_pow(argv) uses(io.print) {
     print(cert_envelope("mod-pow", claim, "{}"));
 }
 
+// ---------------------------------------------------------------------------
+// Programming-status claims (domain pack `jackal.programming.source`).
+//
+// These commands validate the CANONICAL FORM of caller-supplied structural
+// facts and emit a certificate. They deliberately do not read the filesystem:
+// `tools/test_exists_verify.py` recomputes every claimed field from the real
+// bytes and rejects any mismatch, so a caller cannot mint a true claim by
+// misstating a hash, a line number, or a declaration count.
+// ---------------------------------------------------------------------------
+
+// Exactly 64 lowercase hex digits. Uppercase is refused rather than folded:
+// a certificate must have one canonical spelling or its digest is ambiguous.
+fn require_abs_representable(value, name) {
+    // `positive_abs` wraps at i64::MIN, so every caller that needs a magnitude
+    // must exclude it. The `requires` contracts on `positive_abs`/`gcd_safe` are
+    // not runtime-enforced on this toolchain (measured), so this is a real check.
+    if value == -9223372036854775808 {
+        panic("int-min-unrepresentable: ${name} is i64::MIN, whose magnitude is not representable in i64; fail closed");
+    }
+}
+
+fn require_hex64(text, name) {
+    if len(text) != 64 {
+        panic("prog-hex64: ${name} must be exactly 64 hex digits; fail closed");
+    }
+    let safe = "0123456789abcdef";
+    let i = 0;
+    while i < len(text) {
+        if !char_in(safe, char_at(text, i)) {
+            panic("prog-hex64: ${name} contains a non-lowercase-hex byte; fail closed");
+        }
+        i = i + 1;
+    }
+}
+
+// A repository-relative path with no escape, no absolute root, no backslash and
+// no byte that would need JSON escaping. There is no escaping machinery here on
+// purpose, so anything outside the charset is refused instead of encoded.
+fn require_relpath(text, name) {
+    if len(text) == 0 {
+        panic("prog-path: ${name} must not be empty; fail closed");
+    }
+    if len(text) > 512 {
+        panic("prog-path: ${name} exceeds 512 bytes; fail closed");
+    }
+    if char_at(text, 0) == "/" {
+        panic("prog-path: ${name} must be repository-relative; fail closed");
+    }
+    let safe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/";
+    let i = 0;
+    while i < len(text) {
+        if !char_in(safe, char_at(text, i)) {
+            panic("prog-path: ${name} contains a byte outside the safe path charset; fail closed");
+        }
+        i = i + 1;
+    }
+    let j = 0;
+    while j + 1 < len(text) {
+        if char_at(text, j) == "." {
+            if char_at(text, j + 1) == "." {
+                panic("prog-path: ${name} must not contain a parent traversal; fail closed");
+            }
+        }
+        j = j + 1;
+    }
+}
+
+// An identifier as a test framework would name it.
+fn require_symbol(text, name) {
+    if len(text) == 0 {
+        panic("prog-symbol: ${name} must not be empty; fail closed");
+    }
+    if len(text) > 256 {
+        panic("prog-symbol: ${name} exceeds 256 bytes; fail closed");
+    }
+    let safe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+    let i = 0;
+    while i < len(text) {
+        if !char_in(safe, char_at(text, i)) {
+            panic("prog-symbol: ${name} contains a byte outside [A-Za-z0-9_]; fail closed");
+        }
+        i = i + 1;
+    }
+}
+
+// Decimal, no sign, no leading zero unless the value is exactly "0".
+fn require_canonical_uint(text, name) {
+    if len(text) == 0 {
+        panic("prog-uint: ${name} must not be empty; fail closed");
+    }
+    if len(text) > 18 {
+        panic("prog-uint: ${name} exceeds the 18-digit budget; fail closed");
+    }
+    let digits = "0123456789";
+    let i = 0;
+    while i < len(text) {
+        if !char_in(digits, char_at(text, i)) {
+            panic("prog-uint: ${name} is not a canonical decimal integer; fail closed");
+        }
+        i = i + 1;
+    }
+    if len(text) > 1 {
+        if char_at(text, 0) == "0" {
+            panic("prog-uint: ${name} has a leading zero; fail closed");
+        }
+    }
+}
+
+// Free text that will be echoed into a JSON string. Quotes, backslashes and
+// control bytes are refused outright for the same reason as `cert_safe_expr`.
+fn require_quotable_text(text, name) {
+    if len(text) == 0 {
+        panic("prog-text: ${name} must not be empty; fail closed");
+    }
+    if len(text) > 2048 {
+        panic("prog-text: ${name} exceeds 2048 bytes; fail closed");
+    }
+    let i = 0;
+    while i < len(text) {
+        let c = char_at(text, i);
+        if c == "\"" {
+            panic("prog-text: ${name} contains a double quote; fail closed");
+        }
+        if c == "\\" {
+            panic("prog-text: ${name} contains a backslash; fail closed");
+        }
+        i = i + 1;
+    }
+}
+
+fn test_exists_envelope(kind, claim_json, witness_json) {
+    return "test-exists-cert={\"claim\":" + claim_json + ",\"kind\":\"" + kind + "\",\"schema\":\"jackal-test-exists-cert-v1\",\"witness\":" + witness_json + "}";
+}
+
+fn cmd_test_exists(argv) uses(io.print) {
+    require_arity(argv, 6);
+    let file_path = argv[1];
+    let file_sha256 = argv[2];
+    let symbol = argv[3];
+    let declaration_line = argv[4];
+    let declaration_count = argv[5];
+    require_relpath(file_path, "file_path");
+    require_hex64(file_sha256, "file_sha256");
+    require_symbol(symbol, "symbol");
+    require_canonical_uint(declaration_line, "declaration_line");
+    require_canonical_uint(declaration_count, "declaration_count");
+    if declaration_line == "0" {
+        panic("prog-uint: declaration_line is 1-based and must not be 0; fail closed");
+    }
+    if declaration_count == "0" {
+        panic("prog-absent: declaration_count is 0, which is an absence, not an existence claim; fail closed");
+    }
+    print("status=structural-exact symbol=${symbol} line=${declaration_line} count=${declaration_count}");
+    print("consequence=informational note=a-test-existing-is-not-evidence-the-code-is-correct");
+    let claim = "{" + jkv("declaration_count", jstr(declaration_count)) + "," + jkv("declaration_line", jstr(declaration_line)) + "," + jkv("file_path", jstr(file_path)) + "," + jkv("file_sha256", jstr(file_sha256)) + "," + jkv("symbol", jstr(symbol)) + "}";
+    print(test_exists_envelope("test-exists", claim, "{}"));
+}
+
+fn cmd_claim_cites_test(argv) uses(io.print) {
+    require_arity(argv, 7);
+    let doc_path = argv[1];
+    let doc_sha256 = argv[2];
+    let claim_text = argv[3];
+    let test_path = argv[4];
+    let test_sha256 = argv[5];
+    let symbol = argv[6];
+    require_relpath(doc_path, "doc_path");
+    require_hex64(doc_sha256, "doc_sha256");
+    require_quotable_text(claim_text, "claim_text");
+    require_relpath(test_path, "test_path");
+    require_hex64(test_sha256, "test_sha256");
+    require_symbol(symbol, "symbol");
+    print("status=structural-exact cited_symbol=${symbol}");
+    print("consequence=informational note=citation-resolves-it-does-not-establish-the-cited-test-covers-the-claim");
+    let claim = "{" + jkv("claim_text", jstr(claim_text)) + "," + jkv("doc_path", jstr(doc_path)) + "," + jkv("doc_sha256", jstr(doc_sha256)) + "," + jkv("symbol", jstr(symbol)) + "," + jkv("test_path", jstr(test_path)) + "," + jkv("test_sha256", jstr(test_sha256)) + "}";
+    print(test_exists_envelope("claim-cites-test", claim, "{}"));
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic decision matrices (domain pack `jackal.decision.matrix`).
+// ---------------------------------------------------------------------------
+
+fn ascii_lower(text) {
+    let upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let lower = "abcdefghijklmnopqrstuvwxyz";
+    let out = "";
+    let i = 0;
+    while i < len(text) {
+        let c = char_at(text, i);
+        let j = 0;
+        let mapped = c;
+        while j < len(upper) {
+            if c == char_at(upper, j) {
+                mapped = char_at(lower, j);
+            }
+            j = j + 1;
+        }
+        out = out + mapped;
+        i = i + 1;
+    }
+    return out;
+}
+
+fn text_contains(haystack, needle) {
+    if len(needle) == 0 {
+        return true;
+    }
+    if len(needle) > len(haystack) {
+        return false;
+    }
+    let start = 0;
+    while start + len(needle) <= len(haystack) {
+        let k = 0;
+        let matched = true;
+        while k < len(needle) {
+            if char_at(haystack, start + k) != char_at(needle, k) {
+                matched = false;
+                k = len(needle);
+            } else {
+                k = k + 1;
+            }
+        }
+        if matched {
+            return true;
+        }
+        start = start + 1;
+    }
+    return false;
+}
+
+// A decision matrix may order options by a declared numeric criterion. It may
+// not rank them on preference, goodness or worth: that is a value judgment, and
+// rendering one as a mathematical selection is the laundering this pack refuses.
+// The caller's numeric criterion also remains the caller's — accepting it is not
+// a claim that it is the correct thing to optimise.
+fn require_measurable_criterion(criterion) {
+    let lowered = ascii_lower(criterion);
+    let banned = ["better", "best", "worse", "worst", "good", "bad", "should", "prefer", "worth", "moral", "ethical", "fair", "right", "wrong", "beauty", "nicer", "nicest", "superior", "inferior", "ought"];
+    let i = 0;
+    while i < len(banned) {
+        if text_contains(lowered, banned[i]) {
+            panic("decision-value-judgment: criterion names a value judgment, not a measurable quantity; fail closed");
+        }
+        i = i + 1;
+    }
+}
+
+fn decision_envelope(claim_json, witness_json) {
+    return "decision-cert={\"claim\":" + claim_json + ",\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":" + witness_json + "}";
+}
+
+fn cmd_decision_rank(argv) uses(io.print) {
+    if len(argv) < 8 {
+        panic("pack-request-arity: decision-rank requires an id, a criterion, a sense, and at least two label/value pairs; fail closed");
+    }
+    if len(argv) > 16 {
+        panic("pack-request-arity: decision-rank accepts at most 6 options; fail closed");
+    }
+    if (len(argv) - 4) % 2 != 0 {
+        panic("pack-request-arity: decision-rank requires label/value pairs; fail closed");
+    }
+    let decision_id = argv[1];
+    let criterion = argv[2];
+    let sense = argv[3];
+    require_symbol(decision_id, "decision_id");
+    require_symbol(criterion, "criterion");
+    require_measurable_criterion(criterion);
+    if sense != "max" {
+        if sense != "min" {
+            panic("decision-sense-unknown: sense must be exactly \"max\" or \"min\"; fail closed");
+        }
+    }
+
+    // Collect the options, refusing duplicate labels: a duplicated label makes
+    // the selection ambiguous even when the arithmetic is sound.
+    let labels = [];
+    let values = [];
+    let i = 4;
+    while i < len(argv) {
+        let label = argv[i];
+        let raw = argv[i + 1];
+        require_symbol(label, "option_label");
+        let j = 0;
+        while j < len(labels) {
+            if labels[j] == label {
+                panic("decision-duplicate-label: option labels must be distinct; fail closed");
+            }
+            j = j + 1;
+        }
+        push(labels, label);
+        push(values, int_from_text(raw));
+        i = i + 2;
+    }
+
+    // Select, then find the runner-up. Ties for the top position refuse: a zero
+    // margin is not a robust decision, it is a coin flip wearing a certificate.
+    let best = 0;
+    let k = 1;
+    while k < len(labels) {
+        if sense == "max" {
+            if int_cmp(values[k], values[best]) > 0 {
+                best = k;
+            }
+        } else {
+            if int_cmp(values[best], values[k]) > 0 {
+                best = k;
+            }
+        }
+        k = k + 1;
+    }
+    let runner = -1;
+    let m = 0;
+    while m < len(labels) {
+        if m != best {
+            if runner == -1 {
+                runner = m;
+            } else {
+                if sense == "max" {
+                    if int_cmp(values[m], values[runner]) > 0 {
+                        runner = m;
+                    }
+                } else {
+                    if int_cmp(values[runner], values[m]) > 0 {
+                        runner = m;
+                    }
+                }
+            }
+        }
+        m = m + 1;
+    }
+    let margin = int_sub(values[best], values[runner]);
+    if sense == "min" {
+        margin = int_sub(values[runner], values[best]);
+    }
+    if int_cmp(margin, int_from_text("0")) == 0 {
+        panic("decision-margin-zero: the top two options tie on the declared criterion; fail closed");
+    }
+
+    let options_json = "[";
+    let n = 0;
+    while n < len(labels) {
+        if n > 0 {
+            options_json = options_json + ",";
+        }
+        options_json = options_json + "{" + jkv("label", jstr(labels[n])) + "," + jkv("value", jstr(int_to_text(values[n]))) + "}";
+        n = n + 1;
+    }
+    options_json = options_json + "]";
+
+    let selected = labels[best];
+    let margin_text = int_to_text(margin);
+    print("status=exact selected=${selected} margin=${margin_text}");
+    print("consequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one");
+    let claim = "{" + jkv("criterion", jstr(criterion)) + "," + jkv("decision_id", jstr(decision_id)) + "," + jkv("margin", jstr(margin_text)) + "," + jkv("options", options_json) + "," + jkv("runner_up", jstr(labels[runner])) + "," + jkv("selected", jstr(selected)) + "," + jkv("sense", jstr(sense)) + "}";
+    print(decision_envelope(claim, "{}"));
+}
+
+// ---------------------------------------------------------------------------
+// decision.matrix.rank.v2 -- the closed-unit lane.
+// ---------------------------------------------------------------------------
+//
+// Why v2 exists. `require_measurable_criterion` above is a fixed English word
+// list matched as a substring. It catches `best_score` and `most_worthy`; it
+// does not catch `optimal`, `b3st` or `most_elegant`, and a longer word list
+// never will, because free text can always be spelled around a blocklist.
+//
+// v2 moves the load off the criterion's spelling and onto a DECLARED UNIT drawn
+// from a closed vocabulary. A caller who wants to rank on elegance cannot name
+// a unit for elegance, so the request is refused however the criterion is
+// spelled. The blocklist is RETAINED as a second gate rather than replaced: a
+// criterion that names a value judgment is still refused even when the unit is
+// admissible.
+//
+// What v2 still does not establish, permanently: that the declared unit is what
+// the numbers actually measure. A caller who declares `ms` and supplies
+// invented numbers gets a certificate that says exactly that -- a ranking over
+// caller-declared millisecond values -- and nothing more.
+
+// The v2 closed unit vocabulary.
+//
+// This is NOT a second unit authority. It is exactly the 66 canonical unit ids
+// of the pinned `release/claim/unit_registry_v1.json` (`jackal-unit-registry-v1`,
+// dimension order [s, m, kg, A, K, mol, cd]) with ONE id removed:
+//
+//   * `one` -- the dimensionless identity, scale 1. Declaring it asserts
+//     nothing about what the numbers measure, so admitting it would reopen the
+//     exact escape hatch v2 exists to close: it is `no unit` wearing a name.
+//
+// Every id kept below names a quantity kind with an exact rational scale to the
+// coherent SI unit of its dimension. `rad`, `percent` and `ppm` are kept even
+// though their dimension vectors are all zero, because each still names WHAT is
+// counted (plane angle, a ratio, a ratio per million) rather than nothing at
+// all. That is a quantity-kind judgment, which the registry's own notes record
+// as a documented v1 residual of dimension-vector equality.
+//
+// Aliases (`millisecond`, `metre`, `ohms`, ...) are deliberately NOT admitted.
+// The registry states that aliases are accepted only at input canonicalisation
+// and that bundles must carry canonical ids. This pack never rewrites a
+// caller's declaration before recording it, so it admits only what it records.
+//
+// Three copies of this vocabulary exist by necessity -- here (the engine cannot
+// read JSON), as `ADMITTED_UNITS` in `tools/decision_verify.py`, and in the
+// registry file itself. The mechanism that stops them drifting is
+// `tests/decision_pack_test.py::DecisionUnitVocabularyTest`, which re-derives
+// the set from the registry file and probes this engine for every member and
+// for non-members. Change one copy and that gate fails.
+fn require_declared_unit(unit) {
+    if len(unit) == 0 {
+        panic("decision-unit-missing: decision.matrix.rank.v2 requires a declared unit; fail closed");
+    }
+    require_symbol(unit, "unit");
+    let admitted = ["percent", "ppm", "rad", "s", "ms", "us", "ns", "min", "h", "day", "m", "mm", "cm", "km", "um", "nm", "in", "ft", "yd", "mi", "kg", "g", "mg", "tonne", "lb", "A", "mA", "K", "degC", "degF", "mol", "cd", "Hz", "kHz", "MHz", "GHz", "N", "Pa", "kPa", "bar", "atm", "J", "kJ", "Wh", "kWh", "eV", "W", "mW", "kW", "MW", "C", "V", "mV", "kV", "ohm", "kohm", "Mohm", "farad", "uF", "nF", "pF", "kmph", "mph", "L", "mL"];
+    let i = 0;
+    while i < len(admitted) {
+        if unit == admitted[i] {
+            return;
+        }
+        i = i + 1;
+    }
+    panic("decision-unit-unknown: declared unit is not a canonical id of the closed unit vocabulary; fail closed");
+}
+
+fn decision_envelope_v2(claim_json, witness_json) {
+    return "decision-cert={\"claim\":" + claim_json + ",\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":" + witness_json + "}";
+}
+
+// Deliberately a separate implementation from `cmd_decision_rank`, which is a
+// shipped operation with a frozen corpus and is left byte-identical. The cost
+// of that separation is that the two selections could drift apart; the mechanism
+// against it is a differential gate
+// (`test_v2_selection_agrees_with_v1_on_the_same_numbers`) which runs both
+// commands over the same numbers and compares selected, runner_up and margin.
+fn cmd_decision_rank_v2(argv) uses(io.print) {
+    if len(argv) < 9 {
+        panic("pack-request-arity: decision-rank-v2 requires an id, a criterion, a unit, a sense, and at least two label/value pairs; fail closed");
+    }
+    if len(argv) > 17 {
+        panic("pack-request-arity: decision-rank-v2 accepts at most 6 options; fail closed");
+    }
+    if (len(argv) - 5) % 2 != 0 {
+        panic("pack-request-arity: decision-rank-v2 requires label/value pairs; fail closed");
+    }
+    let decision_id = argv[1];
+    let criterion = argv[2];
+    let unit = argv[3];
+    let sense = argv[4];
+    require_symbol(decision_id, "decision_id");
+    require_symbol(criterion, "criterion");
+    // The closed vocabulary is the primary gate; the v1 blocklist stays on as a
+    // second one, so `best_latency ms` is still refused as a value judgment.
+    require_declared_unit(unit);
+    require_measurable_criterion(criterion);
+    if sense != "max" {
+        if sense != "min" {
+            panic("decision-sense-unknown: sense must be exactly \"max\" or \"min\"; fail closed");
+        }
+    }
+
+    let labels = [];
+    let values = [];
+    let i = 5;
+    while i < len(argv) {
+        let label = argv[i];
+        let raw = argv[i + 1];
+        require_symbol(label, "option_label");
+        let j = 0;
+        while j < len(labels) {
+            if labels[j] == label {
+                panic("decision-duplicate-label: option labels must be distinct; fail closed");
+            }
+            j = j + 1;
+        }
+        push(labels, label);
+        push(values, int_from_text(raw));
+        i = i + 2;
+    }
+
+    let best = 0;
+    let k = 1;
+    while k < len(labels) {
+        if sense == "max" {
+            if int_cmp(values[k], values[best]) > 0 {
+                best = k;
+            }
+        } else {
+            if int_cmp(values[best], values[k]) > 0 {
+                best = k;
+            }
+        }
+        k = k + 1;
+    }
+    let runner = -1;
+    let m = 0;
+    while m < len(labels) {
+        if m != best {
+            if runner == -1 {
+                runner = m;
+            } else {
+                if sense == "max" {
+                    if int_cmp(values[m], values[runner]) > 0 {
+                        runner = m;
+                    }
+                } else {
+                    if int_cmp(values[runner], values[m]) > 0 {
+                        runner = m;
+                    }
+                }
+            }
+        }
+        m = m + 1;
+    }
+    let margin = int_sub(values[best], values[runner]);
+    if sense == "min" {
+        margin = int_sub(values[runner], values[best]);
+    }
+    if int_cmp(margin, int_from_text("0")) == 0 {
+        panic("decision-margin-zero: the top two options tie on the declared criterion; fail closed");
+    }
+
+    let options_json = "[";
+    let n = 0;
+    while n < len(labels) {
+        if n > 0 {
+            options_json = options_json + ",";
+        }
+        options_json = options_json + "{" + jkv("label", jstr(labels[n])) + "," + jkv("value", jstr(int_to_text(values[n]))) + "}";
+        n = n + 1;
+    }
+    options_json = options_json + "]";
+
+    let selected = labels[best];
+    let margin_text = int_to_text(margin);
+    print("status=exact selected=${selected} margin=${margin_text} unit=${unit}");
+    print("consequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement");
+    let claim = "{" + jkv("criterion", jstr(criterion)) + "," + jkv("decision_id", jstr(decision_id)) + "," + jkv("margin", jstr(margin_text)) + "," + jkv("options", options_json) + "," + jkv("runner_up", jstr(labels[runner])) + "," + jkv("selected", jstr(selected)) + "," + jkv("sense", jstr(sense)) + "," + jkv("unit", jstr(unit)) + "}";
+    print(decision_envelope_v2(claim, "{}"));
+}
+
+fn cmd_pack_route(argv) uses(io.print) {
+    if len(argv) < 3 {
+        panic("pack-request-arity: expected pack id, operation id, and arguments; fail closed");
+    }
+    let requested_pack = argv[1];
+    let routed = "";
+    if requested_pack == core_pack::pack_id() {
+        routed = core_pack::route_operation(argv[1], argv[2], len(argv) - 3);
+    }
+    if requested_pack == programming_pack::pack_id() {
+        routed = programming_pack::route_operation(argv[1], argv[2], len(argv) - 3);
+    }
+    if requested_pack == decision_pack::pack_id() {
+        routed = decision_pack::route_operation(argv[1], argv[2], len(argv) - 3);
+    }
+    if routed == "" {
+        panic("pack-id-unknown: requested pack is not registered; fail closed");
+    }
+    let forwarded = [routed];
+    let i = 3;
+    while i < len(argv) {
+        push(forwarded, argv[i]);
+        i = i + 1;
+    }
+    if routed == "mod-pow" {
+        cmd_mod_pow(forwarded);
+        return;
+    }
+    if routed == "test-exists" {
+        cmd_test_exists(forwarded);
+        return;
+    }
+    if routed == "claim-cites-test" {
+        cmd_claim_cites_test(forwarded);
+        return;
+    }
+    if routed == "decision-rank" {
+        cmd_decision_rank(forwarded);
+        return;
+    }
+    if routed == "decision-rank-v2" {
+        cmd_decision_rank_v2(forwarded);
+        return;
+    }
+    panic("pack-route-internal: registered route has no Anubis handler; fail closed");
+}
+
 fn cmd_mod_inv(argv) uses(io.print) {
     require_arity(argv, 3);
     let a = int_from_text(argv[1]);
@@ -4663,6 +5252,7 @@ fn main() uses(io.print) {
     // JACKAL CERTIFIED EXACT ALGEBRA: CAS, number-theory, and real-algebraic
     // lanes; each prints its human lines and then a final jackal-exact-cert-v1
     // JSON line, independently checked by tools/exact_verify.py.
+    if op == "pack-route" { cmd_pack_route(argv); return; }
     if op == "canon" { cmd_canon(argv); return; }
     if op == "poly-canon" { cmd_poly_canon(argv); return; }
     if op == "poly-eq" { cmd_poly_eq(argv); return; }
@@ -4673,6 +5263,10 @@ fn main() uses(io.print) {
     if op == "alg-cmp" { cmd_alg_cmp(argv); return; }
     if op == "xgcd" { cmd_xgcd(argv); return; }
     if op == "mod-pow" { cmd_mod_pow(argv); return; }
+    if op == "test-exists" { cmd_test_exists(argv); return; }
+    if op == "claim-cites-test" { cmd_claim_cites_test(argv); return; }
+    if op == "decision-rank" { cmd_decision_rank(argv); return; }
+    if op == "decision-rank-v2" { cmd_decision_rank_v2(argv); return; }
     if op == "mod-inv" { cmd_mod_inv(argv); return; }
     if op == "crt" { cmd_crt(argv); return; }
     if op == "divides" { cmd_divides(argv); return; }
@@ -4903,7 +5497,20 @@ fn main() uses(io.print) {
     if op == "bxor" { print(binary_int_left(argv) ^ binary_int_right(argv)); return; }
     if op == "shl" { let value = binary_int_left(argv); print(value << shift_count(argv)); return; }
     if op == "shr" { let value = binary_int_left(argv); print(value >> shift_count(argv)); return; }
-    if op == "gcd" { print(gcd_safe(binary_int_left(argv), binary_int_right(argv))); return; }
+    // `gcd_safe` carries `requires(a > -9223372036854775807)`, but that contract is
+    // NOT runtime-enforced on this toolchain: measured, `gcd -9223372036854775808 6`
+    // returns -2, and a negative gcd is impossible. `gcd` is declared class=exact,
+    // so an unenforced precondition is a mislabeled class exactly like the `lcm`
+    // wrap was. Refuse the one input that breaks `positive_abs` instead of relying
+    // on a contract the runtime does not check.
+    if op == "gcd" {
+        let gcd_a = binary_int_left(argv);
+        let gcd_b = binary_int_right(argv);
+        require_abs_representable(gcd_a, "a");
+        require_abs_representable(gcd_b, "b");
+        print(gcd_safe(gcd_a, gcd_b));
+        return;
+    }
     if op == "fact" { require_arity(argv, 2); print(factorial(strict_int(argv[1]))); return; }
 
     if op == "stats" { stats(argv); return; }
@@ -4913,7 +5520,39 @@ fn main() uses(io.print) {
     if op == "lerp" { require_arity(argv, 4); print_number(arg_float(argv, 1) + (arg_float(argv, 2) - arg_float(argv, 1)) * arg_float(argv, 3)); return; }
     if op == "percent-error" { require_arity(argv, 3); print("${number_text(rounded(abs(arg_float(argv, 1) - arg_float(argv, 2)) / abs(arg_float(argv, 2)) * 100.0, 12.0))}%"); return; }
     if op == "ncr" { require_arity(argv, 3); print(choose(arg_int(argv, 1), arg_int(argv, 2))); return; }
-    if op == "lcm" { require_arity(argv, 3); let a = arg_int(argv, 1); let b = arg_int(argv, 2); print(positive_abs(a / gcd_safe(a, b) * b)); return; }
+    // `lcm` is declared class=exact by `maturity`. The previous implementation
+    // computed `positive_abs(a / gcd * b)` in i64, which WRAPS once the true lcm
+    // exceeds 2^63-1 and then returns a value smaller than an input — e.g.
+    // lcm(2^62, 3) returned 4611686018427387904 where the true value is
+    // 13835058055282163712. A silently wrong `exact` answer is the precise
+    // failure this engine exists to prevent, so the quotient is reduced in i64
+    // (exact because |a/g| <= |a|) and the final product is formed in the same
+    // arbitrary-precision lane that backs `big-mul`, with no i64 product anywhere.
+    //
+    // i64::MIN is refused explicitly. It previously failed closed only by
+    // accident: `positive_abs(i64::MIN)` wraps negative, the interpolated text
+    // carries a '-', and `big_from_text` happens to reject it. Relying on a
+    // downstream string validator for a numeric precondition is not a design, so
+    // the precondition is now checked where it belongs.
+    if op == "lcm" {
+        require_arity(argv, 3);
+        let a = arg_int(argv, 1);
+        let b = arg_int(argv, 2);
+        require_abs_representable(a, "a");
+        require_abs_representable(b, "b");
+        let g = gcd_safe(a, b);
+        if g == 0 {
+            // gcd(0,0) == 0; lcm(0,0) is 0 by convention and there is nothing to divide by.
+            print("0");
+            return;
+        }
+        // `int_to_text` converts the arbitrary-precision representation, not an
+        // i64, so interpolation is the correct i64 -> text conversion here.
+        let reduced_text = "${positive_abs(a / g)}";
+        let other_text = "${positive_abs(b)}";
+        print(big_to_text(big_mul(big_from_text(reduced_text), big_from_text(other_text))));
+        return;
+    }
     if op == "prime" { require_arity(argv, 2); print_prime(arg_int(argv, 1)); return; }
 
     // Vector algebra and data science.

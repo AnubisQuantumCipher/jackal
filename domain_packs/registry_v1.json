@@ -1,0 +1,58 @@
+{
+  "schema": "jackal-domain-pack-registry-v1",
+  "registry_version": "1",
+  "protocol_version": "1",
+  "authority": "anubis-safe-mode",
+  "pack_schema_path": "domain_packs/PACK_SCHEMA.json",
+  "pack_schema_sha256": "ae15411cff7b126d1365d5fe8857bba9da5f6ef21d50dcdfab279e9634bc0073",
+  "pack_spec_path": "domain_packs/PACK_SPEC.md",
+  "pack_spec_sha256": "2d76022dc2375fa3a235f05890c8b3a36ac77b008ecc5d58fb658deb253a947a",
+  "pack_verifier_path": "tools/domain_pack_verify.py",
+  "pack_verifier_sha256": "22984f511208af2d7a318f1a43306d95a4b0f61876d8b44f34f39a2ded6d573d",
+  "inference_registry_path": "release/claim/inference_registry_v1.json",
+  "inference_registry_sha256": "c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0",
+  "packs": [
+    {
+      "pack_id": "jackal.core.exact",
+      "pack_version": "1.0.0",
+      "manifest_path": "domain_packs/core/manifest.json",
+      "manifest_sha256": "427b51d6527be15286efce9ec5c90b369950f57ddb438c93e2616233e290190d",
+      "entry_source_path": "jackal_calc.anb",
+      "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
+      "route_source_path": "domain_packs/core/core_pack.anb",
+      "route_source_sha256": "5c9e23ce102366c3e7bb2aa01c78ace6d4bc20bd2d35e0813fd62bd3c324d405",
+      "operation_ids": [
+        "core.exact.mod_pow.v1"
+      ]
+    },
+    {
+      "pack_id": "jackal.programming.source",
+      "pack_version": "1.0.0",
+      "manifest_path": "domain_packs/programming/manifest.json",
+      "manifest_sha256": "59480b72f8ea51739859599c243b86167fb66ed3ffc519e492ca5d9f7c6605ba",
+      "entry_source_path": "jackal_calc.anb",
+      "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
+      "route_source_path": "domain_packs/programming/programming_pack.anb",
+      "route_source_sha256": "f590ed33b757fda476db5b2771e0f0a50addc838721a97b562471cc75f2153f6",
+      "operation_ids": [
+        "programming.source.test_exists.v1",
+        "programming.source.claim_cites_test.v1"
+      ]
+    },
+    {
+      "pack_id": "jackal.decision.matrix",
+      "pack_version": "1.1.0",
+      "manifest_path": "domain_packs/decision/manifest.json",
+      "manifest_sha256": "e7a8187c367a64f092c6e54bf3dd2b593265e93b8727fdffbc4bba220830e911",
+      "entry_source_path": "jackal_calc.anb",
+      "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
+      "route_source_path": "domain_packs/decision/decision_pack.anb",
+      "route_source_sha256": "8ed19f5873a2f468e01c8cb00ed0a4c39c262d84764a7559bd4e8def6a8c4b0f",
+      "operation_ids": [
+        "decision.matrix.rank.v1",
+        "decision.matrix.rank.v2"
+      ]
+    }
+  ],
+  "registry_digest_sha256": "3da40d85c885626f01030152d23a010e0d354e822a53ac2e49e9f82a7f43a9d8"
+}

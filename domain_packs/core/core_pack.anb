@@ -1,0 +1,26 @@
+// JACKAL core exact domain pack v1.
+//
+// This module owns only the closed routing decision. It deliberately delegates
+// the mathematical operation to JACKAL's existing Anubis implementation so
+// pack adoption cannot create a second arithmetic authority.
+
+pub fn protocol_version() {
+    return "1";
+}
+
+pub fn pack_id() {
+    return "jackal.core.exact";
+}
+
+pub fn route_operation(requested_pack, operation_id, argument_count) {
+    if requested_pack != pack_id() {
+        panic("pack-id-unknown: requested pack is not registered; fail closed");
+    }
+    if operation_id == "core.exact.mod_pow.v1" {
+        if argument_count != 3 {
+            panic("pack-request-arity: core.exact.mod_pow.v1 requires exactly 3 arguments; fail closed");
+        }
+        return "mod-pow";
+    }
+    panic("pack-operation-unknown: no fallback is permitted; fail closed");
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JACKAL Hermes plugin — proof-carrying mathematical evidence tool server.
 
-Exposes thirty-four tools (see `tools.json`):
+Exposes thirty-eight tools (see `tools.json`):
 
   Formal (proof-carrying, checker-attested):
     * `jackal_range_bound`        emit a `jackal-formal-receipt-v1` receipt
@@ -24,6 +24,22 @@ Exposes thirty-four tools (see `tools.json`):
     * `jackal_claim`          compile a typed claim request into a
       content-addressed `jackal-claim-bundle-v1` evidence graph
     * `jackal_verify_bundle`  independent caller-pinned bundle replay
+
+  Domain-pack lanes (jackal-domain-pack-protocol v1, additive; NOT formal
+  and NOT mathematical — assurance ceiling `exact`, consequence ceiling
+  strictly below it):
+    * `jackal_test_exists`, `jackal_claim_cites_test`  byte-exact
+      STRUCTURAL facts about source files; consequence `informational`,
+      because a test existing is never evidence the code is correct
+    * `jackal_decision_rank`, `jackal_decision_rank_v2`  deterministic
+      ordering by a caller-declared recomputable numeric criterion;
+      consequence `decision-boundary`.  `_v2` additionally requires a
+      declared unit from the closed vocabulary of
+      `release/claim/unit_registry_v1.json`
+  Each routes through the pack ABI `pack-route <pack_id> <operation_id>
+  <args...>` and re-runs the manifest-pinned independent checker
+  (`tools/test_exists_verify.py` / `tools/decision_verify.py`) over the
+  emitted certificate; only an `ACCEPT` verdict returns success.
 
 The plugin does NOT ship a new checker or a new evaluator.  It is a
 narrow, fail-closed adapter that binds every call through the SAME
@@ -1577,6 +1593,467 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
             "detail": detail, "report": stdout.splitlines()}
 
 
+# -- domain-pack lanes (jackal-domain-pack-protocol v1, additive) -------------
+#
+# These four tools expose the operations declared by
+# `domain_packs/registry_v1.json`.  They are NOT mathematical lanes and they
+# are NOT formal: `jackal.programming.source` states byte-exact STRUCTURAL
+# facts about source files, and `jackal.decision.matrix` orders options by a
+# caller-declared recomputable numeric criterion.  Both carry an assurance
+# ceiling of `exact` and a consequence ceiling BELOW it (`informational` /
+# `decision-boundary`); a test existing is never evidence the code under test
+# is correct, and a ranking is never a value judgment.
+#
+# Authority and routing:
+#   * The engine is invoked through the pack protocol's declared route ABI,
+#     `pack-route <pack_id> <operation_id> <args...>`, because each manifest
+#     declares `engine.route_command = "pack-route"`.  Routed stdout is
+#     byte-identical to the direct engine command, so this costs nothing and
+#     buys the engine's own pack-id/operation-id admission gate.
+#   * The pinned `tools/domain_pack_verify.py` runs as an EXTERNAL subprocess
+#     with its identity hashed pre/post, exactly like every other untrusted
+#     pinned component here.  It is deliberately NOT imported: importing it
+#     would put bytes inside the plugin's runtime-bundle identity that the
+#     shipped package does not carry.  It verifies the whole chain — registry
+#     self-digest, PACK_SCHEMA/PACK_SPEC bindings, its own declared digest,
+#     every manifest digest, every declared ceiling against the pinned
+#     inference registry, and the mandatory nonclaims — or the lane refuses.
+#   * The operation's own checker (`tools/test_exists_verify.py` /
+#     `tools/decision_verify.py`, path AND digest taken from the pinned
+#     manifest) is re-run over the emitted certificate, identity hashed
+#     pre/post, and only an `ACCEPT` verdict returns success.  This is the
+#     load-bearing step: the engine validates the canonical FORM of a
+#     caller-supplied fact, and the checker recomputes it from the real bytes
+#     on disk.  Without the rerun an agent could read `status=structural-exact`
+#     off a certificate whose claimed line, count or content hash is false.
+#
+# Residual, stated rather than hidden: `release/MANIFEST.sha256` carries no row
+# for the domain-pack surface yet, so the registry bytes are this lane's root of
+# trust.  The plugin cross-checks its own registry digest against the verifier's
+# reported one and its own verifier digest against the registry's declared one,
+# both from real bytes, and returns all of them so a caller can pin them
+# out-of-band.  A coordinated tamper of registry+verifier together is NOT
+# excluded by this lane; that is what a manifest row would add.
+
+_PACK_ROUTE_COMMAND = "pack-route"
+_PACK_REGISTRY_RELATIVE = "domain_packs/registry_v1.json"
+_PACK_VERIFIER_RELATIVE = "tools/domain_pack_verify.py"
+_PACK_MAX_REGISTRY_BYTES = 1_048_576
+
+# Engine-printed epistemic classes a pack lane may legitimately carry, mapped to
+# the mathematical-axis class its pinned manifest is allowed to declare as
+# `assurance_ceiling`.  `formal-*` is structurally impossible here: it is not a
+# key of this map, and a manifest declaring it would fail the mapped-equality
+# check below rather than be silently accepted.
+_PACK_STATUS_TO_ASSURANCE = {
+    "exact": "exact",
+    "structural-exact": "exact",
+}
+
+# A decision option value is a canonical integer.  This guard exists because
+# argv is FLAT: the plugin receives `label value label value ...` as one string
+# and must not silently re-pair the tokens if a label contained whitespace.
+_PACK_CANONICAL_INT_RE = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
+_PACK_MIN_OPTION_TOKENS = 4    # two options
+_PACK_MAX_OPTION_TOKENS = 12   # six options
+
+
+def _pack_option_tokens(text: str) -> list[str]:
+    """Split a flat `label value ...` option string, or refuse the pairing."""
+    tokens = text.split()
+    if len(tokens) % 2 != 0 or not (
+        _PACK_MIN_OPTION_TOKENS <= len(tokens) <= _PACK_MAX_OPTION_TOKENS
+    ):
+        raise PluginRefusal(
+            "pack-args-shape",
+            f"options must be 2..6 whitespace-separated `label value` pairs; "
+            f"got {len(tokens)} tokens",
+        )
+    for index in range(1, len(tokens), 2):
+        if _PACK_CANONICAL_INT_RE.fullmatch(tokens[index]) is None:
+            raise PluginRefusal(
+                "pack-args-shape",
+                f"option value {index // 2 + 1} is not a canonical integer: "
+                f"{tokens[index]!r} (a label containing whitespace shifts the "
+                "pairing and is refused, never re-paired)",
+            )
+    return tokens
+
+
+def _pack_validate_args(args: dict[str, Any], keys: list[str],
+                        empty_ok: frozenset[str]) -> None:
+    """Like `_validate_args`, but lets a declared argument be the empty string.
+
+    The engine owns refusal classification for these lanes.  An empty `unit`
+    must reach it so it can answer `decision-unit-missing`, and an empty
+    `claim_text` so it can answer `prog-text`; refusing both at the plugin's
+    generic `plugin-args-schema` would make two classes the pinned manifest
+    declares permanently unreachable through this surface.
+    """
+    if not isinstance(args, dict):
+        raise PluginRefusal("plugin-args-schema", "arguments must be an object")
+    if set(args) != set(keys):
+        raise PluginRefusal(
+            "plugin-args-schema",
+            f"missing/extra fields: {sorted(set(args) ^ set(keys))}",
+        )
+    for key in keys:
+        value = args.get(key)
+        if not isinstance(value, str) or (not value and key not in empty_ok):
+            raise PluginRefusal("plugin-args-schema",
+                                f"missing/invalid field: {key!r}")
+
+
+_PACK_LANE_TOOLS: dict[str, dict[str, Any]] = {
+    "jackal_test_exists": {
+        "pack_id": "jackal.programming.source",
+        "operation_id": "programming.source.test_exists.v1",
+        "args": ["file_path", "file_sha256", "symbol",
+                 "declaration_line", "declaration_count"],
+        "engine_args": lambda a: [a["file_path"], a["file_sha256"], a["symbol"],
+                                  a["declaration_line"], a["declaration_count"]],
+        "cert_prefix": "test-exists-cert=",
+        "checker_flags": ["--stdin", "--root", str(ROOT)],
+        "empty_ok": frozenset(),
+    },
+    "jackal_claim_cites_test": {
+        "pack_id": "jackal.programming.source",
+        "operation_id": "programming.source.claim_cites_test.v1",
+        "args": ["doc_path", "doc_sha256", "claim_text",
+                 "test_path", "test_sha256", "symbol"],
+        "engine_args": lambda a: [a["doc_path"], a["doc_sha256"], a["claim_text"],
+                                  a["test_path"], a["test_sha256"], a["symbol"]],
+        "cert_prefix": "test-exists-cert=",
+        "checker_flags": ["--stdin", "--root", str(ROOT)],
+        # An empty claim_text must reach the engine so it answers `prog-text`.
+        "empty_ok": frozenset({"claim_text"}),
+    },
+    "jackal_decision_rank": {
+        "pack_id": "jackal.decision.matrix",
+        "operation_id": "decision.matrix.rank.v1",
+        "args": ["decision_id", "criterion", "sense", "options"],
+        "engine_args": lambda a: [a["decision_id"], a["criterion"], a["sense"],
+                                  *_pack_option_tokens(a["options"])],
+        "cert_prefix": "decision-cert=",
+        "checker_flags": ["--stdin"],
+        "empty_ok": frozenset(),
+    },
+    "jackal_decision_rank_v2": {
+        "pack_id": "jackal.decision.matrix",
+        "operation_id": "decision.matrix.rank.v2",
+        "args": ["decision_id", "criterion", "unit", "sense", "options"],
+        "engine_args": lambda a: [a["decision_id"], a["criterion"], a["unit"],
+                                  a["sense"], *_pack_option_tokens(a["options"])],
+        "cert_prefix": "decision-cert=",
+        "checker_flags": ["--stdin"],
+        # An empty unit must reach the engine so it answers
+        # `decision-unit-missing` rather than a generic plugin arg refusal.
+        "empty_ok": frozenset({"unit"}),
+    },
+}
+
+
+def _pack_registry_path() -> Path:
+    path = ROOT / _PACK_REGISTRY_RELATIVE
+    if not path.is_file():
+        raise PluginRefusal(
+            "pack-surface-absent",
+            f"{_PACK_REGISTRY_RELATIVE} is not present under {ROOT}; this "
+            "distribution does not carry the domain-pack surface",
+        )
+    return path
+
+
+def _run_pack_verifier(registry_sha256: str) -> dict[str, Any]:
+    """Run the pinned pack verifier as an external subprocess (fail closed).
+
+    Identity is hashed before and after the call, and cross-checked in BOTH
+    directions: the registry's declared `pack_verifier_sha256` must equal the
+    bytes actually executed, and the verifier's reported `registry_file_sha256`
+    must equal the registry bytes the plugin itself hashed.
+    """
+    verifier = ROOT / _PACK_VERIFIER_RELATIVE
+    if not verifier.is_file():
+        raise PluginRefusal("pack-surface-absent",
+                            f"{_PACK_VERIFIER_RELATIVE} is not present under {ROOT}")
+    pre = hashlib.sha256(verifier.read_bytes()).hexdigest()
+    proc = subprocess.run(
+        [sys.executable, "-I", "-S", "-B", str(verifier), "--root", str(ROOT)],
+        capture_output=True, text=True, timeout=600,
+    )
+    post = hashlib.sha256(verifier.read_bytes()).hexdigest()
+    if post != pre:
+        raise PluginRefusal("pack-verifier-toctou",
+                            "pack verifier bytes changed across call")
+    if proc.returncode != 0:
+        detail = (proc.stderr.strip() or proc.stdout.strip()).splitlines()
+        raise PluginRefusal("pack-registry-refused",
+                            (detail[0] if detail else "verification failed")[:300])
+    try:
+        report = _strict_json_loads(proc.stdout)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+        raise PluginRefusal("pack-registry-refused",
+                            f"verifier output is not strict JSON: {exc}") from exc
+    if not isinstance(report, dict) or report.get("status") != "accepted":
+        raise PluginRefusal("pack-registry-refused",
+                            f"verifier status {report.get('status') if isinstance(report, dict) else '?'!r}")
+    if report.get("registry_file_sha256") != registry_sha256:
+        raise PluginRefusal(
+            "pack-registry-identity",
+            f"verifier read registry {report.get('registry_file_sha256')} "
+            f"but the plugin hashed {registry_sha256}",
+        )
+    if report.get("verifier_sha256") != pre:
+        raise PluginRefusal(
+            "pack-verifier-identity",
+            f"verifier reported {report.get('verifier_sha256')} for its own "
+            f"bytes but the plugin hashed {pre}",
+        )
+    report["_verifier_sha256_observed"] = pre
+    return report
+
+
+def _pack_operation(pack_id: str, operation_id: str) -> dict[str, Any]:
+    """Resolve one verified pack operation row, or refuse with a named class."""
+    registry_path = _pack_registry_path()
+    registry_raw = registry_path.read_bytes()
+    if len(registry_raw) > _PACK_MAX_REGISTRY_BYTES:
+        raise PluginRefusal("pack-registry-refused", "registry exceeds protocol bound")
+    registry_sha = hashlib.sha256(registry_raw).hexdigest()
+    report = _run_pack_verifier(registry_sha)
+    registry = _strict_json_loads(registry_raw)
+    if not isinstance(registry, dict) or not isinstance(registry.get("packs"), list):
+        raise PluginRefusal("pack-registry-refused", "registry shape rejected")
+    if registry.get("pack_verifier_sha256") != report["_verifier_sha256_observed"]:
+        raise PluginRefusal(
+            "pack-verifier-identity",
+            f"registry declares {registry.get('pack_verifier_sha256')} but the "
+            f"executed verifier hashed {report['_verifier_sha256_observed']}",
+        )
+    row = next((p for p in registry["packs"]
+                if isinstance(p, dict) and p.get("pack_id") == pack_id), None)
+    if row is None:
+        raise PluginRefusal("pack-id-unknown", f"{pack_id!r} is not in the registry")
+    manifest_relative = row.get("manifest_path")
+    if not isinstance(manifest_relative, str) \
+            or not manifest_relative.startswith("domain_packs/") \
+            or ".." in Path(manifest_relative).parts:
+        raise PluginRefusal("pack-registry-refused",
+                            f"unsafe manifest path for {pack_id}")
+    manifest_raw = (ROOT / manifest_relative).read_bytes()
+    if hashlib.sha256(manifest_raw).hexdigest() != row.get("manifest_sha256"):
+        raise PluginRefusal("pack-manifest-identity",
+                            f"{manifest_relative} does not match its registry pin")
+    manifest = _strict_json_loads(manifest_raw)
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("operations"), list):
+        raise PluginRefusal("pack-registry-refused", f"manifest shape rejected: {pack_id}")
+    operation = next((o for o in manifest["operations"]
+                      if isinstance(o, dict) and o.get("operation_id") == operation_id),
+                     None)
+    if operation is None or operation_id not in report.get("operation_ids", []):
+        raise PluginRefusal(
+            "pack-operation-unknown",
+            f"{operation_id!r} is not a verified operation of {pack_id!r}",
+        )
+    engine = manifest.get("engine")
+    if not isinstance(engine, dict) or engine.get("route_command") != _PACK_ROUTE_COMMAND:
+        raise PluginRefusal(
+            "pack-registry-refused",
+            f"{pack_id} does not declare route_command={_PACK_ROUTE_COMMAND!r}",
+        )
+    operation["_identities"] = {
+        "registry_file_sha256": registry_sha,
+        "registry_digest_sha256": report.get("registry_digest_sha256"),
+        "pack_verifier_sha256": report["_verifier_sha256_observed"],
+        "pack_manifest_sha256": row["manifest_sha256"],
+    }
+    return operation
+
+
+def _pack_guard_argv(operation: dict[str, Any], engine_args: list[str]) -> None:
+    """Enforce the pinned manifest's own arity and size bounds on the request."""
+    schema = operation.get("argument_schema")
+    resources = operation.get("resources")
+    if not isinstance(schema, list) or not isinstance(resources, dict):
+        raise PluginRefusal("pack-registry-refused", "operation bounds missing")
+    max_arguments = min(len(schema), resources.get("max_arguments", len(schema)))
+    if not engine_args or len(engine_args) > max_arguments:
+        raise PluginRefusal(
+            "pack-request-arity",
+            f"{len(engine_args)} arguments exceeds the pinned bound {max_arguments}",
+        )
+    max_argument_bytes = resources.get("max_argument_bytes", 0)
+    total = 0
+    for index, value in enumerate(engine_args):
+        size = len(value.encode("utf-8"))
+        total += size
+        if size > max_argument_bytes:
+            raise PluginRefusal(
+                "pack-request-arity",
+                f"argument {index} is {size} bytes, over the pinned "
+                f"{max_argument_bytes}",
+            )
+    if total > resources.get("max_request_bytes", 0):
+        raise PluginRefusal("pack-request-arity",
+                            f"request is {total} bytes, over the pinned bound")
+
+
+def _pack_run_engine(operation: dict[str, Any], pack_id: str, operation_id: str,
+                     engine_args: list[str]) -> tuple[str, str]:
+    """Route one pack request, mapping an engine panic to its NAMED class."""
+    declared = operation.get("refusal_classes")
+    if not isinstance(declared, list) or not declared:
+        raise PluginRefusal("pack-registry-refused",
+                            f"no declared refusal classes for {operation_id}")
+    argv = [_PACK_ROUTE_COMMAND, pack_id, operation_id, *engine_args]
+    try:
+        return _run_pinned_evaluator(argv)
+    except PluginRefusal as refusal:
+        if refusal.reason != "evaluator-refused":
+            raise
+        token = refusal.detail.split(":", 1)[0].strip()
+        if token in declared:
+            # Passthrough of the engine's own class, never a substitute.
+            raise PluginRefusal(token, refusal.detail) from None
+        raise PluginRefusal(
+            "pack-refusal-unregistered",
+            f"engine refused {operation_id} with {token!r}, which is absent "
+            "from the pinned refusal_classes of that operation",
+        ) from None
+
+
+def _pack_engine_payload(stdout_text: str, cert_prefix: str,
+                         max_response_bytes: int) -> tuple[dict[str, str], str]:
+    """Split engine stdout into metadata fields and the one certificate line."""
+    if len(stdout_text.encode("utf-8")) > max_response_bytes:
+        raise PluginRefusal("pack-response-shape",
+                            "engine response exceeds the pinned bound")
+    cert_lines = [ln for ln in stdout_text.splitlines() if ln.startswith(cert_prefix)]
+    if len(cert_lines) != 1:
+        raise PluginRefusal(
+            "pack-response-shape",
+            f"expected exactly one {cert_prefix!r} line, found {len(cert_lines)}",
+        )
+    fields: dict[str, str] = {}
+    for line in stdout_text.splitlines():
+        if line.startswith(cert_prefix):
+            continue
+        for token in line.split():
+            key, sep, value = token.partition("=")
+            if sep and key and key not in fields:
+                fields[key] = value
+    return fields, cert_lines[0]
+
+
+def _pack_run_checker(operation: dict[str, Any], cert_line: str,
+                      checker_flags: list[str]) -> tuple[str, str]:
+    """Re-run the manifest-declared checker over the certificate (fail closed)."""
+    checker = operation.get("checker")
+    if not isinstance(checker, dict):
+        raise PluginRefusal("pack-registry-refused", "operation declares no checker")
+    relative = checker.get("path")
+    expected = checker.get("sha256")
+    if not isinstance(relative, str) or ".." in Path(relative).parts \
+            or Path(relative).is_absolute() or not isinstance(expected, str):
+        raise PluginRefusal("pack-registry-refused", "unsafe checker binding")
+    path = ROOT / relative
+    if not path.is_file():
+        raise PluginRefusal("pack-surface-absent", f"{relative} is not present")
+    pre = hashlib.sha256(path.read_bytes()).hexdigest()
+    if pre != expected:
+        raise PluginRefusal("pack-checker-identity",
+                            f"{relative} is {pre}, pinned {expected}")
+    proc = subprocess.run(
+        [sys.executable, "-I", "-S", "-B", str(path), *checker_flags],
+        input=cert_line, capture_output=True, text=True, timeout=600,
+    )
+    post = hashlib.sha256(path.read_bytes()).hexdigest()
+    if post != pre:
+        raise PluginRefusal("pack-checker-toctou",
+                            f"{relative} bytes changed across call")
+    lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    verdict = lines[-1] if lines else ""
+    if proc.returncode == 0 and verdict == "ACCEPT":
+        return verdict, pre
+    if verdict.startswith("REFUSE "):
+        reason = verdict[len("REFUSE "):].split(":", 1)[0].strip()
+        raise PluginRefusal("checker-rejected", f"{reason} ({verdict})")
+    raise PluginRefusal("checker-rejected",
+                        (proc.stderr.strip() or verdict or "no verdict line")[:300])
+
+
+def _make_pack_tool(tool_name: str, spec: dict[str, Any]):
+    pack_id = spec["pack_id"]
+    operation_id = spec["operation_id"]
+
+    def tool(args: dict[str, Any]) -> dict[str, Any]:
+        _pack_validate_args(args, list(spec["args"]), spec["empty_ok"])
+        operation = _pack_operation(pack_id, operation_id)
+        engine_args = spec["engine_args"](args)
+        _pack_guard_argv(operation, engine_args)
+        stdout_text, evaluator_sha = _pack_run_engine(
+            operation, pack_id, operation_id, engine_args)
+        fields, cert_line = _pack_engine_payload(
+            stdout_text, spec["cert_prefix"],
+            operation["resources"].get("max_response_bytes", 0))
+        printed = fields.get("status")
+        mapped = _PACK_STATUS_TO_ASSURANCE.get(printed or "")
+        if mapped is None:
+            raise PluginRefusal(
+                "pack-lane-status",
+                f"engine printed status={printed!r}, outside the pack-lane class set "
+                f"{sorted(_PACK_STATUS_TO_ASSURANCE)}")
+        if mapped != operation.get("assurance_ceiling"):
+            raise PluginRefusal(
+                "pack-lane-status-divergence",
+                f"engine printed status={printed!r} (axis class {mapped!r}) but "
+                f"{operation_id} pins assurance_ceiling="
+                f"{operation.get('assurance_ceiling')!r}")
+        if fields.get("consequence") != operation.get("consequence_ceiling"):
+            raise PluginRefusal(
+                "pack-consequence-divergence",
+                f"engine printed consequence={fields.get('consequence')!r} but "
+                f"{operation_id} pins consequence_ceiling="
+                f"{operation.get('consequence_ceiling')!r}")
+        verdict, checker_sha = _pack_run_checker(
+            operation, cert_line, list(spec["checker_flags"]))
+        return {
+            # The engine's own printed class, verbatim; never inflated here.
+            "status": printed,
+            "pack_id": pack_id,
+            "operation_id": operation_id,
+            "route": _PACK_ROUTE_COMMAND,
+            "formal": False,
+            "assurance_ceiling": operation["assurance_ceiling"],
+            "consequence_ceiling": operation["consequence_ceiling"],
+            "checker_rerun": verdict,
+            "checker_path": operation["checker"]["path"],
+            "certificate": cert_line,
+            "fields": fields,
+            "engine_output": stdout_text.rstrip("\n"),
+            "identities": {
+                **operation["_identities"],
+                "evaluator_sha256": evaluator_sha,
+                "checker_sha256": checker_sha,
+                "plugin_sha256": PLUGIN_HASH,
+            },
+            "non_claims": [
+                "NOT formal-bounded: no Lean-checked certificate and no theorem "
+                "is involved in this lane",
+                f"The consequence ceiling of this result is "
+                f"{operation['consequence_ceiling']!r} and is NOT raised by its "
+                f"{operation['assurance_ceiling']!r} assurance ceiling",
+                "pack_surface_is_not_manifest_pinned: release/MANIFEST.sha256 "
+                "carries no row for the domain-pack registry; the registry and "
+                "verifier digests above are reported for out-of-band pinning",
+                *operation.get("nonclaims", []),
+            ],
+        }
+
+    tool.__name__ = f"tool_{tool_name}"
+    return tool
+
+
 TOOLS = {
     "jackal_range_bound":       tool_range_bound,
     "jackal_gaussian_integral": tool_gaussian_integral,
@@ -1594,6 +2071,8 @@ TOOLS = {
 }
 for _tool_name, _spec in _WEAK_LANE_TOOLS.items():
     TOOLS[_tool_name] = _make_weak_tool(_tool_name, _spec)
+for _tool_name, _spec in _PACK_LANE_TOOLS.items():
+    TOOLS[_tool_name] = _make_pack_tool(_tool_name, _spec)
 
 
 def _dispatch(method: str, params: Any) -> dict[str, Any]:
@@ -1682,6 +2161,10 @@ def _serve_call(tool: str, arg_json: str) -> int:
         "formal-bounded", "verified",
         # Weaker-lane classes: success at their honest epistemic level.
         "exact", "checked", "estimated", "bounded", "model-based",
+        # Domain-pack programming lane: a byte-exact STRUCTURAL fact.  Success
+        # here means the checker recomputed the claim from real bytes, not that
+        # anything is correct — see the tool's consequence_ceiling.
+        "structural-exact",
     } else 1
 
 

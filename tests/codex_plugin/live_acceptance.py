@@ -43,7 +43,15 @@ PLUGIN_ROOT = REPOSITORY_ROOT / "plugins" / "jackel"
 MARKETPLACE = "anubis-quantum-cipher"
 PLUGIN = "jackel"
 MCP_PROTOCOL_VERSION = "2025-11-25"
-EXPECTED_TOOL_COUNT = 34
+# Anti-shrink floor, not an exact count.  This module is driven with two
+# different catalogs: the REPO `plugin/hermes/tools.json` (repo test) and the
+# SEALED RELEASE catalog the provisioner downloads (installed-config run).  The
+# substantive inventory invariant is `discovered == expected` plus uniqueness,
+# which is exact and catalog-agnostic; an absolute count here would go stale
+# against whichever of the two surfaces moved, and pinning it to one silently
+# stops checking the other.  34 is the smallest surface either has ever
+# shipped, so a catalog that SHRANK below it still refuses.
+MIN_TOOL_COUNT = 34
 HOST_TRANSCRIPT_LIMIT = 4 * 1024 * 1024
 HOST_REGISTRY_LIMIT = 1024 * 1024
 HOST_REGISTRY_ENTRY_LIMIT = 256
@@ -1589,8 +1597,11 @@ def _validate_inventory(response: object, runtime_document: object) -> list[str]
     if not isinstance(tools, list):
         raise AcceptanceError("MCP tools/list returned no tool inventory")
     discovered = [record.get("name") for record in tools if isinstance(record, dict)]
-    if len(expected) != EXPECTED_TOOL_COUNT or len(discovered) != EXPECTED_TOOL_COUNT \
-            or len(set(discovered)) != EXPECTED_TOOL_COUNT or discovered != expected:
+    if len(expected) < MIN_TOOL_COUNT:
+        raise AcceptanceError("runtime catalog shrank below the frozen floor")
+    if len(discovered) != len(expected) \
+            or len(set(discovered)) != len(discovered) \
+            or discovered != expected:
         raise AcceptanceError("MCP inventory differs from the exact runtime catalog")
     return discovered
 

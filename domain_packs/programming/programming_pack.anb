@@ -1,0 +1,42 @@
+// JACKAL programming-status domain pack v1.
+//
+// This module owns only the closed routing decision for programming claims. It
+// deliberately holds no arithmetic and no file access: the operations it routes
+// to validate the canonical form of caller-supplied structural facts and emit a
+// certificate. An independent Python checker recomputes those facts from the
+// real bytes on disk, so a caller who misstates a field cannot mint a true
+// claim.
+//
+// Assurance boundary, stated here because it is the point of the pack:
+// "this test declaration exists in this file at this content hash" is a
+// byte-exact structural fact, so its assurance ceiling is `exact`. It is
+// `informational` in consequence, because a test existing is never evidence
+// that the code under test is correct. Nothing in this pack may be rendered as
+// a correctness claim.
+
+pub fn protocol_version() {
+    return "1";
+}
+
+pub fn pack_id() {
+    return "jackal.programming.source";
+}
+
+pub fn route_operation(requested_pack, operation_id, argument_count) {
+    if requested_pack != pack_id() {
+        panic("pack-id-unknown: requested pack is not registered; fail closed");
+    }
+    if operation_id == "programming.source.test_exists.v1" {
+        if argument_count != 5 {
+            panic("pack-request-arity: programming.source.test_exists.v1 requires exactly 5 arguments; fail closed");
+        }
+        return "test-exists";
+    }
+    if operation_id == "programming.source.claim_cites_test.v1" {
+        if argument_count != 6 {
+            panic("pack-request-arity: programming.source.claim_cites_test.v1 requires exactly 6 arguments; fail closed");
+        }
+        return "claim-cites-test";
+    }
+    panic("pack-operation-unknown: no fallback is permitted; fail closed");
+}

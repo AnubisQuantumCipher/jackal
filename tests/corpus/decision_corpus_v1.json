@@ -1,0 +1,1467 @@
+{
+  "authority": "anubis-safe-mode",
+  "case_counts": {
+    "poison": 14,
+    "positive": 9,
+    "refusal": 20
+  },
+  "cases": [
+    {
+      "argv": [
+        "d_max",
+        "throughput_rps",
+        "max",
+        "alpha",
+        "120",
+        "beta",
+        "400",
+        "gamma",
+        "250"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_decision_max",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"throughput_rps\",\"decision_id\":\"d_max\",\"margin\":\"150\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"400\"},{\"label\":\"gamma\",\"value\":\"250\"}],\"runner_up\":\"gamma\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=150\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"throughput_rps\",\"decision_id\":\"d_max\",\"margin\":\"150\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"400\"},{\"label\":\"gamma\",\"value\":\"250\"}],\"runner_up\":\"gamma\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "eaf9c3f449bcc5f636e2391273b16c9af396fc909b7204b7836628eb375c994f"
+      },
+      "engine_command": "decision-rank",
+      "invocation": "direct",
+      "note": "argmax over three declared integer values",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_min",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_decision_min",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_min\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_min\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "bf4dc671cd20c178056bcfe43707f3ac04f0192bdd3d594e55de3ce84f4326de"
+      },
+      "engine_command": "decision-rank",
+      "invocation": "direct",
+      "note": "argmin: the sense is part of the claim, not an afterthought",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_six",
+        "bytes_written",
+        "max",
+        "a",
+        "1",
+        "b",
+        "2",
+        "c",
+        "3",
+        "d",
+        "4",
+        "e",
+        "5",
+        "f",
+        "6"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_decision_six_options_upper_bound",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"bytes_written\",\"decision_id\":\"d_six\",\"margin\":\"1\",\"options\":[{\"label\":\"a\",\"value\":\"1\"},{\"label\":\"b\",\"value\":\"2\"},{\"label\":\"c\",\"value\":\"3\"},{\"label\":\"d\",\"value\":\"4\"},{\"label\":\"e\",\"value\":\"5\"},{\"label\":\"f\",\"value\":\"6\"}],\"runner_up\":\"e\",\"selected\":\"f\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=f margin=1\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"bytes_written\",\"decision_id\":\"d_six\",\"margin\":\"1\",\"options\":[{\"label\":\"a\",\"value\":\"1\"},{\"label\":\"b\",\"value\":\"2\"},{\"label\":\"c\",\"value\":\"3\"},{\"label\":\"d\",\"value\":\"4\"},{\"label\":\"e\",\"value\":\"5\"},{\"label\":\"f\",\"value\":\"6\"}],\"runner_up\":\"e\",\"selected\":\"f\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "b74fd6ac3b74ba5f23b80e5c07736475dc558ff46cfe5a39ce5c4764006f4e19"
+      },
+      "engine_command": "decision-rank",
+      "invocation": "direct",
+      "note": "the protocol upper bound of six options is admissible",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_neg",
+        "drift_ppm",
+        "max",
+        "alpha",
+        "-40",
+        "beta",
+        "-7"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_decision_negative_values",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"drift_ppm\",\"decision_id\":\"d_neg\",\"margin\":\"33\",\"options\":[{\"label\":\"alpha\",\"value\":\"-40\"},{\"label\":\"beta\",\"value\":\"-7\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=33\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"drift_ppm\",\"decision_id\":\"d_neg\",\"margin\":\"33\",\"options\":[{\"label\":\"alpha\",\"value\":\"-40\"},{\"label\":\"beta\",\"value\":\"-7\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "34a9a591bca1622d918f94defca55476679a5ba2f13d9f901c0b9d3b2ff456fd"
+      },
+      "engine_command": "decision-rank",
+      "invocation": "direct",
+      "note": "negative integers rank without special-casing",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_negzero",
+        "queue_depth",
+        "max",
+        "alpha",
+        "-0",
+        "beta",
+        "2"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_decision_negative_zero_is_normalised",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"queue_depth\",\"decision_id\":\"d_negzero\",\"margin\":\"2\",\"options\":[{\"label\":\"alpha\",\"value\":\"0\"},{\"label\":\"beta\",\"value\":\"2\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=2\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"queue_depth\",\"decision_id\":\"d_negzero\",\"margin\":\"2\",\"options\":[{\"label\":\"alpha\",\"value\":\"0\"},{\"label\":\"beta\",\"value\":\"2\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "f9138d0a008934c0620ad4583ad190b888ff7184713b3ba1edff716884bcf4fb"
+      },
+      "engine_command": "decision-rank",
+      "invocation": "direct",
+      "note": "the engine emits 0 for -0, so the checker's negative-zero refusal cannot be reached through the engine",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d1",
+        "best_score",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_criterion_is_a_value_judgment",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-value-judgment",
+        "refusal_detail": "criterion names a value judgment, not a measurable quantity; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "decision-value-judgment",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "max",
+        "alpha",
+        "5",
+        "beta",
+        "5"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_top_two_tie",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-margin-zero",
+        "refusal_detail": "the top two options tie on the declared criterion; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "decision-margin-zero",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "max",
+        "alpha",
+        "5",
+        "alpha",
+        "6"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_duplicate_label",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-duplicate-label",
+        "refusal_detail": "option labels must be distinct; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "decision-duplicate-label",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "maximise",
+        "alpha",
+        "5",
+        "beta",
+        "6"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_sense_unknown",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-sense-unknown",
+        "refusal_detail": "sense must be exactly \"max\" or \"min\"; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "decision-sense-unknown",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "max",
+        "alpha",
+        "5",
+        "beta"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_odd_label_value_pairing",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-request-arity",
+        "refusal_detail": "decision-rank requires an id, a criterion, a sense, and at least two label/value pairs; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "pack-request-arity",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "max",
+        "alpha",
+        "5"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_fewer_than_two_options",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-request-arity",
+        "refusal_detail": "decision-rank requires an id, a criterion, a sense, and at least two label/value pairs; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "pack-request-arity",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "max",
+        "a",
+        "1",
+        "b",
+        "2",
+        "c",
+        "3",
+        "d",
+        "4",
+        "e",
+        "5",
+        "f",
+        "6",
+        "g",
+        "7"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_more_than_six_options",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-request-arity",
+        "refusal_detail": "decision-rank accepts at most 6 options; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "pack-request-arity",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d1",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_route_unknown_operation_id",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-operation-unknown",
+        "refusal_detail": "no fallback is permitted; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank",
+      "expected_refusal": "pack-operation-unknown",
+      "invocation": "pack-route",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_only": true,
+      "route_operation_id": "decision.matrix.absent.v1",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90",
+        "gamma",
+        "200"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_selected_relabelled",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"},{\"label\":\"gamma\",\"value\":\"200\"}],\"runner_up\":\"alpha\",\"selected\":\"gamma\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-selection-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-selection-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"},{\"label\":\"gamma\",\"value\":\"200\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "5338c5988edbbab664cc3709506402a57d251fa313c2c37c1c94e20a0b4daf98"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-selection-mismatch",
+      "invocation": "direct",
+      "note": "renaming the winner does not change the argmin",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "selected"
+        ],
+        "value": "gamma"
+      }
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_selected_and_runner_up_collapsed",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"alpha\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-runner-up-is-selected",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-runner-up-is-selected"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "1b562d1b6968499d261e4ec4f4d2388ecfef52a6e8115c20ff55fc397c4713f6"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-runner-up-is-selected",
+      "invocation": "direct",
+      "note": "a certificate that names one option as both winner and runner-up",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "selected"
+        ],
+        "value": "alpha"
+      }
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "throughput_rps",
+        "max",
+        "a",
+        "1",
+        "b",
+        "2",
+        "c",
+        "3"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_runner_up_relabelled",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"throughput_rps\",\"decision_id\":\"d_tamper\",\"margin\":\"1\",\"options\":[{\"label\":\"a\",\"value\":\"1\"},{\"label\":\"b\",\"value\":\"2\"},{\"label\":\"c\",\"value\":\"3\"}],\"runner_up\":\"a\",\"selected\":\"c\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-runner-up-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-runner-up-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=c margin=1\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"throughput_rps\",\"decision_id\":\"d_tamper\",\"margin\":\"1\",\"options\":[{\"label\":\"a\",\"value\":\"1\"},{\"label\":\"b\",\"value\":\"2\"},{\"label\":\"c\",\"value\":\"3\"}],\"runner_up\":\"b\",\"selected\":\"c\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "f451f1f2dc7b0fb3a9891a9fe88294ff3da6cccd3520540534b29a72685da9ce"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-runner-up-mismatch",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "runner_up"
+        ],
+        "value": "a"
+      }
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_margin_inflated",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"9000\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-margin-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-margin-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "1b562d1b6968499d261e4ec4f4d2388ecfef52a6e8115c20ff55fc397c4713f6"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-margin-mismatch",
+      "invocation": "direct",
+      "note": "a comfortable-looking margin is recomputed, not believed",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "margin"
+        ],
+        "value": "9000"
+      }
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "latency_ms",
+        "min",
+        "alpha",
+        "90",
+        "beta",
+        "120"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_margin_forced_to_zero_by_flattening_values",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"90\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"beta\",\"selected\":\"alpha\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-margin-zero",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-margin-zero"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=alpha margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"90\"},{\"label\":\"beta\",\"value\":\"120\"}],\"runner_up\":\"beta\",\"selected\":\"alpha\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "ea08ed4b7a2554c3a213a56c7c4bbc5d512f62ccb8f3987879e2dc5a172f9ad8"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-margin-zero",
+      "invocation": "direct",
+      "note": "a tie reintroduced by editing an option value is still a coin flip",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "options",
+          1,
+          "value"
+        ],
+        "value": "90"
+      }
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_criterion_rewritten_to_a_value_judgment",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"best_latency\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-value-judgment",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-value-judgment"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "1b562d1b6968499d261e4ec4f4d2388ecfef52a6e8115c20ff55fc397c4713f6"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-value-judgment",
+      "invocation": "direct",
+      "note": "the checker mirrors the engine's blocklist, so neither door is open",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "criterion"
+        ],
+        "value": "best_latency"
+      }
+    },
+    {
+      "argv": [
+        "d_tamper",
+        "latency_ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_malformed_envelope_missing_witness",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\"}",
+      "checker": {
+        "reason_class": "cert-envelope-keys",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-envelope-keys"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "1b562d1b6968499d261e4ec4f4d2388ecfef52a6e8115c20ff55fc397c4713f6"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-envelope-keys",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true,
+      "tamper": {
+        "key": "witness",
+        "op": "delete_envelope_key"
+      }
+    },
+    {
+      "argv": [
+        "d_wide",
+        "queue_depth",
+        "max",
+        "alpha",
+        "-99999999999999999999999999999999999999999999999999999999999999999",
+        "beta",
+        "2"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_value_wider_than_the_checker_admits",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"queue_depth\",\"decision_id\":\"d_wide\",\"margin\":\"100000000000000000000000000000000000000000000000000000000000000001\",\"options\":[{\"label\":\"alpha\",\"value\":\"-99999999999999999999999999999999999999999999999999999999999999999\"},{\"label\":\"beta\",\"value\":\"2\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-field-shape",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-field-shape"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=100000000000000000000000000000000000000000000000000000000000000001\nconsequence=decision-boundary note=the-declared-criterion-remains-the-callers-this-is-not-a-claim-it-is-the-right-one\ndecision-cert={\"claim\":{\"criterion\":\"queue_depth\",\"decision_id\":\"d_wide\",\"margin\":\"100000000000000000000000000000000000000000000000000000000000000001\",\"options\":[{\"label\":\"alpha\",\"value\":\"-99999999999999999999999999999999999999999999999999999999999999999\"},{\"label\":\"beta\",\"value\":\"2\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"max\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v1\",\"witness\":{}}\n",
+        "stdout_sha256": "374be1b370d2e735e9df1b9d6bab7a8ec35e8df64c6b7ad10a6ff336ba01d483"
+      },
+      "engine_command": "decision-rank",
+      "expected_verdict": "REFUSE cert-field-shape",
+      "invocation": "direct",
+      "note": "documented divergence: the engine admits a 65-digit magnitude the checker's canonical-integer shape does not. The checker is the stricter of the two, so nothing is admitted that should not be; recorded here so the asymmetry is visible rather than folklore",
+      "operation_id": "decision.matrix.rank.v1",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_v2_min",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_v2_declared_unit_min",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_min\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_min\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "27732c35e939046d0919e230e443090acd9a8c8da7339f81e0726f92be7b8116"
+      },
+      "engine_command": "decision-rank-v2",
+      "invocation": "direct",
+      "note": "the same argmin as v1, with the unit carried into the certificate",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_v2_max",
+        "request_rate",
+        "Hz",
+        "max",
+        "alpha",
+        "120",
+        "beta",
+        "400",
+        "gamma",
+        "250"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_v2_declared_unit_max_rate",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"request_rate\",\"decision_id\":\"d_v2_max\",\"margin\":\"150\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"400\"},{\"label\":\"gamma\",\"value\":\"250\"}],\"runner_up\":\"gamma\",\"selected\":\"beta\",\"sense\":\"max\",\"unit\":\"Hz\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=150 unit=Hz\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"request_rate\",\"decision_id\":\"d_v2_max\",\"margin\":\"150\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"400\"},{\"label\":\"gamma\",\"value\":\"250\"}],\"runner_up\":\"gamma\",\"selected\":\"beta\",\"sense\":\"max\",\"unit\":\"Hz\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "05097d0a6b920eaeac98305b5088497c03e1ab8dd67a487f5b2e026f9204e312"
+      },
+      "engine_command": "decision-rank-v2",
+      "invocation": "direct",
+      "note": "a rate ranks as Hz; `rps` is not a canonical id and would refuse",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_v2_pct",
+        "error_rate",
+        "percent",
+        "min",
+        "alpha",
+        "7",
+        "beta",
+        "3"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_v2_ratio_unit_percent",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"error_rate\",\"decision_id\":\"d_v2_pct\",\"margin\":\"4\",\"options\":[{\"label\":\"alpha\",\"value\":\"7\"},{\"label\":\"beta\",\"value\":\"3\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"percent\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=4 unit=percent\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"error_rate\",\"decision_id\":\"d_v2_pct\",\"margin\":\"4\",\"options\":[{\"label\":\"alpha\",\"value\":\"7\"},{\"label\":\"beta\",\"value\":\"3\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"percent\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "0b233358c95d26fcf839dc342b167b619e5e53bccac7b8270e87c58dc8535ada"
+      },
+      "engine_command": "decision-rank-v2",
+      "invocation": "direct",
+      "note": "a dimensionless ratio is admissible because `percent` still names what is counted; the bare identity `one` does not and is refused",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_v2_six",
+        "energy_used",
+        "kWh",
+        "min",
+        "a",
+        "6",
+        "b",
+        "5",
+        "c",
+        "4",
+        "d",
+        "3",
+        "e",
+        "2",
+        "f",
+        "1"
+      ],
+      "case_class": "positive",
+      "case_id": "positive_v2_six_options_upper_bound",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"energy_used\",\"decision_id\":\"d_v2_six\",\"margin\":\"1\",\"options\":[{\"label\":\"a\",\"value\":\"6\"},{\"label\":\"b\",\"value\":\"5\"},{\"label\":\"c\",\"value\":\"4\"},{\"label\":\"d\",\"value\":\"3\"},{\"label\":\"e\",\"value\":\"2\"},{\"label\":\"f\",\"value\":\"1\"}],\"runner_up\":\"e\",\"selected\":\"f\",\"sense\":\"min\",\"unit\":\"kWh\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": null,
+        "returncode": 0,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "ACCEPT"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=f margin=1 unit=kWh\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"energy_used\",\"decision_id\":\"d_v2_six\",\"margin\":\"1\",\"options\":[{\"label\":\"a\",\"value\":\"6\"},{\"label\":\"b\",\"value\":\"5\"},{\"label\":\"c\",\"value\":\"4\"},{\"label\":\"d\",\"value\":\"3\"},{\"label\":\"e\",\"value\":\"2\"},{\"label\":\"f\",\"value\":\"1\"}],\"runner_up\":\"e\",\"selected\":\"f\",\"sense\":\"min\",\"unit\":\"kWh\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "1b83156d2592a115b2bf2c8f37c7a3007abc36c9e4cd8344f0b45cef07978d21"
+      },
+      "engine_command": "decision-rank-v2",
+      "invocation": "direct",
+      "note": "the protocol upper bound of six options holds in the v2 lane too",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true
+    },
+    {
+      "argv": [
+        "d_v2",
+        "most_elegant",
+        "elegance",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_unit_outside_the_closed_vocabulary",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-unit-unknown",
+        "refusal_detail": "declared unit is not a canonical id of the closed unit vocabulary; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-unit-unknown",
+      "invocation": "direct",
+      "note": "the criterion v1 accepts. There is no unit for elegance, so the closed vocabulary refuses it however it is spelled",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "most_elegant",
+        "",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_unit_declared_empty",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-unit-missing",
+        "refusal_detail": "decision.matrix.rank.v2 requires a declared unit; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-unit-missing",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "most_elegant",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_unit_omitted_entirely",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-request-arity",
+        "refusal_detail": "decision-rank-v2 requires an id, a criterion, a unit, a sense, and at least two label/value pairs; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "pack-request-arity",
+      "invocation": "direct",
+      "note": "omitting the argument is an arity refusal rather than a unit one: with positional argv there is no slot left to be empty",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "most_elegant",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_route_arity_rejects_a_missing_unit",
+      "checker": null,
+      "engine": {
+        "refusal_class": "pack-request-arity",
+        "refusal_detail": "decision.matrix.rank.v2 requires at least 8 arguments (id, criterion, unit, sense, and two label/value pairs); fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "pack-request-arity",
+      "invocation": "pack-route",
+      "note": "the pack's own route guard refuses before the engine is reached",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_only": true,
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "b3st",
+        "elegance",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_leetspeak_criterion_with_a_bogus_unit",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-unit-unknown",
+        "refusal_detail": "declared unit is not a canonical id of the closed unit vocabulary; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-unit-unknown",
+      "invocation": "direct",
+      "note": "`b3st` defeats the word list; it cannot defeat the unit set",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "optimal_score",
+        "one",
+        "max",
+        "alpha",
+        "1",
+        "beta",
+        "2"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_dimensionless_identity_is_not_a_unit",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-unit-unknown",
+        "refusal_detail": "declared unit is not a canonical id of the closed unit vocabulary; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-unit-unknown",
+      "invocation": "direct",
+      "note": "`one` is a canonical registry id and is still refused here: it is the deliberate exclusion, and this row is what proves it is live",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "best_score",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_value_judgment_survives_an_admissible_unit",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-value-judgment",
+        "refusal_detail": "criterion names a value judgment, not a measurable quantity; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-value-judgment",
+      "invocation": "direct",
+      "note": "the v1 word list is retained as a second gate, not replaced",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "latency_ms",
+        "millisecond",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_alias_is_not_a_canonical_unit",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-unit-unknown",
+        "refusal_detail": "declared unit is not a canonical id of the closed unit vocabulary; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-unit-unknown",
+      "invocation": "direct",
+      "note": "the registry lists `millisecond` as an alias for input canonicalisation only; this lane records what it is given, so it admits canonical ids only",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "latency_ms",
+        "Ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_unit_comparison_is_case_sensitive",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-unit-unknown",
+        "refusal_detail": "declared unit is not a canonical id of the closed unit vocabulary; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-unit-unknown",
+      "invocation": "direct",
+      "note": "case matters by design: `mW` and `MW` differ by a factor of a million, so a case-insensitive match would admit the wrong unit",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "5",
+        "alpha",
+        "6"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_duplicate_label",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-duplicate-label",
+        "refusal_detail": "option labels must be distinct; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-duplicate-label",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "latency_ms",
+        "ms",
+        "max",
+        "alpha",
+        "5",
+        "beta",
+        "5"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_top_two_tie",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-margin-zero",
+        "refusal_detail": "the top two options tie on the declared criterion; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-margin-zero",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2",
+        "latency_ms",
+        "ms",
+        "minimise",
+        "alpha",
+        "5",
+        "beta",
+        "6"
+      ],
+      "case_class": "refusal",
+      "case_id": "refusal_v2_sense_unknown",
+      "checker": null,
+      "engine": {
+        "refusal_class": "decision-sense-unknown",
+        "refusal_detail": "sense must be exactly \"max\" or \"min\"; fail closed",
+        "returncode": 101,
+        "stdout": "",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_refusal": "decision-sense-unknown",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": null
+    },
+    {
+      "argv": [
+        "d_v2_tamper",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_v2_unit_replaced_with_a_bogus_token",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"elegance\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-unit-not-admitted",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-unit-not-admitted"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "2f170fa876becaeaff7e8bd2d25e0b5f95ef09616ce290c161c1950f29ae5511"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_verdict": "REFUSE cert-unit-not-admitted",
+      "invocation": "direct",
+      "note": "the checker holds the same closed vocabulary, so neither door opens",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "unit"
+        ],
+        "value": "elegance"
+      }
+    },
+    {
+      "argv": [
+        "d_v2_tamper",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_v2_unit_replaced_with_the_dimensionless_identity",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"one\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-unit-not-admitted",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-unit-not-admitted"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "2f170fa876becaeaff7e8bd2d25e0b5f95ef09616ce290c161c1950f29ae5511"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_verdict": "REFUSE cert-unit-not-admitted",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "unit"
+        ],
+        "value": "one"
+      }
+    },
+    {
+      "argv": [
+        "d_v2_tamper",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_v2_unit_key_deleted",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-claim-keys",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-claim-keys"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "2f170fa876becaeaff7e8bd2d25e0b5f95ef09616ce290c161c1950f29ae5511"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_verdict": "REFUSE cert-claim-keys",
+      "invocation": "direct",
+      "note": "a v2 certificate without a unit is not a v1 certificate",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true,
+      "tamper": {
+        "key": "unit",
+        "op": "delete_claim_key"
+      }
+    },
+    {
+      "argv": [
+        "d_v2_tamper",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_v2_criterion_rewritten_to_a_value_judgment",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"best_latency\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-value-judgment",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-value-judgment"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "2f170fa876becaeaff7e8bd2d25e0b5f95ef09616ce290c161c1950f29ae5511"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_verdict": "REFUSE cert-value-judgment",
+      "invocation": "direct",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "criterion"
+        ],
+        "value": "best_latency"
+      }
+    },
+    {
+      "argv": [
+        "d_v2_tamper",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_v2_margin_inflated",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"9000\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-margin-mismatch",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-margin-mismatch"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "2f170fa876becaeaff7e8bd2d25e0b5f95ef09616ce290c161c1950f29ae5511"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_verdict": "REFUSE cert-margin-mismatch",
+      "invocation": "direct",
+      "note": "the shared recomputation still bites in the v2 lane",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true,
+      "tamper": {
+        "op": "set_claim",
+        "path": [
+          "margin"
+        ],
+        "value": "9000"
+      }
+    },
+    {
+      "argv": [
+        "d_v2_tamper",
+        "latency_ms",
+        "ms",
+        "min",
+        "alpha",
+        "120",
+        "beta",
+        "90"
+      ],
+      "case_class": "poison",
+      "case_id": "poison_v2_kind_downgraded_to_v1",
+      "certificate": "decision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}",
+      "checker": {
+        "reason_class": "cert-kind-unexpected",
+        "returncode": 2,
+        "root": "repository",
+        "tool": "tools/decision_verify.py",
+        "verdict": "REFUSE cert-kind-unexpected"
+      },
+      "engine": {
+        "refusal_class": null,
+        "refusal_detail": null,
+        "returncode": 0,
+        "stdout": "status=exact selected=beta margin=30 unit=ms\nconsequence=decision-boundary note=the-declared-criterion-and-unit-remain-the-callers-a-declared-unit-is-not-a-measurement\ndecision-cert={\"claim\":{\"criterion\":\"latency_ms\",\"decision_id\":\"d_v2_tamper\",\"margin\":\"30\",\"options\":[{\"label\":\"alpha\",\"value\":\"120\"},{\"label\":\"beta\",\"value\":\"90\"}],\"runner_up\":\"alpha\",\"selected\":\"beta\",\"sense\":\"min\",\"unit\":\"ms\"},\"kind\":\"decision-rank-v2\",\"schema\":\"jackal-decision-cert-v2\",\"witness\":{}}\n",
+        "stdout_sha256": "2f170fa876becaeaff7e8bd2d25e0b5f95ef09616ce290c161c1950f29ae5511"
+      },
+      "engine_command": "decision-rank-v2",
+      "expected_verdict": "REFUSE cert-kind-unexpected",
+      "invocation": "direct",
+      "note": "a v2 certificate cannot be relabelled into the v1 lane to shed the unit requirement",
+      "operation_id": "decision.matrix.rank.v2",
+      "route_parity": true,
+      "tamper": {
+        "key": "kind",
+        "op": "set_envelope_value",
+        "value": "decision-rank"
+      }
+    }
+  ],
+  "checker": {
+    "path": "tools/decision_verify.py",
+    "sha256": "f1ad7c9fbd4c1d899dbb4bebabbbeb97e97a56bd4b279ad7d8ec3722bf12e0f6"
+  },
+  "corpus_digest_sha256": "79b843f19281c471c419a4e7bc326daaedc1388a0ba39be9ead33592d119a4b0",
+  "corpus_version": "1",
+  "engine": {
+    "anubis_pin": "anubis-a733565f237d",
+    "entry_source_path": "jackal_calc.anb",
+    "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
+    "harness_mode": "prebuilt-native"
+  },
+  "fixtures": [],
+  "generated_by": "tests/corpus/generate_pack_corpus.py",
+  "nonclaims": [
+    "a_frozen_observation_is_not_a_proof_of_correctness",
+    "the_refusal_classes_recorded_here_are_not_exhaustive",
+    "an_accepted_certificate_says_nothing_about_the_code_it_names"
+  ],
+  "pack_id": "jackal.decision.matrix",
+  "schema": "jackal-pack-corpus-v1"
+}

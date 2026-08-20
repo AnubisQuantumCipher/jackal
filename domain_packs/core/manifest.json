@@ -1,0 +1,82 @@
+{
+  "schema": "jackal-domain-pack-manifest-v1",
+  "protocol_version": "1",
+  "pack_id": "jackal.core.exact",
+  "pack_version": "1.0.0",
+  "description": "Closed Anubis routing for existing exact arithmetic evidence lanes.",
+  "compatibility": {
+    "jackal_release_min": "v1.8.0",
+    "jackal_release_max_exclusive": "v2.0.0",
+    "protocol_min": "1",
+    "protocol_max": "1"
+  },
+  "request_abi": "argv-v1",
+  "engine": {
+    "authority": "anubis-safe-mode",
+    "entry_source_path": "jackal_calc.anb",
+    "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
+    "route_source_path": "domain_packs/core/core_pack.anb",
+    "route_source_sha256": "5c9e23ce102366c3e7bb2aa01c78ace6d4bc20bd2d35e0813fd62bd3c324d405",
+    "route_command": "pack-route"
+  },
+  "operations": [
+    {
+      "operation_id": "core.exact.mod_pow.v1",
+      "engine_command": "mod-pow",
+      "argument_schema": [
+        {
+          "name": "base",
+          "type": "canonical_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "exponent",
+          "type": "canonical_nonnegative_integer",
+          "max_bytes": 4096
+        },
+        {
+          "name": "modulus",
+          "type": "canonical_positive_integer",
+          "max_bytes": 4096
+        }
+      ],
+      "response_schema": "jackal-exact-cert-v1",
+      "checker": {
+        "path": "tools/exact_verify.py",
+        "sha256": "2c07e6257ce1524de3e31374371c6d5859dce710767156de2566ec77fa1883a7"
+      },
+      "evidence_kind": "exact-cert",
+      "inference_rule": "evidence_admit",
+      "assurance_ceiling": "exact",
+      "consequence_ceiling": "safety-critical",
+      "refusal_classes": [
+        "pack-id-unknown",
+        "pack-operation-unknown",
+        "pack-request-arity",
+        "int-budget",
+        "lane-refused",
+        "checker-rejected"
+      ],
+      "fallback": {
+        "allowed": false,
+        "reason": "fallback_forbidden"
+      },
+      "resources": {
+        "max_request_bytes": 16384,
+        "max_response_bytes": 65536,
+        "max_arguments": 3,
+        "max_argument_bytes": 4096,
+        "timeout_ms": 120000,
+        "memory_bytes": 536870912,
+        "max_depth": 1,
+        "max_nodes": 1
+      },
+      "nonclaims": [
+        "no_input_truth",
+        "no_universal_soundness",
+        "raw_output_requires_independent_verification"
+      ]
+    }
+  ],
+  "manifest_digest_sha256": "ab851801be878e9b2ac366a992d6e1a3c709527caaffeafd8c5f3e8752f7f0b4"
+}

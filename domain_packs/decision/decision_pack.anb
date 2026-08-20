@@ -1,0 +1,71 @@
+// JACKAL deterministic decision domain pack v1.
+//
+// This module owns only the closed routing decision for decision-matrix claims.
+//
+// What this pack does: given a caller-declared numeric criterion and a set of
+// labelled integer scores, it selects the argmax or argmin and records the
+// margin to the runner-up. Every step is recomputable from the certificate.
+//
+// What this pack refuses to do, permanently: rank options on preference,
+// goodness, or worth. A decision matrix can order options by a stated,
+// recomputable numeric criterion. It cannot establish that the criterion is the
+// right one to optimise, and it cannot turn a value judgment into a
+// mathematical fact. Requests whose criterion names a value judgment are
+// refused with `decision-value-judgment` rather than answered.
+//
+// Two operations are registered, and both are permanent:
+//
+//   * `decision.matrix.rank.v1` -- criterion, sense, options. Admissibility of
+//     the criterion is decided by a fixed English word list in the engine.
+//     Retained unchanged: it is shipped, versioned, and has callers.
+//   * `decision.matrix.rank.v2` -- criterion, DECLARED UNIT, sense, options.
+//     Admissibility is decided primarily by the unit, which must be a canonical
+//     id of the pinned `release/claim/unit_registry_v1.json` vocabulary. The v1
+//     word list is retained as a second gate. This is the closed lane: a
+//     criterion nobody can name a unit for (`most_elegant`, `b3st`) is refused
+//     however it is spelled, which a word list can never achieve.
+//
+// Consequence class is `decision-boundary` for both: the output is intended to
+// inform a decision, and the caller's declared criterion and unit remain the
+// caller's.
+
+pub fn protocol_version() {
+    return "1";
+}
+
+pub fn pack_id() {
+    return "jackal.decision.matrix";
+}
+
+pub fn route_operation(requested_pack, operation_id, argument_count) {
+    if requested_pack != pack_id() {
+        panic("pack-id-unknown: requested pack is not registered; fail closed");
+    }
+    if operation_id == "decision.matrix.rank.v1" {
+        // decision_id, criterion, sense, then 2..6 label/value pairs.
+        if argument_count < 7 {
+            panic("pack-request-arity: decision.matrix.rank.v1 requires at least 7 arguments (id, criterion, sense, and two label/value pairs); fail closed");
+        }
+        if argument_count > 15 {
+            panic("pack-request-arity: decision.matrix.rank.v1 accepts at most 6 options; fail closed");
+        }
+        if (argument_count - 3) % 2 != 0 {
+            panic("pack-request-arity: decision.matrix.rank.v1 requires label/value pairs; fail closed");
+        }
+        return "decision-rank";
+    }
+    if operation_id == "decision.matrix.rank.v2" {
+        // decision_id, criterion, unit, sense, then 2..6 label/value pairs.
+        if argument_count < 8 {
+            panic("pack-request-arity: decision.matrix.rank.v2 requires at least 8 arguments (id, criterion, unit, sense, and two label/value pairs); fail closed");
+        }
+        if argument_count > 16 {
+            panic("pack-request-arity: decision.matrix.rank.v2 accepts at most 6 options; fail closed");
+        }
+        if (argument_count - 4) % 2 != 0 {
+            panic("pack-request-arity: decision.matrix.rank.v2 requires label/value pairs; fail closed");
+        }
+        return "decision-rank-v2";
+    }
+    panic("pack-operation-unknown: no fallback is permitted; fail closed");
+}

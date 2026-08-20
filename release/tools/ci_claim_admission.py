@@ -13,6 +13,12 @@ independent recompute — on the hosted platform.  It does NOT run the
 macOS-only engine, the Lean-checked formal lanes, or the full 38-gate
 aggregate; those remain local sealed evidence.  The recorded environment
 epoch is replayed as a caller pin, exactly as a downstream verifier would.
+
+The inference registry this replay pins is the archived registry_version 1
+copy under `release/claim/archive/`, not the live registry file.  The replay
+must see the exact bytes the fixture's own recorded pin names; the live
+registry is free to evolve without either breaking this gate or being able to
+silently rewrite what the fixture was verified against.
 """
 from __future__ import annotations
 
@@ -24,6 +30,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "release/evidence/ci_claim_fixture_v160"
 
+# The archived copy is the registry_version 1 bytes whose sha256 equals the
+# digest the fixture records in both `pins.json` and the signed bundle body
+# (`e7134ec3...`).  Those bytes are byte-identical to
+# `release/claim/inference_registry_v1.json` at master commit 9a81b4c, the last
+# registry_version 1 state of the file: v1.6.0's original bytes plus the
+# `formal.integral` app function, whose addition is the change that refreshed
+# the fixture pin in that same commit.  It is deliberately NOT the live
+# `release/claim/inference_registry_v1.json`, which has since moved to
+# registry_version 2 to admit the domain-pack evidence kinds.
+#
+# Do not "fix" a mismatch here by repointing this constant at the live registry
+# and repinning the fixture. The bundle records the registry digest inside its
+# own body; rewriting that pin would make recorded evidence assert a replay
+# against bytes it was never verified against. That is laundering, and it is
+# the precise defect this gate exists to detect. Fix a mismatch in the other
+# direction: make the archived bytes equal what the fixture already pins, or,
+# if the live registry must be replayed, add a new epoch fixture — never
+# restate an old one. `tests/ci_claim_archive_pin_test.py` fails if this is
+# repointed.
+HISTORICAL_V160_INFERENCE_REGISTRY = (
+    ROOT / "release/claim/archive/inference_registry_v1__registry_version_1.json"
+)
+
 
 def verify(bundle: Path, pins: dict) -> subprocess.CompletedProcess:
     argv = [
@@ -34,7 +63,7 @@ def verify(bundle: Path, pins: dict) -> subprocess.CompletedProcess:
         "--expected-root-proposition", str(FIXTURE / "root_prop.json"),
         "--expected-policy-sha256", pins["expected_policy_sha256"],
         "--expected-inference-registry",
-        str(ROOT / "release/claim/inference_registry_v1.json"),
+        str(HISTORICAL_V160_INFERENCE_REGISTRY),
         "--expected-inference-registry-sha256",
         pins["expected_inference_registry_sha256"],
         "--expected-unit-registry",

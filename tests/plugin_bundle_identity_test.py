@@ -26,8 +26,10 @@ EXPECTED_LOGICAL_NAMES = {
     "runtime/coverage_inventory.py",
     "runtime/formal_coverage_inventory.json",
     "runtime/range_proof_identity.json",
+    "runtime/archival_range_proof_identity.json",
     "runtime/gaussian_proof_identity.json",
     "runtime/int_cert_proof_identity.json",
+    "runtime/archival_int_cert_proof_identity.json",
     "runtime/formal_receipt.py",
     "runtime/formal_status_gate.py",
     "runtime/gaussian_certificate.py",
@@ -49,6 +51,8 @@ EXPECTED_LOGICAL_NAMES = {
     "runtime/claim_bundle_verify.py",
     "runtime/inference_registry_v1.json",
     "runtime/unit_registry_v1.json",
+    "runtime/anubis_program_verify.py",
+    "runtime/anubis_program_policy.json",
 }
 
 
@@ -60,8 +64,10 @@ PACKAGE_DESTINATIONS = {
     "runtime/coverage_inventory.py": "coverage_inventory.py",
     "runtime/formal_coverage_inventory.json": "formal_coverage_inventory.json",
     "runtime/range_proof_identity.json": "range_proof_identity.json",
+    "runtime/archival_range_proof_identity.json": "evidence/range_proof_identity_v1.json",
     "runtime/gaussian_proof_identity.json": "gaussian_proof_identity.json",
     "runtime/int_cert_proof_identity.json": "int_cert_proof_identity.json",
+    "runtime/archival_int_cert_proof_identity.json": "evidence/int_cert_proof_identity_v1.json",
     "runtime/formal_receipt.py": "formal_receipt.py",
     "runtime/formal_status_gate.py": "formal_status_gate.py",
     "runtime/gaussian_certificate.py": "gaussian_certificate.py",
@@ -83,6 +89,8 @@ PACKAGE_DESTINATIONS = {
     "runtime/claim_bundle_verify.py": "claim_bundle_verify.py",
     "runtime/inference_registry_v1.json": "inference_registry_v1.json",
     "runtime/unit_registry_v1.json": "unit_registry_v1.json",
+    "runtime/anubis_program_verify.py": "tools/anubis_program_verify.py",
+    "runtime/anubis_program_policy.json": "program/inventory_safe_v1.json",
 }
 
 
@@ -95,8 +103,8 @@ def main() -> int:
     repo_files = resolve_runtime_files(PLUGIN_DIR)
     require(set(repo_files) == EXPECTED_LOGICAL_NAMES,
             f"runtime logical-name drift: {sorted(repo_files)}")
-    require(len(EXPECTED_LOGICAL_NAMES) == 30,
-            f"expected 30 runtime logical names, declared {len(EXPECTED_LOGICAL_NAMES)}")
+    require(len(EXPECTED_LOGICAL_NAMES) == 34,
+            f"expected 34 runtime logical names, declared {len(EXPECTED_LOGICAL_NAMES)}")
     repo_hash = compute_bundle_hash(PLUGIN_DIR)
 
     with tempfile.TemporaryDirectory(prefix="jackal-plugin-identity-") as td:

@@ -27,14 +27,14 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping
 
 
-EPOCH = "v1.7.0"
-ASSET = "jackal-v1.7.0-macos-arm64.tar.gz"
-URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.0/jackal-v1.7.0-macos-arm64.tar.gz"
-PACKAGE_SIZE = 118862060
-PACKAGE_SHA256 = "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e"
-EXTRACTED_SIZE = 416736385
-SHA256SUMS_SHA256 = "f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28"
-PACKAGE_DIRECTORY = "jackal-v1.7.0-macos-arm64"
+EPOCH = "v1.7.3"
+ASSET = "jackal-v1.7.3-macos-arm64.tar.gz"
+URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz"
+PACKAGE_SIZE = 158353643
+PACKAGE_SHA256 = "b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175"
+EXTRACTED_SIZE = 555395024
+SHA256SUMS_SHA256 = "2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42"
+PACKAGE_DIRECTORY = "jackal-v1.7.3-macos-arm64"
 MAX_ARCHIVE_MEMBERS = 8192
 MAX_RUNTIME_RECORDS = MAX_ARCHIVE_MEMBERS
 MAX_RUNTIME_ENTRIES = MAX_ARCHIVE_MEMBERS + 2

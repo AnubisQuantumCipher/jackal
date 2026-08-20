@@ -1,7 +1,7 @@
 {
   "schema": "jackal-agent-profile-v1",
   "profile_id": "full",
-  "description": "Complete v1.7.2 surface: all 38 tools declared by plugin/hermes/tools.json, in declaration order, for operator-driven interactive use where the human reads the status field. This profile deliberately exposes the weaker honest lanes (bounded, exact, checked, estimated) and the four domain-pack lanes (structural-exact/exact, consequence-capped at informational or decision-boundary) alongside the formal lane; each tool still reports its own status and the engine still refuses rather than downgrading, but an autonomous agent given this surface can choose a weaker lane without ever touching a verifier, which is why it is not the autonomous default. Membership here is byte-derived from tools.json and is verified to equal that set exactly, so adding a tool to the plugin without adding it here is a refusal, not a silent omission.",
+  "description": "Complete v1.7.3 surface: all 41 tools declared by plugin/hermes/tools.json, in declaration order, for operator-driven interactive use where the human reads each status and residual. This profile preserves every v1.7.2 formal, exact, weaker, claim, and four domain-pack lane, then adds three inventory-safe-v1 Anubis program-evidence tools. The program tools emit only verified-program-evidence or verified-program-receipt and explicitly leave policy-construct totality, source-to-VC, SMT-to-CNF, source-native refinement, runtime behavior, and universal soundness open. They are excluded from formal: their policy inventory is producer-attested and their independent replay begins at Z3/CNF/RUP artifacts, not Anubis source semantics. Membership is byte-derived from tools.json and verified to equal that set exactly; widening remains an explicit operator act.",
   "tools": [
     "jackal_range_bound",
     "jackal_gaussian_integral",
@@ -40,8 +40,11 @@
     "jackal_test_exists",
     "jackal_claim_cites_test",
     "jackal_decision_rank",
-    "jackal_decision_rank_v2"
+    "jackal_decision_rank_v2",
+    "jackal_anubis_check_program",
+    "jackal_anubis_verify_program",
+    "jackal_anubis_verify_program_receipt"
   ],
   "immutable": true,
-  "profile_digest_sha256": "64385db7cfb5fa7acd392199a1dfc63ee14c06ed14c4aa3d76e937c89f8f2af8"
+  "profile_digest_sha256": "b04e18002f6b1284878a07a9831ef5aad723c0455bfbf3ca3202936374e5ffc1"
 }

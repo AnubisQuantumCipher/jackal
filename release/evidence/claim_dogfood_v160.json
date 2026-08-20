@@ -1,20 +1,20 @@
 {
   "bundle_digests": {
-    "dog1": "361b8daf3221e9a75eb2c15afcb493bfb6d17bcf6aa49eb2fbbe455e0ca3853d",
-    "dog10": "17938c0c1f4d48f729dc5c8dd38b7825deb51a027c666e91650a047caa9f5408",
-    "dog11": "0547ba0445f4b0fa9a34aff547958d29170e16124208742d36ea75d20871e2da",
-    "dog12": "d0cc97979b0eb626a9921c50dab23a44d27c402e9f8c28cb9a42cd5f69f1520d",
-    "dog2": "185523481cce8a761165d47371cc2be96454fade55ff5c2ad6c5ceb3a85e8a6f",
-    "dog3": "0b910683bee3b60e8115f67accc6e817dbced31925db1a8a0fb0417089e4515e",
-    "dog4": "2f71150805303adf54fece8ee54247ce9479e13fb504ad0530f2915414da4374",
-    "dog5": "7217fd94d3ef24f0f235c8db55d81216deb920e459b470e7405baa9cf403479e",
-    "dog6-checked": "4142f6c6d3095e39ed63c523263cf9e78049ef8afa3998e0b68fb0457b847c6a",
-    "dog6-wrap": "e8a176f2b3ae47bc2e1df53765de3475a9b8ae1ec9d686dbd5ce94c92708b965",
-    "dog7": "e1744d46210212544e8f5ad614bd3f9237cae766bfad4208b25422a0661fa0dd",
-    "dog8": "28c6293e47841dac38aaa0ea55ffdce650160a40126fc7aa1d5b63d5d22dd503",
-    "dog9": "8b4fbcebfe48e48ddf5b197be547695e12029713fb143abd28b04f02ef6e29fe"
+    "dog1": "e808ea32c5e7f1569d2bec4cb5f8da9c748660a956de58dfb962e8132559b09b",
+    "dog10": "2ec3f8266c581fddddef71f57999b6d0694de7303b326b4789d0af43864b67fc",
+    "dog11": "fa00440cf64d496e9d0093dbc66291efa63de060699481e25eccee3e51483bbd",
+    "dog12": "be9197cabb4c4a4a143ad2fa55b6a41a07d4328e23f06dc14384b9c92b47a724",
+    "dog2": "f96e87aaf47b4296198edfa8e2c79b79b73bfc45e665c7d92206e28512dede30",
+    "dog3": "068d5d5cfc6998d55ed7588bc5f66dd563129928cacd43fcefdb5196b773ffcf",
+    "dog4": "3e610487372186e6aa5220225f4780cf4adac7b919fbf1f145729be5ce18316d",
+    "dog5": "52a638651b6d10267278a29da6b99a555e64fc88da899050cd982bfaf5e1acb9",
+    "dog6-checked": "58dc51f87a8c35017573d848355bade2b979106cc119b5fbb147900fc61bcc2c",
+    "dog6-wrap": "bc90211e3d4edbd879654f8decb2da68e70823e690706bd379751c181fe382f3",
+    "dog7": "171827fcfc52fa856f04f87cfcd915a6039958bb10e1f86c60d2c1c186129983",
+    "dog8": "fdbb7b7f1bfca33d6369e4750bfae1f477d5fc82b38bc02a7ba979bc3cf21bfa",
+    "dog9": "b91e36a3c161e10a573b03834c377afb9bd45e6afb3c2564f95d424e3d804ff3"
   },
-  "engine": "20b80827d3c5c2a5d0d5d6f5a84c692f230fb0f55b9c7d1fcad02a1d0b3a1083",
+  "engine": "f11f3a429aa64dc0f09eb930e82bc3250e19eeb5a8a74b26b86683fafd72a655",
   "release_epoch": "v1.6.0",
   "router": "02328cf177a0423bdc5cbca6ec0ea946bb0679bbd3dc6c24140d32598e575afb",
   "rows": [
@@ -105,7 +105,7 @@
     {
       "expect": "identical root and bundle digest",
       "id": "dog10-repo-plugin-parity",
-      "observed": "cli=17938c0c1f4d48f7 plugin=17938c0c1f4d48f7",
+      "observed": "cli=2ec3f8266c581fdd plugin=2ec3f8266c581fdd",
       "ok": true
     },
     {

@@ -44,7 +44,7 @@ def formal_payload(emitted_at):
     receipt = {
         "schema": "jackal-formal-receipt-v1",
         "variant": "int_cert",
-        "release_epoch": "v1.7.0",
+        "release_epoch": live.FORMAL_RELEASE_EPOCH,
         "emitted_at_unix": emitted_at,
         "request": {
             "command": "integrate-bound-cert",
@@ -442,7 +442,7 @@ class AcceptanceValidationTests(unittest.TestCase):
         self.assertEqual(
             {key: value for key, value in arguments.items() if key != "receipt"},
             {
-                "expected_release_epoch": "v1.7.0",
+                "expected_release_epoch": live.FORMAL_RELEASE_EPOCH,
                 "expected_command": "integrate-bound-cert",
                 "expected_expression": "sin(x)",
                 "expected_input_lo": "0",

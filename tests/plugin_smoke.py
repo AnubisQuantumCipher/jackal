@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JACKAL v1.7.2 Hermes plugin end-to-end smoke.
+"""JACKAL v1.7.3 Hermes plugin end-to-end smoke.
 
 Fresh-session run against the shipped `plugin/hermes/jackal_hermes`
 binary and its pinned bundle hash.  Verifies:
@@ -20,7 +20,7 @@ binary and its pinned bundle hash.  Verifies:
   S7  jackal_verify_receipt refuses a receipt with the outer digest
       recomputed but the enclosure tampered (cross-check gate).
   S8  stdio JSON-RPC transport handles list_tools + tool calls with
-      correct id/jsonrpc/result shape (38 tools listed) and drives the
+      correct id/jsonrpc/result shape (41 tools listed) and drives the
       same refusals.
   S9  jackal_gaussian_integral emits + reverifies a Gaussian receipt.
   S10 jackal_gaussian_integral refuses unsupported non-canonical Gaussians.
@@ -301,6 +301,9 @@ def s8_stdio_transport() -> bool:
         # domain-pack lanes, additive (34 -> 38); NOT formal, consequence-capped
         "jackal_test_exists", "jackal_claim_cites_test",
         "jackal_decision_rank", "jackal_decision_rank_v2",
+        # inventory-safe Anubis program-evidence tools (38 -> 41); NOT formal
+        "jackal_anubis_check_program", "jackal_anubis_verify_program",
+        "jackal_anubis_verify_program_receipt",
     }
     ok_list = set(listed) == expected_tools and len(listed) == len(expected_tools)
     ok_ok = idx.get("OK", {}).get("result", {}).get("status") == "formal-bounded"

@@ -1,6 +1,6 @@
-{"id": "S1-bundle-hash-pin-matches", "note": "computed=e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202 pinned=e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202", "ok": true}
-{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202\nplugin_hermes.pinned_sha256=e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202\nplugin_her", "ok": true}
-{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202", "ok": true}
+{"id": "S1-bundle-hash-pin-matches", "note": "computed=03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4 pinned=03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4", "ok": true}
+{"id": "S2-server-selftest", "note": "out=plugin_hermes.bundle_sha256=03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4\nplugin_hermes.pinned_sha256=03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4\nplugin_her", "ok": true}
+{"id": "S3-range-bound-emit", "note": "status=formal-bounded plugin_sha256=03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4", "ok": true}
 {"id": "S4-refuse:'exp(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
 {"id": "S4-refuse:'sqrt(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}
 {"id": "S4-refuse:'ln(x)'", "note": "status=refused reason=evaluator-refused", "ok": true}

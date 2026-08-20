@@ -159,7 +159,7 @@ checker on this machine** — recomputing the outer digest alone is not
 sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-eight
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes forty-one
 tools — eleven formal (`jackal_range_bound`, `jackal_gaussian_integral`,
 `jackal_integrate_bound_cert`,
 `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
@@ -182,6 +182,19 @@ mathematics: assurance ceiling `exact`, consequence ceiling capped at
 manifest-pinned independent checker over the emitted certificate so only an
 `ACCEPT` verdict returns success. A `test-exists-cert` is an exact statement
 about bytes and never evidence that the code under test is correct.
+
+The remaining three tools are the inventory-safe-v1 Anubis program-evidence
+lane: `jackal_anubis_check_program`, `jackal_anubis_verify_program`, and
+`jackal_anubis_verify_program_receipt`. They require caller-pinned
+source/compiler/artifact/policy identities, Safe mode, strict
+`anubis.program-evidence.v3` rosters, evidence-tree closure, approved Z3 UNSAT
+replay, and independent RUP replay. They never execute the compiled artifact
+and can emit only `verified-program-evidence` or
+`verified-program-receipt`. The policy binds a producer-attested whole-function
+inventory but does not establish construct-total walker coverage, so the
+receipt names `policy-construct-totality-not-established` alongside the open
+source-to-VC, SMT-to-CNF, source-native, runtime, and universal-soundness
+boundaries.
 
 The eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
 plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,
@@ -639,7 +652,7 @@ never degrades to a weaker lane behind the caller's back. The protocol, its v1
 ceilings and its mandatory nonclaims are specified in
 [`domain_packs/PACK_SPEC.md`](domain_packs/PACK_SPEC.md) and bound by
 `domain_packs/registry_v1.json`; the declared compatibility window is
-`v1.8.0 <= release < v2.0.0`.
+`v1.7.3 <= release < v2.0.0`.
 
 One route ABI for every pack:
 

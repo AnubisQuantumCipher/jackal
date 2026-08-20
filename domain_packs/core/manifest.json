@@ -5,7 +5,7 @@
   "pack_version": "1.0.0",
   "description": "Closed Anubis routing for existing exact arithmetic evidence lanes.",
   "compatibility": {
-    "jackal_release_min": "v1.8.0",
+    "jackal_release_min": "v1.7.3",
     "jackal_release_max_exclusive": "v2.0.0",
     "protocol_min": "1",
     "protocol_max": "1"
@@ -78,5 +78,5 @@
       ]
     }
   ],
-  "manifest_digest_sha256": "ab851801be878e9b2ac366a992d6e1a3c709527caaffeafd8c5f3e8752f7f0b4"
+  "manifest_digest_sha256": "9d3d0085ba44bae6779af400945b5518568bb095962c79215f44eb3cd09a3582"
 }

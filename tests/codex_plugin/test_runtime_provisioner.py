@@ -1373,8 +1373,8 @@ class RuntimeProvisionerTests(unittest.TestCase):
             self.assertTrue((target / "plugin/hermes/jackal_hermes").exists())
             expected = {
                 "schema": "jackal-runtime-package-v1",
-                "epoch": "v1.7.0",
-                "asset": "jackal-v1.7.0-macos-arm64.tar.gz",
+                "epoch": provisioner.EPOCH,
+                "asset": provisioner.ASSET,
                 "package_size": tarball.stat().st_size,
                 "package_sha256": digest,
             }
@@ -1383,7 +1383,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 json.loads(locator.read_text()),
                 {
                     "schema": "jackal-codex-plugin-runtime-v1",
-                    "epoch": "v1.7.0",
+                    "epoch": provisioner.EPOCH,
                     "runtime_path": str(target),
                     "package_size": tarball.stat().st_size,
                     "package_sha256": digest,
@@ -1509,22 +1509,25 @@ class RuntimeProvisionerTests(unittest.TestCase):
             opener.assert_not_called()
 
     def test_pinned_constants_and_default_paths(self):
-        self.assertEqual(provisioner.EPOCH, "v1.7.0")
-        self.assertEqual(provisioner.ASSET, "jackal-v1.7.0-macos-arm64.tar.gz")
+        self.assertEqual(provisioner.EPOCH, "v1.7.3")
+        self.assertEqual(provisioner.ASSET, "jackal-v1.7.3-macos-arm64.tar.gz")
         self.assertEqual(
             provisioner.URL,
-            "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.0/jackal-v1.7.0-macos-arm64.tar.gz",
+            "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz",
         )
-        self.assertEqual(provisioner.PACKAGE_SIZE, 118862060)
-        self.assertEqual(provisioner.EXTRACTED_SIZE, 416736385)
-        self.assertEqual(provisioner.PACKAGE_SHA256, "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e")
+        self.assertEqual(provisioner.PACKAGE_SIZE, 158353643)
+        self.assertEqual(provisioner.EXTRACTED_SIZE, 555395024)
+        self.assertEqual(
+            provisioner.PACKAGE_SHA256,
+            "b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175",
+        )
         self.assertEqual(
             provisioner.SHA256SUMS_SHA256,
-            "f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28",
+            "2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42",
         )
         self.assertEqual(
             provisioner.default_runtime_target(Path("/Users/tester")),
-            Path("/Users/tester/Library/Application Support/JACKAL/runtimes/v1.7.0"),
+            Path("/Users/tester/Library/Application Support/JACKAL/runtimes/v1.7.3"),
         )
 
     def test_cli_rejects_relative_tarball_with_one_bounded_line_and_no_traceback(self):

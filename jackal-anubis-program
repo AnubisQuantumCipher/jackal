@@ -1,0 +1,6 @@
+#!/bin/sh
+# JACKAL Anubis program-evidence front door.
+# Subcommands: check, verify, verify-receipt. Compiled artifacts are never run.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec python3 -I -S -B "$ROOT/tools/anubis_program_verify.py" "$@"

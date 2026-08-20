@@ -1,0 +1,48 @@
+{
+  "date": "2026-08-20",
+  "host": "codex exec --ephemeral with installed jackel@anubis-quantum-cipher",
+  "non_claims": [
+    "attempted invocation is not successful verifier use",
+    "correct model arithmetic is not a JACKAL accuracy claim"
+  ],
+  "not_measurable_reasons": [
+    "noninteractive Codex host cancelled every MCP tool call even with approval_policy=never",
+    "evals/v2/runner.py does not invoke a model or emit profile identity",
+    "no adapter converts Codex JSONL events into protocol-admissible autonomous rows"
+  ],
+  "registered_tool_count_observed_separately": 41,
+  "schema": "jackal-live-tool-session-summary-v1",
+  "sessions": [
+    {
+      "attempted_tool": "jackal_range_bound",
+      "bytes": 46160,
+      "mode": "autonomous",
+      "path": "evals/v2/receipts/codex_w3_autonomous_2026-08-20.jsonl",
+      "sha256": "762a383caf4dacacd5b7d227ed6c7589c653c7239d7f58c57238a8ffcf843d32",
+      "task": "W3 receipt validation",
+      "tool_result": "cancelled-by-noninteractive-host",
+      "verdict": "NOT_MEASURABLE"
+    },
+    {
+      "attempted_tool": "jackal_verify_receipt",
+      "bytes": 27958,
+      "mode": "forced",
+      "path": "evals/v2/receipts/codex_w3_forced_2026-08-20.jsonl",
+      "sha256": "da6335c1d2673204cc11a0f6f3515b803aa6999438203dde35ab96bf0b97c7a4",
+      "task": "W3 receipt replay",
+      "tool_result": "cancelled-by-noninteractive-host",
+      "verdict": "NOT_MEASURABLE"
+    },
+    {
+      "attempted_tool": "jackal_decision_rank_v2",
+      "bytes": 2619,
+      "mode": "autonomous",
+      "model_disclosed_no_verifier_establishment": true,
+      "path": "evals/v2/receipts/codex_w10_comparison_2026-08-20.jsonl",
+      "sha256": "174c22fc4197a0d23d9f2df3101c4fa2802069af6ff75a2c3fb5b36ee00c0845",
+      "task": "W10 decision comparison",
+      "tool_result": "cancelled-by-noninteractive-host",
+      "verdict": "NOT_MEASURABLE"
+    }
+  ]
+}

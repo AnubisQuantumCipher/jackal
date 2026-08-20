@@ -1,40 +1,49 @@
 #!/usr/bin/env python3
-"""v1.7.0 package parity + fresh-extraction gate (mission §13 Phase 7,
-dogfood §15.10; re-pointed at the live epoch builder each seal).
+"""v1.7.3 unified package parity and fresh-extraction gate.
 
-1. Builds the v1.7.0 package TWICE from identical tree/evidence bytes and
-   requires bit-for-bit tarball equality.
-2. Fresh-extracts the tarball into a bounded temp sandbox (deterministic
-   cleanup; no repository fallback).
-3. Exercises every producer-lane tool the PACKAGE carries: 31 plugin tools
-   through the packaged plugin `call` frontend (30 v1.6.0 +
-   jackal_integrate_bound_cert), plus the 12 shell wrappers (10 release
-   wrappers, jackal-claim, jackal-claim-verify).  The four domain-pack lanes
-   (`jackal_test_exists`, `jackal_claim_cites_test`, `jackal_decision_rank`,
-   `jackal_decision_rank_v2`) are declared on the repo surface but the v1.7.2
-   package does not ship `domain_packs/` or their checkers, so inside the
-   package they refuse `pack-surface-absent` rather than serving a request.
-   Packaging the pack surface is a seal-time item, not a parity claim here.
-4. Proves three-way parity: the same claim request through the repo CLI,
-   the fresh package CLI, and the plugin returns the SAME canonical root
-   hash and bundle digest, and the same policy verdict on replay.
-5. A tampered bundle refuses through the packaged verifier.
+1. Builds the current v1.7.3 package twice into independent destinations from
+   one frozen repository state and requires byte-identical tarballs.
+2. Fresh-extracts one tarball and verifies complete SHA256SUMS.
+3. Exercises every self-contained calculator/claim tool plus all four
+   domain-pack tools and all three Anubis program-evidence plugin routes.
+4. Proves three-way claim parity across repository CLI, package CLI, and
+   packaged plugin, then proves a tampered bundle refuses.
+5. Refuses before building when the canonical instrument is pointed at a
+   superseded builder or catalog.
 
 Run: python3 tests/claim_package_parity_test.py
 """
 from __future__ import annotations
 
 import hashlib
+import filecmp
 import json
 import subprocess
+import os
 import sys
 import tempfile
 from pathlib import Path
 
+try:
+    from tests.anubis_program_verifier_test import (
+        POLICY_SHA256,
+        VERIFY_TIME,
+        make_v3_fixture,
+        sha,
+    )
+except ModuleNotFoundError:
+    from anubis_program_verifier_test import (
+        POLICY_SHA256,
+        VERIFY_TIME,
+        make_v3_fixture,
+        sha,
+    )
+
 ROOT = Path(__file__).resolve().parents[1]
-BUILDER = ROOT / "release/build_package_v170.sh"
-TARBALL = ROOT / "release/dist/jackal-v1.7.0-macos-arm64.tar.gz"
-PKG_NAME = "jackal-v1.7.0-macos-arm64"
+BUILDER = ROOT / "release/build_package_v173.sh"
+PKG_NAME = "jackal-v1.7.3-macos-arm64"
+TARBALL: Path | None = None
+BUILD_HOLDER: tempfile.TemporaryDirectory[str] | None = None
 
 ROWS: list[dict] = []
 
@@ -131,20 +140,71 @@ PLUGIN_CASES: list[tuple[str, dict, set[str]]] = [
 ]
 
 
+def instrument_current() -> tuple[bool, str]:
+    if BUILDER.name != "build_package_v173.sh" or not BUILDER.is_file():
+        return False, "superseded-builder"
+    catalog = json.loads((ROOT / "plugin/hermes/tools.json").read_text())
+    names = [row.get("name") for row in catalog.get("tools", [])]
+    if catalog.get("version") != "v1.7.3" or len(names) != 41:
+        return False, "stale-catalog"
+    full = json.loads((ROOT / "plugin/hermes/profiles/full.json").read_text())
+    if full.get("tools") != names:
+        return False, "profile-catalog-divergence"
+    return True, "current"
+
+
 def build_twice() -> bool:
-    hashes = []
+    global BUILD_HOLDER, TARBALL
+    BUILD_HOLDER = tempfile.TemporaryDirectory(prefix="jackal-parity-builds-")
+    build_root = Path(BUILD_HOLDER.name)
+    tarballs: list[Path] = []
+    hashes: list[str] = []
     for attempt in (1, 2):
-        proc = subprocess.run(["sh", str(BUILDER)], capture_output=True,
-                              text=True, timeout=600, cwd=ROOT)
+        destination = build_root / f"attempt-{attempt}"
+        destination.mkdir()
+        environment = os.environ.copy()
+        environment["JACKAL_DIST"] = str(destination)
+        proc = subprocess.run(
+            [str(BUILDER), "--build"],
+            capture_output=True,
+            text=True,
+            timeout=1800,
+            cwd=ROOT,
+            env=environment,
+        )
         if proc.returncode != 0:
-            record(f"pkg-build-{attempt}", False, "exit 0",
-                   (proc.stderr or proc.stdout)[-160:])
+            record(
+                f"pkg-build-{attempt}",
+                False,
+                "exit 0",
+                (proc.stderr or proc.stdout)[-160:],
+            )
             return False
-        hashes.append(sha_file(TARBALL))
-    ok = hashes[0] == hashes[1]
-    record("pkg-double-build-identical", ok, "bit-identical tarball",
-           f"{hashes[0][:16]} vs {hashes[1][:16]}")
-    return ok
+        tarball = destination / f"{PKG_NAME}.tar.gz"
+        ok = tarball.is_file() and "PACKAGE_V173_BUILD_PASS" in proc.stdout
+        record(
+            f"pkg-build-{attempt}",
+            ok,
+            "current builder emits v1.7.3 tarball",
+            (proc.stdout or proc.stderr)[-160:].replace("\n", " "),
+        )
+        if not ok:
+            return False
+        tarballs.append(tarball)
+        hashes.append(sha_file(tarball))
+    identical = (
+        hashes[0] == hashes[1]
+        and tarballs[0].stat().st_size == tarballs[1].stat().st_size
+        and filecmp.cmp(tarballs[0], tarballs[1], shallow=False)
+    )
+    record(
+        "pkg-double-build-identical",
+        identical,
+        "byte-identical tarball",
+        f"{hashes[0]} vs {hashes[1]}",
+    )
+    TARBALL = tarballs[0]
+    return identical
 
 
 def plugin_call(pkg: Path, tool: str, arguments: dict) -> dict:
@@ -176,8 +236,18 @@ def cli_route(cli: Path, workdir: Path, tag: str) -> dict | None:
 
 
 def main() -> int:
+    current, reason = instrument_current()
+    record(
+        "pkg-instrument-current",
+        current,
+        "v1.7.3 builder, 41-tool catalog, matching full profile",
+        reason,
+    )
+    if not current:
+        return finish()
     if not build_twice():
         return finish()
+    assert TARBALL is not None
 
     with tempfile.TemporaryDirectory(prefix="jackal-claim-pkg-") as td:
         work = Path(td)
@@ -194,13 +264,196 @@ def main() -> int:
                and "FAILED" not in (sums.stdout or ""),
                "all files verify", (sums.stdout or "")[-80:])
 
-        # --- every plugin tool (33 v1.6.0 + 1 new v1.7.0) ------------
+        # --- preserved calculator and claim plugin tools ----------------
         for tool, arguments, allowed in PLUGIN_CASES:
             doc = plugin_call(pkg, tool, arguments)
             record(f"pkg-tool-{tool}", doc.get("status") in allowed,
                    f"status in {sorted(allowed)}",
                    f"status={doc.get('status')} "
                    f"reason={doc.get('reason', '')}")
+
+        # --- domain-pack tools: two structural and two decision lanes ----
+        structural_path = pkg / "tools/anubis_program_verify.py"
+        structural_relative = structural_path.relative_to(pkg).as_posix()
+        structural_lines = structural_path.read_text(encoding="utf-8").splitlines()
+        declaration_lines = [
+            index
+            for index, line in enumerate(structural_lines, 1)
+            if line.startswith("def build_receipt(")
+        ]
+        structural_common = {
+            "file_path": structural_relative,
+            "file_sha256": sha_file(structural_path),
+            "symbol": "build_receipt",
+            "declaration_line": str(declaration_lines[0]),
+            "declaration_count": str(len(declaration_lines)),
+        }
+        domain_cases = [
+            ("jackal_test_exists", structural_common, "structural-exact"),
+            (
+                "jackal_claim_cites_test",
+                {
+                    "doc_path": "README.txt",
+                    "doc_sha256": sha_file(pkg / "README.txt"),
+                    "claim_text": "First run: shasum -a 256 -c SHA256SUMS",
+                    "test_path": structural_relative,
+                    "test_sha256": sha_file(structural_path),
+                    "symbol": "build_receipt",
+                },
+                "structural-exact",
+            ),
+            (
+                "jackal_decision_rank",
+                {
+                    "decision_id": "package_v173",
+                    "criterion": "latency_ms",
+                    "sense": "min",
+                    "options": "alpha 120 beta 90",
+                },
+                "exact",
+            ),
+            (
+                "jackal_decision_rank_v2",
+                {
+                    "decision_id": "package_v173_unit",
+                    "criterion": "latency_ms",
+                    "unit": "ms",
+                    "sense": "min",
+                    "options": "alpha 120 beta 90",
+                },
+                "exact",
+            ),
+        ]
+        for tool, arguments, expected_status in domain_cases:
+            document = plugin_call(pkg, tool, arguments)
+            record(
+                f"pkg-tool-{tool}",
+                document.get("status") == expected_status,
+                expected_status,
+                f"status={document.get('status')} "
+                f"reason={document.get('reason', '')}",
+            )
+
+        # --- all three Anubis program-evidence routes -------------------
+        source, evidence, compiler_sha, artifact_sha, marker = make_v3_fixture(
+            work / "program-fixture"
+        )
+        program_arguments = {
+            "source_path": str(source),
+            "evidence_dir": str(evidence),
+            "expected_source_sha256": sha(source.read_bytes()),
+            "expected_compiler_sha256": compiler_sha,
+            "expected_artifact_sha256": artifact_sha,
+            "expected_policy_sha256": POLICY_SHA256,
+            "verification_time_unix": VERIFY_TIME,
+            "profile": "inventory-safe-v1",
+            "nonce": "package-parity",
+        }
+        program_verify = plugin_call(
+            pkg, "jackal_anubis_verify_program", program_arguments
+        )
+        record(
+            "pkg-tool-jackal_anubis_verify_program",
+            program_verify.get("status") == "verified-program-evidence"
+            and not marker.exists(),
+            "verified-program-evidence without artifact execution",
+            f"status={program_verify.get('status')} "
+            f"reason={program_verify.get('reason', '')}",
+        )
+        program_receipt = program_verify.get("receipt")
+        if isinstance(program_receipt, dict):
+            replay_arguments = {
+                **program_arguments,
+                "receipt": program_receipt,
+            }
+            program_replay = plugin_call(
+                pkg,
+                "jackal_anubis_verify_program_receipt",
+                replay_arguments,
+            )
+            record(
+                "pkg-tool-jackal_anubis_verify_program_receipt",
+                program_replay.get("status") == "verified-program-receipt"
+                and not marker.exists(),
+                "verified-program-receipt without artifact execution",
+                f"status={program_replay.get('status')} "
+                f"reason={program_replay.get('reason', '')}",
+            )
+        else:
+            record(
+                "pkg-tool-jackal_anubis_verify_program_receipt",
+                False,
+                "program receipt available",
+                "verify returned no receipt",
+            )
+
+        echo_path = Path("/bin/echo")
+        check_refusal = plugin_call(
+            pkg,
+            "jackal_anubis_check_program",
+            {
+                "source_path": str(source),
+                "anubis_bin": str(echo_path),
+                "expected_source_sha256": sha(source.read_bytes()),
+                "expected_compiler_sha256": sha(echo_path.read_bytes()),
+                "expected_policy_sha256": POLICY_SHA256,
+                "verification_time_unix": VERIFY_TIME,
+                "profile": "inventory-safe-v1",
+                "nonce": "package-check-refusal",
+                "out_root": str(work / "program-check-output"),
+            },
+        )
+        record(
+            "pkg-tool-jackal_anubis_check_program",
+            check_refusal.get("status") == "refused"
+            and check_refusal.get("reason") == "compiler-not-approved",
+            "reachable named compiler-not-approved refusal",
+            f"status={check_refusal.get('status')} "
+            f"reason={check_refusal.get('reason', '')}",
+        )
+
+        direct_receipt = work / "package-program-receipt.json"
+        direct_program = subprocess.run(
+            [
+                str(pkg / "jackal-anubis-program"),
+                "verify",
+                "--source",
+                str(source),
+                "--evidence-dir",
+                str(evidence),
+                "--expected-source-sha256",
+                sha(source.read_bytes()),
+                "--expected-compiler-sha256",
+                compiler_sha,
+                "--expected-artifact-sha256",
+                artifact_sha,
+                "--expected-policy-sha256",
+                POLICY_SHA256,
+                "--verification-time-unix",
+                VERIFY_TIME,
+                "--profile",
+                "inventory-safe-v1",
+                "--nonce",
+                "package-parity-direct",
+                "--emit-receipt",
+                str(direct_receipt),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=pkg,
+            timeout=120,
+        )
+        record(
+            "pkg-wrapper-jackal-anubis-program",
+            direct_program.returncode == 0
+            and "status=verified-program-evidence" in direct_program.stdout
+            and direct_receipt.is_file()
+            and not marker.exists(),
+            "verified-program-evidence without artifact execution",
+            (direct_program.stdout or direct_program.stderr)[:120].replace(
+                "\n", " "
+            ),
+        )
 
         # verify_receipt round trip through the packaged plugin
         rb = plugin_call(pkg, "jackal_range_bound",
@@ -210,7 +463,7 @@ def main() -> int:
         if receipt:
             ver = plugin_call(pkg, "jackal_verify_receipt", {
                 "receipt": receipt,
-                "expected_release_epoch": "v1.5.0",
+                "expected_release_epoch": "v1.7.2",
                 "expected_command": "range-bound-cert",
                 "expected_expression": "cos(x)",
                 "expected_input_lo": "0",
@@ -275,7 +528,7 @@ def main() -> int:
                  "--expected-evaluator", rows["evaluator"],
                  "--expected-checker", rows["checker"],
                  "--expected-source", rows["source"],
-                 "--expected-release-epoch", "v1.5.0",
+                 "--expected-release-epoch", "v1.7.2",
                  "--expected-command", "range-bound-cert",
                  "--expected-expression", "x^2+1",
                  "--expected-input-lo", "1", "--expected-input-hi", "2",

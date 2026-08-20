@@ -33,8 +33,8 @@ PLAN_PATH = (
     / "2026-08-17-jackel-codex-plugin.md"
 )
 APPROVED_SKILL_DESCRIPTION = (
-    "Route claim-aware mathematical evidence work through JACKAL without "
-    "overstating assurance."
+    "Route claim-aware computation, domain-pack, and Anubis program evidence "
+    "through JACKAL without overstating assurance."
 )
 
 
@@ -227,22 +227,25 @@ class PluginMetadataTests(unittest.TestCase):
                 "Classify and verify this numerical claim with JACKAL.",
                 "Find the strongest supported bound and refuse any silent downgrade.",
                 "Verify this receipt or claim bundle against my pinned expectations.",
+                "Verify this Anubis Safe program-evidence package without executing its artifact.",
             ],
         )
         expected_long_description = (
-            "Use JACKAL's complete mathematical evidence kernel from Codex, with "
+            "Use JACKAL's 41-tool evidence kernel from Codex while preserving "
             "exact, checked, estimated, bounded, formal-bounded, model-based, "
-            "verified, indeterminate, and refused results preserved at their "
-            "original assurance level. Formal-bounded applies only to "
-            "checker-admitted fragments. Requires Apple Silicon macOS, Python "
-            ">=3.10 at /opt/homebrew/bin/python3 (install with brew install "
-            "python), and the pinned sealed v1.7.0 runtime."
+            "structural-exact, verified-program-evidence, verified, "
+            "indeterminate, and refused results at their returned assurance and "
+            "consequence levels. Formal-bounded applies only to checker-admitted "
+            "fragments; program evidence retains construct-totality, source, and "
+            "runtime residuals. Requires Apple Silicon macOS, Python >=3.10 at "
+            "/opt/homebrew/bin/python3 (install with brew install python), and "
+            "the pinned v1.7.3 runtime."
         )
         self.assertEqual(interface["longDescription"], expected_long_description)
         self.assertIn(f"- `interface.longDescription`: `{expected_long_description}`", DESIGN_PATH.read_text(encoding="utf-8"))
 
         self.assertRegex(manifest["version"], r"^0\.1\.0\+codex\.\d{14}$")
-        self.assertEqual(manifest["description"], "Expose JACKAL's claim-aware mathematical evidence kernel to Codex.")
+        self.assertEqual(manifest["description"], "Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.")
         self.assertEqual(manifest["author"], {"name": "Anubis Quantum Cipher", "url": "https://github.com/AnubisQuantumCipher"})
         self.assertEqual(manifest["homepage"], "https://github.com/AnubisQuantumCipher/jackal")
         self.assertEqual(manifest["repository"], "https://github.com/AnubisQuantumCipher/jackal")
@@ -295,6 +298,10 @@ class PluginMetadataTests(unittest.TestCase):
             "jackal_claim",
             "jackal_verify_bundle",
             "jackal_verify_receipt",
+            "jackal_anubis_verify_program",
+            "inventory-safe-v1",
+            "policy-construct-totality-not-established",
+            "None executes the compiled artifact",
             "direct tools remain available",
             "preserve every returned status/assumption/non-claim/residual/refusal verbatim",
             "never promote assurance or silently downgrade",
@@ -340,10 +347,12 @@ class PluginMetadataTests(unittest.TestCase):
         for relative in referenced:
             self.assertTrue((PLUGIN_ROOT / relative).is_file(), relative)
         self.assertEqual(mcp["args"], ["./scripts/launch_mcp.zsh"])
-        self.assertFalse(any(
-            path.name.endswith(".tar.gz") or path.name == "jackal-v1.7.0-macos-arm64"
-            for path in PLUGIN_ROOT.iterdir()
-        ))
+        self.assertFalse(
+            any(
+                path.name.endswith(".tar.gz") or path.name.startswith("jackal-v")
+                for path in PLUGIN_ROOT.iterdir()
+            )
+        )
 
     def test_launcher_uses_only_explicit_absolute_python_candidates_and_exact_flags(self):
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""JACKAL Hermes plugin — proof-carrying mathematical evidence tool server.
+"""JACKAL Hermes plugin — fail-closed evidence tool server.
 
-Exposes thirty-eight tools (see `tools.json`):
+Exposes forty-one tools (see `tools.json`):
 
   Formal (proof-carrying, checker-attested):
     * `jackal_range_bound`        emit a `jackal-formal-receipt-v1` receipt
@@ -41,13 +41,21 @@ Exposes thirty-eight tools (see `tools.json`):
   (`tools/test_exists_verify.py` / `tools/decision_verify.py`) over the
   emitted certificate; only an `ACCEPT` verdict returns success.
 
-The plugin does NOT ship a new checker or a new evaluator.  It is a
-narrow, fail-closed adapter that binds every call through the SAME
-executables the CLI release wrapper does (`jackal-native` +
-`jackal_cert_check`), the SAME shared validator, the SAME formal-status
-gate, and the SAME coverage inventory.  The only new trust surface is
-this plugin's own bundle hash — verified at startup against the pinned
-value in `release/MANIFEST.sha256`.
+  Anubis program-evidence lanes (inventory-safe-v1; NOT universal soundness):
+    * `jackal_anubis_check_program`  build Safe evidence without executing
+      the artifact, then verify it
+    * `jackal_anubis_verify_program`  verify caller-selected source/evidence
+    * `jackal_anubis_verify_program_receipt`  recompute a receipt from those
+      underlying bytes and caller pins
+  Success is limited to `verified-program-evidence` or
+  `verified-program-receipt`.  Policy-construct totality, source-to-VC,
+  SMT-to-CNF, source-native refinement, and runtime behavior remain residuals.
+
+The plugin preserves the v1.7.2 evaluator and formal checkers.  The program
+verifier/policy are inside the runtime-bundle identity.  Domain-pack registry,
+verifier, manifests, sources, and checkers are independently release-manifest
+pinned but remain call-local: an absent pack surface refuses pack calls without
+disabling unrelated tools.
 
 Fail-closed guarantees (no code path emits `formal-bounded` unless
 all hold):
@@ -229,6 +237,9 @@ def _shipped_layout() -> dict[str, Path]:
         ("claim_verifier", [
             ROOT / "tools/claim_bundle_verify.py",
             ROOT / "claim_bundle_verify.py",
+        ]),
+        ("anubis_program_verifier", [
+            ROOT / "tools/anubis_program_verify.py",
         ]),
         ("claim_inference_registry", [
             ROOT / "release/claim/inference_registry_v1.json",
@@ -1593,6 +1604,175 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
             "detail": detail, "report": stdout.splitlines()}
 
 
+
+# -- Anubis program-evidence verification (v1.7.3, additive) -----------------
+#
+# These tools never execute a compiled artifact.  `check` invokes only the
+# caller-pinned, release-approved Anubis compiler's `build --evidence` path;
+# `verify` and `verify-receipt` read caller-selected source/evidence bytes.
+# Success is limited to `verified-program-evidence` or
+# `verified-program-receipt` under inventory-safe-v1.  The receipt keeps
+# source-to-VC, SMT-to-CNF, policy-construct-totality, source-native, and
+# runtime boundaries explicit.
+
+
+def _program_verifier_call(method: str, args: dict[str, Any]) -> dict[str, Any]:
+    common = {
+        "source_path",
+        "expected_source_sha256",
+        "expected_compiler_sha256",
+        "expected_policy_sha256",
+        "verification_time_unix",
+        "profile",
+        "nonce",
+    }
+    if method == "check":
+        allowed = common | {"anubis_bin", "out_root"}
+    elif method == "verify":
+        allowed = common | {"evidence_dir", "expected_artifact_sha256"}
+    elif method == "verify-receipt":
+        allowed = common | {
+            "receipt",
+            "evidence_dir",
+            "expected_artifact_sha256",
+        }
+    else:
+        raise PluginRefusal("plugin-internal", f"unknown program method {method!r}")
+    if not isinstance(args, dict) or set(args) != allowed:
+        raise PluginRefusal(
+            "plugin-args-schema", f"expected fields {sorted(allowed)}"
+        )
+    for key, value in args.items():
+        if key == "receipt":
+            if not isinstance(value, dict):
+                raise PluginRefusal(
+                    "plugin-args-schema", "receipt must be an object"
+                )
+        elif not isinstance(value, str) or not value:
+            raise PluginRefusal(
+                "plugin-args-schema", f"invalid string field {key}"
+            )
+
+    verifier_path, verifier_pin = _claim_component("anubis_program_verifier")
+    with tempfile.TemporaryDirectory(prefix="jackal-plugin-program-") as td:
+        receipt_path = Path(td) / "program-receipt.json"
+        argv = [sys.executable, "-I", "-S", "-B", str(verifier_path)]
+        if method == "check":
+            argv += [
+                "check",
+                "--source",
+                args["source_path"],
+                "--anubis-bin",
+                args["anubis_bin"],
+                "--expected-source-sha256",
+                args["expected_source_sha256"],
+                "--expected-compiler-sha256",
+                args["expected_compiler_sha256"],
+                "--expected-policy-sha256",
+                args["expected_policy_sha256"],
+                "--verification-time-unix",
+                args["verification_time_unix"],
+                "--profile",
+                args["profile"],
+                "--nonce",
+                args["nonce"],
+                "--out-root",
+                args["out_root"],
+                "--emit-receipt",
+                str(receipt_path),
+            ]
+        else:
+            argv += [
+                method,
+                "--source",
+                args["source_path"],
+                "--evidence-dir",
+                args["evidence_dir"],
+                "--expected-source-sha256",
+                args["expected_source_sha256"],
+                "--expected-compiler-sha256",
+                args["expected_compiler_sha256"],
+                "--expected-artifact-sha256",
+                args["expected_artifact_sha256"],
+                "--expected-policy-sha256",
+                args["expected_policy_sha256"],
+                "--verification-time-unix",
+                args["verification_time_unix"],
+                "--profile",
+                args["profile"],
+                "--nonce",
+                args["nonce"],
+            ]
+            if method == "verify":
+                argv += ["--emit-receipt", str(receipt_path)]
+            else:
+                supplied_path = Path(td) / "supplied-receipt.json"
+                supplied_path.write_text(
+                    json.dumps(
+                        args["receipt"],
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                argv += ["--receipt", str(supplied_path)]
+        try:
+            proc = subprocess.run(
+                argv, capture_output=True, text=True, timeout=3600
+            )
+        except subprocess.TimeoutExpired:
+            return _refuse("plugin-subprocess", "program verifier timeout")
+        _claim_toctou("anubis_program_verifier", verifier_path, verifier_pin)
+        stdout = proc.stdout or ""
+        if proc.returncode != 0:
+            reason, detail = "program-verify-failed", stdout.strip()[:300]
+            for line in stdout.splitlines():
+                if line.startswith("status=refused"):
+                    if "reason=" in line:
+                        reason = line.split("reason=", 1)[1].split()[0]
+                    if 'detail="' in line:
+                        detail = line.split('detail="', 1)[1].rstrip('"')
+                    break
+            return _refuse(reason, detail)
+        if method == "verify-receipt":
+            receipt = args["receipt"]
+        else:
+            try:
+                receipt = _strict_json_loads(
+                    receipt_path.read_text(encoding="utf-8")
+                )
+            except (OSError, ValueError) as exc:
+                return _refuse("program-receipt-read", str(exc)[:200])
+        status = (
+            "verified-program-receipt"
+            if method == "verify-receipt"
+            else "verified-program-evidence"
+        )
+        return {
+            "status": status,
+            "receipt": receipt,
+            "report": stdout.splitlines(),
+        }
+
+
+def tool_jackal_anubis_check_program(
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    return _program_verifier_call("check", args)
+
+
+def tool_jackal_anubis_verify_program(
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    return _program_verifier_call("verify", args)
+
+
+def tool_jackal_anubis_verify_program_receipt(
+    args: dict[str, Any],
+) -> dict[str, Any]:
+    return _program_verifier_call("verify-receipt", args)
+
 # -- domain-pack lanes (jackal-domain-pack-protocol v1, additive) -------------
 #
 # These four tools expose the operations declared by
@@ -1627,18 +1807,19 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
 #     on disk.  Without the rerun an agent could read `status=structural-exact`
 #     off a certificate whose claimed line, count or content hash is false.
 #
-# Residual, stated rather than hidden: `release/MANIFEST.sha256` carries no row
-# for the domain-pack surface yet, so the registry bytes are this lane's root of
-# trust.  The plugin cross-checks its own registry digest against the verifier's
-# reported one and its own verifier digest against the registry's declared one,
-# both from real bytes, and returns all of them so a caller can pin them
-# out-of-band.  A coordinated tamper of registry+verifier together is NOT
-# excluded by this lane; that is what a manifest row would add.
+# The release manifest independently pins the registry, pack verifier, and both
+# operation checkers.  The registry then binds PACK_SCHEMA/PACK_SPEC, every pack
+# source/manifest, and each operation-to-checker relation.  All identities are
+# checked again before and after subprocess execution.
 
 _PACK_ROUTE_COMMAND = "pack-route"
 _PACK_REGISTRY_RELATIVE = "domain_packs/registry_v1.json"
 _PACK_VERIFIER_RELATIVE = "tools/domain_pack_verify.py"
 _PACK_MAX_REGISTRY_BYTES = 1_048_576
+_PACK_CHECKER_MANIFEST_LABELS = {
+    "tools/test_exists_verify.py": "domain_pack_test_exists_checker",
+    "tools/decision_verify.py": "domain_pack_decision_checker",
+}
 
 # Engine-printed epistemic classes a pack lane may legitimately carry, mapped to
 # the mathematical-axis class its pinned manifest is allowed to declare as
@@ -1777,6 +1958,14 @@ def _run_pack_verifier(registry_sha256: str) -> dict[str, Any]:
         raise PluginRefusal("pack-surface-absent",
                             f"{_PACK_VERIFIER_RELATIVE} is not present under {ROOT}")
     pre = hashlib.sha256(verifier.read_bytes()).hexdigest()
+    pinned = _manifest_alias(
+        {"domain_pack_verifier"}, "domain-pack verifier"
+    )
+    if pre != pinned:
+        raise PluginRefusal(
+            "pack-verifier-identity",
+            f"{_PACK_VERIFIER_RELATIVE} is {pre}, release manifest pins {pinned}",
+        )
     proc = subprocess.run(
         [sys.executable, "-I", "-S", "-B", str(verifier), "--root", str(ROOT)],
         capture_output=True, text=True, timeout=600,
@@ -1820,6 +2009,15 @@ def _pack_operation(pack_id: str, operation_id: str) -> dict[str, Any]:
     if len(registry_raw) > _PACK_MAX_REGISTRY_BYTES:
         raise PluginRefusal("pack-registry-refused", "registry exceeds protocol bound")
     registry_sha = hashlib.sha256(registry_raw).hexdigest()
+    pinned_registry = _manifest_alias(
+        {"domain_pack_registry"}, "domain-pack registry"
+    )
+    if registry_sha != pinned_registry:
+        raise PluginRefusal(
+            "pack-registry-identity",
+            f"{_PACK_REGISTRY_RELATIVE} is {registry_sha}, "
+            f"release manifest pins {pinned_registry}",
+        )
     report = _run_pack_verifier(registry_sha)
     registry = _strict_json_loads(registry_raw)
     if not isinstance(registry, dict) or not isinstance(registry.get("packs"), list):
@@ -1959,10 +2157,20 @@ def _pack_run_checker(operation: dict[str, Any], cert_line: str,
     path = ROOT / relative
     if not path.is_file():
         raise PluginRefusal("pack-surface-absent", f"{relative} is not present")
+    label = _PACK_CHECKER_MANIFEST_LABELS.get(relative)
+    if label is None:
+        raise PluginRefusal(
+            "pack-registry-refused",
+            f"checker {relative!r} has no release-manifest binding",
+        )
+    release_expected = _manifest_alias({label}, f"domain-pack checker {relative}")
     pre = hashlib.sha256(path.read_bytes()).hexdigest()
-    if pre != expected:
-        raise PluginRefusal("pack-checker-identity",
-                            f"{relative} is {pre}, pinned {expected}")
+    if pre != expected or pre != release_expected:
+        raise PluginRefusal(
+            "pack-checker-identity",
+            f"{relative} is {pre}, pack manifest pins {expected}, "
+            f"release manifest pins {release_expected}",
+        )
     proc = subprocess.run(
         [sys.executable, "-I", "-S", "-B", str(path), *checker_flags],
         input=cert_line, capture_output=True, text=True, timeout=600,
@@ -2043,9 +2251,6 @@ def _make_pack_tool(tool_name: str, spec: dict[str, Any]):
                 f"The consequence ceiling of this result is "
                 f"{operation['consequence_ceiling']!r} and is NOT raised by its "
                 f"{operation['assurance_ceiling']!r} assurance ceiling",
-                "pack_surface_is_not_manifest_pinned: release/MANIFEST.sha256 "
-                "carries no row for the domain-pack registry; the registry and "
-                "verifier digests above are reported for out-of-band pinning",
                 *operation.get("nonclaims", []),
             ],
         }
@@ -2073,6 +2278,11 @@ for _tool_name, _spec in _WEAK_LANE_TOOLS.items():
     TOOLS[_tool_name] = _make_weak_tool(_tool_name, _spec)
 for _tool_name, _spec in _PACK_LANE_TOOLS.items():
     TOOLS[_tool_name] = _make_pack_tool(_tool_name, _spec)
+TOOLS["jackal_anubis_check_program"] = tool_jackal_anubis_check_program
+TOOLS["jackal_anubis_verify_program"] = tool_jackal_anubis_verify_program
+TOOLS["jackal_anubis_verify_program_receipt"] = (
+    tool_jackal_anubis_verify_program_receipt
+)
 
 
 def _dispatch(method: str, params: Any) -> dict[str, Any]:
@@ -2158,9 +2368,11 @@ def _serve_call(tool: str, arg_json: str) -> int:
     result = _dispatch(tool, params)
     sys.stdout.write(json.dumps(result, sort_keys=True, indent=2) + "\n")
     return 0 if result.get("status") in {
-        "formal-bounded", "verified",
+        "formal-bounded", "verified", "ok",
         # Weaker-lane classes: success at their honest epistemic level.
         "exact", "checked", "estimated", "bounded", "model-based",
+        # Program evidence statuses are bounded successes, not formal claims.
+        "verified-program-evidence", "verified-program-receipt",
         # Domain-pack programming lane: a byte-exact STRUCTURAL fact.  Success
         # here means the checker recomputed the claim from real bytes, not that
         # anything is correct — see the tool's consequence_ceiling.

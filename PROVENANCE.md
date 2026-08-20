@@ -8,6 +8,120 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
+## Candidate v1.7.3 — unified domain-pack and Anubis program evidence — 2026-08-20 — SIGNOFF REQUIRED
+
+This candidate starts from merged PR #11 commit
+`73854110cb82d78b2843d5028e1e0d5970b0ad5a`; `git show --stat` on that
+commit names the W3/W4/W6/W10 merge. It is not a release: the new program
+accept conditions and the domain-pack compatibility minimum change require
+architect review before merge/tag/publication.
+
+### Surface and trust contract
+
+`python3 tools/profile_verify.py` observed:
+
+```text
+core=3
+formal=13
+full=41
+profile_verification=verified tools_declared=41 nesting=core<=formal<=full OK
+```
+
+The three additive tools are `jackal_anubis_check_program`,
+`jackal_anubis_verify_program`, and
+`jackal_anubis_verify_program_receipt`. Success vocabulary is limited to
+`verified-program-evidence` / `verified-program-receipt`.
+
+The prototype profile name `contracted-safe-v1` was not inherited. The v3
+producer exports a producer-attested whole-function inventory but no
+independently checkable construct-total walker coverage. The shipped candidate
+therefore uses `inventory-safe-v1` and records
+`policy-construct-totality-not-established`, plus open source-to-VC,
+SMT-to-CNF, source-native, runtime, and universal-soundness boundaries.
+
+The caller pins source, compiler, artifact, and policy identities. Only Safe
+mode, one source leaf, the exact twelve-stage and six-consumer rosters, nonzero
+one-to-one proof paths, approved Z3 UNSAT, and independent RUP replay are
+admitted. No program-verifier command executes the compiled artifact.
+
+The domain-pack manifests now declare
+`v1.7.3 <= release < v2.0.0`; their self-digests and the registry self-digest
+were regenerated from bytes. `python3 -I -S -B tools/domain_pack_verify.py
+--root .` returned `status=accepted`, `pack_count=3`, and
+`operation_count=5`. The release manifest independently pins the registry,
+pack verifier, and three operation checkers.
+
+### Package receipts
+
+Two independent invocations of `release/build_package_v173.sh --build`, each
+with its own absolute `JACKAL_DIST`, produced byte-identical tarballs; `cmp`
+exited 0:
+
+```text
+basename            jackal-v1.7.3-macos-arm64.tar.gz
+sha256              b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175
+bytes               158353643
+files               104
+extracted-file-bytes 555395024
+SHA256SUMS sha256    2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42
+```
+
+Tar member file bytes and fresh-extraction file bytes independently summed to
+`555395024`. `tests/package_unified_v173_test.py` checks exact checksum
+inventory, extra/missing/tampered-file controls, missing-pack isolation,
+declared-but-unreachable program-tool refusal, stale source/binary refusal,
+profile/catalog parity, and the selected release window.
+
+The repaired canonical parity gate targeted `build_package_v173.sh`, not the
+superseded v1.7.0 builder:
+
+```text
+python3 -B tests/claim_package_parity_test.py
+CLAIM_PACKAGE_PARITY_PASS rows=60 failures=0
+```
+
+Its mutation test points the instrument back at
+`build_package_v170.sh` and observes `superseded-builder`.
+
+### COVENANT replay
+
+Caller-selected COVENANT source bytes:
+
+```text
+source sha256       037f63a2b2ca72d29a74503db09d5a0d1e0d4fb84a0cd778226751f22acb83ad
+compiler sha256     0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6
+artifact sha256     e10f5550344c2e002e08139b4a1658d9151ccb707ddcb4adc6dfd73a31c555ff
+receipt sha256      8341ec180add6475f193f47e218b7af88fe2ef6437474c92ede4dfe1ecc02423
+proof objects       9
+RUP additions       615
+```
+
+Repository CLI, repository plugin, fresh-package CLI, and fresh-package plugin
+all returned the bounded program success status. Receipt replay returned
+`verified-program-receipt`. An assurance edit with a recomputed outer digest
+returned `receipt-semantic-mismatch`; pristine replay then returned
+`verified-program-receipt` again. The structured record is
+`release/evidence/anubis_program_dogfood_v1.json`.
+
+### Plugin and evaluation receipts
+
+The public plugin pins the package and complete `SHA256SUMS`. A fresh isolated
+Codex install observed 41 registered tools; exact, formal, refusal, claim
+bundle, and formal-receipt gates returned their bounded expected statuses. A
+second fresh MCP process replayed the program receipt and refused its semantic
+tamper. The public-wrapper aggregate is
+`f5102843b8112302ebfdc7bfa1dc7665a4194835fad360523c50fda9abe3983d`.
+
+Live transcript-bearing Codex sessions attempted the W3/W10 tools, but the
+noninteractive host cancelled every MCP call, including with
+`approval_policy=never`. `evals/v2/runner.py` still does not invoke a model or
+emit profile identity, and no adapter converts Codex JSONL events into
+protocol-admissible autonomous rows. `tools/eval_v2_gate.py` therefore returned
+`EVAL_V2_GATE_NOT_MEASURABLE` exit 3; this is not a pass and no JACKAL accuracy
+claim is made.
+
+---
+
 ## Branch record — `feat/domain-pack-protocol`, 2026-08-19 — UNSEALED — domain-pack protocol: programming-status and decision packs + the `lcm`/`gcd` epistemic-class repair
 
 **This is not a seal.** No package was built, no binary was produced, and no

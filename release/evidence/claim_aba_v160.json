@@ -1,5 +1,5 @@
 {
-  "inference_registry_sha256": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082",
+  "inference_registry_sha256": "c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0",
   "layers": [
     {
       "case_failed_under_poison": true,
@@ -23,9 +23,9 @@
       "observed_under_poison": "refused/registry-semantics-mismatch",
       "ok": true,
       "restored_byte_identical": true,
-      "sha_a": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082",
-      "sha_poisoned": "10cf9210739719d564ada052a61bbce1db4ea54378cbcfb3109410b697e00b4c",
-      "sha_restored": "e7134ec30f3b5dce71014fa1bbfc6b15e6dd8f42bfecd900fd3a61cf6b895082"
+      "sha_a": "c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0",
+      "sha_poisoned": "c429f39b6d3fd877ad8daeb0a6c5221efe1dd400871baf1692d584d1340954f3",
+      "sha_restored": "c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0"
     },
     {
       "case_failed_under_poison": true,
@@ -85,7 +85,7 @@
       "intent": "dropping the provenance condition from the permitted rendering hides a load-bearing axis",
       "layer": "renderer",
       "matrix_failed_under_poison": true,
-      "observed_under_poison": "claim-verify=verified bundle.digest=2446431d98672e1545acaa238ed7c5aa2d207f3400a556b7396044d5e0e7c893 root=75b36d4cac3f1dfb1bb2cb3abc1749f70a04a758a5d802bf400190",
+      "observed_under_poison": "claim-verify=verified bundle.digest=57e84cb38776f91af01a31c6ba7e68f628d72828da5657316eae2c568d0f5996 root=8a9de448bc45ea604c5d86a17885ee5e695eda465018f59c5b8757",
       "ok": true,
       "restored_byte_identical": true,
       "sha_a": "e0fcb9540c730bd9bb492b528ed42d29d49fc775b3aa0f9b831b6264fd68fd22",

@@ -95,7 +95,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `mcpServers`: `./.mcp.json`
 - `interface.displayName`: `JACKAL`
 - `interface.shortDescription`: `Claim-aware computation with explicit evidence classes`
-- `interface.longDescription`: `Use JACKAL's complete mathematical evidence kernel from Codex, with exact, checked, estimated, bounded, formal-bounded, model-based, verified, indeterminate, and refused results preserved at their original assurance level. Formal-bounded applies only to checker-admitted fragments. Requires Apple Silicon macOS, Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python), and the pinned sealed v1.7.0 runtime.`
+- `interface.longDescription`: `Use JACKAL's 41-tool evidence kernel from Codex while preserving exact, checked, estimated, bounded, formal-bounded, model-based, structural-exact, verified-program-evidence, verified, indeterminate, and refused results at their returned assurance and consequence levels. Formal-bounded applies only to checker-admitted fragments; program evidence retains construct-totality, source, and runtime residuals. Requires Apple Silicon macOS, Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python), and the pinned v1.7.3 runtime.`
 - `interface.developerName`: `Anubis Quantum Cipher`
 - `interface.category`: `Productivity`
 - `interface.capabilities`: `["Interactive"]`
@@ -103,9 +103,10 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `keywords`: `jackel`, `mathematics`, `numerical-trust`, `formal-verification`,
   `evidence`, `mcp`
 
-The short description identifies JACKAL as a mathematical evidence kernel,
-not a generic calculator. The long description names its claim classes and
-states that formal-bounded results are limited to checker-admitted fragments.
+The short description identifies JACKAL as an evidence kernel, not a generic
+calculator. The long description names the mathematical, domain-pack, and
+program-evidence classes; it keeps formal fragments and program residuals
+explicit.
 The initial manifest omits app, hook, asset, privacy-policy, and terms fields
 rather than publishing broken paths or invented policies.
 
@@ -114,6 +115,7 @@ Starter prompts:
 1. `Classify and verify this numerical claim with JACKAL.`
 2. `Find the strongest supported bound and refuse any silent downgrade.`
 3. `Verify this receipt or claim bundle against my pinned expectations.`
+4. `Verify this Anubis Safe program-evidence package without executing its artifact.`
 
 ## Marketplace Entry
 

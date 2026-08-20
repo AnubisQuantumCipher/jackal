@@ -16,7 +16,7 @@
       "pack_id": "jackal.core.exact",
       "pack_version": "1.0.0",
       "manifest_path": "domain_packs/core/manifest.json",
-      "manifest_sha256": "427b51d6527be15286efce9ec5c90b369950f57ddb438c93e2616233e290190d",
+      "manifest_sha256": "8babbc2966f7a269a0aefe15495e83c70351795f63cc3468f75c36bb5046ee8a",
       "entry_source_path": "jackal_calc.anb",
       "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
       "route_source_path": "domain_packs/core/core_pack.anb",
@@ -29,7 +29,7 @@
       "pack_id": "jackal.programming.source",
       "pack_version": "1.0.0",
       "manifest_path": "domain_packs/programming/manifest.json",
-      "manifest_sha256": "59480b72f8ea51739859599c243b86167fb66ed3ffc519e492ca5d9f7c6605ba",
+      "manifest_sha256": "a8668782c1be9553e80b044a70327a3f767779b6552a2d3401454d01aa1b43ba",
       "entry_source_path": "jackal_calc.anb",
       "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
       "route_source_path": "domain_packs/programming/programming_pack.anb",
@@ -43,7 +43,7 @@
       "pack_id": "jackal.decision.matrix",
       "pack_version": "1.1.0",
       "manifest_path": "domain_packs/decision/manifest.json",
-      "manifest_sha256": "e7a8187c367a64f092c6e54bf3dd2b593265e93b8727fdffbc4bba220830e911",
+      "manifest_sha256": "79b5d90d50c2343fdc93f1f92f0ea36bfa1e6c1c239ab6572aea8ad237ccbd65",
       "entry_source_path": "jackal_calc.anb",
       "entry_source_sha256": "f579b6f59bc024d24914487b0cd0f18ea43dea1be52708a05a66dc885d80bb4e",
       "route_source_path": "domain_packs/decision/decision_pack.anb",
@@ -54,5 +54,5 @@
       ]
     }
   ],
-  "registry_digest_sha256": "3da40d85c885626f01030152d23a010e0d354e822a53ac2e49e9f82a7f43a9d8"
+  "registry_digest_sha256": "9f96f53795746b75f6e9d505e49f6f2578407d224f5e22fdad8a03e8a738fed8"
 }

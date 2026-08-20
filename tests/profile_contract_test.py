@@ -27,6 +27,7 @@ VERIFIER_PATH = ROOT / "tools" / "profile_verify.py"
 PROFILE_DIR = Path("plugin") / "hermes" / "profiles"
 SCHEMA_PATH = Path("plugin") / "hermes" / "schemas" / "jackal_agent_profile.schema.json"
 TOOLS_PATH = Path("plugin") / "hermes" / "tools.json"
+PACK_REGISTRY_PATH = Path("domain_packs") / "registry_v1.json"
 PROFILE_IDS = ("core", "formal", "full")
 
 EXPECTED_CORE_TOOLS = [
@@ -34,6 +35,13 @@ EXPECTED_CORE_TOOLS = [
     "jackal_claim",
     "jackal_verify_bundle",
 ]
+
+# The declared surface size is read from `tools.json`, never retyped here: this
+# test's own history is the reason.  Hard-coding 34 in six places is what let
+# four shipped pack operations sit unreachable behind a green suite.
+EXPECTED_TOOL_COUNT = len(
+    json.loads((ROOT / TOOLS_PATH).read_text(encoding="utf-8"))["tools"]
+)
 
 
 def load_verifier():
@@ -97,9 +105,58 @@ class ProfilePositiveTest(unittest.TestCase):
     def test_positive_shipped_profiles_verify(self) -> None:
         result = VERIFY.verify_repository(ROOT)
         self.assertEqual(result["profile_verification"], "verified")
-        self.assertEqual(result["tools_declared"], 34)
+        self.assertEqual(result["tools_declared"], EXPECTED_TOOL_COUNT)
         self.assertEqual(result["profiles"]["core"]["tool_count"], 3)
-        self.assertEqual(result["profiles"]["full"]["tool_count"], 34)
+        self.assertEqual(result["profiles"]["full"]["tool_count"], EXPECTED_TOOL_COUNT)
+        # Non-vacuity: the derived count must actually be the shipped surface,
+        # so a `tools.json` truncated to the old 34 would fail here.
+        self.assertGreaterEqual(EXPECTED_TOOL_COUNT, 38)
+
+    def test_positive_every_pack_operation_is_reachable_on_full(self) -> None:
+        """The omission this test exists to make impossible.
+
+        `domain_packs/registry_v1.json` shipped five operations across three
+        packs while `plugin/hermes/tools.json` exposed none of them, so no agent
+        could call any of them through the plugin and every gate stayed green.
+        A pack operation that no profile exposes is unreachable, which is a
+        silent omission rather than a refusal — exactly what `full`'s own
+        description promises cannot happen.
+
+        `core.exact.mod_pow.v1` is deliberately exempted BY NAME: it routes to
+        the `mod-pow` engine command that `jackal_mod_pow` already exposes, so
+        it is reachable without a second tool.  Every other operation must be
+        named by some tool on `full`.
+        """
+        registry = read_json(ROOT / PACK_REGISTRY_PATH)
+        declared = read_json(ROOT / TOOLS_PATH)["tools"]
+        full = set(read_json(ROOT / PROFILE_DIR / "full.json")["tools"])
+        # A tool claims an operation by naming it in its description; the
+        # server binds the same id, and `tests/domain_pack_contract_test.py`
+        # pins the ids themselves.
+        blob = {
+            tool["name"]: json.dumps(tool, sort_keys=True)
+            for tool in declared if tool["name"] in full
+        }
+        exempt = {"core.exact.mod_pow.v1"}
+        operations = [
+            operation_id
+            for pack in registry["packs"]
+            for operation_id in pack["operation_ids"]
+        ]
+        self.assertGreaterEqual(len(operations), 5)
+        for operation_id in operations:
+            if operation_id in exempt:
+                continue
+            exposing = sorted(n for n, text in blob.items() if operation_id in text)
+            self.assertEqual(
+                len(exposing), 1,
+                f"{operation_id} is exposed by {exposing} on the full profile; "
+                "expected exactly one tool",
+            )
+        # And the exemption itself must stay honest: the operation it stands on
+        # must still be in the registry, and its engine command still exposed.
+        self.assertTrue(exempt <= set(operations))
+        self.assertIn("jackal_mod_pow", full)
 
     def test_positive_unmutated_fixture_verifies(self) -> None:
         """Instrument check: without this, a refusal case could pass for the

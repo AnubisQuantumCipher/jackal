@@ -359,6 +359,48 @@ $ python3 -m unittest tests.profile_contract_test -v
 Ran 26 tests — OK        case_census positive=9 refusal=16
 ```
 
+### Superseded by the plugin-surface exposure (same branch, later commit)
+
+The three transcripts above were observed when `plugin/hermes/tools.json`
+declared 34 tools and **none** of W6's pack operations was reachable through the
+plugin: a `grep` of `plugin/hermes/tools.json`, `plugin/hermes/server.py` and
+`.agents/plugins/marketplace.json` for `test.exists|claim.cites|decision.rank|
+pack.route|domain.pack` returned zero matches. W6's stated purpose is to carry
+the assurance discipline past mathematics, and it could not do that while no
+agent could call it. The four operations are now exposed as
+`jackal_test_exists`, `jackal_claim_cites_test`, `jackal_decision_rank` and
+`jackal_decision_rank_v2`, so the counts above read as history, not as current
+state. Currently observed:
+
+```
+$ python3 tools/profile_verify.py
+profile=core   tools=3  digest=52be7204... OK
+profile=formal tools=13 digest=b4545486... OK
+profile=full   tools=38 digest=64385db7... OK
+profile_verification=verified tools_declared=38 nesting=core<=formal<=full OK
+
+$ python3 -m unittest tests.profile_contract_test
+Ran 29 tests — OK        case_census positive=12 refusal=16
+```
+
+`core` stays at exactly 3 and `formal` at 13. `tools/profile_verify.py` hard-
+refuses any other core arity (`CORE_TOOL_COUNT = 3` → `core-arity`), and `core`'s
+own description excludes bare producers — which is what all four pack lanes are,
+`informational` consequence ceiling or not: they return a value and a status
+directly, with no bundle, no route trace and no independent replay path.
+`formal`'s exclusion clause now names them: their status is `structural-exact`
+or `exact`, their checkers are ordinary Python recomputation with no Lean
+checker and no theorem id, and admitting them would render a structural or
+arithmetic fact as a formal one.
+
+`tests/profile_contract_test.py` now derives the expected count from
+`tools.json` instead of retyping it, and asserts that every operation in
+`domain_packs/registry_v1.json` is named by exactly one tool on `full`
+(`core.exact.mod_pow.v1` exempted by name: it routes to the `mod-pow` engine
+command `jackal_mod_pow` already exposes). That assertion, not the JSON edit, is
+the fix — it is what makes this omission recur loudly instead of silently. The
+same reachability check is mechanised in the CI inventory lock.
+
 `evals/v2/protocol.md` defines the metric names and the forced/autonomous modes,
 and states explicitly that it defines names only and measures nothing itself.
 
@@ -453,6 +495,18 @@ EVAL_V2_GATE_NOT_MEASURABLE exit=3
 EVAL_V2_GATE_NOT_MEASURABLE is not a pass: exit 3
 ```
 
+Re-observed after the pack lanes were exposed on the plugin surface (same
+commands, same branch, `tools/eval_v2_gate.py` reads the count rather than
+asserting one, so req3 is unaffected by the surface growth):
+
+```
+req2 ... verdict=PASS   silent_downgrade_count = 0  forced, rows=25
+                        silent_downgrade_count = 0  autonomous, rows=25
+req3 ... verdict=PASS   profile_verify exit=0, tools_declared=38
+EVAL_V2_GATE_NOT_MEASURABLE exit=3
+EVAL_V2_GATE_NOT_MEASURABLE is not a pass: exit 3
+```
+
 ---
 
 ## 5. Honest status against the plan
@@ -463,9 +517,12 @@ EVAL_V2_GATE_NOT_MEASURABLE is not a pass: exit 3
 | W4 protocol + evidence contracts | **closed** | verifier accepts 3 packs / 4 ops; ceiling matrix; archival fix |
 | W6 programming pack — behaviour | **closed** | route byte-parity + soundness refusals + independent checker + manifest nonclaims |
 | W6 decision pack — behaviour | **closed** | route byte-parity + 5 refusal paths + independent checker |
+| W6 — agent reachability through the plugin | **was silently OPEN behind every green gate; closed in this wave** | all four operations exposed as plugin tools (34 -> 38); driven end-to-end through `plugin/hermes/jackal_hermes call`; `tests/profile_contract_test.py::test_positive_every_pack_operation_is_reachable_on_full` + the CI inventory lock make a future omission a refusal |
+| W6 pack surface inside the shipped v1.7.2 package | **NOT DONE** | `release/build_package_v172.sh` ships neither `domain_packs/` nor the two pack checkers, so the four lanes refuse `pack-surface-absent` inside the package (observed) while the other 34 keep working; adding them is a seal-time packaging change |
+| domain-pack surface in `release/MANIFEST.sha256` | **NOT DONE** | no row pins the pack registry, so the registry bytes are the lane's root of trust; the plugin cross-checks registry-vs-verifier digests in both directions from real bytes and returns all four digests for out-of-band pinning, and says so in `non_claims` |
 | W6 — the plan's named artifact list | **was OPEN when this table first said "closed"; closed by the companion commit in this wave** | see §5.1 |
 | W6 other packs (units, linear algebra, statistics, ODE/PDE) | **NOT DONE** | out of scope this wave |
-| W3 profiles | **closed** | verifier + 26 tests |
+| W3 profiles | **closed** | verifier + 29 tests |
 | W3 `>=90%` autonomous verifier-use enforcement | **NOT MEASURABLE, now machine-readably so** | `tools/eval_v2_gate.py` (added in the companion commit) reports `EVAL_V2_GATE_NOT_MEASURABLE` exit 3 with `req1 reason=no-transcript-supplied`; requirements 2 and 3 PASS. Still needs live model sessions. |
 | W10 harness + frozen hidden set | **closed** | 50/50 forced run |
 | W10 cross-system comparison | **NOT DONE** | needs live model sessions |
@@ -475,6 +532,22 @@ Two `MANIFEST.sha256` rows need a seal-time repin on a machine with the built
 engine and Lean binaries: `source jackal_calc.anb` and
 `claim_inference_registry`. Neither was hand-edited; hand-editing a manifest row
 to make a gate green is the same class of act as repinning frozen evidence.
+
+`plugin_hermes` is a third such row, and exposing the pack lanes moved its
+computed value further (it edits `tools.json` and `server.py`, both inside the
+runtime-bundle identity). Pinned-vs-computed, recomputed from real bytes with
+`plugin/hermes/bundle_hash.py` — the repo's own helper, not a hand-rolled
+serialisation:
+
+```
+$ cd plugin/hermes && python3 -c 'import bundle_hash as b; \
+    print(b.load_pinned_bundle_hash_any(b.find_repo_root()), b.compute_bundle_hash())'
+pinned   e8fadc24b17884d9fc4a8458b4e4a70ac60ad0d88768b82a684c665e2a9e0202
+computed 165d132aecb5376587008cfcedbdc4810f613e37f021c870535199877590ce3f
+```
+
+The row was NOT hand-edited. It is one of four surfaces of a single provenance
+event awaiting the same seal-time repin.
 
 W7/W8/W9/W11 are untouched and remain OPEN.
 

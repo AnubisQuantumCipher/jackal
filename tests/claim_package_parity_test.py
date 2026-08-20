@@ -6,9 +6,15 @@ dogfood §15.10; re-pointed at the live epoch builder each seal).
    requires bit-for-bit tarball equality.
 2. Fresh-extracts the tarball into a bounded temp sandbox (deterministic
    cleanup; no repository fallback).
-3. Exercises EVERY tool: all 34 plugin tools through the packaged plugin
-   `call` frontend (33 v1.6.0 + jackal_integrate_bound_cert), plus the 12
-   shell wrappers (10 release wrappers, jackal-claim, jackal-claim-verify).
+3. Exercises every producer-lane tool the PACKAGE carries: 31 plugin tools
+   through the packaged plugin `call` frontend (30 v1.6.0 +
+   jackal_integrate_bound_cert), plus the 12 shell wrappers (10 release
+   wrappers, jackal-claim, jackal-claim-verify).  The four domain-pack lanes
+   (`jackal_test_exists`, `jackal_claim_cites_test`, `jackal_decision_rank`,
+   `jackal_decision_rank_v2`) are declared on the repo surface but the v1.7.2
+   package does not ship `domain_packs/` or their checkers, so inside the
+   package they refuse `pack-surface-absent` rather than serving a request.
+   Packaging the pack surface is a seal-time item, not a parity claim here.
 4. Proves three-way parity: the same claim request through the repo CLI,
    the fresh package CLI, and the plugin returns the SAME canonical root
    hash and bundle digest, and the same policy verdict on replay.

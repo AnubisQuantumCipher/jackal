@@ -1,7 +1,7 @@
 {
   "schema": "jackal-agent-profile-v1",
   "profile_id": "full",
-  "description": "Complete v1.7.0 surface: all 34 tools declared by plugin/hermes/tools.json, in declaration order, for operator-driven interactive use where the human reads the status field. This profile deliberately exposes the weaker honest lanes (bounded, exact, checked, estimated) alongside the formal lane; each tool still reports its own status and the engine still refuses rather than downgrading, but an autonomous agent given this surface can choose a weaker lane without ever touching a verifier, which is why it is not the autonomous default. Membership here is byte-derived from tools.json and is verified to equal that set exactly, so adding a tool to the plugin without adding it here is a refusal, not a silent omission.",
+  "description": "Complete v1.7.2 surface: all 38 tools declared by plugin/hermes/tools.json, in declaration order, for operator-driven interactive use where the human reads the status field. This profile deliberately exposes the weaker honest lanes (bounded, exact, checked, estimated) and the four domain-pack lanes (structural-exact/exact, consequence-capped at informational or decision-boundary) alongside the formal lane; each tool still reports its own status and the engine still refuses rather than downgrading, but an autonomous agent given this surface can choose a weaker lane without ever touching a verifier, which is why it is not the autonomous default. Membership here is byte-derived from tools.json and is verified to equal that set exactly, so adding a tool to the plugin without adding it here is a refusal, not a silent omission.",
   "tools": [
     "jackal_range_bound",
     "jackal_gaussian_integral",
@@ -36,8 +36,12 @@
     "jackal_divides",
     "jackal_prime_cert",
     "jackal_claim",
-    "jackal_verify_bundle"
+    "jackal_verify_bundle",
+    "jackal_test_exists",
+    "jackal_claim_cites_test",
+    "jackal_decision_rank",
+    "jackal_decision_rank_v2"
   ],
   "immutable": true,
-  "profile_digest_sha256": "f90e6838c0facbafa89329462451e167fcb4a251d75d328c7a6f12ead2aa0c7a"
+  "profile_digest_sha256": "64385db7cfb5fa7acd392199a1dfc63ee14c06ed14c4aa3d76e937c89f8f2af8"
 }

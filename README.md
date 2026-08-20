@@ -159,7 +159,7 @@ checker on this machine** — recomputing the outer digest alone is not
 sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-four
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-eight
 tools — eleven formal (`jackal_range_bound`, `jackal_gaussian_integral`,
 `jackal_integrate_bound_cert`,
 `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
@@ -171,9 +171,17 @@ adapters (the seven numeric lanes `jackal_exact`, `jackal_evaluate`,
 `jackal_canon` through `jackal_prime_cert`) that thread through the pinned
 evaluator with identity checks and return the engine's honest inventory-derived
 epistemic class (`exact`/`checked`/`estimated`/`bounded`/`model-based`) with
-`formal: false` — status inflation is structurally impossible — plus the two
+`formal: false` — status inflation is structurally impossible — the two
 v1.6.0 claim-kernel front doors (`jackal_claim`, `jackal_verify_bundle`; see
-"The claim-bundle evidence kernel" below).
+"The claim-bundle evidence kernel" below), and four domain-pack lanes
+(`jackal_test_exists`, `jackal_claim_cites_test`, `jackal_decision_rank`,
+`jackal_decision_rank_v2`) that carry the same refusal discipline outside
+mathematics: assurance ceiling `exact`, consequence ceiling capped at
+`informational` or `decision-boundary`, routed through
+`pack-route <pack_id> <operation_id> <args...>`, and each re-running its
+manifest-pinned independent checker over the emitted certificate so only an
+`ACCEPT` verdict returns success. A `test-exists-cert` is an exact statement
+about bytes and never evidence that the code under test is correct.
 
 The eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
 plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,

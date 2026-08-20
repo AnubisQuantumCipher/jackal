@@ -1903,7 +1903,12 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
             [name for name, _ in direct_calls],
             ["jackal_exact", "jackal_integrate_bound_cert", "jackal_integrate_bound_cert"],
         )
-        self.assertEqual(report["discovered_tool_count"], 34)
+        # Exact against the catalog actually fed in — this test feeds the repo
+        # `plugin/hermes/tools.json`, so retyping its size here would go stale
+        # on every surface addition while checking nothing extra.
+        self.assertEqual(report["discovered_tool_count"],
+                         len(runtime_document["tools"]))
+        self.assertGreaterEqual(report["discovered_tool_count"], live.MIN_TOOL_COUNT)
         self.assertEqual(report["gates"], {
             "exact": "exact", "formal": "formal-bounded",
             "unsupported_formal": "producer-refused",

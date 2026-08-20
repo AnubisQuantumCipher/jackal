@@ -1,4 +1,4 @@
-# JACKAL CALC — MATHEMATICAL EVIDENCE KERNEL
+# JACKAL — MATHEMATICAL EVIDENCE KERNEL
 
 JACKAL is a deterministic, offline **mathematical evidence kernel** — an epistemic claim
 compiler for Hermes and machine consumers that is also a full STEM calculator. Its one

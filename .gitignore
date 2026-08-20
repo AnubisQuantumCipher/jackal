@@ -1,8 +1,14 @@
 # Build artifact — regenerated from jackal_calc.anb via the pinned Anubis
 # compiler (see the launcher and README). The SHA-256 of the exact gate-tested
 # binary is sealed in PROVENANCE.md rather than tracked here, so history
-# stays lean. (Transpile is byte-deterministic; the rustc link is not yet —
-# see PROVENANCE.md "Build determinism".)
+# stays lean. Both stages are byte-deterministic: the Anubis -> Rust transpile
+# always was, and the rustc link was made so upstream on 2026-08-13 (see
+# PROVENANCE.md "Build-determinism history" for the root cause and fix).
+# Measured 2026-08-19: 5 builds of this source through pin anubis-a733565f237d
+# gave one binary digest, same linker UUID, across out-dir paths including one
+# with spaces. Scope: one host, one session, one toolchain, warm dependency
+# rlibs -- NOT a cross-host or cross-time claim. Receipt, with reproduction
+# commands and non-claims: docs/BUILD_DETERMINISM_RECEIPT.md
 jackal-native
 
 # Ephemeral run/verify logs

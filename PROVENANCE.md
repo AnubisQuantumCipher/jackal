@@ -11,9 +11,9 @@ source → compiler pin → deterministic build → binary hash → gate receipt
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
 The `v1.7.3-candidate` binds an ordered 41-tool surface through
 `release/capability_inventory_v1.json`. Its package receipt is
-`cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196`
-(158362119 bytes), with extracted `SHA256SUMS` digest
-`df2d71627cbd02a2dfd45beec4c87efc35753de17b98a8e0d76baf7cf13c9cd6`.
+`9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e`
+(158362324 bytes), with extracted `SHA256SUMS` digest
+`fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf`.
 These are candidate bytes; the block does not assert a public v1.7.3 tag or
 release.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
@@ -69,15 +69,15 @@ exited 0:
 
 ```text
 basename            jackal-v1.7.3-macos-arm64.tar.gz
-sha256              cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196
-bytes               158362119
+sha256              9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e
+bytes               158362324
 files               106
-extracted-file-bytes 555504965
-SHA256SUMS sha256    df2d71627cbd02a2dfd45beec4c87efc35753de17b98a8e0d76baf7cf13c9cd6
+extracted-file-bytes 555505387
+SHA256SUMS sha256    fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf
 ```
 
 Tar member file bytes and fresh-extraction file bytes independently summed to
-`555504965`. `tests/package_unified_v173_test.py` checks exact checksum
+`555505387`. `tests/package_unified_v173_test.py` checks exact checksum
 inventory, extra/missing/tampered-file controls, missing-pack isolation,
 declared-but-unreachable program-tool refusal, stale source/binary refusal,
 profile/catalog parity, and the selected release window.

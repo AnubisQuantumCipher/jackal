@@ -167,7 +167,7 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
             provisioner = fixture.root / "plugins/jackel/scripts/provision_runtime.py"
             source = provisioner.read_text(encoding="utf-8")
             source = source.replace(
-                'PACKAGE_SHA256 = "cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196"',
+                'PACKAGE_SHA256 = "9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e"',
                 f'PACKAGE_SHA256 = "{"0" * 64}"',
             )
             provisioner.write_text(source, encoding="utf-8")

@@ -98,11 +98,11 @@ class UnifiedPackageV173Test(unittest.TestCase):
             document["package"],
             {
                 "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
-                "bytes": 158362119,
-                "extracted_file_bytes": 555504965,
+                "bytes": 158362324,
+                "extracted_file_bytes": 555505387,
                 "file_count": 106,
-                "sha256": "cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196",
-                "sha256sums_root": "df2d71627cbd02a2dfd45beec4c87efc35753de17b98a8e0d76baf7cf13c9cd6",
+                "sha256": "9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e",
+                "sha256sums_root": "fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf",
             },
         )
         source = document["source"]
@@ -120,7 +120,7 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
         self.assertEqual(
             document["gates"]["package_unified_tests"],
-            {"exit": 0, "passed": 11, "skipped": 0},
+            {"exit": 0, "passed": 13, "skipped": 0},
         )
         self.assertEqual(
             document["gates"]["claim_package_parity"],

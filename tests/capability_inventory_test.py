@@ -250,6 +250,19 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             "CAPABILITY_INVENTORY_PASS tools=41 unique=41",
         )
 
+    def test_ci_inventory_jobs_fetch_the_surface_origin_commit(self) -> None:
+        for relative in (
+            ".github/workflows/gaussian-proof-gate.yml",
+            ".github/workflows/jackal-codex-plugin.yml",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            inventory_step = source.index("tools/capability_inventory.py --check")
+            checkout = source.rfind("uses: actions/checkout@", 0, inventory_step)
+            self.assertGreaterEqual(checkout, 0, relative)
+            next_step = source.find("\n      - name:", checkout)
+            self.assertGreater(next_step, checkout, relative)
+            self.assertIn("fetch-depth: 0", source[checkout:next_step], relative)
+
 
 class CapabilityInventoryRefusalTest(unittest.TestCase):
     def test_refuses_duplicate_catalog_name(self) -> None:

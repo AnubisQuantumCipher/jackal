@@ -8,7 +8,7 @@ This is the restart-safe evidence ledger for the architect-approved production-a
 |---|---|---|
 | Architect goal | 12,611 bytes; 172 lines; SHA-256 `8025fb5570587258ec3cf6c808df71451af5b8815a7a5778f7d1e48e296dad7d` | VERIFIED |
 | Screenshot | `/Users/sicarii/.hermes/cache/images/img_799223020982.png`; visually matches GitHub comment `5376459953` | VERIFIED |
-| JACKAL candidate | `AnubisQuantumCipher/jackal` PR #12 head `d25bcd9818e0d106f337798f80527ae611cc3acc`, base `73854110cb82d78b2843d5028e1e0d5970b0ad5a` | VERIFIED CURRENT 2026-08-22 |
+| JACKAL candidate | `AnubisQuantumCipher/jackal` PR #12 head `1f1e628955c5ab805d13273f8fb9c618747d6f7c`, base `73854110cb82d78b2843d5028e1e0d5970b0ad5a` | VERIFIED CURRENT 2026-08-22; draft, merge state clean, sign-off still absent |
 | Hermes upstream PR | `NousResearch/hermes-agent#88446` head `08eb5173033e15117f51ac5abc9ca3d8bab313fe` | VERIFIED CURRENT 2026-08-22 |
 
 ## Repository and worktree inventory before edits
@@ -16,10 +16,12 @@ This is the restart-safe evidence ledger for the architect-approved production-a
 | Surface | Path or remote | Branch / HEAD | Dirty and ownership boundary | Release/public state |
 |---|---|---|---|---|
 | JACKAL ambient checkout | `/Users/sicarii/Desktop/Projects/jackal-calc` | `feat/mathematical-evidence-kernel-v1.6.0` / `57739317b24250ff62fd9b23f67c760d9066ab94` | User-owned untracked `jackal_calc.anb.zip`, `jackal_calc.md`, `website/`; DO NOT EDIT | stale local branch |
-| JACKAL integration candidate | `/Users/sicarii/Worktrees/jackal-unified-completion-20260820` | `mission/jackal-unified-completion-20260820`; initial tool-containing ref `d25bcd9818e0d106f337798f80527ae611cc3acc`; latest pushed checkpoint `f6ffe749040118587471e146b90d93a56a20f8a3` | named-path alignment commits only | PR #12 draft; no final review decision |
+| JACKAL integration candidate | `/Users/sicarii/Worktrees/jackal-unified-completion-20260820` | `mission/jackal-unified-completion-20260820`; initial tool-containing ref `d25bcd9818e0d106f337798f80527ae611cc3acc`; latest pushed checkpoint `1f1e628955c5ab805d13273f8fb9c618747d6f7c` | named-path alignment commits only | PR #12 draft; no final review decision |
 | JACKAL public default | `AnubisQuantumCipher/jackal` | `master` / `73854110cb82d78b2843d5028e1e0d5970b0ad5a` | architect-owned public repo | latest release v1.7.2; repository description says 34 tools |
 | Installed Hermes plugin | `/Users/sicarii/.hermes/plugins/jackal-verified` | detached `86596e2b0e2679db68eca16bd102378c5bfa27b7`, annotated tag v5.0.0 | clean installed evidence; DO NOT EDIT | 34 tools; pins JACKAL v1.7.0 |
 | Hermes plugin public default | `AnubisQuantumCipher/hermes-jackal-verified` | `main` / `e157e4dc98ffc127bb9abca4ae2ea6cdd699db56` | architect-owned public repo | latest v5.0.0 at `86596e2…`; description says 34 tools |
+| Hermes plugin v6 candidate | `/Users/sicarii/Worktrees/hermes-jackal-production-alignment-20260822` | `mission/production-alignment-v6` / `a3d9b28041da129b159771689c1fd0d93d71458b` | clean, pushed candidate; no accept-condition edits | 41 tools; pins reproducible JACKAL v1.7.3 candidate `cafab155…`; no tag/release claim |
+| Isolated installed Hermes v6 candidate | `/private/tmp/hermes-jackal-v6-pin.aQ5UpV/plugins/jackal-verified` | detached exact `a3d9b28041da129b159771689c1fd0d93d71458b` | clean temporary install | doctor registers 41 tools; fresh-install smoke passes all represented route families |
 | Hermes core ambient checkout | `/Users/sicarii/.hermes/hermes-agent` | `main` / `e02d1e41fc6104187e20af9eac8b2820566e3508`, ahead 1/behind 1 at census | extensive user-owned tracked and untracked changes; DO NOT EDIT | upstream is `NousResearch/hermes-agent` |
 | Codex plugin candidate | `plugins/jackel` inside JACKAL PR #12 | current generated eight-file identity aggregate `321344d89a8de3db17a18ed37eddd4789ca65e58754ebb0aadea415fff218885`; prior PR record `f5102843…` | named-path candidate changes only | version `0.1.0+codex.20260820135554`; pins fresh v1.7.3 candidate package `cafab155…` |
 | Installed Codex plugin | `/Users/sicarii/.codex/plugins/cache/anubis-quantum-cipher/jackel/0.1.0+codex.20260820135554` | exact seven-file identity manifest | installed cache evidence; DO NOT EDIT | wrapper requires 41 tools; package SHA-256 `b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175` |
@@ -76,21 +78,25 @@ Instrument and baseline gates:
 | fresh offline Codex provision plus `live_acceptance.py --live` in an isolated Codex home | exit 0; 41 discovered; exact=`exact`, formal=`formal-bounded`, unsupported formal=`producer-refused`, claim bundle/formal receipt=`verified`; wrapper `321344d8…`; package `cafab155…`; tree `df2d7162…` | candidate package bytes and temporary installation only; not public-release-pin evidence |
 | `tests.jackal_skill_contract_test` | exit 0; 5 tests on this Mac | canonical-name and routing clauses pass for repo Codex router, personal Codex oracle, personal Hermes router, four profile copies, and reseal procedure |
 | `hermes skills audit` / named local audits | generic command exit 0 but audited only the one hub-installed skill; named local JACKAL skills report `not a hub-installed skill` | Hermes audit command does not inspect local skills; repository hostile fixtures plus complete manual read/hash census are the applicable evidence |
+| Hermes v6 epoch/schema generation and clean-tree checks at `a3d9b280…` | exit 0; epoch binds JACKAL alignment receipt `1f1e628…`, package `cafab155…`, inventory `3c58bd16…`, 41 generated schemas, 53 selected package identities, skill v7 `7536b78e…`; sealed `MANIFEST.json` SHA-256 `d1a4eaf6bb105103250b2d9613e04206c81cea53912db4873e976c52cf599047` | candidate only; epoch explicitly has null public tag/release URL and disclaims public release |
+| Hermes v6 local battery | exit 0; production alignment 6, unit 22, poison 48 normal plus 48 under `-O`, split-package 8, A→B→A 4 forgeries, fresh-install, manifest, and release audit | exercises exact/bounded/formal/claim/domain/decision/program routes plus fail-closed tamper paths |
+| Hermes v6 hosted CI run `32569911220` | success at exact head `a3d9b280…`; macOS 26 arm64 job `97023809298`; all 18 substantive setup/verification steps pass | complete 41-tool positive path requires the approved Z3 4.15.4 identity on macOS 26; earlier hosts must refuse the program route instead of substituting a different solver identity; action Node-runtime deprecation annotations remain non-fatal |
+| isolated `hermes plugins install ... --ref a3d9b280...`, `plugins doctor --ci`, and `fresh_install_smoke.py` | clean exact checkout; doctor reports 41 tools/0 hooks; `FRESH_INSTALL_PASS ... program=verified-program-receipt` | verifies candidate installation and calls, not a public tag or registry release |
 
 ## Requirement matrix
 
 | ID | Requirement | Evidence required | State |
 |---|---|---|---|
 | R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: current artifact `3c58bd16…`; 14 tests; both delivery-pin sources remain independently enforced without a self-hash cycle |
-| R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | PARTIAL: kernel and Codex candidate show 41; public Hermes plugin is 34 |
-| R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex repository current blocks and design repaired; public descriptions, Hermes bytes, and PR #88446 remain open |
-| R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | OPEN |
+| R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | VERIFIED CANDIDATE: kernel, Codex candidate, Hermes schemas, plugin manifest, and installed discovery each report the same 41 names; public Hermes v5 remains historical-current until promotion |
+| R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex and Hermes v6 candidate current blocks are repaired; public default descriptions/releases and PR #88446 remain open |
+| R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | VERIFIED CANDIDATE: exact head `a3d9b280…`; local and hosted batteries plus isolated install pass; public promotion remains authority-gated |
 | R5 | Production-equivalent Codex plugin | exact installed discovery and call parity from release pin | PARTIAL: 216 repo-local tests, eight-file identity, fresh offline provisioning, isolated install, exact 41-tool discovery, and five acceptance gates pass on candidate bytes; public release/tag pin remains gated |
-| R6 | Complete JACKAL skills audit | classified inventory, exact hashes, real-name/schema fixtures, corrected routers | PARTIAL: repo and personal routers/reseal are corrected and tested; public Hermes bundled skill remains Task 6 |
+| R6 | Complete JACKAL skills audit | classified inventory, exact hashes, real-name/schema fixtures, corrected routers | VERIFIED CANDIDATE: repo, personal, profile-copy, and Hermes v6 bundled routers are classified, hashed, manually read, and covered by canonical-name/hostile contracts; public v5 remains historical-current until promotion |
 | R7 | Lean build and admission/axiom audit | `lake build`, exact theorem axiom output, `sorry`/admit scan, trusted snapshot report | VERIFIED: 17,369-job clean-room build; 42 tracked files; 27 unique theorems with exactly `propext`, `Classical.choice`, `Quot.sound`; zero logical admissions/repository axioms; artifact `4c680a68…`; 12 tests |
 | R8 | Positive and hostile family coverage | all exported families plus wrong epoch/policy/proposition/unit/cert/pin controls | PARTIAL: 60-row fresh-package parity covers every exported family and tamper replay; full repository hostile aggregate remains a final gate |
-| R9 | Claim A-to-B-to-A replay | pristine pass, semantic tamper refusal, pristine re-pass with exact identities | OPEN |
-| R10 | Reproducible package and release | clean double-build, byte equality, manifest and tag binding, release asset read-back | OPEN |
+| R9 | Claim A-to-B-to-A replay | pristine pass, semantic tamper refusal, pristine re-pass with exact identities | VERIFIED CANDIDATE: Hermes 4-forgery A→B→A gate is deterministic; package parity independently covers receipt/tamper replay |
+| R10 | Reproducible package and release | clean double-build, byte equality, manifest and tag binding, release asset read-back | PARTIAL: two clean byte-identical package builds are bound by receipt; tag and release-asset read-back require explicit promotion authority |
 | R11 | Independent adversarial review | exact base/head/diff digest, findings and dispositions across code/skills/wording/pins/receipts | OPEN |
 | R12 | Resolve PR #88446 | branch diff, neutral index metadata, immutable plugin pin, focused+broad tests, verification comment URL, hosted state | OPEN |
 | R13 | Public repository descriptions/metadata | read-back of JACKAL and Hermes plugin descriptions after executable reality is released | OPEN |
@@ -99,7 +105,7 @@ Instrument and baseline gates:
 ## Known drift and review findings
 
 1. `AnubisQuantumCipher/jackal` public description says 34 tools while PR #12 candidate bytes produce 41.
-2. `AnubisQuantumCipher/hermes-jackal-verified` public main/release/description, installed plugin, tests, and bundled skill are v5.0.0/v1.7.0/34-tool surfaces.
+2. `AnubisQuantumCipher/hermes-jackal-verified` public main/release/description and the operator's normal installed plugin remain v5.0.0/v1.7.0/34-tool surfaces; the clean pushed v6 candidate at `a3d9b280…` is aligned and green but not promoted.
 3. NousResearch PR #88446 pins `86596e2…`, says 34 tools, and contains promotional self-assessment wording.
 4. The PR reviewer requires human verification of the pinned Lean/admission/tool-count claims and equally rigorous skills review.
 5. The Codex design's live 34-tool/v1.7.0 provisioner claims were corrected to the exact v1.7.3 candidate package; a semantic gate now fails if those marked current surfaces regress. Historical release facts were not rewritten.
@@ -134,7 +140,7 @@ The following local `SKILL.md` files mention JACKAL/JACKEL and require classific
 | personal `independent-oracle-mutation-audit` | audit procedure | unchanged `941d6ae0…`; no current tool/count/version/pin claim |
 | personal `receipt-semantic-replay-verification` | audit procedure | unchanged `f5e1c7ad…`; no current tool/count/version/pin claim |
 | repo Codex `plugins/jackel/skills/jackel` | direct/claim router | `64907dd4…` → `1fb8f703…`; canonical-name contract passes; eight-file plugin identity including README and provisioner is `321344d8…` |
-| public Hermes bundled router | direct/claim router | current public `a5e2fcf1…`; still v1.7.0/34 and remains open for the v6 candidate |
+| Hermes v6 bundled router | direct/claim router | candidate `7536b78e…`; version 7.0.0, canonical 41-tool/domain/program routing and refusal guidance; production-alignment and fresh-install tests pass; public v5 `a5e2fcf1…` remains historical-current until promotion |
 
 ## Checkpoint log
 
@@ -146,3 +152,7 @@ The following local `SKILL.md` files mention JACKAL/JACKEL and require classific
 | C2 semantic drift and Codex metadata | `41d0d341855b7ca6493ae1afea5fed268c7f3c29`; 58 surface tests + 215 Codex tests; identity `2a025bb5…` | NON-FINAL, PUSHED |
 | C3 Lean admission and axiom audit | `af149778a3d7e2c4991f39aef44d51e55cbf3b99`; 42 sources; 27 theorems; zero admissions; 12 audit tests; 49-row manifest | NON-FINAL, PUSHED |
 | C4 package carries canonical inventory | `f6ffe749040118587471e146b90d93a56a20f8a3`; package-source and staged semantic binding; 10 package tests with 5 live-build skips | NON-FINAL, PUSHED |
+| C5 skills and Codex operations | `1ba8afc` and `22ed7d2`; router contracts, public installation/identity guide, eight-file plugin identity | NON-FINAL, PUSHED |
+| C6 reproducible v1.7.3 candidate | `dacdc0fcac79279937f3bfa510ffaaa85272e08c`; double-build package `cafab155…`, full 11-gate package suite, 60-row parity, isolated Codex acceptance | NON-FINAL, PUSHED |
+| C6b candidate receipt correction | `1f1e628955c5ab805d13273f8fb9c618747d6f7c`; machine-readable package gate count corrected to 11 and regression-tested | NON-FINAL, PUSHED |
+| H1 Hermes v6 aligned candidate | `a3d9b28041da129b159771689c1fd0d93d71458b`; hosted run `32569911220` success, 41 tools, 22 unit, 96 poison across modes, 4 ABA forgeries, isolated install smoke | NON-FINAL, PUSHED; NO TAG/RELEASE CLAIM |

@@ -61,7 +61,7 @@ class DriftFixture:
                 Path("plugins/jackel") / relative
                 for relative in DRIFT.CODEX_PLUGIN_IDENTITY_FILES
             ),
-            Path("release/evidence/anubis_program_dogfood_v1.json"),
+            DRIFT.PACKAGE_EVIDENCE_PATH,
         }
         for relative in sorted(paths):
             destination = self.root / relative
@@ -73,6 +73,12 @@ class DriftFixture:
 
 
 class CapabilityDriftPositiveTest(unittest.TestCase):
+    def test_package_pin_uses_dedicated_alignment_receipt(self) -> None:
+        self.assertEqual(
+            DRIFT.PACKAGE_EVIDENCE_PATH,
+            Path("release/evidence/package_alignment_v173_candidate.json"),
+        )
+
     def test_current_repository_surface_verifies(self) -> None:
         result = DRIFT.verify_surface(ROOT)
         self.assertEqual(result["tool_count"], 41)
@@ -160,7 +166,7 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
             provisioner = fixture.root / "plugins/jackel/scripts/provision_runtime.py"
             source = provisioner.read_text(encoding="utf-8")
             source = source.replace(
-                'PACKAGE_SHA256 = "b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175"',
+                'PACKAGE_SHA256 = "cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196"',
                 f'PACKAGE_SHA256 = "{"0" * 64}"',
             )
             provisioner.write_text(source, encoding="utf-8")

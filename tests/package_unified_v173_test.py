@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "release/build_package_v173.sh"
 REPIN = ROOT / "release/tools/repin_v173.py"
 COMPAT = ROOT / "release/compat/v173_floor.json"
+ALIGNMENT_RECEIPT = ROOT / "release/evidence/package_alignment_v173_candidate.json"
 PACKAGE_NAME = "jackal-v1.7.3-macos-arm64"
 REQUIRED_PACKAGE_INPUTS = {
     "release/capability_inventory_v1.json",
@@ -89,6 +90,53 @@ def complete_sha256sums(root: Path) -> bool:
 
 
 class UnifiedPackageV173Test(unittest.TestCase):
+    def test_alignment_receipt_binds_reproducible_candidate_and_live_codex(self) -> None:
+        document = json.loads(ALIGNMENT_RECEIPT.read_text(encoding="utf-8"))
+        self.assertEqual(document["schema"], "jackal-package-alignment-v1")
+        self.assertEqual(document["release_state"], "v1.7.3-candidate")
+        self.assertEqual(
+            document["package"],
+            {
+                "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
+                "bytes": 158362119,
+                "extracted_file_bytes": 555504965,
+                "file_count": 106,
+                "sha256": "cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196",
+                "sha256sums_root": "df2d71627cbd02a2dfd45beec4c87efc35753de17b98a8e0d76baf7cf13c9cd6",
+            },
+        )
+        source = document["source"]
+        for key, relative in (
+            ("builder_sha256", "release/build_package_v173.sh"),
+            ("manifest_sha256", "release/MANIFEST.sha256"),
+            ("capability_inventory_sha256", "release/capability_inventory_v1.json"),
+        ):
+            self.assertEqual(
+                source[key], hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+            )
+        self.assertEqual(
+            document["comparisons"],
+            {"directory_diff_exit": 0, "tarball_cmp_exit": 0},
+        )
+        self.assertEqual(
+            document["gates"]["package_unified_tests"],
+            {"exit": 0, "passed": 10, "skipped": 0},
+        )
+        self.assertEqual(
+            document["gates"]["claim_package_parity"],
+            {"exit": 0, "failures": 0, "rows": 60},
+        )
+        self.assertEqual(
+            document["gates"]["codex_repository_tests"],
+            {"exit": 0, "passed": 216},
+        )
+        self.assertEqual(
+            document["gates"]["codex_live_acceptance"]["discovered_tool_count"],
+            41,
+        )
+        self.assertIn("no-public-v1.7.3-release-assertion", document["non_claims"])
+        self.assertIn("architect-trust-surface-signoff-required", document["non_claims"])
+
     def test_builder_and_repin_declare_every_unified_trust_input(self) -> None:
         self.assertTrue(BUILDER.is_file(), BUILDER)
         self.assertTrue(REPIN.is_file(), REPIN)

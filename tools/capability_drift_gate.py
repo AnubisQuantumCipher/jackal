@@ -19,7 +19,7 @@ INVENTORY_PATH = Path("release/capability_inventory_v1.json")
 PLUGIN_MANIFEST_PATH = Path("plugins/jackel/.codex-plugin/plugin.json")
 CODEX_SERVER_PATH = Path("plugins/jackel/mcp/server.py")
 PROVISIONER_PATH = Path("plugins/jackel/scripts/provision_runtime.py")
-PACKAGE_EVIDENCE_PATH = Path("release/evidence/anubis_program_dogfood_v1.json")
+PACKAGE_EVIDENCE_PATH = Path("release/evidence/package_alignment_v173_candidate.json")
 SKILL_PATH = Path("plugins/jackel/skills/jackel/SKILL.md")
 DESIGN_PATH = Path("docs/superpowers/specs/2026-08-17-jackel-codex-plugin-design.md")
 CURRENT_SURFACES = (
@@ -226,7 +226,7 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
     evidence = _load_json(root / PACKAGE_EVIDENCE_PATH)
     package = evidence.get("package")
     if not isinstance(package, dict):
-        refuse("package-pin-mismatch", "dogfood evidence lacks package object")
+        refuse("package-pin-mismatch", "package alignment receipt lacks package object")
     expected = {
         "EPOCH": version,
         "ASSET": package.get("basename"),
@@ -241,7 +241,7 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
     if evidence.get("release_candidate") != version:
         refuse(
             "package-pin-mismatch",
-            f"dogfood release_candidate={evidence.get('release_candidate')!r} expected={version!r}",
+            f"alignment release_candidate={evidence.get('release_candidate')!r} expected={version!r}",
         )
     for name, expected_value in expected.items():
         if constants[name] != expected_value:

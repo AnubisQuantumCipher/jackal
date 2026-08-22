@@ -1,0 +1,70 @@
+{
+  "schema": "jackal-package-alignment-v1",
+  "release_state": "v1.7.3-candidate",
+  "release_candidate": "v1.7.3",
+  "observed_date": "2026-08-22",
+  "source": {
+    "repository": "AnubisQuantumCipher/jackal",
+    "branch": "mission/jackal-unified-completion-20260820",
+    "commit": "a281a6c4675381e99ee185d012eb35127bcd7c3c",
+    "tree": "4376a42aa70fcf02ffe95b9f3a9c48e68f860477",
+    "worktree_status_at_build": "clean",
+    "builder_sha256": "018ba54a921dcb64d98ca953de508ab8dc1d65af5beb30d95ae66cfecff8bf22",
+    "manifest_sha256": "c352d92d7654e3a7bf9745765bf38eac6009072c456cc229a251ffe3faaae1de",
+    "capability_inventory_sha256": "3c58bd162625fdab22803a020592bf1acfeb31dab0d395a5f50b810f249d1c75",
+    "compiler_sha256": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",
+    "checker_sha256": {
+      "range": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
+      "gaussian": "ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb",
+      "int_cert": "f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617"
+    }
+  },
+  "package": {
+    "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
+    "bytes": 158362119,
+    "extracted_file_bytes": 555504965,
+    "file_count": 106,
+    "sha256": "cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196",
+    "sha256sums_root": "df2d71627cbd02a2dfd45beec4c87efc35753de17b98a8e0d76baf7cf13c9cd6"
+  },
+  "comparisons": {
+    "directory_diff_exit": 0,
+    "tarball_cmp_exit": 0
+  },
+  "gates": {
+    "package_unified_tests": {
+      "exit": 0,
+      "passed": 10,
+      "skipped": 0
+    },
+    "claim_package_parity": {
+      "exit": 0,
+      "failures": 0,
+      "rows": 60
+    },
+    "codex_repository_tests": {
+      "exit": 0,
+      "passed": 216
+    },
+    "codex_live_acceptance": {
+      "status": "accepted",
+      "discovered_tool_count": 41,
+      "wrapper_aggregate_sha256": "321344d89a8de3db17a18ed37eddd4789ca65e58754ebb0aadea415fff218885",
+      "runtime_package_sha256": "cafab1555d3ea7cf207fd5564464fbe35dfa9288cdd650fe226d9f7633254196",
+      "runtime_tree_sha256": "df2d71627cbd02a2dfd45beec4c87efc35753de17b98a8e0d76baf7cf13c9cd6",
+      "gates": {
+        "claim_bundle": "verified",
+        "exact": "exact",
+        "formal": "formal-bounded",
+        "formal_receipt": "verified",
+        "unsupported_formal": "producer-refused"
+      }
+    }
+  },
+  "non_claims": [
+    "no-public-v1.7.3-release-assertion",
+    "no-annotated-v1.7.3-tag-assertion",
+    "architect-trust-surface-signoff-required",
+    "no-upstream-merge-assertion"
+  ]
+}

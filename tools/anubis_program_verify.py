@@ -1171,7 +1171,7 @@ def check_program(args: argparse.Namespace) -> dict[str, Any]:
     if expected_compiler != APPROVED_CHECK_COMPILER_SHA256:
         raise Refusal("compiler-not-approved", expected_compiler)
     out_root = Path(args.out_root)
-    if out_root.exists():
+    if out_root.exists() or out_root.is_symlink():
         raise Refusal("output-exists", str(out_root))
     out_root.parent.mkdir(parents=True, exist_ok=True)
     command = [

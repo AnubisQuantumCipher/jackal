@@ -100,7 +100,7 @@ class UnifiedPackageV173Test(unittest.TestCase):
             package["superseded_by"],
             {
                 "path": "release/evidence/package_alignment_v173_candidate.json",
-                "sha256": alignment["package"]["sha256"],
+                "package_sha256": alignment["package"]["sha256"],
             },
         )
         self.assertNotEqual(package["sha256"], alignment["package"]["sha256"])
@@ -151,6 +151,15 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
         self.assertIn("no-public-v1.7.3-release-assertion", document["non_claims"])
         self.assertIn("architect-trust-surface-signoff-required", document["non_claims"])
+        completion = (
+            ROOT / "docs/W3_W4_W6_W10_COMPLETION_RECORD.md"
+        ).read_text(encoding="utf-8")
+        for value in (
+            str(document["package"]["bytes"]),
+            document["package"]["sha256"],
+            document["package"]["sha256sums_root"],
+        ):
+            self.assertIn(value, completion)
 
     def test_builder_and_repin_declare_every_unified_trust_input(self) -> None:
         self.assertTrue(BUILDER.is_file(), BUILDER)

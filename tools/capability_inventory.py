@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -38,7 +39,9 @@ EXPECTED_VERSION = "v1.7.3"
 EXPECTED_TOOL_COUNT = 41
 RELEASE_STATE = "v1.7.3-candidate"
 CONTAINING_REF = {
-    "kind": "candidate-commit",
+    # This is the immutable surface-origin commit, not the generator's HEAD.
+    # Embedding HEAD in an artifact committed at HEAD would be self-referential.
+    "kind": "surface-origin-commit",
     "value": "d25bcd9818e0d106f337798f80527ae611cc3acc",
 }
 
@@ -311,6 +314,7 @@ CLAIM_MATHEMATICAL_ASSURANCE = [
 ]
 
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+GIT_OBJECT_ID = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 TOOL_NAME = re.compile(r"jackal_[a-z0-9_]+\Z")
 MAX_JSON_BYTES = 8 * 1024 * 1024
 
@@ -440,6 +444,53 @@ def _load_catalog(root: Path) -> tuple[dict[str, Any], list[dict[str, Any]], lis
     if len(names) != EXPECTED_TOOL_COUNT:
         refuse("tool-count", f"expected {EXPECTED_TOOL_COUNT}, found {len(names)}")
     return document, tools, names
+
+
+def verify_surface_origin(root: Path | str, catalog_names: list[str]) -> None:
+    """Prove the immutable containing ref is an ancestor with the same roster."""
+
+    root_path = Path(root).resolve()
+    value = CONTAINING_REF.get("value")
+    if (
+        CONTAINING_REF.get("kind") != "surface-origin-commit"
+        or not isinstance(value, str)
+        or GIT_OBJECT_ID.fullmatch(value) is None
+    ):
+        refuse("containing-ref", "surface-origin ref is malformed")
+    try:
+        shown = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root_path),
+                "show",
+                f"{value}:{CATALOG_PATH.as_posix()}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        ancestor = subprocess.run(
+            ["git", "-C", str(root_path), "merge-base", "--is-ancestor", value, "HEAD"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        refuse("containing-ref", str(error)[:300])
+    if shown.returncode != 0 or ancestor.returncode != 0:
+        detail = (shown.stderr + ancestor.stderr).decode("utf-8", "replace")[:300]
+        refuse("containing-ref", detail or "surface-origin ref is unavailable")
+    try:
+        document = json.loads(shown.stdout.decode("utf-8"))
+        tools = document["tools"]
+        origin_names = [row["name"] for row in tools]
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        refuse("containing-ref", f"surface-origin catalog is malformed: {error}")
+    if origin_names != catalog_names:
+        refuse("containing-ref", "surface-origin catalog roster drift")
 
 
 def _load_profiles(root: Path, catalog_names: list[str]) -> dict[str, list[str]]:
@@ -745,11 +796,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args(argv)
     try:
+        document = build_inventory(args.root)
+        verify_surface_origin(
+            args.root, [row["name"] for row in document["tools"]]
+        )
         if args.write:
             _write_atomic(args.root.resolve() / ARTIFACT_PATH, render_inventory(args.root))
         else:
             check_committed(args.root)
-        document = build_inventory(args.root)
     except InventoryError as error:
         print(
             f"CAPABILITY_INVENTORY_REFUSED reason={error.reason} detail={error.detail}",

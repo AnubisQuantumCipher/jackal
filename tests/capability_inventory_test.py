@@ -146,10 +146,17 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             self.assertEqual(
                 row["containing_ref"],
                 {
-                    "kind": "candidate-commit",
+                    "kind": "surface-origin-commit",
                     "value": "d25bcd9818e0d106f337798f80527ae611cc3acc",
                 },
             )
+
+    def test_surface_origin_is_an_ancestor_with_the_same_catalog(self) -> None:
+        document = INVENTORY.build_inventory(ROOT)
+        INVENTORY.verify_surface_origin(
+            ROOT,
+            [row["name"] for row in document["tools"]],
+        )
 
     def test_statuses_are_exact_catalog_tokens_and_allowed(self) -> None:
         document = INVENTORY.build_inventory(ROOT)

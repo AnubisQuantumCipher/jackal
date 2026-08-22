@@ -753,10 +753,10 @@ Mechanically closed package rows:
 `release/build_package_v173.sh --build` produced two byte-identical tarballs:
 
 ```text
-tarball sha256       9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e
-tarball bytes        158362324
+tarball sha256       c030076186791a551d7818412e39ea895da0f16a2fad88877554ff390c284d9c
+tarball bytes        158362703
 files                106
-SHA256SUMS sha256    fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf
+SHA256SUMS sha256    15b179469a3519d124706a1b3281710ca2870e28a7073d107ac15eec156f2894
 ```
 
 The canonical package parity instrument was re-pointed from the superseded

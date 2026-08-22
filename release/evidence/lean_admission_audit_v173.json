@@ -1,5 +1,5 @@
 {
-  "audit_digest_sha256": "cc0751ba9bee5830ccb89cac9a91a398de5a7ff1885069c4da177a8a21de38a1",
+  "audit_digest_sha256": "62991b7eb7dbe4ecbbff1562a9fee788de2c944bec9c4ff5cd11aecd81510e1e",
   "audit_result": {
     "logical_admission_count": 0,
     "repository_axiom_declaration_count": 0,
@@ -7,9 +7,9 @@
     "unexpected_construct_count": 0
   },
   "generator": {
-    "bytes": 32673,
+    "bytes": 33645,
     "path": "tools/lean_admission_audit.py",
-    "sha256": "59086f680a3805d102f8e1c992f4412a762808e3a8e8f13eae6bb80bdafa80ee"
+    "sha256": "a6c5ec69a63adc6e9bdd954278106b68e08ee387cb5581cbcb3896ad7e2c1e78"
   },
   "release_bindings": {
     "compatibility_snapshot_inputs": {

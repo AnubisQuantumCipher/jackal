@@ -129,7 +129,7 @@ def make_v3_fixture(root: Path) -> tuple[Path, Path, str, str, Path]:
     (evidence / "source.anubis").write_bytes(source.read_bytes())
     artifact = evidence / "artifact"
     artifact.write_text(
-        f"#!/bin/sh\nprintf executed > {marker}\n", encoding="utf-8"
+        f'#!/bin/sh\nprintf executed > "{marker}"\n', encoding="utf-8"
     )
     artifact.chmod(0o755)
 
@@ -449,6 +449,66 @@ def run_verify(
 
 
 class AnubisProgramVerifierTest(unittest.TestCase):
+    def test_fixture_quotes_execution_marker_path(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="jackal program fixture with spaces "
+        ) as td:
+            _, evidence, _, _, marker = make_v3_fixture(Path(td))
+            script = (evidence / "artifact").read_text(encoding="utf-8")
+            self.assertIn(f'> "{marker}"', script)
+
+    def test_check_program_refuses_dangling_out_root_symlink(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-program-out-root-") as td:
+            root = Path(td)
+            source = root / "main.anb"
+            compiler = root / "anubis"
+            source.write_text("fn main() {}\n", encoding="utf-8")
+            compiler.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            compiler.chmod(0o755)
+            out_root = root / "dangling-output"
+            out_root.symlink_to(root / "missing-target", target_is_directory=True)
+            compiler_sha = sha(compiler.read_bytes())
+            probe = textwrap.dedent(
+                f"""
+                import argparse
+                import importlib.util
+
+                spec = importlib.util.spec_from_file_location(
+                    "anubis_program_verify_out_root_test", {str(VERIFIER)!r}
+                )
+                verifier = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(verifier)
+                verifier.APPROVED_CHECK_COMPILER_SHA256 = {compiler_sha!r}
+                arguments = argparse.Namespace(
+                    source={str(source)!r},
+                    anubis_bin={str(compiler)!r},
+                    expected_source_sha256={sha(source.read_bytes())!r},
+                    expected_compiler_sha256={compiler_sha!r},
+                    expected_policy_sha256=verifier.PROGRAM_POLICY_SHA256,
+                    verification_time_unix={VERIFY_TIME!r},
+                    out_root={str(out_root)!r},
+                    profile="inventory-safe-v1",
+                    nonce="test-nonce",
+                    emit_receipt=None,
+                )
+                try:
+                    verifier.check_program(arguments)
+                except verifier.Refusal as refusal:
+                    print(refusal.reason)
+                else:
+                    raise SystemExit("dangling output symlink was accepted")
+                """
+            )
+            completed = subprocess.run(
+                [sys.executable, "-I", "-S", "-B", "-c", probe],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                timeout=30,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertEqual(completed.stdout.strip(), "output-exists")
+
     def test_rup_replay_has_a_wall_clock_budget(self) -> None:
         with tempfile.TemporaryDirectory(prefix="jackal-program-budget-") as td:
             root = Path(td)

@@ -157,6 +157,23 @@ def strict_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def repository_path(root: Path, supplied: str, label: str) -> Path:
+    """Resolve one evidence-supplied relative path without leaving ``root``."""
+
+    if not supplied or "\x00" in supplied:
+        raise AuditError(f"{label} escapes audit root: {supplied!r}")
+    relative = Path(supplied)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise AuditError(f"{label} escapes audit root: {supplied!r}")
+    resolved_root = root.resolve()
+    candidate = resolved_root / relative
+    try:
+        candidate.resolve(strict=False).relative_to(resolved_root)
+    except (OSError, ValueError) as exc:
+        raise AuditError(f"{label} escapes audit root: {supplied!r}") from exc
+    return candidate
+
+
 def _character_literal_end(source: str, start: int) -> int | None:
     """Return the end of a Lean character literal, or None for identifier primes."""
 
@@ -300,7 +317,7 @@ def finding_record(
     *, construct: str, relative: str, source: str, code: str, offset: int
 ) -> dict[str, Any]:
     line = code.count("\n", 0, offset) + 1
-    source_lines = source.splitlines()
+    source_lines = source.split("\n")
     return {
         "construct": construct,
         "line": line,
@@ -491,7 +508,9 @@ def collect_identity_bindings(
         checker_path_value = checker.get("path")
         if not isinstance(checker_path_value, str) or not checker_path_value:
             raise AuditError(f"proof identity has malformed checker path: {relative}")
-        checker_path = root / checker_path_value
+        checker_path = repository_path(
+            root, checker_path_value, f"proof identity checker path for {lane}"
+        )
         checker_raw = read_regular(checker_path, 512 * 1024 * 1024)
         checker_digest = sha256_bytes(checker_raw)
         if checker.get("sha256") != checker_digest or checker.get("bytes") != len(checker_raw):
@@ -619,7 +638,12 @@ def collect_compatibility_snapshots(root: Path) -> dict[str, Any]:
             expected_digest = policy.get("identity_file_sha256")
             if not isinstance(identity_relative, str) or not isinstance(expected_digest, str):
                 raise AuditError(f"compatibility snapshot lacks identity binding: {lane}/{epoch_class}")
-            identity_raw = read_regular(root / identity_relative, MAX_EVIDENCE_BYTES)
+            identity_path = repository_path(
+                root,
+                identity_relative,
+                f"compatibility identity path for {lane}/{epoch_class}",
+            )
+            identity_raw = read_regular(identity_path, MAX_EVIDENCE_BYTES)
             actual_digest = sha256_bytes(identity_raw)
             if actual_digest != expected_digest:
                 raise AuditError(

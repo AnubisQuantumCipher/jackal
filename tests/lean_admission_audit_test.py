@@ -146,6 +146,24 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
 
 
 class LeanAdmissionAuditMutationTest(unittest.TestCase):
+    def test_evidence_paths_must_remain_below_repository_root(self) -> None:
+        for supplied in ("../outside.json", "/private/tmp/outside.json"):
+            with self.subTest(supplied=supplied):
+                with self.assertRaisesRegex(AUDITOR.AuditError, "escapes audit root"):
+                    AUDITOR.repository_path(ROOT, supplied, "test evidence")
+
+    def test_finding_source_line_uses_only_lf_line_boundaries(self) -> None:
+        source = "alpha\rbeta\naxiom counterfeit : False\n"
+        finding = AUDITOR.finding_record(
+            construct="axiom_declaration",
+            relative="probe.lean",
+            source=source,
+            code=source,
+            offset=source.index("axiom"),
+        )
+        self.assertEqual(finding["line"], 2)
+        self.assertEqual(finding["source_line"], "axiom counterfeit : False")
+
     def test_release_inventory_refuses_when_git_inventory_is_unavailable(self) -> None:
         failed = subprocess.CompletedProcess(
             args=["git", "ls-files"], returncode=128, stdout="", stderr="boom"

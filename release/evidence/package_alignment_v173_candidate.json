@@ -6,12 +6,12 @@
   "source": {
     "repository": "AnubisQuantumCipher/jackal",
     "branch": "mission/jackal-unified-completion-20260820",
-    "commit": "0ef98d4706c0be5660914b705083924886c813cb",
-    "tree": "45cb97bde1954deebb0f843b3de16c898994303e",
+    "commit": "957ac893b243814d9059e6e104c21e0ce68e9ef5",
+    "tree": "b77c28e47bb03eddf28f580ff1ac95708ba7f1bd",
     "worktree_status_at_build": "clean",
-    "builder_sha256": "45d88d3168cd5101fa0f87463b1a48538a7e97b4585ac764473038f1cb509753",
-    "manifest_sha256": "0126627e910e117948976c97f29bba5f1e0346bc95587fef268aabb0ff2cc0e9",
-    "capability_inventory_sha256": "b26606faab2acba95d42b964787b75029b84df3038cc047ae00e5234378aebd4",
+    "builder_sha256": "b7683c5f6d0a2cc76292ad4377763925169f26a0770e2a34102fb37f9ebb8e5c",
+    "manifest_sha256": "70e18842dd3ff4ae08d5cac10961390b3aa1c13683cbb562129d1cc1a1d098d0",
+    "capability_inventory_sha256": "19930922418aa0f751c8ee3476f31677368e0c29c5f1c5ea8942ea7fb597d60c",
     "compiler_sha256": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",
     "checker_sha256": {
       "range": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
@@ -21,11 +21,11 @@
   },
   "package": {
     "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
-    "bytes": 158362724,
-    "extracted_file_bytes": 555507658,
+    "bytes": 158363755,
+    "extracted_file_bytes": 555512409,
     "file_count": 106,
-    "sha256": "d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4",
-    "sha256sums_root": "12e52bfd0b3fe3fc2f6f4c8acf4bd6d0d3c47be1ae9c334e8ef4b068c24e07e3"
+    "sha256": "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d",
+    "sha256sums_root": "c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f"
   },
   "comparisons": {
     "directory_diff_exit": 0,
@@ -34,7 +34,7 @@
   "gates": {
     "package_unified_tests": {
       "exit": 0,
-      "passed": 14,
+      "passed": 15,
       "skipped": 0
     },
     "claim_package_parity": {
@@ -44,14 +44,14 @@
     },
     "codex_repository_tests": {
       "exit": 0,
-      "passed": 217
+      "passed": 218
     },
     "codex_live_acceptance": {
       "status": "accepted",
       "discovered_tool_count": 41,
-      "wrapper_aggregate_sha256": "c69610183dd207fe8c476e686554f51454b83d96815ad63bea0e4f39dbadf0ac",
-      "runtime_package_sha256": "d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4",
-      "runtime_tree_sha256": "12e52bfd0b3fe3fc2f6f4c8acf4bd6d0d3c47be1ae9c334e8ef4b068c24e07e3",
+      "wrapper_aggregate_sha256": "a1d04cf92b1c56cd5833c43fb87ab8d129a6115d645ad98ddfa47e5e38f1c8dc",
+      "runtime_package_sha256": "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d",
+      "runtime_tree_sha256": "c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f",
       "gates": {
         "claim_bundle": "verified",
         "exact": "exact",

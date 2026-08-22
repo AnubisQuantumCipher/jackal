@@ -11,9 +11,9 @@ source → compiler pin → deterministic build → binary hash → gate receipt
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
 The `v1.7.3-candidate` binds an ordered 41-tool surface through
 `release/capability_inventory_v1.json`. Its package receipt is
-`d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4`
-(158362724 bytes), with extracted `SHA256SUMS` digest
-`12e52bfd0b3fe3fc2f6f4c8acf4bd6d0d3c47be1ae9c334e8ef4b068c24e07e3`.
+`b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d`
+(158363755 bytes), with extracted `SHA256SUMS` digest
+`c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f`.
 These are candidate bytes; the block does not assert a public v1.7.3 tag or
 release.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
@@ -68,22 +68,22 @@ with its own absolute `JACKAL_DIST`, produced byte-identical tarballs; `cmp`
 exited 0:
 
 The producing source was the clean commit
-`0ef98d4706c0be5660914b705083924886c813cb` (tree
-`45cb97bde1954deebb0f843b3de16c898994303e`). This provenance record is a
+`957ac893b243814d9059e6e104c21e0ce68e9ef5` (tree
+`b77c28e47bb03eddf28f580ff1ac95708ba7f1bd`). This provenance record is a
 later derived checkpoint and is not represented as the commit that produced
 the package.
 
 ```text
 basename            jackal-v1.7.3-macos-arm64.tar.gz
-sha256              d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4
-bytes               158362724
+sha256              b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d
+bytes               158363755
 files               106
-extracted-file-bytes 555507658
-SHA256SUMS sha256    12e52bfd0b3fe3fc2f6f4c8acf4bd6d0d3c47be1ae9c334e8ef4b068c24e07e3
+extracted-file-bytes 555512409
+SHA256SUMS sha256    c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f
 ```
 
 Tar member file bytes and fresh-extraction file bytes independently summed to
-`555507658`. `tests/package_unified_v173_test.py` checks exact checksum
+`555512409`. `tests/package_unified_v173_test.py` checks exact checksum
 inventory, extra/missing/tampered-file controls, missing-pack isolation,
 declared-but-unreachable program-tool refusal, stale source/binary refusal,
 profile/catalog parity, and the selected release window.

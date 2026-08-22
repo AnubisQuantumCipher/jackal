@@ -1541,15 +1541,15 @@ class RuntimeProvisionerTests(unittest.TestCase):
             provisioner.URL,
             "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz",
         )
-        self.assertEqual(provisioner.PACKAGE_SIZE, 158362724)
-        self.assertEqual(provisioner.EXTRACTED_SIZE, 555507658)
+        self.assertEqual(provisioner.PACKAGE_SIZE, 158363755)
+        self.assertEqual(provisioner.EXTRACTED_SIZE, 555512409)
         self.assertEqual(
             provisioner.PACKAGE_SHA256,
-            "d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4",
+            "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d",
         )
         self.assertEqual(
             provisioner.SHA256SUMS_SHA256,
-            "12e52bfd0b3fe3fc2f6f4c8acf4bd6d0d3c47be1ae9c334e8ef4b068c24e07e3",
+            "c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f",
         )
         self.assertEqual(
             provisioner.default_runtime_target(Path("/Users/tester")),

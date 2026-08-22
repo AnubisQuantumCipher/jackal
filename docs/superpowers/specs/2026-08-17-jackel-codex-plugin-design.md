@@ -155,10 +155,10 @@ not an automatic install hook. Version 0.1.0 candidate pins:
 - release URL:
   `https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz`
 - package SHA-256:
-  `9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e`
-- package size: `158362324` bytes
+  `b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d`
+- package size: `158363755` bytes
 - extracted `SHA256SUMS` SHA-256:
-  `fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf`
+  `c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f`
 
 While `RELEASE_STATE` is `candidate-unpublished`, the provisioner refuses the
 network path before creating a staging directory and requires an explicit
@@ -172,7 +172,7 @@ The provisioner:
 2. Accepts an explicit local tarball path for candidate installation; after a
    verified public-release readback, the same bounded path may download into a
    newly created temporary directory.
-3. Rejects a declared or streamed body larger than 158362324 bytes, then
+3. Rejects a declared or streamed body larger than 158363755 bytes, then
    requires exactly that size and the fixed package SHA-256 before extraction.
    The per-operation network timeout is supplemented by a monotonic total download deadline,
    so a peer cannot keep the transfer alive indefinitely
@@ -482,7 +482,7 @@ status; the adapter is not authorized to create or promote that status.
 - Reject non-macOS and non-arm64 hosts before downloading.
 - Refuse the unpublished candidate's default network path before staging or
   opening a connection.
-- Verify the fixed v1.7.3 URL, epoch, filename, exact 158362324-byte length,
+- Verify the fixed v1.7.3 URL, epoch, filename, exact 158363755-byte length,
   bounded streaming download, and expected package SHA-256.
 - Exercise offline local-tarball provisioning with a fixture archive.
 - Reject digest mismatch, path traversal, absolute paths, device entries,

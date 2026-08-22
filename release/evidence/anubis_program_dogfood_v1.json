@@ -40,7 +40,7 @@
     "sha256sums_root": "2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42",
     "superseded_by": {
       "path": "release/evidence/package_alignment_v173_candidate.json",
-      "package_sha256": "d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4"
+      "package_sha256": "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d"
     }
   },
   "plugin_hermes_sha256": "03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4",

@@ -27,14 +27,15 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping
 
 
-EPOCH = "v1.7.0"
-ASSET = "jackal-v1.7.0-macos-arm64.tar.gz"
-URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.0/jackal-v1.7.0-macos-arm64.tar.gz"
-PACKAGE_SIZE = 118862060
-PACKAGE_SHA256 = "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e"
-EXTRACTED_SIZE = 416736385
-SHA256SUMS_SHA256 = "f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28"
-PACKAGE_DIRECTORY = "jackal-v1.7.0-macos-arm64"
+EPOCH = "v1.7.3"
+ASSET = "jackal-v1.7.3-macos-arm64.tar.gz"
+URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz"
+RELEASE_STATE = "published"
+PACKAGE_SIZE = 158363786
+PACKAGE_SHA256 = "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae"
+EXTRACTED_SIZE = 555511970
+SHA256SUMS_SHA256 = "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a"
+PACKAGE_DIRECTORY = "jackal-v1.7.3-macos-arm64"
 MAX_ARCHIVE_MEMBERS = 8192
 MAX_RUNTIME_RECORDS = MAX_ARCHIVE_MEMBERS
 MAX_RUNTIME_ENTRIES = MAX_ARCHIVE_MEMBERS + 2
@@ -1460,6 +1461,11 @@ def provision(
         return target
     if check_only:
         raise ProvisionError("pinned runtime is not installed")
+    if tarball is None and RELEASE_STATE != "published":
+        raise ProvisionError(
+            "release network provisioning is disabled; provide --tarball "
+            "with the pinned package"
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f".{epoch}.stage-", dir=target.parent) as temporary_directory:

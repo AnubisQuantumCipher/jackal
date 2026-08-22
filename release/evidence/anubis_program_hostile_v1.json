@@ -1,0 +1,82 @@
+{
+  "schema": "jackal-anubis-program-hostile-v1",
+  "rows": [
+    {
+      "id": "stage-partial",
+      "ok": true,
+      "observed": "bad=stage-not-pass A2=0"
+    },
+    {
+      "id": "consumer-omitted",
+      "ok": true,
+      "observed": "bad=policy-consumer-roster A2=0"
+    },
+    {
+      "id": "consistent-rup-lie",
+      "ok": true,
+      "observed": "bad=rup-replay-failed A2=0"
+    },
+    {
+      "id": "manifested-extra-file",
+      "ok": true,
+      "observed": "bad=bundle-file-roster A2=0"
+    },
+    {
+      "id": "zero-obligation-launder",
+      "ok": true,
+      "observed": "bad=zero-obligations A2=0"
+    },
+    {
+      "id": "symlink-hir",
+      "ok": true,
+      "observed": "bad=nonregular-file A2=0"
+    },
+    {
+      "id": "producer-verdict-launder",
+      "ok": true,
+      "observed": "bad=producer-evidence-mismatch A2=0"
+    },
+    {
+      "id": "solver-smt-decouple",
+      "ok": true,
+      "observed": "bad=solver-smt-mismatch A2=0"
+    },
+    {
+      "id": "proof-path-reuse",
+      "ok": true,
+      "observed": "bad=proof-path-reuse A2=0"
+    },
+    {
+      "id": "proof-tuple-reuse",
+      "ok": true,
+      "observed": "bad=proof-reuse A2=0"
+    },
+    {
+      "id": "manifest-missing",
+      "ok": true,
+      "observed": "bad=manifest-missing A2=0"
+    },
+    {
+      "id": "missing-canonical-file",
+      "ok": true,
+      "observed": "bad=bundle-file-roster A2=0"
+    },
+    {
+      "id": "multi-source-launder",
+      "ok": true,
+      "observed": "bad=multi-source-unsupported A2=0"
+    },
+    {
+      "id": "z3-trailing-error",
+      "ok": true,
+      "observed": "bad=smt-not-unsat A2=0"
+    },
+    {
+      "id": "root-symlink",
+      "ok": true,
+      "observed": "bad=input-path A2=0"
+    }
+  ],
+  "passed": 15,
+  "failed": 0
+}

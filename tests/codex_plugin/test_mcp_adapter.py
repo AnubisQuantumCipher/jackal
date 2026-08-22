@@ -1205,14 +1205,30 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await self._wait_not_live(pid), f"timed-out process survived: {pid}")
 
         output_pid_file = self._new_pid_file("output-tree.pids")
+        # The output-limit case exercises a different terminal condition after
+        # the leader has exited. Give it an independent timeout budget so CI
+        # scheduling cannot make the timeout race win before the orphan emits
+        # its deliberately oversized stdout.
+        output_server = adapter.MCPServer(
+            runtime_root=self.runtime,
+            launcher=self.launcher,
+            tool_definitions=self.definitions,
+            runtime_environment=TEST_RUNTIME_ENVIRONMENT,
+            tool_timeout=2.0,
+            stdout_limit=256,
+            stderr_limit=256,
+            terminate_grace=0.05,
+            leader_poll_interval=1.0,
+        )
+        self.addAsyncCleanup(output_server.close)
         output_task = asyncio.create_task(
-            timeout_server.handle_message(
+            output_server.handle_message(
                 self._call(71, mode="orphan-output-exit", pid_file=output_pid_file)
             )
         )
         output_pids = await self._wait_for_pids(output_pid_file)
         await self._wait_for_exited_leader_with_live_descendants(output_pids)
-        output_response = await asyncio.wait_for(output_task, timeout=2)
+        output_response = await asyncio.wait_for(output_task, timeout=3)
         self.assertEqual(output_response["error"]["code"], adapter.BACKEND_ERROR)
         self.assertLessEqual(len(json.dumps(output_response)), adapter.MAX_ERROR_RESPONSE_BYTES)
         for pid in output_pids:

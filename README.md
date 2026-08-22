@@ -12,6 +12,14 @@ plausible.
 for Apple Silicon macOS, or build from source with an Anubis compiler), first commands, and
 how to read the trust labels. License: [MIT](LICENSE).
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+**Current agent surface:** the v1.7.3 release exports an ordered 41-tool catalog
+whose schemas, profiles, status classes, dependencies, and host exposure are
+generated in `release/capability_inventory_v1.json`. The annotated `v1.7.3`
+tag, GitHub release, package receipt, and downloadable asset must bind the
+same exact release bytes.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
 buttons. It treats a serious calculation as a bounded scientific claim: value, units,
 uncertainty, method, assumptions, sensitivity, residual, non-claims, and a reproducible
@@ -159,7 +167,7 @@ checker on this machine** — recomputing the outer digest alone is not
 sufficient. The Hermes/MCP-style plugin (`plugin/hermes/jackal_hermes`) threads every
 call through the same shared validator, the same formal-status gate, the same
 pinned executables, and additionally bind the plugin's OWN bundle hash into the
-receipt via `identities.plugin_sha256`. The Hermes plugin exposes thirty-eight
+receipt via `identities.plugin_sha256`. The Hermes plugin exposes forty-one
 tools — eleven formal (`jackal_range_bound`, `jackal_gaussian_integral`,
 `jackal_integrate_bound_cert`,
 `jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
@@ -182,6 +190,19 @@ mathematics: assurance ceiling `exact`, consequence ceiling capped at
 manifest-pinned independent checker over the emitted certificate so only an
 `ACCEPT` verdict returns success. A `test-exists-cert` is an exact statement
 about bytes and never evidence that the code under test is correct.
+
+The remaining three tools are the inventory-safe-v1 Anubis program-evidence
+lane: `jackal_anubis_check_program`, `jackal_anubis_verify_program`, and
+`jackal_anubis_verify_program_receipt`. They require caller-pinned
+source/compiler/artifact/policy identities, Safe mode, strict
+`anubis.program-evidence.v3` rosters, evidence-tree closure, approved Z3 UNSAT
+replay, and independent RUP replay. They never execute the compiled artifact
+and can emit only `verified-program-evidence` or
+`verified-program-receipt`. The policy binds a producer-attested whole-function
+inventory but does not establish construct-total walker coverage, so the
+receipt names `policy-construct-totality-not-established` alongside the open
+source-to-VC, SMT-to-CNF, source-native, runtime, and universal-soundness
+boundaries.
 
 The eleven-category A→B→A mutation harness (`tests/cert_mutations_11.py`)
 plus the receipt-semantic mutation harness (`tests/receipt_semantic_mutations.py`,
@@ -614,10 +635,12 @@ The kernel is deliberately small and closed:
   revoked v1.7.0 receipts refuse. The claim kernel's own hull arithmetic
   still caps at `bounded`.
 
-Hermes exposes the kernel as two additive tools — `jackal_claim` and
-`jackal_verify_bundle` — alongside the 31 unchanged v1.5.0 tools (33 at
-the v1.6.0 seal; the v1.7.0 `jackal_integrate_bound_cert` brings the
-inventory to thirty-four).  Hostile controls
+The v1.7.3 release exposes one ordered 41-tool catalog across JACKAL,
+Hermes, and Codex. It includes the claim/bundle front doors, the current
+request-bound `jackal_integrate_bound_cert` lane, four domain-pack routes,
+and three caller-pinned Anubis program-evidence routes; the generated
+`release/capability_inventory_v1.json` is the count and schema authority.
+Hostile controls
 (108-row matrix: serialization, graph identity, laundering, units,
 consequence floors, freshness/replay, machine arithmetic, legacy
 compatibility, rendering), A→B→A tamper gates over the seven claim trust
@@ -639,7 +662,7 @@ never degrades to a weaker lane behind the caller's back. The protocol, its v1
 ceilings and its mandatory nonclaims are specified in
 [`domain_packs/PACK_SPEC.md`](domain_packs/PACK_SPEC.md) and bound by
 `domain_packs/registry_v1.json`; the declared compatibility window is
-`v1.8.0 <= release < v2.0.0`.
+`v1.7.3 <= release < v2.0.0`.
 
 One route ABI for every pack:
 

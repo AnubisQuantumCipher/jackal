@@ -5,7 +5,7 @@
   "pack_version": "1.1.0",
   "description": "Closed Anubis routing for deterministic decision matrices. Orders options by a caller-declared, recomputable numeric criterion; refuses to rank on preference, goodness, or worth. `decision.matrix.rank.v1` decides criterion admissibility with a fixed word list and is retained unchanged for its callers; `decision.matrix.rank.v2` additionally requires a declared unit from the closed vocabulary of release/claim/unit_registry_v1.json, which is the lane where a value-judgment criterion cannot be spelled around.",
   "compatibility": {
-    "jackal_release_min": "v1.8.0",
+    "jackal_release_min": "v1.7.3",
     "jackal_release_max_exclusive": "v2.0.0",
     "protocol_min": "1",
     "protocol_max": "1"
@@ -277,5 +277,5 @@
       ]
     }
   ],
-  "manifest_digest_sha256": "9dde3c3c60920aef6bb13d131f2a9b76b57925eea7d46fd6376749c316710b04"
+  "manifest_digest_sha256": "239cfbd2475a3aeaf391c37f8dadc969690b6b7f90c5b1f0341fc58930d18283"
 }

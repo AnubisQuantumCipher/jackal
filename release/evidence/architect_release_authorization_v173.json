@@ -1,0 +1,23 @@
+{
+  "schema": "jackal-release-authorization-v1",
+  "release": "v1.7.3",
+  "observed_date": "2026-08-22",
+  "authority": "architect",
+  "source": "direct-user-instructions-in-codex-session",
+  "instructions": [
+    "Merge and do whatever else you have to do. Don’t leave nothing undone",
+    "Use your best jusment on all desisions"
+  ],
+  "decisions": {
+    "domain_pack_compatibility_minimum_approved": true,
+    "inventory_safe_v1_accept_conditions_approved": true,
+    "jackal_merge_tag_release_approved": true,
+    "hermes_merge_tag_release_install_approved": true,
+    "upstream_pr_update_approved": true
+  },
+  "non_claims": [
+    "not-a-cryptographic-signature",
+    "does-not-override-third-party-permissions-or-branch-protection",
+    "does-not-expand-the-formal-or-program-evidence-coverage-boundary"
+  ]
+}

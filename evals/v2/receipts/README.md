@@ -109,6 +109,30 @@ corpus_aggregate_digest   engine_identity   mode   timestamp_utc
   usable for order-of-magnitude comparison on the same host and not for anything
   finer.
 
+## Live Codex transcripts — 2026-08-20
+
+The three `codex_w*_2026-08-20.jsonl` files are captured `codex exec
+--ephemeral --json` event streams, not `jackal-eval-v2-results-v1` receipts.
+The autonomous W3 stream has one command-execution event whose private local
+command and output payloads are explicitly redacted while its event type,
+identity, status, and exit code remain. Their exact post-redaction hashes,
+content state, and adjudication are in `live_tool_sessions_2026-08-20.json`.
+
+Observed:
+
+- autonomous W3 attempted `jackal_range_bound` instead of the receipt verifier;
+- forced W3 attempted the correct `jackal_verify_receipt`;
+- autonomous W10 attempted `jackal_decision_rank_v2` and disclosed that its
+  fallback arithmetic answer was not verifier-established;
+- the noninteractive host cancelled every MCP call, including with
+  `approval_policy=never`.
+
+Therefore attempted invocation is recorded, but successful verifier use remains
+`NOT_MEASURABLE`. The deterministic runner also still lacks profile identity and
+an adapter from Codex JSONL events to protocol-admissible autonomous rows. These
+transcripts must not be passed to `metrics.py --verify-receipts` or counted as a
+model/tool accuracy comparison.
+
 ## Reproducing a receipt
 
 ```

@@ -219,6 +219,34 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 )
         opener.assert_not_called()
 
+    def test_published_release_attempts_the_pinned_default_download(self):
+        opener = mock.Mock(side_effect=RuntimeError("download sentinel"))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "support/runtimes/v1.7.3"
+            locator = root / "support/codex-plugin/runtime.json"
+            with self.assertRaisesRegex(
+                provisioner.ProvisionError,
+                "download failed",
+            ):
+                provisioner.provision(
+                    runtime_target=target,
+                    locator_path=locator,
+                    expected_size=1,
+                    expected_sha256=self.sha(b"x"),
+                    expected_extracted_size=1,
+                    expected_tree_sha256=self.sha(b"tree"),
+                    opener=opener,
+                    system="Darwin",
+                    machine="arm64",
+                )
+            self.assertTrue(target.parent.is_dir())
+            self.assertFalse(locator.parent.exists())
+        opener.assert_called_once_with(
+            provisioner.URL,
+            timeout=provisioner.NETWORK_TIMEOUT,
+        )
+
     def test_stream_download_requires_declared_exact_length(self):
         data = b"abcdef"
         for declared in (len(data) - 1, len(data) + 1):
@@ -1373,8 +1401,8 @@ class RuntimeProvisionerTests(unittest.TestCase):
             self.assertTrue((target / "plugin/hermes/jackal_hermes").exists())
             expected = {
                 "schema": "jackal-runtime-package-v1",
-                "epoch": "v1.7.0",
-                "asset": "jackal-v1.7.0-macos-arm64.tar.gz",
+                "epoch": "v1.7.3",
+                "asset": "jackal-v1.7.3-macos-arm64.tar.gz",
                 "package_size": tarball.stat().st_size,
                 "package_sha256": digest,
             }
@@ -1383,7 +1411,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 json.loads(locator.read_text()),
                 {
                     "schema": "jackal-codex-plugin-runtime-v1",
-                    "epoch": "v1.7.0",
+                    "epoch": "v1.7.3",
                     "runtime_path": str(target),
                     "package_size": tarball.stat().st_size,
                     "package_sha256": digest,
@@ -1509,22 +1537,26 @@ class RuntimeProvisionerTests(unittest.TestCase):
             opener.assert_not_called()
 
     def test_pinned_constants_and_default_paths(self):
-        self.assertEqual(provisioner.EPOCH, "v1.7.0")
-        self.assertEqual(provisioner.ASSET, "jackal-v1.7.0-macos-arm64.tar.gz")
+        self.assertEqual(provisioner.EPOCH, "v1.7.3")
+        self.assertEqual(provisioner.RELEASE_STATE, "published")
+        self.assertEqual(provisioner.ASSET, "jackal-v1.7.3-macos-arm64.tar.gz")
         self.assertEqual(
             provisioner.URL,
-            "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.0/jackal-v1.7.0-macos-arm64.tar.gz",
+            "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz",
         )
-        self.assertEqual(provisioner.PACKAGE_SIZE, 118862060)
-        self.assertEqual(provisioner.EXTRACTED_SIZE, 416736385)
-        self.assertEqual(provisioner.PACKAGE_SHA256, "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e")
+        self.assertEqual(provisioner.PACKAGE_SIZE, 158363786)
+        self.assertEqual(provisioner.EXTRACTED_SIZE, 555511970)
+        self.assertEqual(
+            provisioner.PACKAGE_SHA256,
+            "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae",
+        )
         self.assertEqual(
             provisioner.SHA256SUMS_SHA256,
-            "f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28",
+            "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a",
         )
         self.assertEqual(
             provisioner.default_runtime_target(Path("/Users/tester")),
-            Path("/Users/tester/Library/Application Support/JACKAL/runtimes/v1.7.0"),
+            Path("/Users/tester/Library/Application Support/JACKAL/runtimes/v1.7.3"),
         )
 
     def test_cli_rejects_relative_tarball_with_one_bounded_line_and_no_traceback(self):

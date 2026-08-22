@@ -1,0 +1,51 @@
+{
+  "date": "2026-08-20",
+  "host": "codex exec --ephemeral with installed jackel@anubis-quantum-cipher",
+  "non_claims": [
+    "attempted invocation is not successful verifier use",
+    "correct model arithmetic is not a JACKAL accuracy claim"
+  ],
+  "not_measurable_reasons": [
+    "noninteractive Codex host cancelled every MCP tool call even with approval_policy=never",
+    "evals/v2/runner.py does not invoke a model or emit profile identity",
+    "no adapter converts Codex JSONL events into protocol-admissible autonomous rows"
+  ],
+  "registered_tool_count_observed_separately": 41,
+  "schema": "jackal-live-tool-session-summary-v1",
+  "sessions": [
+    {
+      "attempted_tool": "jackal_range_bound",
+      "bytes": 16304,
+      "content_state": "private local paths and sensitive command or output payloads redacted; event structure and status retained",
+      "mode": "autonomous",
+      "path": "evals/v2/receipts/codex_w3_autonomous_2026-08-20.jsonl",
+      "sha256": "86d5ed76c133500c7ff44d60a799fe46d7a5c520412d10ad8682d542d5d790f3",
+      "task": "W3 receipt validation",
+      "tool_result": "cancelled-by-noninteractive-host",
+      "verdict": "NOT_MEASURABLE"
+    },
+    {
+      "attempted_tool": "jackal_verify_receipt",
+      "bytes": 27954,
+      "content_state": "private local paths redacted; event structure and status retained",
+      "mode": "forced",
+      "path": "evals/v2/receipts/codex_w3_forced_2026-08-20.jsonl",
+      "sha256": "1c9b3ec92d9e6530e0083f2d5ba5cf370cb6cc64fc9cffe2cab2f0f4f8c0edd3",
+      "task": "W3 receipt replay",
+      "tool_result": "cancelled-by-noninteractive-host",
+      "verdict": "NOT_MEASURABLE"
+    },
+    {
+      "attempted_tool": "jackal_decision_rank_v2",
+      "bytes": 2615,
+      "content_state": "private local paths redacted; event structure and status retained",
+      "mode": "autonomous",
+      "model_disclosed_no_verifier_establishment": true,
+      "path": "evals/v2/receipts/codex_w10_comparison_2026-08-20.jsonl",
+      "sha256": "da65f4f7a5031467c1cf5035a7082fdfcfab37dd95134444ab47912fb83cc014",
+      "task": "W10 decision comparison",
+      "tool_result": "cancelled-by-noninteractive-host",
+      "verdict": "NOT_MEASURABLE"
+    }
+  ]
+}

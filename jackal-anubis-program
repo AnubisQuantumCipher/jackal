@@ -1,0 +1,23 @@
+#!/bin/sh
+# JACKAL Anubis program-evidence front door.
+# Subcommands: check, verify, verify-receipt. Compiled artifacts are never run.
+set -eu
+SELF=$0
+LINK_HOPS=0
+while [ -L "$SELF" ]; do
+  LINK_HOPS=$((LINK_HOPS + 1))
+  if [ "$LINK_HOPS" -gt 16 ]; then
+    echo "status=refused reason=wrapper-symlink-depth" >&2
+    exit 126
+  fi
+  LINK_TARGET=$(/usr/bin/readlink "$SELF") || {
+    echo "status=refused reason=wrapper-symlink-read" >&2
+    exit 126
+  }
+  case "$LINK_TARGET" in
+    /*) SELF=$LINK_TARGET ;;
+    *) SELF=$(dirname -- "$SELF")/$LINK_TARGET ;;
+  esac
+done
+ROOT=$(CDPATH= cd -P -- "$(dirname -- "$SELF")" && pwd -P)
+exec python3 -I -S -B "$ROOT/tools/anubis_program_verify.py" "$@"

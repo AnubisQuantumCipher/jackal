@@ -1,8 +1,8 @@
 {
   "schema": "jackal-hermes-plugin-v1",
   "plugin_id": "jackal_range_bound",
-  "version": "v1.7.2",
-  "description": "JACKAL mathematical evidence kernel: formal-bounded range/Gaussian/composed-integral/pure-Q fragment enclosures, independent receipt verification, exact CAS lanes with independently re-checkable certificates, honest weaker-lane calculation (exact/checked/estimated/bounded) with status passthrough that never inflates, and the claim-kernel front doors (jackal_claim, jackal_verify_bundle) for compiling and independently replaying content-addressed claim bundles. v1.7.2 closes the range-ordering and composed-integral proof premises and binds current formal tools to the closed-premise v2 proof identities. Additive since v1.7.2: four domain-pack lanes (jackal-domain-pack-protocol v1) carry the same refusal discipline OUTSIDE mathematics — jackal_test_exists and jackal_claim_cites_test state byte-exact structural facts about source files at consequence ceiling informational, and jackal_decision_rank / jackal_decision_rank_v2 order options by a caller-declared recomputable numeric criterion at consequence ceiling decision-boundary. Every pack lane routes through pack-route, re-runs its manifest-pinned independent checker over the emitted certificate, and is NOT formal: assurance ceiling exact, no Lean checker, no theorem, and a consequence ceiling that never rises with the assurance class.",
+  "version": "v1.7.3",
+  "description": "JACKAL evidence kernel: the preserved v1.7.2 formal, exact, weaker, and claim lanes; four manifest-pinned domain-pack tools for structural source facts and caller-criterion decisions; and three Anubis Safe program-evidence tools. The program tools close a strict anubis.program-evidence.v3 tree, bind caller-pinned source/compiler/artifact/policy identities, replay approved Z3 UNSAT plus independent RUP proofs, and emit only verified-program-evidence or verified-program-receipt. Their inventory-safe-v1 policy deliberately does not claim independent policy-construct totality, source-to-VC proof, SMT-to-CNF proof, source-native refinement, runtime behavior, or universal language soundness. Domain-pack assurance and consequence ceilings remain separate: test existence stays informational and decision ranking stays decision-boundary. No lane is promoted to formal by this additive surface.",
   "bundle_files": [
     "server.py",
     "bundle_hash.py",
@@ -137,6 +137,13 @@
     "runtime/unit_registry_v1.json": [
       "../../release/claim/unit_registry_v1.json",
       "../../unit_registry_v1.json"
+    ],
+    "runtime/anubis_program_verify.py": [
+      "../../tools/anubis_program_verify.py"
+    ],
+    "runtime/anubis_program_policy.json": [
+      "../../release/program/inventory_safe_v1.json",
+      "../../program/inventory_safe_v1.json"
     ]
   },
   "tools": [
@@ -779,7 +786,7 @@
         "checker_rerun": "ACCEPT on success (tools/test_exists_verify.py, digest pinned by the pack manifest)",
         "certificate": "the verbatim jackal-test-exists-cert-v1 envelope line",
         "identities": "{registry_file_sha256, registry_digest_sha256, pack_verifier_sha256, pack_manifest_sha256, evaluator_sha256, checker_sha256, plugin_sha256}",
-        "non_claims": "the operation's pinned nonclaims plus the consequence-ceiling and not-manifest-pinned statements",
+        "non_claims": "the operation's pinned nonclaims plus the informational consequence ceiling; registry, verifier, and checker identities are release-manifest pinned",
         "reason": "stable refusal class on refusal (prog-path, prog-hex64, prog-symbol, prog-uint, prog-absent, pack-request-arity, checker-rejected, ...)",
         "detail": "short human-readable string on refusal"
       }
@@ -864,6 +871,73 @@
         "non_claims": "includes a_declared_unit_is_not_a_measurement",
         "reason": "stable refusal class on refusal (decision-unit-missing, decision-unit-unknown, decision-value-judgment, decision-sense-unknown, decision-duplicate-label, decision-margin-zero, pack-request-arity, pack-args-shape, checker-rejected, ...)",
         "detail": "short human-readable string on refusal"
+      }
+    },
+    {
+      "name": "jackal_anubis_check_program",
+      "description": "Run a caller-pinned Anubis compiler only as `build --evidence` in Safe mode, never execute the compiled artifact, then independently close and replay the resulting strict anubis.program-evidence.v3 package under inventory-safe-v1. Emits only verified-program-evidence or a named refusal. This profile checks producer-attested function/policy inventories but explicitly does not establish policy-construct totality, source-to-VC proof, SMT-to-CNF proof, source-native refinement, runtime behavior, or universal soundness.",
+      "arguments": {
+        "source_path": {"type": "string", "required": true, "help": "Local regular non-symlink Anubis source path."},
+        "anubis_bin": {"type": "string", "required": true, "help": "Local regular non-symlink Anubis executable; caller-pinned and hashed before/after build."},
+        "expected_source_sha256": {"type": "string", "required": true, "help": "Caller-pinned exact source SHA-256."},
+        "expected_compiler_sha256": {"type": "string", "required": true, "help": "Caller-pinned approved Anubis executable SHA-256."},
+        "expected_policy_sha256": {"type": "string", "required": true, "help": "Caller-pinned inventory-safe-v1 policy digest."},
+        "verification_time_unix": {"type": "string", "required": true, "help": "Caller-supplied Unix verification time bound into the receipt."},
+        "profile": {"type": "string", "required": true, "help": "Must be inventory-safe-v1; contracted-safe-v1 refuses."},
+        "nonce": {"type": "string", "required": true, "help": "Caller nonce bound into the receipt."},
+        "out_root": {"type": "string", "required": true, "help": "New local output root; existing paths refuse."}
+      },
+      "returns": {
+        "status": "verified-program-evidence | refused",
+        "receipt": "jackal-anubis-program-receipt-v1 on success",
+        "residual_non_claims": "includes policy-construct-totality-not-established and every source/proof/runtime residual",
+        "reason": "stable refusal reason",
+        "detail": "bounded refusal detail"
+      }
+    },
+    {
+      "name": "jackal_anubis_verify_program",
+      "description": "Independently verify caller-selected Anubis Safe source and evidence bytes under inventory-safe-v1: strict v3 roster, exact manifest closure, source/compiler/artifact/policy pins, producer-summary reconciliation, one-to-one solver/proof paths and counters, approved Z3 UNSAT replay, and independent RUP replay. Never executes the artifact and never claims independent policy-construct totality or source-native refinement.",
+      "arguments": {
+        "source_path": {"type": "string", "required": true, "help": "Caller-selected regular non-symlink Anubis source path."},
+        "evidence_dir": {"type": "string", "required": true, "help": "Caller-selected strict anubis.program-evidence.v3 directory."},
+        "expected_source_sha256": {"type": "string", "required": true, "help": "Caller-pinned exact source SHA-256."},
+        "expected_compiler_sha256": {"type": "string", "required": true, "help": "Caller-pinned producer executable SHA-256."},
+        "expected_artifact_sha256": {"type": "string", "required": true, "help": "Caller-pinned sealed artifact SHA-256; artifact bytes are read but never executed."},
+        "expected_policy_sha256": {"type": "string", "required": true, "help": "Caller-pinned inventory-safe-v1 policy digest."},
+        "verification_time_unix": {"type": "string", "required": true, "help": "Caller-supplied Unix verification time bound into the receipt."},
+        "profile": {"type": "string", "required": true, "help": "Must be inventory-safe-v1."},
+        "nonce": {"type": "string", "required": true, "help": "Caller nonce bound into the receipt."}
+      },
+      "returns": {
+        "status": "verified-program-evidence | refused",
+        "receipt": "jackal-anubis-program-receipt-v1 on success",
+        "residual_non_claims": "strict residual roster including policy-construct-totality-not-established",
+        "reason": "stable refusal reason",
+        "detail": "bounded refusal detail"
+      }
+    },
+    {
+      "name": "jackal_anubis_verify_program_receipt",
+      "description": "Recompute a jackal-anubis-program-receipt-v1 from caller-selected source/evidence bytes and independent caller pins, rejecting outer-digest-consistent semantic laundering. Success is only verified-program-receipt; it does not raise the underlying inventory-safe-v1 assurance ceiling.",
+      "arguments": {
+        "receipt": {"type": "object", "required": true, "help": "Program receipt object to replay; its own pins are never trusted."},
+        "source_path": {"type": "string", "required": true, "help": "Caller-selected regular source path."},
+        "evidence_dir": {"type": "string", "required": true, "help": "Caller-selected evidence directory."},
+        "expected_source_sha256": {"type": "string", "required": true, "help": "Caller-pinned source SHA-256."},
+        "expected_compiler_sha256": {"type": "string", "required": true, "help": "Caller-pinned compiler SHA-256."},
+        "expected_artifact_sha256": {"type": "string", "required": true, "help": "Caller-pinned artifact SHA-256."},
+        "expected_policy_sha256": {"type": "string", "required": true, "help": "Caller-pinned inventory-safe-v1 policy digest."},
+        "verification_time_unix": {"type": "string", "required": true, "help": "Caller-supplied Unix verification time bound into the receipt."},
+        "profile": {"type": "string", "required": true, "help": "Must be inventory-safe-v1."},
+        "nonce": {"type": "string", "required": true, "help": "Caller nonce; never copied from the receipt."}
+      },
+      "returns": {
+        "status": "verified-program-receipt | refused",
+        "receipt": "fully recomputed receipt on success",
+        "residual_non_claims": "identical to the recomputed inventory-safe-v1 receipt",
+        "reason": "stable refusal reason",
+        "detail": "bounded refusal detail"
       }
     }
   ]

@@ -10,24 +10,30 @@ loudly, with a named reason — instead of printing something plausible.
 
 This guide takes you from install to reading your first certified result.
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+The v1.7.3 release agent surface contains 41-tool entries, derived and checked
+in `release/capability_inventory_v1.json`. The annotated tag, GitHub release,
+package receipt, and downloaded asset must all bind the same release identity.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 ## 1. Install
 
 ### Option A — download the release package (Apple Silicon macOS)
 
-The GitHub release ships one sealed package,
-`jackal-v1.7.0-macos-arm64.tar.gz`; the `jackal-native` binary lives INSIDE
-it, next to every pinned checker and wrapper. Verify the tarball against the
+The current public release ships
+`jackal-v1.7.3-macos-arm64.tar.gz`; the `jackal-native` binary lives inside it,
+next to every pinned checker and wrapper. Verify the tarball against the
 release `SHA256SUMS`, extract it, and check the binary against
 [`PROVENANCE.md`](PROVENANCE.md):
 
 ```bash
 git clone https://github.com/AnubisQuantumCipher/jackal.git
 cd jackal
-# download jackal-v1.7.0-macos-arm64.tar.gz (+ SHA256SUMS) from the
+# download jackal-v1.7.3-macos-arm64.tar.gz (+ SHA256SUMS) from the
 # Releases page into this directory, then:
 shasum -a 256 -c SHA256SUMS --ignore-missing
-tar -xzf jackal-v1.7.0-macos-arm64.tar.gz
-cp jackal-v1.7.0-macos-arm64/jackal-native .
+tar -xzf jackal-v1.7.3-macos-arm64.tar.gz
+cp jackal-v1.7.3-macos-arm64/jackal-native .
 shasum -a 256 jackal-native        # compare against PROVENANCE.md
 chmod +x jackal-native
 ./jackal self-test
@@ -252,10 +258,11 @@ embedded certificate, tested end to end in
 
 ## 5c. The Hermes / MCP-style plugin
 
-The bundled `plugin/hermes/jackal_hermes` exposes thirty-four tools — the
-eleven formal wrappers, twenty-one weaker-lane adapters, and the two v1.6.0
-claim-kernel front doors — that an MCP-speaking host
-can call over stdio JSON-RPC or a small HTTP wrapper.  A recomputed
+The bundled `plugin/hermes/jackal_hermes` exposes forty-one tools: eleven
+formal wrappers, twenty-one weaker-lane adapters, two claim-kernel front doors,
+four domain-pack lanes, and three inventory-safe-v1 Anubis program-evidence
+lanes. An MCP-speaking host can call them over stdio JSON-RPC or a small HTTP
+wrapper. A recomputed
 bundle hash MUST equal the pinned value in `release/MANIFEST.sha256`
 under `plugin_hermes` before the plugin accepts any request:
 
@@ -270,24 +277,24 @@ plugin/hermes/jackal_hermes call jackal_verify_receipt \
     "$(< /tmp/formal-receipt.json)"
 ```
 
-Thirty-four tools total: eleven proof-carrying (`jackal_range_bound`,
+Forty-one tools total: eleven proof-carrying (`jackal_range_bound`,
 `jackal_gaussian_integral`, `jackal_integrate_bound_cert`,
-`jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`,
-`jackal_ln_rat_bound`, `jackal_sin_rat_bound`, `jackal_cos_rat_bound`,
-`jackal_atan_rat_bound`, `jackal_tanh_rat_bound`, `jackal_verify_receipt`),
-twenty-one weaker-lane adapters — the seven numeric lanes
-(`jackal_exact`, `jackal_evaluate`, `jackal_diff`, `jackal_integrate`,
-`jackal_integrate_adaptive`, `jackal_integrate_bound`, `jackal_solve`) and
-the fourteen exact-CAS lanes (`jackal_canon`, `jackal_poly_canon`,
-`jackal_poly_eq`, `jackal_poly_gcd`, `jackal_ratfunc_canon`,
-`jackal_roots_isolate`, `jackal_alg_sign`, `jackal_alg_cmp`, `jackal_xgcd`,
-`jackal_mod_pow`, `jackal_mod_inv`, `jackal_crt`, `jackal_divides`,
-`jackal_prime_cert`) — plus the two v1.6.0 claim-kernel front doors
-(`jackal_claim`, `jackal_verify_bundle`) —
-that thread through the same pinned engine and return the engine's
-honest inventory-derived class with `formal: false` — status inflation
-is structurally impossible.  See `plugin/hermes/README.md` for the full
-refusal-class table.
+`jackal_sqrt_rat_bound`, `jackal_exp_rat_bound`, `jackal_ln_rat_bound`,
+`jackal_sin_rat_bound`, `jackal_cos_rat_bound`, `jackal_atan_rat_bound`,
+`jackal_tanh_rat_bound`, `jackal_verify_receipt`); twenty-one weaker-lane
+adapters — seven numeric and fourteen exact-CAS tools; two v1.6.0 claim-kernel
+front doors (`jackal_claim`, `jackal_verify_bundle`); four domain-pack tools
+(`jackal_test_exists`, `jackal_claim_cites_test`, `jackal_decision_rank`,
+`jackal_decision_rank_v2`); and three program tools
+(`jackal_anubis_check_program`, `jackal_anubis_verify_program`,
+`jackal_anubis_verify_program_receipt`).
+
+Domain-pack structural results stay consequence-capped at `informational`;
+decision results stay capped at `decision-boundary`. Program success is only
+`verified-program-evidence` / `verified-program-receipt` under
+`inventory-safe-v1`, with policy-construct-totality, source-to-VC, SMT-to-CNF,
+source-native, runtime, and universal-soundness residuals preserved. See
+`plugin/hermes/README.md` for the full refusal-class table.
 
 
 ## 5d. Claim bundles — composing lanes into replayable evidence graphs

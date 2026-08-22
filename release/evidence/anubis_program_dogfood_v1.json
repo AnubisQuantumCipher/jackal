@@ -1,0 +1,115 @@
+{
+  "application": "COVENANT community-grant triage",
+  "artifact_sha256": "e10f5550344c2e002e08139b4a1658d9151ccb707ddcb4adc6dfd73a31c555ff",
+  "compiler": {
+    "authority": "caller-pinned candidate; architect sign-off required before release",
+    "binary_sha256": "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6",
+    "prototype_base_commit": "d6ca528110285973da106596411a7f4da7c49305",
+    "prototype_worktree_diff_sha256": "5765d17307f5c6a96d286c19539e316b7b81d9d98ff081a0ed541d2f18b24a4a"
+  },
+  "evidence_manifest_sha256": "4b60df01a9c7bbc72703d24d498d44cfc7ab3e0b44a645976289f77e74edafe2",
+  "non_claims": [
+    "no-source-to-vc-proof",
+    "no-smt-to-cnf-proof",
+    "no-source-native-refinement",
+    "no-universal-language-soundness",
+    "policy-semantics-producer-attested",
+    "runtime-not-observed",
+    "derived-confinement-is-not-os-enforcement",
+    "policy-construct-totality-not-established"
+  ],
+  "observed": {
+    "consistent_outer_digest_tamper": "refused:receipt-semantic-mismatch",
+    "package_cli": "verified-program-evidence",
+    "package_plugin": "verified-program-evidence",
+    "package_receipt_replay": "verified-program-receipt",
+    "pristine_after_tamper": "verified-program-receipt",
+    "proof_steps": 615,
+    "proofs_verified": 9,
+    "repo_cli": "verified-program-evidence",
+    "repo_plugin": "verified-program-evidence",
+    "repo_receipt_replay": "verified-program-receipt"
+  },
+  "package": {
+    "alignment_state": "historical-pre-alignment-candidate",
+    "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
+    "bytes": 158353643,
+    "double_build_cmp_exit": 0,
+    "file_count": 104,
+    "sha256": "b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175",
+    "sha256sums_root": "2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42",
+    "superseded_by": {
+      "path": "release/evidence/package_alignment_v173_release.json",
+      "package_sha256": "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae"
+    }
+  },
+  "plugin_hermes_sha256": "03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4",
+  "program_evidence_sha256": "2e58f6986457a6491c1ad5c0c29afce5ddc26512c1f0810782c2d3ddcd73da6f",
+  "program_policy_digest_sha256": "1b94350a6d23e9d76a917f05f0a53ae9e0ccf861bc6aee71342967ce1dccb090",
+  "program_policy_file_sha256": "361979bf89b7c71a4b2c692d64756548833a2c363c269511b037726cab3ebacb",
+  "program_verifier_sha256": "a0dbf14b6157de3f2f789fa54190e015575bafc2e1182ba3d30186afcb45e89a",
+  "receipt": {
+    "artifact": {
+      "sha256": "e10f5550344c2e002e08139b4a1658d9151ccb707ddcb4adc6dfd73a31c555ff"
+    },
+    "assurance": {
+      "evidence_closure": "verified",
+      "policy_construct_totality": "not-established",
+      "policy_semantics": "producer-attested-inventory-checked",
+      "proof_replay": "independently-recomputed",
+      "runtime": "not-observed",
+      "smt_replay": "approved-z3-unsat",
+      "smt_to_cnf": "open",
+      "source_binding": "verified",
+      "source_native_refinement": "open",
+      "source_to_vc": "open"
+    },
+    "compiler": {
+      "path_basename": "anubis",
+      "sha256": "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6",
+      "tool": "anubis 0.1.0"
+    },
+    "evidence_manifest_sha256": "4b60df01a9c7bbc72703d24d498d44cfc7ab3e0b44a645976289f77e74edafe2",
+    "nonce": "unified-v173-covenant",
+    "policy": {
+      "consumer_count": 6,
+      "function_count": 11,
+      "independent_construct_totality": false,
+      "inventory_authority": "producer-attested-function-roster",
+      "policy_digest_sha256": "1b94350a6d23e9d76a917f05f0a53ae9e0ccf861bc6aee71342967ce1dccb090",
+      "policy_file_sha256": "361979bf89b7c71a4b2c692d64756548833a2c363c269511b037726cab3ebacb",
+      "profile": "inventory-safe-v1"
+    },
+    "policy_sha256": "1b94350a6d23e9d76a917f05f0a53ae9e0ccf861bc6aee71342967ce1dccb090",
+    "profile": "inventory-safe-v1",
+    "program_evidence_sha256": "2e58f6986457a6491c1ad5c0c29afce5ddc26512c1f0810782c2d3ddcd73da6f",
+    "proof_replay": {
+      "kind": "approved-z3-plus-independent-rup",
+      "smt_verified": 9,
+      "steps": 615,
+      "verified": 9
+    },
+    "receipt_digest_sha256": "8341ec180add6475f193f47e218b7af88fe2ef6437474c92ede4dfe1ecc02423",
+    "residual_non_claims": [
+      "no-source-to-vc-proof",
+      "no-smt-to-cnf-proof",
+      "no-source-native-refinement",
+      "no-universal-language-soundness",
+      "policy-semantics-producer-attested",
+      "runtime-not-observed",
+      "derived-confinement-is-not-os-enforcement",
+      "policy-construct-totality-not-established"
+    ],
+    "schema": "jackal-anubis-program-receipt-v1",
+    "source": {
+      "bytes": 7923,
+      "sha256": "037f63a2b2ca72d29a74503db09d5a0d1e0d4fb84a0cd778226751f22acb83ad"
+    },
+    "stage_count": 12,
+    "status": "verified-program-evidence",
+    "verification_time_unix": "1787227290"
+  },
+  "release_candidate": "v1.7.3",
+  "schema": "jackal-anubis-program-dogfood-v1",
+  "source_sha256": "037f63a2b2ca72d29a74503db09d5a0d1e0d4fb84a0cd778226751f22acb83ad"
+}

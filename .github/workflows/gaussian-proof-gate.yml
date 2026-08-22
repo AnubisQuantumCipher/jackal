@@ -32,6 +32,12 @@ jobs:
           python3 release/tools/range_proof_identity.py check --lane range --proof-only
           python3 release/tools/range_proof_identity.py check --lane int-cert --proof-only
 
+      - name: Reject repository-wide Lean admissions and trust bypasses
+        run: |
+          python3 -B tools/lean_admission_audit.py --source-check
+          python3 -B -m unittest \
+            tests.lean_admission_audit_test.LeanAdmissionAuditMutationTest -v
+
       # The committed checker hashes are for the recorded macOS/arm64 builds.
       # A release seal must additionally run the full, platform-matching gate:
       # python3 release/tools/gaussian_proof_identity.py check --lane gaussian
@@ -45,16 +51,24 @@ jobs:
     steps:
       - name: Check out exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
-      - name: Mechanical 38-tool inventory and pack-reachability lock
+      - name: Mechanical 41-tool inventory and pack-reachability lock
         run: |
           python3 - <<'PY'
           import json
           tools = json.load(open("plugin/hermes/tools.json"))["tools"]
           names = sorted(t["name"] for t in tools)
-          assert len(names) == 38, f"expected 38 tools, found {len(names)}"
+          assert len(names) == 41, f"expected 41 tools, found {len(names)}"
           assert "jackal_claim" in names and "jackal_verify_bundle" in names
           assert "jackal_integrate_bound_cert" in names
+          program_tools = {
+              "jackal_anubis_check_program",
+              "jackal_anubis_verify_program",
+              "jackal_anubis_verify_program_receipt",
+          }
+          assert program_tools <= set(names), "program-evidence tool omission"
           # Every domain-pack operation must be reachable through some tool.
           # `core.exact.mod_pow.v1` routes to the `mod-pow` engine command that
           # `jackal_mod_pow` already exposes, so it is exempt BY NAME.
@@ -69,10 +83,17 @@ jobs:
                   assert len(owners) == 1, f"{op} exposed by {owners}, expected 1"
           full = json.load(open("plugin/hermes/profiles/full.json"))["tools"]
           assert full == [t["name"] for t in tools], "full profile != tools.json order"
-          print(f"38-tool inventory locked: {len(names)} tools; "
+          print(f"41-tool inventory locked: {len(names)} tools; "
                 f"{sum(len(p['operation_ids']) for p in registry['packs'])} "
                 "pack operations reachable")
           PY
+
+      - name: Canonical capability inventory
+        run: |
+          python3 -B tools/capability_inventory.py --check
+          python3 -B -m unittest tests.capability_inventory_test -v
+          python3 -B tools/capability_drift_gate.py
+          python3 -B -m unittest tests.capability_drift_gate_test -v
 
       - name: v1.5.0 compatibility floor (additive-only surface lock)
         run: python3 tools/compat_floor.py --check

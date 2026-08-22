@@ -1,0 +1,26 @@
+{
+  "schema": "jackal-program-compatibility-v1",
+  "release_epoch": "v1.7.3",
+  "tool_count": 41,
+  "mathematical_receipt_epoch": "v1.7.2",
+  "claim_bundle_epoch": "v1.6.0",
+  "domain_pack_schema": "jackal-domain-pack-registry-v1",
+  "program_evidence_schema": "anubis.program-evidence.v3",
+  "program_receipt_schema": "jackal-anubis-program-receipt-v1",
+  "program_profile": "inventory-safe-v1",
+  "approved_check_compiler_sha256": "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6",
+  "approved_z3_sha256": "ae6c8df33db9c9ae9a80b6044e77cd66529a141d8b25f0620f1e89b409594f48",
+  "program_policy_sha256": "1b94350a6d23e9d76a917f05f0a53ae9e0ccf861bc6aee71342967ce1dccb090",
+  "admitted_modes": [
+    "safe"
+  ],
+  "admitted_proof_kinds": [
+    "rup_refutation"
+  ],
+  "multi_source": "refused",
+  "runtime_execution": false,
+  "source_to_vc": "open",
+  "smt_to_cnf": "open",
+  "independent_policy_construct_totality": false,
+  "source_native_refinement": "open"
+}

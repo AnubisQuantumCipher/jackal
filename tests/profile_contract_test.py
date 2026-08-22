@@ -108,9 +108,9 @@ class ProfilePositiveTest(unittest.TestCase):
         self.assertEqual(result["tools_declared"], EXPECTED_TOOL_COUNT)
         self.assertEqual(result["profiles"]["core"]["tool_count"], 3)
         self.assertEqual(result["profiles"]["full"]["tool_count"], EXPECTED_TOOL_COUNT)
-        # Non-vacuity: the derived count must actually be the shipped surface,
-        # so a `tools.json` truncated to the old 34 would fail here.
-        self.assertGreaterEqual(EXPECTED_TOOL_COUNT, 38)
+        # Non-vacuity: the combined release must carry the merged 38-tool
+        # surface plus all three program-evidence tools.
+        self.assertGreaterEqual(EXPECTED_TOOL_COUNT, 41)
 
     def test_positive_every_pack_operation_is_reachable_on_full(self) -> None:
         """The omission this test exists to make impossible.

@@ -1,10 +1,11 @@
-# JACKAL Hermes plugin — proof-carrying range, Gaussian, composed-integral, and pure-ℚ transcendental bounds
+# JACKAL Hermes plugin — formal, domain-pack, claim, and program evidence
 
-A load-bearing Hermes / MCP-style plugin exposing **thirty-eight tools** —
-eleven proof-carrying formal tools, twenty-one honest weaker-lane adapters
-(status passthrough, never inflated), the two v1.6.0 claim-kernel
-front doors (`jackal_claim`, `jackal_verify_bundle`), and four domain-pack
-lanes that carry the same refusal discipline outside mathematics.
+A load-bearing Hermes / MCP-style plugin exposing **forty-one tools**:
+eleven proof-carrying formal tools, twenty-one honest weaker-lane adapters,
+the two v1.6.0 claim-kernel front doors, four domain-pack lanes, and three
+inventory-safe-v1 Anubis program-evidence lanes.  The latter emit only
+`verified-program-evidence` / `verified-program-receipt`; they are not formal
+and do not inherit universal language-soundness claims.
 
 ## Formal (checker-attested) tools
 
@@ -89,21 +90,20 @@ response repeats that in `non_claims`.  A `test-exists-cert` is an exact
 statement about bytes and an `informational` statement about correctness; citing
 one in support of a correctness claim is the defect this lane exists to bound.
 
-Two honest residuals, stated rather than hidden:
+One honest residual, stated rather than hidden:
 
 * **A declared unit is not a measurement.** `_v2`'s closed vocabulary forces
   the caller to name a dimension and nothing more.  A value-judgment criterion
   that survives the engine's word list is still accepted when a real unit is
   declared — `criterion=most_elegant unit=ms` ranks — and the option values
   remain caller-declared.
-* **The pack surface is not manifest-pinned.** `release/MANIFEST.sha256` has no
-  row for the domain-pack registry, so the registry bytes are this lane's root
-  of trust.  The plugin cross-checks its own registry digest against the
-  verifier's reported one and its own verifier digest against the registry's
-  declared one, both from real bytes, and returns
-  `registry_file_sha256` / `registry_digest_sha256` / `pack_verifier_sha256` /
-  `pack_manifest_sha256` so a caller can pin them out of band.  A coordinated
-  tamper of registry + verifier together is NOT excluded here.
+
+`release/MANIFEST.sha256` independently pins the domain-pack registry, pack
+verifier, and both operation checkers.  The registry binds `PACK_SCHEMA`,
+`PACK_SPEC`, every pack source/manifest, and each checker relation.  Pack files
+remain call-local rather than plugin-startup dependencies: a distribution with
+the pack tree absent returns `pack-surface-absent` for pack calls while
+unrelated tools remain available.
 
 Per call, in order: the manifest-pinned `tools/domain_pack_verify.py` runs as an
 external identity-hashed subprocess and must accept the whole chain (registry
@@ -119,6 +119,41 @@ the canonical FORM of a caller-supplied fact, so without the rerun an agent
 could read `status=structural-exact` off a certificate whose claimed line, count
 or content hash is false.
 
+## Anubis program-evidence lanes (inventory-safe-v1, additive)
+
+| Tool | Effect |
+|---|---|
+| `jackal_anubis_check_program` | Invokes only a caller-pinned, policy-approved Anubis compiler as `build --evidence`, never executes the compiled artifact, then verifies the emitted package. |
+| `jackal_anubis_verify_program` | Verifies caller-selected source and strict `anubis.program-evidence.v3` bytes against independent source/compiler/artifact/policy pins. |
+| `jackal_anubis_verify_program_receipt` | Recomputes the complete receipt from caller-selected underlying bytes and pins; a self-consistent outer-digest semantic edit refuses. |
+
+The verifier requires Safe mode, one exact source leaf, the ordered twelve-stage
+roster, the exact six-consumer policy inventory, nonzero one-to-one
+solver/proof rows and paths, approved Z3 UNSAT replay, and independent RUP
+replay.  The evidence tree is snapshotted and rechecked at close.  No command
+executes the compiled artifact.
+
+Success is only `verified-program-evidence` or
+`verified-program-receipt`.  `inventory-safe-v1` is deliberately weaker than
+the prototype's `contracted-safe-v1`: the v3 producer binds a complete function
+roster but does not export independently checkable construct-total walker
+coverage.  The receipt therefore records
+`policy_construct_totality=not-established` and retains all of these residuals:
+
+* `no-source-to-vc-proof`
+* `no-smt-to-cnf-proof`
+* `no-source-native-refinement`
+* `no-universal-language-soundness`
+* `policy-semantics-producer-attested`
+* `runtime-not-observed`
+* `derived-confinement-is-not-os-enforcement`
+* `policy-construct-totality-not-established`
+
+The verifier and policy are both runtime-bundle-bound and separately pinned by
+`release/MANIFEST.sha256`.  The policy bytes live at
+`release/program/inventory_safe_v1.json` in the repository and
+`program/inventory_safe_v1.json` in the package.
+
 ## Invocation modes
 
 The plugin ships one Python entry-point (`plugin/hermes/server.py`) with
@@ -129,7 +164,7 @@ three interchangeable frontends — pick the one your Hermes runtime uses:
 * `plugin/hermes/jackal_hermes call <tool> <json-args>` — one-shot
   call, prints the JSON reply to stdout.
 * `plugin/hermes/jackal_hermes http --port 8181` — tiny HTTP server
-  wrapping the same thirty-eight tools (POST `/tools/<name>` with a JSON body).
+  wrapping the same forty-one tools (POST `/tools/<name>` with a JSON body).
 
 ## Bundle identity
 
@@ -140,6 +175,11 @@ in `plugin/hermes/tools.json` and enforced by
 value pinned in `release/MANIFEST.sha256` under `plugin_hermes` before the
 plugin will accept any request.  Any drift refuses fail-closed at
 startup.
+
+The runtime map includes the program verifier and policy.  Domain-pack bytes
+are intentionally call-local rather than startup dependencies; their registry,
+verifier, and operation checkers have separate release-manifest rows, and the
+registry binds the remaining pack files.
 
 ## Refusal classes (stable, machine-readable)
 
@@ -163,7 +203,7 @@ Domain-pack lanes, in addition (a `pack-*` class raised by the plugin from the
 PINNED registry/manifest carries the same name as the engine's own class for
 the same fact, because it is the same fact established from the same pin):
 
-* `pack-surface-absent`         this distribution ships no `domain_packs/` tree
+* `pack-surface-absent`         call-local pack registry/checker tree is absent
 * `pack-registry-refused`       `tools/domain_pack_verify.py` did not accept
 * `pack-registry-identity`      verifier and plugin read different registry bytes
 * `pack-verifier-identity`      executed verifier != the registry's declared digest
@@ -182,6 +222,21 @@ the same fact, because it is the same fact established from the same pin):
 * `pack-refusal-unregistered`   engine refused with a class the manifest does not declare
 * `prog-*`, `decision-*`        the engine's own pack refusal classes, passed through by name
 * `checker-rejected`            the operation's checker printed `REFUSE <class>`
+
+
+Program-evidence lanes pass through the verifier's named classes, including:
+
+* `profile-unsupported` / `mode-unsupported`
+* `source-pin-mismatch` / `compiler-pin-mismatch` / `artifact-pin-mismatch`
+* `policy-pin-mismatch` / `policy-unsupported`
+* `manifest-missing` / `manifest-closure` / `bundle-file-roster`
+* `symlink-forbidden` / `nonregular-file` / `snapshot-drift`
+* `zero-obligations` / `proof-path-reuse` / `proof-reuse`
+* `smt-not-unsat` / `rup-replay-failed` / `proof-counter-mismatch`
+* `producer-evidence-mismatch` / `receipt-semantic-mismatch`
+
+The plugin fallback `program-verify-failed` is used only when a nonzero verifier
+result does not contain a named `status=refused reason=...` line.
 
 `pack-args-shape` exists because argv is flat: `options` arrives as one
 `label value label value ...` string, so a label containing whitespace would
@@ -246,3 +301,11 @@ label.
 
     # ...and the same call with unit "millisecond":
     # -> {"status":"refused","reason":"decision-unit-unknown", ...}
+
+    plugin/hermes/jackal_hermes call jackal_anubis_verify_program \
+        '{"source_path":"/absolute/main.anb","evidence_dir":"/absolute/evidence-safe","expected_source_sha256":"<caller pin>","expected_compiler_sha256":"<caller pin>","expected_artifact_sha256":"<caller pin>","expected_policy_sha256":"<inventory-safe-v1 digest>","verification_time_unix":"<caller time>","profile":"inventory-safe-v1","nonce":"<caller nonce>"}'
+    # -> {"status":"verified-program-evidence",
+    #     "receipt":{"assurance":{"policy_construct_totality":"not-established",
+    #                            "source_to_vc":"open","smt_to_cnf":"open",
+    #                            "source_native_refinement":"open",
+    #                            "runtime":"not-observed"}, ...}}

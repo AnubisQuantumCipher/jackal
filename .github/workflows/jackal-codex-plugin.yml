@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Check out exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Require the supported host and fixed Python prerequisite
         run: |
@@ -26,6 +29,14 @@ jobs:
           test "$(uname -m)" = arm64
           test -x /opt/homebrew/bin/python3
           /opt/homebrew/bin/python3 -c 'import sys; assert sys.version_info >= (3, 10)'
+
+      - name: Verify canonical capability and documentation contracts
+        run: |
+          /opt/homebrew/bin/python3 -B tools/capability_inventory.py --check
+          /opt/homebrew/bin/python3 -B tools/capability_drift_gate.py
+          /opt/homebrew/bin/python3 -B -m unittest \
+            tests.capability_inventory_test \
+            tests.capability_drift_gate_test -v
 
       - name: Run complete Codex plugin unit suite
         run: /opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v

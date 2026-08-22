@@ -1,0 +1,48 @@
+{
+  "schema": "jackal-anubis-program-policy-v1",
+  "profile": "inventory-safe-v1",
+  "mode": "safe",
+  "source_leaves": 1,
+  "minimum_obligations": 1,
+  "proof_kinds": [
+    "rup_refutation"
+  ],
+  "required_stages": [
+    "parse",
+    "typecheck",
+    "monomorphization",
+    "policy-effects",
+    "policy-capability",
+    "policy-information-flow",
+    "policy-declassification",
+    "symbolic",
+    "solver",
+    "source-binding",
+    "artifact-binding",
+    "evidence-closure"
+  ],
+  "required_consumers": [
+    "effects",
+    "capability",
+    "information-flow",
+    "declassification",
+    "mode",
+    "contracts"
+  ],
+  "approved_check_compiler_sha256": "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6",
+  "approved_z3_sha256": "ae6c8df33db9c9ae9a80b6044e77cd66529a141d8b25f0620f1e89b409594f48",
+  "runtime_execution": false,
+  "policy_inventory_authority": "producer-attested-function-roster",
+  "independent_policy_construct_totality": false,
+  "receipt_residual_non_claims": [
+    "no-source-to-vc-proof",
+    "no-smt-to-cnf-proof",
+    "no-source-native-refinement",
+    "no-universal-language-soundness",
+    "policy-semantics-producer-attested",
+    "runtime-not-observed",
+    "derived-confinement-is-not-os-enforcement",
+    "policy-construct-totality-not-established"
+  ],
+  "policy_digest_sha256": "1b94350a6d23e9d76a917f05f0a53ae9e0ccf861bc6aee71342967ce1dccb090"
+}

@@ -43,15 +43,10 @@ PLUGIN_ROOT = REPOSITORY_ROOT / "plugins" / "jackel"
 MARKETPLACE = "anubis-quantum-cipher"
 PLUGIN = "jackel"
 MCP_PROTOCOL_VERSION = "2025-11-25"
-# Anti-shrink floor, not an exact count.  This module is driven with two
-# different catalogs: the REPO `plugin/hermes/tools.json` (repo test) and the
-# SEALED RELEASE catalog the provisioner downloads (installed-config run).  The
-# substantive inventory invariant is `discovered == expected` plus uniqueness,
-# which is exact and catalog-agnostic; an absolute count here would go stale
-# against whichever of the two surfaces moved, and pinning it to one silently
-# stops checking the other.  34 is the smallest surface either has ever
-# shipped, so a catalog that SHRANK below it still refuses.
-MIN_TOOL_COUNT = 34
+# Anti-shrink floor for the sealed v1.7.3 runtime and matching repository
+# surface. Exact catalog equality and uniqueness are enforced below; this floor
+# makes a coordinated truncation refuse before any happy-path calls run.
+MIN_TOOL_COUNT = 41
 HOST_TRANSCRIPT_LIMIT = 4 * 1024 * 1024
 HOST_REGISTRY_LIMIT = 1024 * 1024
 HOST_REGISTRY_ENTRY_LIMIT = 256
@@ -65,14 +60,14 @@ HOST_BINARY_VERSION_LIMIT = 1024
 HOST_BINARY_BYTE_LIMIT = 512 * 1024 * 1024
 HOST_BINARY_PATH_LIMIT = 4096
 
-HERMES_BUNDLE_SHA256 = "d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9accc247a3274b"
+HERMES_BUNDLE_SHA256 = "c6a27483077b89d899d8c73c03bfeb3191f25db2a22f8021254a7dec763ba5fe"
 INT_CERT_PRODUCER_SHA256 = "b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4"
-INT_CERT_CHECKER_SHA256 = "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49"
+INT_CERT_CHECKER_SHA256 = "f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617"
 
 CLAIM_TIME = "1786752000"
 CLAIM_NONCE = "jackal-codex-task5-v1"
 CLAIM_RELEASE_EPOCH = "v1.6.0"
-FORMAL_RELEASE_EPOCH = "v1.7.0"
+FORMAL_RELEASE_EPOCH = "v1.7.2"
 
 DEFAULT_POLICY = {
     "schema": "jackal-claim-policy-v1",

@@ -127,7 +127,7 @@ class RepinV172ContractTests(unittest.TestCase):
             if label not in intentionally_changed:
                 self.assertEqual(new[label], row, label)
 
-    def test_evaluator_is_the_fixed_v170_issue4_epoch(self) -> None:
+    def test_v170_evaluator_stays_historical_while_current_row_tracks_disk(self) -> None:
         review = json.loads(
             (ROOT / "release/evidence/release_review_v170.json").read_text(
                 encoding="utf-8"
@@ -136,9 +136,10 @@ class RepinV172ContractTests(unittest.TestCase):
         self.assertEqual(
             review["identities"]["evaluator_sha256"], V170_EVALUATOR_SHA256
         )
-        self.assertEqual(sha256(ROOT / "jackal-native"), V170_EVALUATOR_SHA256)
+        current = sha256(ROOT / "jackal-native")
+        self.assertNotEqual(current, V170_EVALUATOR_SHA256)
         mapped = row_map(self.module.build_rows())
-        self.assertEqual(mapped["evaluator"][-1], V170_EVALUATOR_SHA256)
+        self.assertEqual(mapped["evaluator"][-1], current)
 
     def test_compiler_authority_is_exact_and_immutable(self) -> None:
         self.assertEqual(self.module.COMPILER_PATH, COMPILER)
@@ -332,7 +333,7 @@ class HermesV172ContractTests(unittest.TestCase):
         self.assertIn("unsupported int-cert epoch", verify_body)
 
     def test_current_formal_tools_emit_the_v172_epoch(self) -> None:
-        self.assertEqual(self.catalog["version"], "v1.7.2")
+        self.assertEqual(self.catalog["version"], "v1.7.3")
         range_body = self.source.split("def tool_range_bound", 1)[1].split(
             "def tool_gaussian_integral", 1
         )[0]

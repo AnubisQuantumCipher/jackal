@@ -84,6 +84,8 @@ jobs:
         run: |
           python3 -B tools/capability_inventory.py --check
           python3 -B -m unittest tests.capability_inventory_test -v
+          python3 -B tools/capability_drift_gate.py
+          python3 -B -m unittest tests.capability_drift_gate_test -v
 
       - name: v1.5.0 compatibility floor (additive-only surface lock)
         run: python3 tools/compat_floor.py --check

@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "JACKAL",
     "shortDescription": "Claim-aware computation with explicit evidence classes",
-    "longDescription": "Use JACKAL's 41-tool evidence kernel from Codex while preserving exact, checked, estimated, bounded, formal-bounded, model-based, structural-exact, verified-program-evidence, verified, indeterminate, and refused results at their returned assurance and consequence levels. Formal-bounded applies only to checker-admitted fragments; program evidence retains construct-totality, source, and runtime residuals. Requires Apple Silicon macOS, Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python), and the pinned v1.7.3 runtime.",
+    "longDescription": "Expose JACKAL's 41-tool v1.7.3 candidate runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).",
     "developerName": "Anubis Quantum Cipher",
     "category": "Productivity",
     "capabilities": [

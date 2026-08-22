@@ -8,6 +8,16 @@ measurement stated as failed rather than papered over.
 source → compiler pin → deterministic build → binary hash → gate receipts → adjudication
 ```
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+The `v1.7.3-candidate` binds an ordered 41-tool surface through
+`release/capability_inventory_v1.json`. Its package receipt is
+`b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175`
+(158353643 bytes), with extracted `SHA256SUMS` digest
+`2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42`.
+These are candidate bytes; the block does not assert a public v1.7.3 tag or
+release.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 ## Candidate v1.7.3 — unified domain-pack and Anubis program evidence — 2026-08-20 — SIGNOFF REQUIRED
 
 This candidate starts from merged PR #11 commit

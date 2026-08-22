@@ -10,6 +10,14 @@ loudly, with a named reason — instead of printing something plausible.
 
 This guide takes you from install to reading your first certified result.
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+The source tree's `v1.7.3-candidate` agent surface contains 41-tool entries,
+derived and checked in `release/capability_inventory_v1.json`. Candidate and
+public-release state are separate: the download instructions below continue
+to name the current public v1.7.2 asset until v1.7.3 is authorized, published,
+and verified by release read-back.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 ## 1. Install
 
 ### Option A — download the release package (Apple Silicon macOS)

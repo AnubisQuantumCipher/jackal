@@ -27,6 +27,14 @@ jobs:
           test -x /opt/homebrew/bin/python3
           /opt/homebrew/bin/python3 -c 'import sys; assert sys.version_info >= (3, 10)'
 
+      - name: Verify canonical capability and documentation contracts
+        run: |
+          /opt/homebrew/bin/python3 -B tools/capability_inventory.py --check
+          /opt/homebrew/bin/python3 -B tools/capability_drift_gate.py
+          /opt/homebrew/bin/python3 -B -m unittest \
+            tests.capability_inventory_test \
+            tests.capability_drift_gate_test -v
+
       - name: Run complete Codex plugin unit suite
         run: /opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v
 

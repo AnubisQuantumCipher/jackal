@@ -74,6 +74,8 @@ class InventoryFixture:
             Path("plugin/hermes/server.py"),
             Path("plugins/jackel/.codex-plugin/plugin.json"),
             Path("plugins/jackel/mcp/server.py"),
+            Path("plugins/jackel/scripts/provision_runtime.py"),
+            Path("release/evidence/anubis_program_dogfood_v1.json"),
             *IDENTITY_PATHS,
             *(PROFILE_DIR / f"{profile}.json" for profile in ("core", "formal", "full")),
         ]

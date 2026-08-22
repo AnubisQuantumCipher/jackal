@@ -5,6 +5,13 @@ description: Route claim-aware computation, domain-pack, and Anubis program evid
 
 # JACKAL numerical-trust operator
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+The `v1.7.3-candidate` exposes the ordered 41-tool full inventory recorded in
+`release/capability_inventory_v1.json`. Treat that generated file as the
+capability-name and status source; candidate evidence is not a public-release
+claim.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 JACKAL exposes the full tool inventory on Apple Silicon macOS. Use it to
 classify a quantitative claim, select the strongest admitted evidence lane,
 and preserve the exact assurance boundary returned by the runtime.
@@ -116,8 +123,9 @@ checker verdicts, or residual non-claims.
 ## macOS runtime
 
 This plugin supports Apple Silicon macOS only and uses the pinned v1.7.3
-macOS-arm64 runtime. Do not bypass the Darwin/arm64 host guard or substitute
-another platform build.
+candidate macOS-arm64 runtime. Until that candidate is published, provision it
+from the separately verified local tarball path.
+Do not bypass the Darwin/arm64 host guard or substitute another platform build.
 
 Python >=3.10 at `/opt/homebrew/bin/python3` is the supported fixed-path
 prerequisite on Apple Silicon. If it is absent or fails the launcher's

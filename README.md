@@ -12,6 +12,15 @@ plausible.
 for Apple Silicon macOS, or build from source with an Anubis compiler), first commands, and
 how to read the trust labels. License: [MIT](LICENSE).
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+**Current agent surface:** the `v1.7.3-candidate` exports an ordered 41-tool
+catalog whose schemas, profiles, status classes, dependencies, and host
+exposure are generated in `release/capability_inventory_v1.json`. This is a
+candidate identity, not a claim that a public v1.7.3 tag or release exists;
+the public-download instructions remain on v1.7.2 until publication is
+authorized and read back.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
 buttons. It treats a serious calculation as a bounded scientific claim: value, units,
 uncertainty, method, assumptions, sensitivity, residual, non-claims, and a reproducible

@@ -8,6 +8,13 @@ Original design base: `7d9b5bee0ce52fb6bbe24e4c50f5661f5bad2318`
 
 Current publication base: `c3ec10f5b446b28a04f9bd19606fc8b329ac43f5`
 
+<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
+The current `v1.7.3-candidate` exposes the ordered 41-tool catalog recorded in
+`release/capability_inventory_v1.json`, with tool-containing implementation
+ref `d25bcd9818e0d106f337798f80527ae611cc3acc`. Candidate state does not assert
+an annotated public v1.7.3 tag or release.
+<!-- JACKAL_CURRENT_SURFACE_V1_END -->
+
 ## Objective
 
 Add a repo-local, publishable Codex plugin with migration-preserved package ID
@@ -17,8 +24,10 @@ full engine available without weakening JACKAL's epistemic classes, refusal
 semantics, checker boundaries, or pinned runtime identity.
 
 The plugin is installed from a JACKAL repository checkout. Its computation
-runtime is the separately sealed JACKAL v1.7.0 macOS release package, not a
-copy assembled from source-tree fragments. The plugin does not duplicate or
+runtime is the separately pinned JACKAL v1.7.3 candidate macOS package, not a
+copy assembled from source-tree fragments. Until authorized publication, the
+operator provisions the exact local candidate tarball rather than treating the
+future release URL as proof that a release exists. The plugin does not duplicate or
 modify `plugin/hermes`; an explicit provisioner installs the hash-pinned
 release package in the user's macOS Application Support directory. The first
 verified platform is Apple Silicon macOS. Intel macOS remains unsupported
@@ -27,7 +36,7 @@ until JACKAL publishes and seals a corresponding runtime.
 ## Goals
 
 - Expose every tool declared by `plugin/hermes/tools.json`; the current base
-  revision declares 34 tools.
+  revision declares 41 tools in catalog order with no duplicate aliases.
 - Make `jackal_claim` and `jackal_verify_bundle` the preferred front doors for
   general structured claims while retaining every exact, checked, estimated,
   bounded, formal-bounded, model-based, and verification lane.
@@ -85,7 +94,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 
 - `name`: `jackel`
 - `version`: `0.1.0+codex.<14-digit timestamp>`
-- `description`: `Expose JACKAL's claim-aware mathematical evidence kernel to Codex.`
+- `description`: `Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.`
 - `author.name`: `Anubis Quantum Cipher`
 - `author.url`: `https://github.com/AnubisQuantumCipher`
 - `homepage` and `repository`:
@@ -95,7 +104,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `mcpServers`: `./.mcp.json`
 - `interface.displayName`: `JACKAL`
 - `interface.shortDescription`: `Claim-aware computation with explicit evidence classes`
-- `interface.longDescription`: `Use JACKAL's 41-tool evidence kernel from Codex while preserving exact, checked, estimated, bounded, formal-bounded, model-based, structural-exact, verified-program-evidence, verified, indeterminate, and refused results at their returned assurance and consequence levels. Formal-bounded applies only to checker-admitted fragments; program evidence retains construct-totality, source, and runtime residuals. Requires Apple Silicon macOS, Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python), and the pinned v1.7.3 runtime.`
+- `interface.longDescription`: `Expose JACKAL's 41-tool v1.7.3 candidate runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).`
 - `interface.developerName`: `Anubis Quantum Cipher`
 - `interface.category`: `Productivity`
 - `interface.capabilities`: `["Interactive"]`
@@ -138,22 +147,24 @@ checker bytes execute.
 ## Runtime Provisioning
 
 `plugins/jackel/scripts/provision_runtime.py` is an explicit operator command,
-not an automatic install hook. Version 0.1.0 pins:
+not an automatic install hook. Version 0.1.0 candidate pins:
 
-- release epoch: `v1.7.0`
-- asset: `jackal-v1.7.0-macos-arm64.tar.gz`
+- release epoch: `v1.7.3`
+- asset: `jackal-v1.7.3-macos-arm64.tar.gz`
 - release URL:
-  `https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.0/jackal-v1.7.0-macos-arm64.tar.gz`
+  `https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz`
 - package SHA-256:
-  `21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e`
-- package size: `118862060` bytes
+  `b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175`
+- package size: `158353643` bytes
+- extracted `SHA256SUMS` SHA-256:
+  `2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42`
 
 The provisioner:
 
 1. Refuses unless the host is macOS on `arm64`.
 2. Downloads into a newly created temporary directory or accepts an explicit
    local tarball path for offline installation.
-3. Rejects a declared or streamed body larger than 118862060 bytes, then
+3. Rejects a declared or streamed body larger than 158353643 bytes, then
    requires exactly that size and the fixed package SHA-256 before extraction.
    The per-operation network timeout is supplemented by a monotonic total download deadline,
    so a peer cannot keep the transfer alive indefinitely
@@ -164,7 +175,7 @@ The provisioner:
    `SHA256SUMS` and `MANIFEST.sha256`-governed selftest.
 6. Writes a package marker binding the epoch, original tarball digest, and
    verified internal identities, then atomically installs the package at
-   `~/Library/Application Support/JACKAL/runtimes/v1.7.0/`.
+   `~/Library/Application Support/JACKAL/runtimes/v1.7.3/`.
 7. Atomically writes a locator containing the release epoch, runtime path, and
    package digest at
    `~/Library/Application Support/JACKAL/codex-plugin/runtime.json`.
@@ -186,7 +197,7 @@ The MCP adapter resolves runtime roots in this order:
 2. the provisioner's macOS locator.
 
 Every candidate must be a provisioner-verified extraction with the package
-marker, identify epoch v1.7.0, match the pinned original package digest, pass
+marker, identify epoch v1.7.3, match the pinned original package digest, pass
 all internal `SHA256SUMS`/manifest identities, and pass the backend bundle
 selftest. A source checkout containing a few untracked binaries is not a valid
 runtime candidate. Ambiguous or divergent candidates refuse and require an
@@ -461,7 +472,7 @@ status; the adapter is not authorized to create or promote that status.
 ### Provisioner tests
 
 - Reject non-macOS and non-arm64 hosts before downloading.
-- Verify the fixed v1.7.0 URL, epoch, filename, exact 118862060-byte length,
+- Verify the fixed v1.7.3 URL, epoch, filename, exact 158353643-byte length,
   bounded streaming download, and expected package SHA-256.
 - Exercise offline local-tarball provisioning with a fixture archive.
 - Reject digest mismatch, path traversal, absolute paths, device entries,
@@ -489,7 +500,7 @@ status; the adapter is not authorized to create or promote that status.
 
 ### Live installed-plugin checks
 
-Using the pinned v1.7.0 runtime and an isolated temporary `CODEX_HOME`:
+Using the pinned v1.7.3 candidate runtime and an isolated temporary `CODEX_HOME`:
 
 The installer derives forbidden state roots from both the passwd account home
 and the process home, canonicalizes them independently of caller `HOME`, and
@@ -512,7 +523,7 @@ process racing inside one validation-to-exec interval.
 5. Parse the installed copy's `.mcp.json` and launch its exact configured
    absolute command, arguments, and installed-copy working directory. Perform
    a real MCP `initialize` and `tools/list`; require the discovered names to
-   equal the pinned runtime's 34-tool `plugin/hermes/tools.json` inventory.
+   equal the pinned runtime's ordered 41-tool `plugin/hermes/tools.json` inventory.
 6. Call `jackal_exact` on a supported rational expression and require
    `status: exact`.
 7. Call a supported formal fragment and require semantic deep equality with a
@@ -583,7 +594,7 @@ wrapper-identity checks, provisioner tests, adapter unit tests, real
 marketplace installation, fresh-task MCP discovery, one supported computation,
 one checker-attested call, one fail-closed control, backend selftest, and the
 repository evidence verifier all pass against the same source revision and
-pinned v1.7.0 runtime bytes.
+pinned v1.7.3 candidate runtime bytes.
 
 If sealed runtime artifacts are absent, source and unit work may be complete,
 but the plugin must be reported as integration-blocked rather than ready.

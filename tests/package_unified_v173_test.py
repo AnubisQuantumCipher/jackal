@@ -78,7 +78,7 @@ def complete_sha256sums(root: Path) -> bool:
     actual = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_file() and path.name != "SHA256SUMS"
+        if path.is_file() and path != sums
     }
     if set(rows) != actual:
         return False
@@ -151,6 +151,29 @@ class UnifiedPackageV173Test(unittest.TestCase):
             self.assertIn(label, repin, label)
         self.assertIn("jackal-anubis-program", builder)
         self.assertIn("PACKAGE_V173_BUILD_PASS", builder)
+        self.assertNotRegex(builder, r"python3(?! -I -S -B)")
+        self.assertIn("renamex_np", builder)
+        self.assertIn("RENAME_EXCL", builder)
+        self.assertNotIn('/bin/mv "$PKG" "$FINAL_PKG"', builder)
+        self.assertNotIn('/bin/mv "$STAGED_TARBALL" "$FINAL_TARBALL"', builder)
+
+    def test_repin_compiler_override_remains_hash_authorized(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-repin-compiler-") as td:
+            counterfeit = Path(td) / "anubis-counterfeit"
+            counterfeit.write_bytes(b"not the pinned compiler")
+            environment = os.environ.copy()
+            environment["JACKAL_ANUBIS_COMPILER_PATH"] = os.fspath(counterfeit)
+            completed = subprocess.run(
+                [os.fspath(REPIN), "--check"],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                env=environment,
+                timeout=120,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("compiler authority drift", completed.stderr)
+            self.assertIn(os.fspath(counterfeit), completed.stderr)
 
     def test_catalog_profiles_and_compatibility_floor_agree(self) -> None:
         catalog = json.loads((ROOT / "plugin/hermes/tools.json").read_text())
@@ -324,6 +347,19 @@ class UnifiedPackageV173Test(unittest.TestCase):
             lines = sums.read_text().splitlines()
             sums.write_text("\n".join(lines[1:]) + "\n")
             self.assertFalse(complete_sha256sums(package))
+
+    def test_nested_file_named_sha256sums_is_not_excluded(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-nested-sums-") as td:
+            root = Path(td)
+            nested = root / "nested/SHA256SUMS"
+            nested.parent.mkdir()
+            nested.write_bytes(b"nested payload\n")
+            digest = hashlib.sha256(nested.read_bytes()).hexdigest()
+            (root / "SHA256SUMS").write_text(
+                f"{digest}  ./nested/SHA256SUMS\n",
+                encoding="ascii",
+            )
+            self.assertTrue(complete_sha256sums(root))
 
 
     def test_stale_binary_source_pair_refuses_formal_tool(self) -> None:

@@ -281,28 +281,42 @@ def main() -> int:
             for index, line in enumerate(structural_lines, 1)
             if line.startswith("def build_receipt(")
         ]
-        structural_common = {
-            "file_path": structural_relative,
-            "file_sha256": sha_file(structural_path),
-            "symbol": "build_receipt",
-            "declaration_line": str(declaration_lines[0]),
-            "declaration_count": str(len(declaration_lines)),
-        }
-        domain_cases = [
-            ("jackal_test_exists", structural_common, "structural-exact"),
-            (
-                "jackal_claim_cites_test",
-                {
-                    "doc_path": "README.txt",
-                    "doc_sha256": sha_file(pkg / "README.txt"),
-                    "claim_text": "First run: shasum -a 256 -c SHA256SUMS",
-                    "test_path": structural_relative,
-                    "test_sha256": sha_file(structural_path),
-                    "symbol": "build_receipt",
-                },
-                "structural-exact",
-            ),
-            (
+        domain_cases = []
+        if not declaration_lines:
+            record(
+                "pkg-structural-anchor",
+                False,
+                "packaged anubis_program_verify.py declares build_receipt",
+                structural_relative,
+            )
+        else:
+            structural_common = {
+                "file_path": structural_relative,
+                "file_sha256": sha_file(structural_path),
+                "symbol": "build_receipt",
+                "declaration_line": str(declaration_lines[0]),
+                "declaration_count": str(len(declaration_lines)),
+            }
+            domain_cases.extend(
+                [
+                    ("jackal_test_exists", structural_common, "structural-exact"),
+                    (
+                        "jackal_claim_cites_test",
+                        {
+                            "doc_path": "README.txt",
+                            "doc_sha256": sha_file(pkg / "README.txt"),
+                            "claim_text": "First run: shasum -a 256 -c SHA256SUMS",
+                            "test_path": structural_relative,
+                            "test_sha256": sha_file(structural_path),
+                            "symbol": "build_receipt",
+                        },
+                        "structural-exact",
+                    ),
+                ]
+            )
+        domain_cases.extend(
+            [
+                (
                 "jackal_decision_rank",
                 {
                     "decision_id": "package_v173",
@@ -311,8 +325,8 @@ def main() -> int:
                     "options": "alpha 120 beta 90",
                 },
                 "exact",
-            ),
-            (
+                ),
+                (
                 "jackal_decision_rank_v2",
                 {
                     "decision_id": "package_v173_unit",
@@ -322,8 +336,9 @@ def main() -> int:
                     "options": "alpha 120 beta 90",
                 },
                 "exact",
-            ),
-        ]
+                ),
+            ]
+        )
         for tool, arguments, expected_status in domain_cases:
             document = plugin_call(pkg, tool, arguments)
             record(

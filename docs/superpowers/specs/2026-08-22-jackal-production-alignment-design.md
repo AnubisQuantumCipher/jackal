@@ -2,7 +2,8 @@
 
 **Architect-approved source:** `JACKAL_PRODUCTION_ALIGNMENT_CODEX_GOAL_2026-08-22.md`
 **Source identity:** 12,611 bytes, 172 lines, SHA-256 `8025fb5570587258ec3cf6c808df71451af5b8815a7a5778f7d1e48e296dad7d`
-**Working candidate:** `AnubisQuantumCipher/jackal` PR #12 at `d25bcd9818e0d106f337798f80527ae611cc3acc`
+**Initial tool-containing implementation ref:** `d25bcd9818e0d106f337798f80527ae611cc3acc`
+**Live candidate authority:** `AnubisQuantumCipher/jackal` PR #12; its moving head is bound in `docs/JACKAL_PRODUCTION_ALIGNMENT_TRACKER_2026-08-22.md` rather than duplicated here.
 
 ## Objective and non-negotiable boundary
 

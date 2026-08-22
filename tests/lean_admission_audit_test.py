@@ -108,6 +108,20 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
             self.assertEqual(lane["identity_checker_sha256"], lane["checker_sha256"])
             self.assertEqual(lane["identity_checker_bytes"], lane["checker_bytes"])
 
+    def test_lane_namespaces_have_an_explicit_mapping(self) -> None:
+        mapping = self.audit["release_bindings"]["lane_identifier_mapping"]
+        self.assertEqual(
+            mapping["compatibility_floor_to_proof_checker"],
+            {
+                "int_cert": "int-cert",
+                "range": "range",
+                "rational_variants": "range",
+            },
+        )
+        self.assertEqual(
+            mapping["proof_checker_without_compatibility_floor"], ["gaussian"]
+        )
+
     def test_committed_artifact_is_generated_byte_for_byte(self) -> None:
         AUDITOR.check_committed(ROOT)
         self.assertEqual(ARTIFACT_PATH.read_bytes(), AUDITOR.render_audit(ROOT))
@@ -161,6 +175,26 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
             '/- outer admit /- nested native_decide -/ extern partial -/\n'
             'def message := "sorry axiom unsafe @[implemented_by fake]"\n'
             "def ok : Nat := 1\n"
+        )
+        try:
+            inventory = AUDITOR.scan_sources(fixture.root)
+            self.assertEqual(inventory["construct_policy"]["forbidden_findings"], [])
+            self.assertEqual(inventory["construct_policy"]["allowed_findings"], [])
+        finally:
+            fixture.close()
+
+    def test_character_literals_do_not_hide_following_declarations(self) -> None:
+        self.assert_refused(
+            "def doubleQuote : Char := '\"'\n"
+            "axiom counterfeit : False\n",
+            "axiom_declaration",
+        )
+
+    def test_character_literals_and_prime_identifiers_are_not_findings(self) -> None:
+        fixture = LeanAuditFixture(
+            "def apostrophe : Char := '\\''\n"
+            "def angle : Char := '\\u00ab'\n"
+            "def ok' : Nat := 1\n"
         )
         try:
             inventory = AUDITOR.scan_sources(fixture.root)

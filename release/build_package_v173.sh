@@ -36,7 +36,7 @@ case "/$DIST/" in
     exit 5
     ;;
 esac
-COMPILER="/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"
+COMPILER=${JACKAL_ANUBIS_COMPILER_PATH:-"/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"}
 COMPILER_SHA256="a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2"
 RANGE_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
@@ -49,6 +49,30 @@ V170_PLUGIN_HERMES_SHA256="d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9ac
 
 sha256() {
   /usr/bin/shasum -a 256 "$1" | /usr/bin/awk '{print $1}'
+}
+
+publish_noreplace() {
+  python3 -I -S -B - "$1" "$2" <<'PY'
+import ctypes
+import os
+import sys
+
+RENAME_EXCL = 0x00000004
+source = os.fsencode(sys.argv[1])
+destination = os.fsencode(sys.argv[2])
+libc = ctypes.CDLL(None, use_errno=True)
+renamex_np = libc.renamex_np
+renamex_np.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+renamex_np.restype = ctypes.c_int
+if renamex_np(source, destination, RENAME_EXCL) != 0:
+    error_number = ctypes.get_errno()
+    print(
+        "PACKAGE_V173_REFUSED reason=publication-destination-raced "
+        f"path={sys.argv[2]} errno={error_number} detail={os.strerror(error_number)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+PY
 }
 
 require_regular() {
@@ -160,7 +184,8 @@ done
 # Checking the plan validates every live identity, including the two
 # current checker binaries, both proof-identity-v2 records, compatibility
 # policy, ABA evidence, and all preserved v1.7.0 lanes.  It does not write.
-python3 "$ROOT/release/tools/repin_v173.py" --check >/dev/null
+python3 -I -S -B "$ROOT/release/tools/repin_v173.py" \
+  --compiler-path "$COMPILER" --check >/dev/null
 
 MODE=${1:-}
 if [ "$MODE" = "--dry-run" ]; then
@@ -290,7 +315,7 @@ fi
   echo "PACKAGE_V173_REFUSED reason=archival-archive-identity" >&2
   exit 4
 }
-python3 - "$V170_ARCHIVE" "$PKG" \
+python3 -I -S -B - "$V170_ARCHIVE" "$PKG" \
   "$V170_RANGE_CHECKER_SHA256" "$V170_COVERAGE_INVENTORY_SHA256" <<'PY'
 import hashlib
 import os
@@ -622,17 +647,17 @@ SOURCE_ID=$(sha256 "$PKG/jackal_calc.anb")
 RANGE_IDENTITY_FILE_ID=$(sha256 "$PKG/range_proof_identity.json")
 INT_IDENTITY_FILE_ID=$(sha256 "$PKG/int_cert_proof_identity.json")
 GAUSSIAN_IDENTITY_FILE_ID=$(sha256 "$PKG/gaussian_proof_identity.json")
-RANGE_IDENTITY_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/range_proof_identity.json")
-INT_IDENTITY_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/int_cert_proof_identity.json")
-GAUSSIAN_IDENTITY_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/gaussian_proof_identity.json")
+RANGE_IDENTITY_DIGEST=$(python3 -I -S -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/range_proof_identity.json")
+INT_IDENTITY_DIGEST=$(python3 -I -S -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/int_cert_proof_identity.json")
+GAUSSIAN_IDENTITY_DIGEST=$(python3 -I -S -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/gaussian_proof_identity.json")
 LEAN_ADMISSION_AUDIT_ID=$(sha256 "$PKG/evidence/lean_admission_audit_v173.json")
-LEAN_ADMISSION_AUDIT_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_digest_sha256"])' "$PKG/evidence/lean_admission_audit_v173.json")
+LEAN_ADMISSION_AUDIT_DIGEST=$(python3 -I -S -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_digest_sha256"])' "$PKG/evidence/lean_admission_audit_v173.json")
 COVERAGE_ID=$(sha256 "$PKG/formal_coverage_inventory.json")
 COMPAT_ID=$(sha256 "$PKG/evidence/compat_v172_floor.json")
 PROGRAM_COMPAT_ID=$(sha256 "$PKG/evidence/compat_v173_floor.json")
 RANGE_ABA_ID=$(sha256 "$PKG/evidence/range_ordering_aba_v172.json")
 INT_ABA_ID=$(sha256 "$PKG/evidence/int_cert_premise_aba_v172.json")
-PLUGIN_ID=$(python3 "$PKG/plugin/hermes/bundle_hash.py" print)
+PLUGIN_ID=$(python3 -I -S -B "$PKG/plugin/hermes/bundle_hash.py" print)
 
 cat > "$PKG/MANIFEST.sha256" <<EOF
 # JACKAL $VER package manifest — Apple Silicon macOS only; current proof identities schema v2
@@ -654,7 +679,7 @@ plugin_hermes $PLUGIN_ID
 range_proof_identity range_proof_identity.json $RANGE_IDENTITY_FILE_ID
 range_proof_digest $RANGE_IDENTITY_DIGEST
 archival_range_proof_identity evidence/range_proof_identity_v1.json $(sha256 "$PKG/evidence/range_proof_identity_v1.json")
-archival_range_proof_digest $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/evidence/range_proof_identity_v1.json")
+archival_range_proof_digest $(python3 -I -S -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/evidence/range_proof_identity_v1.json")
 gaussian_proof_identity gaussian_proof_identity.json $GAUSSIAN_IDENTITY_FILE_ID
 gaussian_proof_digest $GAUSSIAN_IDENTITY_DIGEST
 lean_admission_audit evidence/lean_admission_audit_v173.json $LEAN_ADMISSION_AUDIT_ID
@@ -1181,7 +1206,7 @@ done
 echo "STAGED_SEMANTIC_VALIDATION_PASS"
 
 STAGED_TARBALL="$STAGE/$TARBALL_NAME"
-python3 - "$PKG" "$STAGED_TARBALL" <<'PY'
+python3 -I -S -B - "$PKG" "$STAGED_TARBALL" <<'PY'
 import gzip
 import pathlib
 import sys
@@ -1211,18 +1236,16 @@ with output.open("wb") as raw:
 PY
 
 /bin/mkdir -p "$DIST"
-# Blocker F: reject any existing regular file, directory, OR (dangling
-# or live) symlink at the final publication paths. Bare `-e` misses a
-# symlink whose target no longer exists, so `mv` would then overwrite
-# the link or follow it. Guarding both `-e` and `-L` closes both
-# race variants: appearance-during-build and pre-race symlink poison.
+# Blocker F: the preflight narrows the publication window and names an early
+# collision. Each publication itself uses macOS renamex_np(RENAME_EXCL), so an
+# object appearing after this check is refused atomically rather than replaced.
 [ ! -e "$FINAL_PKG" ] && [ ! -L "$FINAL_PKG" ] \
   && [ ! -e "$FINAL_TARBALL" ] && [ ! -L "$FINAL_TARBALL" ] || {
   echo "PACKAGE_V173_REFUSED reason=output-appeared-during-build" >&2
   exit 5
 }
-/bin/mv "$PKG" "$FINAL_PKG"
-/bin/mv "$STAGED_TARBALL" "$FINAL_TARBALL"
+publish_noreplace "$PKG" "$FINAL_PKG" || exit 5
+publish_noreplace "$STAGED_TARBALL" "$FINAL_TARBALL" || exit 5
 
 echo "PACKAGE_V173_BUILD_PASS version=$VER platform=$PLATFORM"
 echo "package=$FINAL_PKG"

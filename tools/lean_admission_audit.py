@@ -157,8 +157,49 @@ def strict_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _character_literal_end(source: str, start: int) -> int | None:
+    """Return the end of a Lean character literal, or None for identifier primes."""
+
+    if source[start] != "'" or start + 2 >= len(source):
+        return None
+    cursor = start + 1
+    character = source[cursor]
+    if character in "\r\n'":
+        return None
+    if character != "\\":
+        cursor += 1
+    else:
+        cursor += 1
+        if cursor >= len(source):
+            return None
+        escape = source[cursor]
+        if escape == "u" and cursor + 1 < len(source) and source[cursor + 1] == "{":
+            close = source.find("}", cursor + 2)
+            if close < 0:
+                return None
+            digits = source[cursor + 2 : close]
+            if not 1 <= len(digits) <= 6 or any(
+                digit not in "0123456789abcdefABCDEF" for digit in digits
+            ):
+                return None
+            cursor = close + 1
+        elif escape in {"u", "U", "x"}:
+            width = {"u": 4, "U": 8, "x": 2}[escape]
+            digits = source[cursor + 1 : cursor + 1 + width]
+            if len(digits) != width or any(
+                digit not in "0123456789abcdefABCDEF" for digit in digits
+            ):
+                return None
+            cursor += 1 + width
+        else:
+            cursor += 1
+    if cursor < len(source) and source[cursor] == "'":
+        return cursor + 1
+    return None
+
+
 def code_without_comments_or_strings(source: str) -> str:
-    """Replace Lean comments and string bodies with spaces, preserving lines."""
+    """Blank Lean comments, strings, and character literals while preserving lines."""
 
     output: list[str] = []
     index = 0
@@ -192,7 +233,14 @@ def code_without_comments_or_strings(source: str) -> str:
                 output.append("\n" if char == "\n" else " ")
                 index += 1
             continue
-        if pair == "/-":
+        character_literal_end = _character_literal_end(source, index)
+        if character_literal_end is not None:
+            output.extend(
+                "\n" if value == "\n" else " "
+                for value in source[index:character_literal_end]
+            )
+            index = character_literal_end
+        elif pair == "/-":
             output.extend("  ")
             block_depth = 1
             index += 2
@@ -654,6 +702,18 @@ def build_audit(root: Path) -> dict[str, Any]:
         "release_bindings": {
             "compatibility_snapshot_inputs": compatibility,
             "current_proof_identities": bindings,
+            "lane_identifier_mapping": {
+                "classification": (
+                    "Compatibility-floor lane keys and proof-checker lane ids are "
+                    "separate namespaces; this map is their explicit relationship."
+                ),
+                "compatibility_floor_to_proof_checker": {
+                    "int_cert": "int-cert",
+                    "range": "range",
+                    "rational_variants": "range",
+                },
+                "proof_checker_without_compatibility_floor": ["gaussian"],
+            },
             "release_state": "v1.7.3-candidate",
         },
         "residual_nonclaims": [

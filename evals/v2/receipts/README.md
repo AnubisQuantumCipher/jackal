@@ -111,9 +111,12 @@ corpus_aggregate_digest   engine_identity   mode   timestamp_utc
 
 ## Live Codex transcripts — 2026-08-20
 
-The three `codex_w*_2026-08-20.jsonl` files are raw `codex exec --ephemeral
---json` event streams, not `jackal-eval-v2-results-v1` receipts. Their exact
-hashes and adjudication are in `live_tool_sessions_2026-08-20.json`.
+The three `codex_w*_2026-08-20.jsonl` files are captured `codex exec
+--ephemeral --json` event streams, not `jackal-eval-v2-results-v1` receipts.
+The autonomous W3 stream has one command-execution event whose private local
+command and output payloads are explicitly redacted while its event type,
+identity, status, and exit code remain. Their exact post-redaction hashes,
+content state, and adjudication are in `live_tool_sessions_2026-08-20.json`.
 
 Observed:
 

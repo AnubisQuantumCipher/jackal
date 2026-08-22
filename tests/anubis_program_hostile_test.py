@@ -43,7 +43,9 @@ def run_case(name: str, mutate, expected: str) -> None:
         shutil.copytree(pristine, poisoned, symlinks=True)
         mutate(source, poisoned, compiler_sha, artifact_sha)
         bad = run_verify(source, poisoned, compiler_sha, artifact_sha)
-        restored = run_verify(source, pristine, compiler_sha, artifact_sha)
+        shutil.rmtree(poisoned)
+        shutil.copytree(pristine, poisoned, symlinks=True)
+        restored = run_verify(source, poisoned, compiler_sha, artifact_sha)
         observed = reason(bad)
         record(
             name,

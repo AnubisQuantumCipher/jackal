@@ -24,9 +24,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "release/MANIFEST.sha256"
-COMPILER_PATH = Path(
+DEFAULT_COMPILER_PATH = Path(
     "/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"
 )
+COMPILER_PATH_ENV = "JACKAL_ANUBIS_COMPILER_PATH"
+COMPILER_PATH = Path(os.environ.get(COMPILER_PATH_ENV, os.fspath(DEFAULT_COMPILER_PATH)))
 COMPILER_SHA256 = (
     "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2"
 )
@@ -462,13 +464,14 @@ def validate_v172_contract() -> dict[str, str]:
     }
 
 
-def validate_compiler() -> str:
-    if COMPILER_PATH.is_symlink():
-        raise PlanRefusal(f"compiler authority must not be a symlink: {COMPILER_PATH}")
-    observed = sha256(COMPILER_PATH)
+def validate_compiler(compiler_path: Path = COMPILER_PATH) -> str:
+    if compiler_path.is_symlink():
+        raise PlanRefusal(f"compiler authority must not be a symlink: {compiler_path}")
+    observed = sha256(compiler_path)
     if observed != COMPILER_SHA256:
         raise PlanRefusal(
-            f"compiler authority drift: observed={observed} expected={COMPILER_SHA256}"
+            f"compiler authority drift: path={compiler_path} observed={observed} "
+            f"expected={COMPILER_SHA256}"
         )
     return observed
 
@@ -615,8 +618,8 @@ def plugin_bundle_digest() -> str:
     return digest
 
 
-def build_rows() -> list[str]:
-    validate_compiler()
+def build_rows(compiler_path: Path = COMPILER_PATH) -> list[str]:
+    validate_compiler(compiler_path)
     validate_unified_contract()
     contract = validate_v172_contract()
     rows = [HEADER]
@@ -676,8 +679,8 @@ def build_rows() -> list[str]:
     return [keyed[label] for label in ORDER]
 
 
-def manifest_text() -> str:
-    return "\n".join(build_rows()) + "\n"
+def manifest_text(compiler_path: Path = COMPILER_PATH) -> str:
+    return "\n".join(build_rows(compiler_path)) + "\n"
 
 
 def write_atomic(path: Path, data: str) -> None:
@@ -702,12 +705,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     modes.add_argument("--plan", action="store_true", help="print without writing")
     modes.add_argument("--check", action="store_true", help="compare with manifest")
     modes.add_argument("--write", action="store_true", help="explicitly replace manifest")
+    parser.add_argument(
+        "--compiler-path",
+        default=os.environ.get(COMPILER_PATH_ENV, os.fspath(DEFAULT_COMPILER_PATH)),
+        help=(
+            "path to the exact compiler authority; may also be set with "
+            f"{COMPILER_PATH_ENV}"
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    proposed = manifest_text()
+    proposed = manifest_text(Path(args.compiler_path))
     if args.check:
         current = MANIFEST.read_text(encoding="utf-8")
         if current != proposed:
@@ -716,7 +727,7 @@ def main(argv: list[str] | None = None) -> int:
                     current.splitlines(keepends=True),
                     proposed.splitlines(keepends=True),
                     fromfile="release/MANIFEST.sha256",
-                    tofile="v1.7.2-plan",
+                    tofile="v1.7.3-plan",
                 )
             )
             print("REPIN_V173_CHECK_FAIL")

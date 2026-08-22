@@ -256,6 +256,17 @@ class CapabilityInventoryRefusalTest(unittest.TestCase):
         finally:
             fixture.cleanup()
 
+    def test_refuses_malformed_optional_consequence_ceiling(self) -> None:
+        fixture = InventoryFixture()
+        try:
+            catalog = read_json(fixture.root / CATALOG_PATH)
+            catalog["tools"][0]["returns"]["consequence_ceiling"] = 7
+            write_json(fixture.root / CATALOG_PATH, catalog)
+            with self.assertRaisesRegex(INVENTORY.InventoryError, "catalog-shape"):
+                INVENTORY.build_inventory(fixture.root)
+        finally:
+            fixture.cleanup()
+
     def test_refuses_missing_checker_identity(self) -> None:
         fixture = InventoryFixture()
         try:

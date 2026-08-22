@@ -589,6 +589,15 @@ def build_inventory(root: Path | str) -> dict[str, Any]:
         family = _dependency_family(name)
         statuses = _status_classes(row)
         returns = row["returns"]
+        consequence_ceiling = returns.get("consequence_ceiling")
+        if consequence_ceiling is not None and (
+            not isinstance(consequence_ceiling, str)
+            or not consequence_ceiling.strip()
+        ):
+            refuse(
+                "catalog-shape",
+                f"{name}.returns.consequence_ceiling is not a non-empty string",
+            )
         records.append(
             {
                 "name": name,
@@ -596,7 +605,7 @@ def build_inventory(root: Path | str) -> dict[str, Any]:
                 "exposure": {"kernel": True, "hermes": True, "codex": True},
                 "status_classes": statuses,
                 "assurance_classes": _assurance_classes(name, statuses),
-                "consequence_ceiling": returns.get("consequence_ceiling"),
+                "consequence_ceiling": consequence_ceiling,
                 "dependency": _dependency_record(family, manifest),
                 "supported_fragment": _supported_fragment(row),
                 "refusal_boundary": REFUSAL_BOUNDARIES[family],

@@ -1,5 +1,5 @@
 {
-  "audit_digest_sha256": "c4d4440b8aa472f3fa2db682e4cff1144683b003e815e41d795a831b9fda57cf",
+  "audit_digest_sha256": "7544475a5db94a21ac4f33b1d66f6b849cb2b8331f787f87ac3bb96bde5c7ba7",
   "audit_result": {
     "logical_admission_count": 0,
     "repository_axiom_declaration_count": 0,
@@ -7,9 +7,9 @@
     "unexpected_construct_count": 0
   },
   "generator": {
-    "bytes": 29653,
+    "bytes": 31951,
     "path": "tools/lean_admission_audit.py",
-    "sha256": "9205f8a274a0ebc288b75eb7b0fefb68be26eea137d69fa337092bc8295e313d"
+    "sha256": "a91c09d5786a38f977ffd884578549edb70bca90aab9db93b00d50c831a9894f"
   },
   "release_bindings": {
     "compatibility_snapshot_inputs": {
@@ -178,6 +178,17 @@
         ]
       }
     ],
+    "lane_identifier_mapping": {
+      "classification": "Compatibility-floor lane keys and proof-checker lane ids are separate namespaces; this map is their explicit relationship.",
+      "compatibility_floor_to_proof_checker": {
+        "int_cert": "int-cert",
+        "range": "range",
+        "rational_variants": "range"
+      },
+      "proof_checker_without_compatibility_floor": [
+        "gaussian"
+      ]
+    },
     "release_state": "v1.7.3-candidate"
   },
   "residual_nonclaims": [

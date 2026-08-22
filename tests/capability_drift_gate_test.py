@@ -123,6 +123,7 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            timeout=120,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(

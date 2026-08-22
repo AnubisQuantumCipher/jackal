@@ -15,10 +15,11 @@
   "sessions": [
     {
       "attempted_tool": "jackal_range_bound",
-      "bytes": 46160,
+      "bytes": 17574,
+      "content_state": "private local command and output payload for item_3 redacted; event structure and status retained",
       "mode": "autonomous",
       "path": "evals/v2/receipts/codex_w3_autonomous_2026-08-20.jsonl",
-      "sha256": "762a383caf4dacacd5b7d227ed6c7589c653c7239d7f58c57238a8ffcf843d32",
+      "sha256": "dbee6073a943ae7f4049cdeff2df07518ad1920f5a20b5f4c1837330750e082a",
       "task": "W3 receipt validation",
       "tool_result": "cancelled-by-noninteractive-host",
       "verdict": "NOT_MEASURABLE"

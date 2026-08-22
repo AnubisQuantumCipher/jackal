@@ -34,7 +34,7 @@
   "gates": {
     "package_unified_tests": {
       "exit": 0,
-      "passed": 10,
+      "passed": 11,
       "skipped": 0
     },
     "claim_package_parity": {

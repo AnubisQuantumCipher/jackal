@@ -120,7 +120,7 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
         self.assertEqual(
             document["gates"]["package_unified_tests"],
-            {"exit": 0, "passed": 10, "skipped": 0},
+            {"exit": 0, "passed": 11, "skipped": 0},
         )
         self.assertEqual(
             document["gates"]["claim_package_parity"],

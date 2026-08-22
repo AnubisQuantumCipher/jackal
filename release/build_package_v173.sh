@@ -36,8 +36,12 @@ case "/$DIST/" in
     exit 5
     ;;
 esac
-COMPILER=${JACKAL_ANUBIS_COMPILER_PATH:-"/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"}
 COMPILER_SHA256="a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2"
+COMPILER=${JACKAL_ANUBIS_COMPILER_PATH:-}
+[ -n "$COMPILER" ] || {
+  echo "PACKAGE_V173_REFUSED reason=compiler-path-unset expected_sha256=$COMPILER_SHA256" >&2
+  exit 4
+}
 RANGE_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
 INT_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_int_cert_check"

@@ -182,6 +182,9 @@ class UnifiedPackageV173Test(unittest.TestCase):
             self.assertIn(f"\n{label} ", builder, label)
         self.assertIn("jackal-anubis-program", builder)
         self.assertIn("PACKAGE_V173_BUILD_PASS", builder)
+        self.assertIn('COMPILER=${JACKAL_ANUBIS_COMPILER_PATH:-}', builder)
+        self.assertIn("compiler-path-unset", builder)
+        self.assertNotIn("/Users/sicarii", builder)
         self.assertNotRegex(builder, r"python3(?! -I -S -B)")
         self.assertIn("renamex_np", builder)
         self.assertIn("RENAME_EXCL", builder)
@@ -260,6 +263,20 @@ class UnifiedPackageV173Test(unittest.TestCase):
     def test_dry_run_and_repin_check_are_current_source_instruments(self) -> None:
         if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
             self.skipTest("release/build_package_v173.sh requires Darwin/arm64")
+        if "JACKAL_ANUBIS_COMPILER_PATH" not in os.environ:
+            self.skipTest("set JACKAL_ANUBIS_COMPILER_PATH to the pinned compiler")
+        unset_environment = os.environ.copy()
+        unset_environment.pop("JACKAL_ANUBIS_COMPILER_PATH", None)
+        unset = subprocess.run(
+            [str(BUILDER), "--dry-run"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            env=unset_environment,
+            timeout=120,
+        )
+        self.assertEqual(unset.returncode, 4, unset.stdout + unset.stderr)
+        self.assertIn("reason=compiler-path-unset", unset.stderr)
         dry = subprocess.run(
             [str(BUILDER), "--dry-run"],
             capture_output=True,

@@ -142,10 +142,12 @@ coverage.  The receipt therefore records
 
 * `no-source-to-vc-proof`
 * `no-smt-to-cnf-proof`
-* `policy-construct-totality-not-established`
 * `no-source-native-refinement`
-* `runtime-not-observed`
 * `no-universal-language-soundness`
+* `policy-semantics-producer-attested`
+* `runtime-not-observed`
+* `derived-confinement-is-not-os-enforcement`
+* `policy-construct-totality-not-established`
 
 The verifier and policy are both runtime-bundle-bound and separately pinned by
 `release/MANIFEST.sha256`.  The policy bytes live at

@@ -219,15 +219,15 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 )
         opener.assert_not_called()
 
-    def test_unpublished_candidate_refuses_default_download_before_staging(self):
-        opener = mock.Mock(side_effect=AssertionError("must not download"))
+    def test_published_release_attempts_the_pinned_default_download(self):
+        opener = mock.Mock(side_effect=RuntimeError("download sentinel"))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             target = root / "support/runtimes/v1.7.3"
             locator = root / "support/codex-plugin/runtime.json"
             with self.assertRaisesRegex(
                 provisioner.ProvisionError,
-                "candidate release is unpublished; provide --tarball",
+                "download failed",
             ):
                 provisioner.provision(
                     runtime_target=target,
@@ -240,9 +240,12 @@ class RuntimeProvisionerTests(unittest.TestCase):
                     system="Darwin",
                     machine="arm64",
                 )
-            self.assertFalse(target.parent.exists())
+            self.assertTrue(target.parent.is_dir())
             self.assertFalse(locator.parent.exists())
-        opener.assert_not_called()
+        opener.assert_called_once_with(
+            provisioner.URL,
+            timeout=provisioner.NETWORK_TIMEOUT,
+        )
 
     def test_stream_download_requires_declared_exact_length(self):
         data = b"abcdef"
@@ -1535,7 +1538,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
 
     def test_pinned_constants_and_default_paths(self):
         self.assertEqual(provisioner.EPOCH, "v1.7.3")
-        self.assertEqual(provisioner.RELEASE_STATE, "candidate-unpublished")
+        self.assertEqual(provisioner.RELEASE_STATE, "published")
         self.assertEqual(provisioner.ASSET, "jackal-v1.7.3-macos-arm64.tar.gz")
         self.assertEqual(
             provisioner.URL,

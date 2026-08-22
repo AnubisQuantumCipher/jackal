@@ -232,7 +232,7 @@ class PluginMetadataTests(unittest.TestCase):
             ],
         )
         expected_long_description = (
-            "Expose JACKAL's 41-tool v1.7.3 candidate runtime through Codex. "
+            "Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. "
             "The MCP adapter copies the parsed runtime result object into "
             "structuredContent unchanged; its only adapter-local tool result is "
             "status=refused reason=plugin-busy. Runtime result and assurance "
@@ -358,13 +358,13 @@ class PluginMetadataTests(unittest.TestCase):
             )
         )
 
-    def test_readme_documents_candidate_install_discovery_and_boundaries(self):
+    def test_readme_documents_release_install_discovery_and_boundaries(self):
         text = README_PATH.read_text(encoding="utf-8")
         for required in (
             "41-tool",
-            "v1.7.3 candidate",
+            "v1.7.3 release",
             "release/capability_inventory_v1.json",
-            "/bin/zsh scripts/launch_mcp.zsh provision --tarball",
+            "/bin/zsh scripts/launch_mcp.zsh provision",
             "codex mcp list",
             "jackal_claim",
             "jackal_verify_receipt",

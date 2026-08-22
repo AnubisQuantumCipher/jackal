@@ -1,5 +1,5 @@
 {
-  "audit_digest_sha256": "264701eaa4c4721d0b734653cd8082d20e1b57d252e80e6dd9394ac50010af98",
+  "audit_digest_sha256": "5e33809e2d8f73d8b554313bc9ea71a8b8d3c657810f0b37d4db3dd945578f29",
   "audit_result": {
     "logical_admission_count": 0,
     "repository_axiom_declaration_count": 0,
@@ -7,9 +7,9 @@
     "unexpected_construct_count": 0
   },
   "generator": {
-    "bytes": 35776,
+    "bytes": 35766,
     "path": "tools/lean_admission_audit.py",
-    "sha256": "d7793e18aff6b31e66f1f5ab80b43a79260141b36f1afe67d7a13936aab7e5df"
+    "sha256": "c620393d0dbef7701f298ef8ee71f5563d3ce61ac76f3328331bafa6e24e3bf8"
   },
   "release_bindings": {
     "compatibility_snapshot_inputs": {
@@ -189,7 +189,7 @@
         "gaussian"
       ]
     },
-    "release_state": "v1.7.3-candidate"
+    "release_state": "v1.7.3"
   },
   "residual_nonclaims": [
     "This audit is not a cryptographic signature or builder authentication.",

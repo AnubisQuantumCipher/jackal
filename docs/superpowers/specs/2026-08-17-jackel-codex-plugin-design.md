@@ -9,10 +9,10 @@ Original design base: `7d9b5bee0ce52fb6bbe24e4c50f5661f5bad2318`
 Current publication base: `c3ec10f5b446b28a04f9bd19606fc8b329ac43f5`
 
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
-The current `v1.7.3-candidate` exposes the ordered 41-tool catalog recorded in
+The current v1.7.3 release exposes the ordered 41-tool catalog recorded in
 `release/capability_inventory_v1.json`, with tool-containing implementation
-ref `d25bcd9818e0d106f337798f80527ae611cc3acc`. Candidate state does not assert
-an annotated public v1.7.3 tag or release.
+ref `d25bcd9818e0d106f337798f80527ae611cc3acc`. The annotated tag, GitHub
+release, package receipt, and downloaded asset must bind the same bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
 ## Objective
@@ -24,14 +24,13 @@ full engine available without weakening JACKAL's epistemic classes, refusal
 semantics, checker boundaries, or pinned runtime identity.
 
 The plugin is installed from a JACKAL repository checkout. Its computation
-runtime is the separately pinned JACKAL v1.7.3 candidate macOS package, not a
-copy assembled from source-tree fragments. Until authorized publication, the
-operator provisions the exact local candidate tarball rather than treating the
-future release URL as proof that a release exists. The plugin does not duplicate or
-modify `plugin/hermes`; an explicit provisioner installs the hash-pinned
-release package in the user's macOS Application Support directory. The first
-verified platform is Apple Silicon macOS. Intel macOS remains unsupported
-until JACKAL publishes and seals a corresponding runtime.
+runtime is the separately pinned JACKAL v1.7.3 release macOS package, not a
+copy assembled from source-tree fragments. The operator may download the fixed
+release URL or provision the same exact package from a local tarball. The plugin
+does not duplicate or modify `plugin/hermes`; an explicit provisioner installs
+the hash-pinned release package in the user's macOS Application Support
+directory. The verified platform is Apple Silicon macOS. Intel macOS remains
+unsupported until JACKAL publishes and seals a corresponding runtime.
 
 ## Goals
 
@@ -105,7 +104,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `mcpServers`: `./.mcp.json`
 - `interface.displayName`: `JACKAL`
 - `interface.shortDescription`: `Claim-aware computation with explicit evidence classes`
-- `interface.longDescription`: `Expose JACKAL's 41-tool v1.7.3 candidate runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).`
+- `interface.longDescription`: `Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).`
 - `interface.developerName`: `Anubis Quantum Cipher`
 - `interface.category`: `Productivity`
 - `interface.capabilities`: `["Interactive"]`
@@ -148,7 +147,7 @@ checker bytes execute.
 ## Runtime Provisioning
 
 `plugins/jackel/scripts/provision_runtime.py` is an explicit operator command,
-not an automatic install hook. Version 0.1.0 candidate pins:
+not an automatic install hook. Version 0.1.0 release pins:
 
 - release epoch: `v1.7.3`
 - asset: `jackal-v1.7.3-macos-arm64.tar.gz`
@@ -160,18 +159,16 @@ not an automatic install hook. Version 0.1.0 candidate pins:
 - extracted `SHA256SUMS` SHA-256:
   `c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f`
 
-While `RELEASE_STATE` is `candidate-unpublished`, the provisioner refuses the
-network path before creating a staging directory and requires an explicit
-absolute `--tarball` path. The network path may be enabled only after the
-public release asset and its embedded `SHA256SUMS` have been read back and
-matched to the local candidate pins.
+With `RELEASE_STATE` set to `published`, the provisioner uses the fixed release
+URL when no `--tarball` is supplied. An explicit absolute `--tarball` remains
+available for offline installation; both paths enforce the same size, package
+digest, and embedded `SHA256SUMS` pin.
 
 The provisioner:
 
 1. Refuses unless the host is macOS on `arm64`.
-2. Accepts an explicit local tarball path for candidate installation; after a
-   verified public-release readback, the same bounded path may download into a
-   newly created temporary directory.
+2. Downloads into a newly created temporary directory or accepts an explicit
+   local tarball path for offline installation.
 3. Rejects a declared or streamed body larger than 158363755 bytes, then
    requires exactly that size and the fixed package SHA-256 before extraction.
    The per-operation network timeout is supplemented by a monotonic total download deadline,
@@ -480,8 +477,8 @@ status; the adapter is not authorized to create or promote that status.
 ### Provisioner tests
 
 - Reject non-macOS and non-arm64 hosts before downloading.
-- Refuse the unpublished candidate's default network path before staging or
-  opening a connection.
+- Exercise the published release's pinned default network path through a
+  controlled opener before staging real bytes.
 - Verify the fixed v1.7.3 URL, epoch, filename, exact 158363755-byte length,
   bounded streaming download, and expected package SHA-256.
 - Exercise offline local-tarball provisioning with a fixture archive.
@@ -510,7 +507,7 @@ status; the adapter is not authorized to create or promote that status.
 
 ### Live installed-plugin checks
 
-Using the pinned v1.7.3 candidate runtime and an isolated temporary `CODEX_HOME`:
+Using the pinned v1.7.3 release runtime and an isolated temporary `CODEX_HOME`:
 
 The installer derives forbidden state roots from both the passwd account home
 and the process home, canonicalizes them independently of caller `HOME`, and
@@ -604,7 +601,7 @@ wrapper-identity checks, provisioner tests, adapter unit tests, real
 marketplace installation, fresh-task MCP discovery, one supported computation,
 one checker-attested call, one fail-closed control, backend selftest, and the
 repository evidence verifier all pass against the same source revision and
-pinned v1.7.3 candidate runtime bytes.
+pinned v1.7.3 release runtime bytes.
 
 If sealed runtime artifacts are absent, source and unit work may be complete,
 but the plugin must be reported as integration-blocked rather than ready.

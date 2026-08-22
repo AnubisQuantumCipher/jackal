@@ -9,13 +9,10 @@ source → compiler pin → deterministic build → binary hash → gate receipt
 ```
 
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
-The `v1.7.3-candidate` binds an ordered 41-tool surface through
-`release/capability_inventory_v1.json`. Its package receipt is
-`b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d`
-(158363755 bytes), with extracted `SHA256SUMS` digest
-`c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f`.
-These are candidate bytes; the block does not assert a public v1.7.3 tag or
-release.
+The v1.7.3 release binds an ordered 41-tool surface through
+`release/capability_inventory_v1.json`. The package identity is recorded in
+`release/evidence/package_alignment_v173_release.json`; the annotated tag,
+GitHub asset, and read-back receipt must match those exact bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
 ## Candidate v1.7.3 — unified domain-pack and Anubis program evidence — 2026-08-20 — SIGNOFF REQUIRED

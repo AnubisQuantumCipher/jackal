@@ -30,7 +30,7 @@ from typing import Callable, Iterable, Mapping
 EPOCH = "v1.7.3"
 ASSET = "jackal-v1.7.3-macos-arm64.tar.gz"
 URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz"
-RELEASE_STATE = "candidate-unpublished"
+RELEASE_STATE = "published"
 PACKAGE_SIZE = 158363755
 PACKAGE_SHA256 = "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d"
 EXTRACTED_SIZE = 555512409

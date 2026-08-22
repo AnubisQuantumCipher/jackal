@@ -1,9 +1,9 @@
 # JACKAL for Codex (legacy package ID `jackel`)
 
-This repo-local Codex plugin exposes the JACKAL v1.7.3 candidate runtime on
-Apple Silicon macOS. Its current source contract is the ordered 41-tool
-inventory in `release/capability_inventory_v1.json`. Candidate state does not
-assert that a public v1.7.3 tag or release asset exists.
+This repo-local Codex plugin exposes the JACKAL v1.7.3 release runtime on Apple
+Silicon macOS. Its current source contract is the ordered 41-tool inventory in
+`release/capability_inventory_v1.json`; the package receipt and downloaded
+release asset must bind the same exact bytes.
 
 The MCP server is a transport adapter. It loads schemas from the admitted
 runtime and copies each parsed runtime result into `structuredContent`. The
@@ -13,16 +13,18 @@ statuses and fields come from the runtime.
 ## Install and provision
 
 Add the JACKAL repository as a local marketplace, install
-`jackel@anubis-quantum-cipher`, and provision the runtime explicitly. Until a
-public v1.7.3 release is authorized and read back, use the separately verified
-local candidate tarball:
+`jackel@anubis-quantum-cipher`, and provision the pinned release runtime. The
+default command downloads the fixed release asset; pass `--tarball` with an
+absolute path for an offline installation:
 
 ```bash
 codex plugin marketplace add /absolute/path/to/jackal
 codex plugin add jackel@anubis-quantum-cipher
 cd /absolute/path/to/the/installed/jackel/plugin
-/bin/zsh scripts/launch_mcp.zsh provision --tarball \
-  /absolute/path/to/jackal-v1.7.3-macos-arm64.tar.gz
+/bin/zsh scripts/launch_mcp.zsh provision
+# Offline alternative:
+# /bin/zsh scripts/launch_mcp.zsh provision --tarball \
+#   /absolute/path/to/jackal-v1.7.3-macos-arm64.tar.gz
 /bin/zsh scripts/launch_mcp.zsh provision --check
 codex mcp list --json
 ```

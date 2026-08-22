@@ -11,11 +11,9 @@ loudly, with a named reason — instead of printing something plausible.
 This guide takes you from install to reading your first certified result.
 
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
-The source tree's `v1.7.3-candidate` agent surface contains 41-tool entries,
-derived and checked in `release/capability_inventory_v1.json`. Candidate and
-public-release state are separate: the download instructions below continue
-to name the current public v1.7.2 asset until v1.7.3 is authorized, published,
-and verified by release read-back.
+The v1.7.3 release agent surface contains 41-tool entries, derived and checked
+in `release/capability_inventory_v1.json`. The annotated tag, GitHub release,
+package receipt, and downloaded asset must all bind the same release identity.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
 ## 1. Install
@@ -23,7 +21,7 @@ and verified by release read-back.
 ### Option A — download the release package (Apple Silicon macOS)
 
 The current public release ships
-`jackal-v1.7.2-macos-arm64.tar.gz`; the `jackal-native` binary lives inside it,
+`jackal-v1.7.3-macos-arm64.tar.gz`; the `jackal-native` binary lives inside it,
 next to every pinned checker and wrapper. Verify the tarball against the
 release `SHA256SUMS`, extract it, and check the binary against
 [`PROVENANCE.md`](PROVENANCE.md):
@@ -31,11 +29,11 @@ release `SHA256SUMS`, extract it, and check the binary against
 ```bash
 git clone https://github.com/AnubisQuantumCipher/jackal.git
 cd jackal
-# download jackal-v1.7.2-macos-arm64.tar.gz (+ SHA256SUMS) from the
+# download jackal-v1.7.3-macos-arm64.tar.gz (+ SHA256SUMS) from the
 # Releases page into this directory, then:
 shasum -a 256 -c SHA256SUMS --ignore-missing
-tar -xzf jackal-v1.7.2-macos-arm64.tar.gz
-cp jackal-v1.7.2-macos-arm64/jackal-native .
+tar -xzf jackal-v1.7.3-macos-arm64.tar.gz
+cp jackal-v1.7.3-macos-arm64/jackal-native .
 shasum -a 256 jackal-native        # compare against PROVENANCE.md
 chmod +x jackal-native
 ./jackal self-test

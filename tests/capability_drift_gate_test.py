@@ -78,7 +78,7 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
     def test_package_pin_uses_dedicated_alignment_receipt(self) -> None:
         self.assertEqual(
             DRIFT.PACKAGE_EVIDENCE_PATH,
-            Path("release/evidence/package_alignment_v173_candidate.json"),
+            Path("release/evidence/package_alignment_v173_release.json"),
         )
 
     def test_current_repository_surface_verifies(self) -> None:

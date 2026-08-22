@@ -814,7 +814,7 @@ def build_audit(root: Path) -> dict[str, Any]:
                 },
                 "proof_checker_without_compatibility_floor": ["gaussian"],
             },
-            "release_state": "v1.7.3-candidate",
+            "release_state": "v1.7.3",
         },
         "residual_nonclaims": [
             "This audit is not a cryptographic signature or builder authentication.",

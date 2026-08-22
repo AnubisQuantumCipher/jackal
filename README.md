@@ -13,12 +13,11 @@ for Apple Silicon macOS, or build from source with an Anubis compiler), first co
 how to read the trust labels. License: [MIT](LICENSE).
 
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
-**Current agent surface:** the `v1.7.3-candidate` exports an ordered 41-tool
-catalog whose schemas, profiles, status classes, dependencies, and host
-exposure are generated in `release/capability_inventory_v1.json`. This is a
-candidate identity, not a claim that a public v1.7.3 tag or release exists;
-the public-download instructions remain on v1.7.2 until publication is
-authorized and read back.
+**Current agent surface:** the v1.7.3 release exports an ordered 41-tool catalog
+whose schemas, profiles, status classes, dependencies, and host exposure are
+generated in `release/capability_inventory_v1.json`. The annotated `v1.7.3`
+tag, GitHub release, package receipt, and downloadable asset must bind the
+same exact release bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
@@ -636,7 +635,7 @@ The kernel is deliberately small and closed:
   revoked v1.7.0 receipts refuse. The claim kernel's own hull arithmetic
   still caps at `bounded`.
 
-The v1.7.3 candidate exposes one ordered 41-tool catalog across JACKAL,
+The v1.7.3 release exposes one ordered 41-tool catalog across JACKAL,
 Hermes, and Codex. It includes the claim/bundle front doors, the current
 request-bound `jackal_integrate_bound_cert` lane, four domain-pack routes,
 and three caller-pinned Anubis program-evidence routes; the generated

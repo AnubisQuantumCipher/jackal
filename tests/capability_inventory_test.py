@@ -142,7 +142,7 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             self.assertIn("family", row["dependency"])
             self.assertIn("identities", row["dependency"])
             self.assertTrue(row["dependency"]["identities"], row["name"])
-            self.assertIn(row["release_state"], {"v1.7.3-candidate", "v1.7.3"})
+            self.assertEqual(row["release_state"], "v1.7.3")
             self.assertEqual(
                 row["containing_ref"],
                 {
@@ -150,6 +150,12 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
                     "value": "d25bcd9818e0d106f337798f80527ae611cc3acc",
                 },
             )
+
+        self.assertEqual(document["release"]["state"], "v1.7.3")
+        self.assertEqual(
+            document["release"]["statement"],
+            "Published release identity; the annotated v1.7.3 tag and GitHub release must bind these exact bytes.",
+        )
 
     def test_surface_origin_is_an_ancestor_with_the_same_catalog(self) -> None:
         document = INVENTORY.build_inventory(ROOT)

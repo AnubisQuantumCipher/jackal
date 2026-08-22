@@ -19,7 +19,7 @@ INVENTORY_PATH = Path("release/capability_inventory_v1.json")
 PLUGIN_MANIFEST_PATH = Path("plugins/jackel/.codex-plugin/plugin.json")
 CODEX_SERVER_PATH = Path("plugins/jackel/mcp/server.py")
 PROVISIONER_PATH = Path("plugins/jackel/scripts/provision_runtime.py")
-PACKAGE_EVIDENCE_PATH = Path("release/evidence/package_alignment_v173_candidate.json")
+PACKAGE_EVIDENCE_PATH = Path("release/evidence/package_alignment_v173_release.json")
 SKILL_PATH = Path("plugins/jackel/skills/jackel/SKILL.md")
 DESIGN_PATH = Path("docs/superpowers/specs/2026-08-17-jackel-codex-plugin-design.md")
 CURRENT_SURFACES = (
@@ -289,8 +289,8 @@ def _verify_plugin_metadata(
             "current-tool-count",
             f"plugin longDescription does not state {expected_count}-tool",
         )
-    if "v1.7.3 candidate runtime" not in description:
-        refuse("current-release-state", "plugin metadata does not identify candidate state")
+    if "v1.7.3 release runtime" not in description:
+        refuse("current-release-state", "plugin metadata does not identify release state")
     for clause in NEUTRAL_METADATA_CLAUSES:
         if clause not in description:
             refuse("adapter-metadata", f"plugin metadata lacks mechanism clause {clause!r}")
@@ -329,10 +329,10 @@ def _verify_current_surfaces(root: Path, expected_count: int) -> list[tuple[Path
                 "current-tool-count",
                 f"{relative} current block does not state {expected_count}-tool",
             )
-        if "v1.7.3-candidate" not in block:
+        if "v1.7.3 release" not in block:
             refuse(
                 "current-release-state",
-                f"{relative} current block does not state v1.7.3-candidate",
+                f"{relative} current block does not state v1.7.3 release",
             )
         if "release/capability_inventory_v1.json" not in block:
             refuse(
@@ -359,7 +359,7 @@ def verify_surface(root: Path | str) -> dict[str, object]:
         or not isinstance(records, list)
         or len(records) != expected_count
         or not isinstance(release, dict)
-        or release.get("state") != "v1.7.3-candidate"
+        or release.get("state") != "v1.7.3"
         or release.get("version") != "v1.7.3"
         or not isinstance(vocabulary, list)
         or not all(isinstance(value, str) for value in vocabulary)

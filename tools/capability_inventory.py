@@ -37,7 +37,7 @@ PROGRAM_POLICY_PATH = Path("release/program/inventory_safe_v1.json")
 PROFILE_IDS = ("core", "formal", "full")
 EXPECTED_VERSION = "v1.7.3"
 EXPECTED_TOOL_COUNT = 41
-RELEASE_STATE = "v1.7.3-candidate"
+RELEASE_STATE = "v1.7.3"
 CONTAINING_REF = {
     # This is the immutable surface-origin commit, not the generator's HEAD.
     # Embedding HEAD in an artifact committed at HEAD would be self-referential.
@@ -739,8 +739,8 @@ def build_inventory(root: Path | str) -> dict[str, Any]:
             "version": EXPECTED_VERSION,
             "containing_ref": dict(CONTAINING_REF),
             "statement": (
-                "Candidate identity only; this document does not assert that an "
-                "annotated v1.7.3 tag or public release exists."
+                "Published release identity; the annotated v1.7.3 tag and "
+                "GitHub release must bind these exact bytes."
             ),
         },
         "tool_count": len(records),

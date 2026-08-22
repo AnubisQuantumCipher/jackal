@@ -1110,7 +1110,7 @@ require(inventory_catalog.get("version") == "v1.7.3" and
         "capability-inventory-catalog-binding")
 inventory_release = capability_inventory.get("release", {})
 require(inventory_release.get("version") == "v1.7.3" and
-        inventory_release.get("state") == "v1.7.3-candidate",
+        inventory_release.get("state") == "v1.7.3",
         "capability-inventory-release-state")
 require(full_profile.get("tools") == tool_names, "full-profile-catalog-parity")
 for profile_name in ("core", "formal", "full"):

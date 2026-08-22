@@ -6,10 +6,10 @@ description: Route claim-aware computation, domain-pack, and Anubis program evid
 # JACKAL numerical-trust operator
 
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
-The `v1.7.3-candidate` exposes the ordered 41-tool full inventory recorded in
+The v1.7.3 release exposes the ordered 41-tool full inventory recorded in
 `release/capability_inventory_v1.json`. Treat that generated file as the
-capability-name and status source; candidate evidence is not a public-release
-claim.
+capability-name and status source; the release tag, package receipt, and asset
+must bind the same exact bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
 JACKAL exposes the full tool inventory on Apple Silicon macOS. Use it to

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "release/build_package_v173.sh"
 REPIN = ROOT / "release/tools/repin_v173.py"
 COMPAT = ROOT / "release/compat/v173_floor.json"
-ALIGNMENT_RECEIPT = ROOT / "release/evidence/package_alignment_v173_candidate.json"
+ALIGNMENT_RECEIPT = ROOT / "release/evidence/package_alignment_v173_release.json"
 PROGRAM_DOGFOOD = ROOT / "release/evidence/anubis_program_dogfood_v1.json"
 PACKAGE_NAME = "jackal-v1.7.3-macos-arm64"
 REQUIRED_PACKAGE_INPUTS = {
@@ -104,16 +104,16 @@ class UnifiedPackageV173Test(unittest.TestCase):
         self.assertEqual(
             package["superseded_by"],
             {
-                "path": "release/evidence/package_alignment_v173_candidate.json",
+                "path": "release/evidence/package_alignment_v173_release.json",
                 "package_sha256": alignment["package"]["sha256"],
             },
         )
         self.assertNotEqual(package["sha256"], alignment["package"]["sha256"])
 
-    def test_alignment_receipt_binds_reproducible_candidate_and_live_codex(self) -> None:
+    def test_alignment_receipt_binds_reproducible_release_and_live_codex(self) -> None:
         document = json.loads(ALIGNMENT_RECEIPT.read_text(encoding="utf-8"))
         self.assertEqual(document["schema"], "jackal-package-alignment-v1")
-        self.assertEqual(document["release_state"], "v1.7.3-candidate")
+        self.assertEqual(document["release_state"], "v1.7.3")
         self.assertEqual(
             document["package"],
             {
@@ -154,8 +154,8 @@ class UnifiedPackageV173Test(unittest.TestCase):
             document["gates"]["codex_live_acceptance"]["discovered_tool_count"],
             41,
         )
-        self.assertIn("no-public-v1.7.3-release-assertion", document["non_claims"])
-        self.assertIn("architect-trust-surface-signoff-required", document["non_claims"])
+        self.assertIn("not-a-cryptographic-signature", document["non_claims"])
+        self.assertIn("no-upstream-merge-assertion", document["non_claims"])
         completion = (
             ROOT / "docs/W3_W4_W6_W10_COMPLETION_RECORD.md"
         ).read_text(encoding="utf-8")

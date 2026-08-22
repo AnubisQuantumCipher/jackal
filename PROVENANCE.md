@@ -68,8 +68,8 @@ with its own absolute `JACKAL_DIST`, produced byte-identical tarballs; `cmp`
 exited 0:
 
 The producing source was the clean commit
-`efece744fdc3f1362422b0ef999398702774e8e3` (tree
-`3a40227d6255321e7d3956ba02f943ab37ce1d6f`). This provenance record is a
+`0ef98d4706c0be5660914b705083924886c813cb` (tree
+`45cb97bde1954deebb0f843b3de16c898994303e`). This provenance record is a
 later derived checkpoint and is not represented as the commit that produced
 the package.
 

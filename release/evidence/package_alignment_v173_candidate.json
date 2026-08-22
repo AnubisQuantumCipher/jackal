@@ -6,10 +6,10 @@
   "source": {
     "repository": "AnubisQuantumCipher/jackal",
     "branch": "mission/jackal-unified-completion-20260820",
-    "commit": "efece744fdc3f1362422b0ef999398702774e8e3",
-    "tree": "3a40227d6255321e7d3956ba02f943ab37ce1d6f",
+    "commit": "0ef98d4706c0be5660914b705083924886c813cb",
+    "tree": "45cb97bde1954deebb0f843b3de16c898994303e",
     "worktree_status_at_build": "clean",
-    "builder_sha256": "9fefb2741888c6d9bb268f2a4199a1bb776f52a333878ee900175615e2701801",
+    "builder_sha256": "45d88d3168cd5101fa0f87463b1a48538a7e97b4585ac764473038f1cb509753",
     "manifest_sha256": "0126627e910e117948976c97f29bba5f1e0346bc95587fef268aabb0ff2cc0e9",
     "capability_inventory_sha256": "b26606faab2acba95d42b964787b75029b84df3038cc047ae00e5234378aebd4",
     "compiler_sha256": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",

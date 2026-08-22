@@ -6,12 +6,12 @@
   "source": {
     "repository": "AnubisQuantumCipher/jackal",
     "branch": "mission/jackal-unified-completion-20260820",
-    "commit": "44381dcb10d7b0572f2531a26d8ccd6f88afe7dd",
-    "tree": "3f4bf69f11a8acfddfb8a670d522d55143a8e6ba",
+    "commit": "7d935f0ca8ab444475cc3269d5d8bde03ba397fb",
+    "tree": "acdf0079dd46efcf76fc4c545644a4158107f1b2",
     "worktree_status_at_build": "clean",
     "builder_sha256": "109b5461e509c5c31cc426455ae0976afbe9a400b9eba9f3bd5028ccb1015723",
-    "manifest_sha256": "24ff2c36110e7a8550fcc1b5bb2c4301acbfd0fa6d8916bc01ac323f77a21c3c",
-    "capability_inventory_sha256": "9b3003291d7c323af462406038dea61ece7ec1bb1bf57da1f619b70e4875c409",
+    "manifest_sha256": "0126627e910e117948976c97f29bba5f1e0346bc95587fef268aabb0ff2cc0e9",
+    "capability_inventory_sha256": "b26606faab2acba95d42b964787b75029b84df3038cc047ae00e5234378aebd4",
     "compiler_sha256": "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2",
     "checker_sha256": {
       "range": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
@@ -21,11 +21,11 @@
   },
   "package": {
     "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
-    "bytes": 158362703,
-    "extracted_file_bytes": 555507432,
+    "bytes": 158362693,
+    "extracted_file_bytes": 555507667,
     "file_count": 106,
-    "sha256": "c030076186791a551d7818412e39ea895da0f16a2fad88877554ff390c284d9c",
-    "sha256sums_root": "15b179469a3519d124706a1b3281710ca2870e28a7073d107ac15eec156f2894"
+    "sha256": "5bc45b704d4de2a1413ea3a4a5520d768da740840146fe7286643a7a55de41c3",
+    "sha256sums_root": "3cc7fbb37a07939c8f7b4df6e0dabe873e5ef12ebc10876597993d02e7740d80"
   },
   "comparisons": {
     "directory_diff_exit": 0,
@@ -49,9 +49,9 @@
     "codex_live_acceptance": {
       "status": "accepted",
       "discovered_tool_count": 41,
-      "wrapper_aggregate_sha256": "3b2ea0858032d139949914daf6b2e45fa37150059f0771335512375b67c5e74f",
-      "runtime_package_sha256": "c030076186791a551d7818412e39ea895da0f16a2fad88877554ff390c284d9c",
-      "runtime_tree_sha256": "15b179469a3519d124706a1b3281710ca2870e28a7073d107ac15eec156f2894",
+      "wrapper_aggregate_sha256": "a3735c2f41581ec8b386eef355baaf8c32a578639c66f765cdfd8a29111c96e1",
+      "runtime_package_sha256": "5bc45b704d4de2a1413ea3a4a5520d768da740840146fe7286643a7a55de41c3",
+      "runtime_tree_sha256": "3cc7fbb37a07939c8f7b4df6e0dabe873e5ef12ebc10876597993d02e7740d80",
       "gates": {
         "claim_bundle": "verified",
         "exact": "exact",

@@ -17,6 +17,7 @@ REPIN = ROOT / "release/tools/repin_v173.py"
 COMPAT = ROOT / "release/compat/v173_floor.json"
 PACKAGE_NAME = "jackal-v1.7.3-macos-arm64"
 REQUIRED_PACKAGE_INPUTS = {
+    "release/capability_inventory_v1.json",
     "domain_packs/PACK_SCHEMA.json",
     "domain_packs/PACK_SPEC.md",
     "domain_packs/registry_v1.json",
@@ -116,6 +117,23 @@ class UnifiedPackageV173Test(unittest.TestCase):
             compatibility["independent_policy_construct_totality"], False
         )
         self.assertEqual(full["tools"], names)
+
+        inventory = json.loads(
+            (ROOT / "release/capability_inventory_v1.json").read_text()
+        )
+        self.assertEqual(inventory["schema"], "jackal-capability-inventory-v1")
+        self.assertEqual(inventory["tool_count"], 41)
+        self.assertEqual(inventory["unique_tool_count"], 41)
+        self.assertEqual(
+            [row["name"] for row in inventory["tools"]],
+            names,
+        )
+        self.assertEqual(
+            inventory["catalog"]["sha256"],
+            hashlib.sha256(
+                (ROOT / "plugin/hermes/tools.json").read_bytes()
+            ).hexdigest(),
+        )
 
     def test_dry_run_and_repin_check_are_current_source_instruments(self) -> None:
         dry = subprocess.run(

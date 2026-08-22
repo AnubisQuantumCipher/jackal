@@ -77,6 +77,7 @@ release/evidence/range_proof_identity.json
 release/evidence/int_cert_proof_identity.json
 release/evidence/gaussian_proof_identity.json
 release/evidence/lean_admission_audit_v173.json
+release/capability_inventory_v1.json
 release/compat/v172_floor.json
 release/compat/v173_floor.json
 release/compat/v170_floor.json
@@ -170,6 +171,7 @@ if [ "$MODE" = "--dry-run" ]; then
   echo "range_identity=range_proof_identity.json source=release/evidence/range_proof_identity_v172.json"
   echo "int_identity=int_cert_proof_identity.json source=release/evidence/int_cert_proof_identity_v172.json"
   echo "lean_admission_audit=evidence/lean_admission_audit_v173.json"
+  echo "capability_inventory=capability_inventory_v1.json"
   echo "compat=evidence/compat_v172_floor.json"
   echo "program_compat=evidence/compat_v173_floor.json"
   echo "program_profile=inventory-safe-v1"
@@ -268,6 +270,7 @@ copy_file "$ROOT/release/evidence/range_proof_identity_v172.json" "$PKG/range_pr
 copy_file "$ROOT/release/evidence/int_cert_proof_identity_v172.json" "$PKG/int_cert_proof_identity.json"
 copy_file "$ROOT/release/evidence/gaussian_proof_identity.json" "$PKG/gaussian_proof_identity.json"
 copy_file "$ROOT/release/evidence/lean_admission_audit_v173.json" "$PKG/evidence/lean_admission_audit_v173.json"
+copy_file "$ROOT/release/capability_inventory_v1.json" "$PKG/capability_inventory_v1.json"
 copy_file "$ROOT/release/coverage/formal_coverage_inventory.json" "$PKG/formal_coverage_inventory.json"
 
 # Replay-only v1.7.0 receipts require the exact historical checker bytes.
@@ -1025,12 +1028,31 @@ require(int_archival_policy.get("identity_file_sha256") == revoked_reference[1],
 program_compat = load_json("evidence/compat_v173_floor.json")
 policy = load_json("program/inventory_safe_v1.json")
 catalog = load_json("plugin/hermes/tools.json")
+capability_inventory = load_json("capability_inventory_v1.json")
 full_profile = load_json("plugin/hermes/profiles/full.json")
 tool_names = [tool.get("name") for tool in catalog.get("tools", [])
               if isinstance(tool, dict)]
 require(catalog.get("version") == "v1.7.3", "catalog-version")
 require(len(tool_names) == 41 and len(set(tool_names)) == 41,
         "catalog-tool-count")
+require(capability_inventory.get("schema") ==
+        "jackal-capability-inventory-v1", "capability-inventory-schema")
+inventory_names = [tool.get("name") for tool in
+                   capability_inventory.get("tools", [])
+                   if isinstance(tool, dict)]
+require(capability_inventory.get("tool_count") == 41 and
+        capability_inventory.get("unique_tool_count") == 41 and
+        inventory_names == tool_names,
+        "capability-inventory-tool-parity")
+inventory_catalog = capability_inventory.get("catalog", {})
+require(inventory_catalog.get("version") == "v1.7.3" and
+        inventory_catalog.get("sha256") ==
+        sha(package / "plugin/hermes/tools.json"),
+        "capability-inventory-catalog-binding")
+inventory_release = capability_inventory.get("release", {})
+require(inventory_release.get("version") == "v1.7.3" and
+        inventory_release.get("state") == "v1.7.3-candidate",
+        "capability-inventory-release-state")
 require(full_profile.get("tools") == tool_names, "full-profile-catalog-parity")
 for profile_name in ("core", "formal", "full"):
     profile = load_json(f"plugin/hermes/profiles/{profile_name}.json")

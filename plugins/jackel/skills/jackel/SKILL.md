@@ -111,6 +111,7 @@ artifact to strengthen the status.
 
 ## Preserve refusal and residuals
 
+No silent downgrade is permitted.
 You must preserve every returned status/assumption/non-claim/residual/refusal verbatim.
 You must never promote assurance or silently downgrade a requested claim. If a
 strong lane refuses, return its named reason. Run a weaker lane only when the caller explicitly requests one,

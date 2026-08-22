@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +61,9 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
         observed = [row["path"] for row in self.audit["source_inventory"]["files"]]
         self.assertEqual(observed, expected)
         self.assertEqual(self.audit["source_inventory"]["file_count"], 42)
+        self.assertEqual(
+            self.audit["source_inventory"]["inventory_source"], "git-ls-files"
+        )
         self.assertEqual(len(observed), len(set(observed)))
 
     def test_repository_has_no_logical_admissions_or_axiom_declarations(self) -> None:
@@ -141,6 +146,26 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
 
 
 class LeanAdmissionAuditMutationTest(unittest.TestCase):
+    def test_release_inventory_refuses_when_git_inventory_is_unavailable(self) -> None:
+        failed = subprocess.CompletedProcess(
+            args=["git", "ls-files"], returncode=128, stdout="", stderr="boom"
+        )
+        with mock.patch.object(AUDITOR.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(AUDITOR.AuditError, "git ls-files"):
+                AUDITOR.tracked_lean_paths(ROOT, require_git=True)
+
+    def test_string_escape_preserves_newline_accounting(self) -> None:
+        source = 'def message := "first\\\nsecond"\naxiom counterfeit : False\n'
+        masked = AUDITOR.code_without_comments_or_strings(source)
+        self.assertEqual(masked.count("\n"), source.count("\n"))
+        self.assertEqual(len(masked), len(source))
+
+    def test_atomic_audit_output_is_world_readable(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-lean-write-") as td:
+            path = Path(td) / "audit.json"
+            AUDITOR.write_atomic(path, b"{}\n")
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
+
     def test_platform_neutral_source_cli_checks_all_tracked_files(self) -> None:
         completed = subprocess.run(
             [

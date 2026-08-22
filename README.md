@@ -636,10 +636,12 @@ The kernel is deliberately small and closed:
   revoked v1.7.0 receipts refuse. The claim kernel's own hull arithmetic
   still caps at `bounded`.
 
-Hermes exposes the kernel as two additive tools — `jackal_claim` and
-`jackal_verify_bundle` — alongside the 31 unchanged v1.5.0 tools (33 at
-the v1.6.0 seal; the v1.7.0 `jackal_integrate_bound_cert` brings the
-inventory to thirty-four).  Hostile controls
+The v1.7.3 candidate exposes one ordered 41-tool catalog across JACKAL,
+Hermes, and Codex. It includes the claim/bundle front doors, the current
+request-bound `jackal_integrate_bound_cert` lane, four domain-pack routes,
+and three caller-pinned Anubis program-evidence routes; the generated
+`release/capability_inventory_v1.json` is the count and schema authority.
+Hostile controls
 (108-row matrix: serialization, graph identity, laundering, units,
 consequence floors, freshness/replay, machine arithmetic, legacy
 compatibility, rendering), A→B→A tamper gates over the seven claim trust

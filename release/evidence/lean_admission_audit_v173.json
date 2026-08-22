@@ -1,5 +1,5 @@
 {
-  "audit_digest_sha256": "7544475a5db94a21ac4f33b1d66f6b849cb2b8331f787f87ac3bb96bde5c7ba7",
+  "audit_digest_sha256": "cc0751ba9bee5830ccb89cac9a91a398de5a7ff1885069c4da177a8a21de38a1",
   "audit_result": {
     "logical_admission_count": 0,
     "repository_axiom_declaration_count": 0,
@@ -7,9 +7,9 @@
     "unexpected_construct_count": 0
   },
   "generator": {
-    "bytes": 31951,
+    "bytes": 32673,
     "path": "tools/lean_admission_audit.py",
-    "sha256": "a91c09d5786a38f977ffd884578549edb70bca90aab9db93b00d50c831a9894f"
+    "sha256": "59086f680a3805d102f8e1c992f4412a762808e3a8e8f13eae6bb80bdafa80ee"
   },
   "release_bindings": {
     "compatibility_snapshot_inputs": {
@@ -200,7 +200,7 @@
   ],
   "schema": "jackal-lean-admission-audit-v1",
   "source_inventory": {
-    "aggregate_sha256": "427d5af46f99b2b0ed2b0872be51169cd924a6042b4d3d6bc24e435e1aa9bbf4",
+    "aggregate_sha256": "8cacb3fe30d3cf9ae10e9c939d7d7a56efb90f41ddfbdab578dbacd6253aa32c",
     "construct_policy": {
       "allowed_exact_source_lines": [
         {
@@ -457,7 +457,8 @@
         "path": "proofs/lean/JackalIv/Trig.lean",
         "sha256": "c65e6db19679c0081d833d4a15cf9d46b4f73e395ed7564505fc0c2e586078d4"
       }
-    ]
+    ],
+    "inventory_source": "git-ls-files"
   },
   "theorem_axiom_audit": {
     "allowed_exactly": [

@@ -1,6 +1,6 @@
 # JACKAL Production Alignment Tracker — 2026-08-22
 
-This is the restart-safe evidence ledger for the architect-approved production-alignment mission. `OPEN` means unproven, not failed. `BLOCKED_TRUST_SURFACE` is reserved for an item whose completion would change or promote verifier accept conditions without explicit sign-off.
+This is the restart-safe evidence ledger for the architect-approved production-alignment mission. `OPEN` means unproven, not failed. `BLOCKED_TRUST_SURFACE` is the tracker-row status for an item whose completion would change or promote verifier accept conditions without explicit sign-off; if that is the only terminal residual, it maps to the prompt's terminal label `BLOCKED_JACKAL_TRUST_SURFACE`.
 
 ## Authority binding
 

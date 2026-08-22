@@ -21,8 +21,9 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 
 MAX_FILES = 512
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
@@ -30,6 +31,7 @@ MAX_JSON_BYTES = 8 * 1024 * 1024
 MAX_PROOF_STEPS = 200_000
 MAX_CLAUSES = 2_000_000
 MAX_LITERALS = 20_000_000
+RUP_REPLAY_TIMEOUT_SECONDS = 30.0
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MANIFEST_ROW = re.compile(r"^([0-9a-f]{64})  ([A-Za-z0-9._/-]+)$")
 REQUIRED_STAGES = [
@@ -312,7 +314,8 @@ def verify_manifest(root: Path, files: dict[str, Path]) -> tuple[dict[str, str],
     if manifest is None:
         raise Refusal("manifest-missing")
     try:
-        text = manifest.read_text(encoding="ascii")
+        raw = manifest.read_bytes()
+        text = raw.decode("ascii")
     except (OSError, UnicodeDecodeError) as exc:
         raise Refusal("manifest-invalid", str(exc)) from None
     rows: dict[str, str] = {}
@@ -337,7 +340,7 @@ def verify_manifest(root: Path, files: dict[str, Path]) -> tuple[dict[str, str],
     for path, digest in rows.items():
         if sha_file(files[path]) != digest:
             raise Refusal("manifest-hash-mismatch", path)
-    return rows, sha(manifest.read_bytes())
+    return rows, sha(raw)
 
 
 def verify_file_roster(files: dict[str, Path]) -> None:
@@ -374,12 +377,29 @@ def freeze_evidence_tree(
     return holder, snapshot, frozen_files, frozen_manifest_sha
 
 
-def read_dimacs(path: Path) -> tuple[list[tuple[int, ...]], int]:
+def _check_proof_deadline(
+    deadline: float, clock: Callable[[], float]
+) -> None:
+    if clock() > deadline:
+        raise Refusal("proof-budget", "RUP replay deadline exceeded")
+
+
+def read_dimacs(
+    path: Path,
+    *,
+    deadline: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+) -> tuple[list[tuple[int, ...]], int]:
     clauses: list[tuple[int, ...]] = []
     declared_vars = None
     declared_clauses = None
     literal_count = 0
-    for raw in path.read_text(encoding="ascii").splitlines():
+    text = path.read_text(encoding="ascii")
+    if deadline is not None:
+        _check_proof_deadline(deadline, clock)
+    for raw in text.splitlines():
+        if deadline is not None:
+            _check_proof_deadline(deadline, clock)
         line = raw.strip()
         if not line or line.startswith("c"):
             continue
@@ -418,9 +438,16 @@ def read_dimacs(path: Path) -> tuple[list[tuple[int, ...]], int]:
     return clauses, declared_vars
 
 
-def unit_conflict(clauses: list[tuple[int, ...]], assumptions: list[int]) -> bool:
+def unit_conflict(
+    clauses: list[tuple[int, ...]],
+    assumptions: list[int],
+    *,
+    deadline: float,
+    clock: Callable[[], float],
+) -> bool:
     assignments: dict[int, bool] = {}
     for literal in assumptions:
+        _check_proof_deadline(deadline, clock)
         variable = abs(literal)
         value = literal > 0
         prior = assignments.get(variable)
@@ -433,9 +460,12 @@ def unit_conflict(clauses: list[tuple[int, ...]], assumptions: list[int]) -> boo
     while True:
         changed = False
         for clause in clauses:
+            _check_proof_deadline(deadline, clock)
             satisfied = False
             unassigned: list[int] = []
-            for item in clause:
+            for index, item in enumerate(clause):
+                if index % 1024 == 0:
+                    _check_proof_deadline(deadline, clock)
                 assigned = assignments.get(abs(item))
                 if assigned is None:
                     unassigned.append(item)
@@ -461,12 +491,26 @@ def unit_conflict(clauses: list[tuple[int, ...]], assumptions: list[int]) -> boo
             return False
 
 
-def verify_rup(cnf_path: Path, proof_path: Path) -> tuple[int, int, int]:
-    clauses, variables = read_dimacs(cnf_path)
+def verify_rup(
+    cnf_path: Path,
+    proof_path: Path,
+    *,
+    timeout_seconds: float = RUP_REPLAY_TIMEOUT_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+) -> tuple[int, int, int]:
+    if timeout_seconds <= 0:
+        raise Refusal("proof-budget", "RUP replay deadline is not positive")
+    deadline = clock() + timeout_seconds
+    clauses, variables = read_dimacs(
+        cnf_path, deadline=deadline, clock=clock
+    )
     original_clause_count = len(clauses)
     steps = 0
     saw_empty = False
-    for raw in proof_path.read_text(encoding="ascii").splitlines():
+    proof_text = proof_path.read_text(encoding="ascii")
+    _check_proof_deadline(deadline, clock)
+    for raw in proof_text.splitlines():
+        _check_proof_deadline(deadline, clock)
         line = raw.strip()
         if not line or line.startswith("c"):
             continue
@@ -481,7 +525,12 @@ def verify_rup(cnf_path: Path, proof_path: Path) -> tuple[int, int, int]:
         clause = tuple(values[:-1])
         if len(set(clause)) != len(clause) or any(-value in clause for value in clause):
             raise Refusal("proof-invalid", "duplicate/tautological proof clause")
-        if not unit_conflict(clauses, [-value for value in clause]):
+        if not unit_conflict(
+            clauses,
+            [-value for value in clause],
+            deadline=deadline,
+            clock=clock,
+        ):
             raise Refusal("rup-replay-failed", f"{proof_path.name} step {steps}")
         clauses.append(clause)
         steps += 1
@@ -961,106 +1010,108 @@ def build_receipt(args: argparse.Namespace) -> dict[str, Any]:
     snapshot_holder, root, files, manifest_sha = freeze_evidence_tree(
         original_root, original_files, manifest_rows
     )
-    if manifest_sha != original_manifest_sha:
-        raise Refusal("snapshot-drift", "manifest")
-    program_path = files.get("program-evidence.json")
-    if program_path is None:
-        raise Refusal(
-            "unsupported-program-evidence-version",
-            "anubis.program-evidence.v3 is required; PCA v2 is partial",
-        )
-    program = require_keys(load_json(program_path), PROGRAM_KEYS, "program-evidence")
-    if program["schema"] != "anubis.program-evidence.v3" or program["version"] != 3:
-        raise Refusal("unsupported-program-evidence-version")
-    if program["mode"] != "safe":
-        raise Refusal("mode-unsupported", str(program["mode"]))
-    source_row = require_keys(program["source"], {"path", "sha256", "merkle", "bytes"}, "source")
-    sealed_source = root / safe_relative(source_row["path"])
-    if sealed_source.read_bytes() != source:
-        raise Refusal("source-byte-mismatch")
-    if source_row["sha256"] != expected_source or source_row["bytes"] != len(source):
-        raise Refusal("source-inventory-mismatch")
-    if source_row["merkle"] != expected_source:
-        raise Refusal(
-            "multi-source-unsupported",
-            f"{SUPPORTED_PROFILE} requires one exact source leaf",
-        )
-    compiler = require_keys(program["compiler"], {"tool", "path_basename", "sha256"}, "compiler")
-    if compiler["sha256"] != expected_compiler:
-        raise Refusal("compiler-pin-mismatch")
+    try:
+        if manifest_sha != original_manifest_sha:
+            raise Refusal("snapshot-drift", "manifest")
+        program_path = files.get("program-evidence.json")
+        if program_path is None:
+            raise Refusal(
+                "unsupported-program-evidence-version",
+                "anubis.program-evidence.v3 is required; PCA v2 is partial",
+            )
+        program = require_keys(load_json(program_path), PROGRAM_KEYS, "program-evidence")
+        if program["schema"] != "anubis.program-evidence.v3" or program["version"] != 3:
+            raise Refusal("unsupported-program-evidence-version")
+        if program["mode"] != "safe":
+            raise Refusal("mode-unsupported", str(program["mode"]))
+        source_row = require_keys(program["source"], {"path", "sha256", "merkle", "bytes"}, "source")
+        sealed_source = root / safe_relative(source_row["path"])
+        if sealed_source.read_bytes() != source:
+            raise Refusal("source-byte-mismatch")
+        if source_row["sha256"] != expected_source or source_row["bytes"] != len(source):
+            raise Refusal("source-inventory-mismatch")
+        if source_row["merkle"] != expected_source:
+            raise Refusal(
+                "multi-source-unsupported",
+                f"{SUPPORTED_PROFILE} requires one exact source leaf",
+            )
+        compiler = require_keys(program["compiler"], {"tool", "path_basename", "sha256"}, "compiler")
+        if compiler["sha256"] != expected_compiler:
+            raise Refusal("compiler-pin-mismatch")
 
-    verify_stages(program)
-    loaded = verify_artifacts(root, program)
-    native = program["artifacts"]["native"]
-    expected_artifact = args.expected_artifact_sha256
-    if expected_artifact is None:
-        raise Refusal("artifact-pin-required", SUPPORTED_PROFILE)
-    expected_artifact = require_hex(expected_artifact, "expected-artifact")
-    if native["sha256"] != expected_artifact:
-        raise Refusal("artifact-pin-mismatch")
-    function_count, consumer_count = verify_policy(root, program, loaded)
-    proof_count, proof_steps = verify_solver(root, program, loaded["solver"])
-    verify_producer_evidence(root, program, expected_source, expected_artifact, proof_count)
-    producer_residuals = program["residual_non_claims"]
-    if producer_residuals != PRODUCER_RESIDUALS:
-        raise Refusal("residual-roster", str(producer_residuals))
+        verify_stages(program)
+        loaded = verify_artifacts(root, program)
+        native = program["artifacts"]["native"]
+        expected_artifact = args.expected_artifact_sha256
+        if expected_artifact is None:
+            raise Refusal("artifact-pin-required", SUPPORTED_PROFILE)
+        expected_artifact = require_hex(expected_artifact, "expected-artifact")
+        if native["sha256"] != expected_artifact:
+            raise Refusal("artifact-pin-mismatch")
+        function_count, consumer_count = verify_policy(root, program, loaded)
+        proof_count, proof_steps = verify_solver(root, program, loaded["solver"])
+        verify_producer_evidence(root, program, expected_source, expected_artifact, proof_count)
+        producer_residuals = program["residual_non_claims"]
+        if producer_residuals != PRODUCER_RESIDUALS:
+            raise Refusal("residual-roster", str(producer_residuals))
 
-    receipt: dict[str, Any] = {
-        "schema": "jackal-anubis-program-receipt-v1",
-        "status": "verified-program-evidence",
-        "profile": args.profile,
-        "source": {"sha256": expected_source, "bytes": len(source)},
-        "compiler": {
-            "sha256": expected_compiler,
-            "tool": compiler["tool"],
-            "path_basename": compiler["path_basename"],
-        },
-        "artifact": {"sha256": expected_artifact},
-        "evidence_manifest_sha256": manifest_sha,
-        "program_evidence_sha256": sha_file(program_path),
-        "stage_count": len(REQUIRED_STAGES),
-        "policy": {
-            "profile": policy_body["profile"],
-            "policy_digest_sha256": policy_digest,
-            "policy_file_sha256": policy_file_sha256,
-            "inventory_authority": policy_body["policy_inventory_authority"],
-            "independent_construct_totality": policy_body[
-                "independent_policy_construct_totality"
-            ],
-            "function_count": function_count,
-            "consumer_count": consumer_count,
-        },
-        "proof_replay": {
-            "kind": "approved-z3-plus-independent-rup",
-            "verified": proof_count,
-            "smt_verified": proof_count,
-            "steps": proof_steps,
-        },
-        "assurance": {
-            "source_binding": "verified",
-            "evidence_closure": "verified",
-            "proof_replay": "independently-recomputed",
-            "smt_replay": "approved-z3-unsat",
-            "smt_to_cnf": "open",
-            "policy_semantics": "producer-attested-inventory-checked",
-            "policy_construct_totality": "not-established",
-            "source_to_vc": "open",
-            "source_native_refinement": "open",
-            "runtime": "not-observed",
-        },
-        "residual_non_claims": RECEIPT_RESIDUALS,
-        "nonce": args.nonce,
-        "policy_sha256": expected_policy,
-        "verification_time_unix": args.verification_time_unix,
-    }
-    receipt["receipt_digest_sha256"] = sha(canonical(receipt))
-    post_files = regular_tree(original_root)
-    verify_file_roster(post_files)
-    _, post_manifest_sha = verify_manifest(original_root, post_files)
-    if post_manifest_sha != original_manifest_sha:
-        raise Refusal("snapshot-drift", "source evidence changed during verification")
-    snapshot_holder.cleanup()
-    return receipt
+        receipt: dict[str, Any] = {
+            "schema": "jackal-anubis-program-receipt-v1",
+            "status": "verified-program-evidence",
+            "profile": args.profile,
+            "source": {"sha256": expected_source, "bytes": len(source)},
+            "compiler": {
+                "sha256": expected_compiler,
+                "tool": compiler["tool"],
+                "path_basename": compiler["path_basename"],
+            },
+            "artifact": {"sha256": expected_artifact},
+            "evidence_manifest_sha256": manifest_sha,
+            "program_evidence_sha256": sha_file(program_path),
+            "stage_count": len(REQUIRED_STAGES),
+            "policy": {
+                "profile": policy_body["profile"],
+                "policy_digest_sha256": policy_digest,
+                "policy_file_sha256": policy_file_sha256,
+                "inventory_authority": policy_body["policy_inventory_authority"],
+                "independent_construct_totality": policy_body[
+                    "independent_policy_construct_totality"
+                ],
+                "function_count": function_count,
+                "consumer_count": consumer_count,
+            },
+            "proof_replay": {
+                "kind": "approved-z3-plus-independent-rup",
+                "verified": proof_count,
+                "smt_verified": proof_count,
+                "steps": proof_steps,
+            },
+            "assurance": {
+                "source_binding": "verified",
+                "evidence_closure": "verified",
+                "proof_replay": "independently-recomputed",
+                "smt_replay": "approved-z3-unsat",
+                "smt_to_cnf": "open",
+                "policy_semantics": "producer-attested-inventory-checked",
+                "policy_construct_totality": "not-established",
+                "source_to_vc": "open",
+                "source_native_refinement": "open",
+                "runtime": "not-observed",
+            },
+            "residual_non_claims": RECEIPT_RESIDUALS,
+            "nonce": args.nonce,
+            "policy_sha256": expected_policy,
+            "verification_time_unix": args.verification_time_unix,
+        }
+        receipt["receipt_digest_sha256"] = sha(canonical(receipt))
+        post_files = regular_tree(original_root)
+        verify_file_roster(post_files)
+        _, post_manifest_sha = verify_manifest(original_root, post_files)
+        if post_manifest_sha != original_manifest_sha:
+            raise Refusal("snapshot-drift", "source evidence changed during verification")
+        return receipt
+    finally:
+        snapshot_holder.cleanup()
 
 
 def write_new(path: Path, document: dict[str, Any]) -> None:
@@ -1094,6 +1145,8 @@ def verify_receipt(args: argparse.Namespace) -> dict[str, Any]:
     expected = build_receipt(replay_args)
     if supplied != expected:
         raise Refusal("receipt-semantic-mismatch")
+    if args.emit_receipt:
+        write_new(Path(args.emit_receipt), expected)
     return expected
 
 

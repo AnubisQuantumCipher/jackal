@@ -31,12 +31,17 @@
     "repo_receipt_replay": "verified-program-receipt"
   },
   "package": {
+    "alignment_state": "historical-pre-alignment-candidate",
     "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
     "bytes": 158353643,
     "double_build_cmp_exit": 0,
     "file_count": 104,
     "sha256": "b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175",
-    "sha256sums_root": "2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42"
+    "sha256sums_root": "2c1605dc1b0ad01801418f741d54c92a4a44d1362a35a09a47fcf0752aee3a42",
+    "superseded_by": {
+      "path": "release/evidence/package_alignment_v173_candidate.json",
+      "sha256": "9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e"
+    }
   },
   "plugin_hermes_sha256": "03567f3d97447af40a1ecd2084424ddbe7a5a98030ad55a6b327849ab76f00b4",
   "program_evidence_sha256": "2e58f6986457a6491c1ad5c0c29afce5ddc26512c1f0810782c2d3ddcd73da6f",

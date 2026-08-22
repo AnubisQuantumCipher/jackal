@@ -1716,7 +1716,12 @@ def _program_verifier_call(method: str, args: dict[str, Any]) -> dict[str, Any]:
                     ),
                     encoding="utf-8",
                 )
-                argv += ["--receipt", str(supplied_path)]
+                argv += [
+                    "--receipt",
+                    str(supplied_path),
+                    "--emit-receipt",
+                    str(receipt_path),
+                ]
         try:
             proc = subprocess.run(
                 argv, capture_output=True, text=True, timeout=3600
@@ -1735,15 +1740,12 @@ def _program_verifier_call(method: str, args: dict[str, Any]) -> dict[str, Any]:
                         detail = line.split('detail="', 1)[1].rstrip('"')
                     break
             return _refuse(reason, detail)
-        if method == "verify-receipt":
-            receipt = args["receipt"]
-        else:
-            try:
-                receipt = _strict_json_loads(
-                    receipt_path.read_text(encoding="utf-8")
-                )
-            except (OSError, ValueError) as exc:
-                return _refuse("program-receipt-read", str(exc)[:200])
+        try:
+            receipt = _strict_json_loads(
+                receipt_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            return _refuse("program-receipt-read", str(exc)[:200])
         status = (
             "verified-program-receipt"
             if method == "verify-receipt"

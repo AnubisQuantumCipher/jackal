@@ -410,6 +410,10 @@ For each finding, run a focused command or construct a hostile fixture. False po
 
 Search current user/architect authority for explicit approval of `inventory-safe-v1` accept conditions and v1.7.3 release promotion. A 41-tool count correction, green checks, or `READY_FOR_SIGNOFF` is not by itself approval. If absent, mark release/tag/merge rows `BLOCKED_TRUST_SURFACE` and continue orthogonal PR preparation without publishing a false release.
 
+`BLOCKED_TRUST_SURFACE` is an internal row status, not a competing terminal
+label. When it is the only residual at completion, map it exactly to the
+prompt-defined terminal label `BLOCKED_JACKAL_TRUST_SURFACE`.
+
 ### Task 8: Seal and read back authorized releases
 
 **Files:**

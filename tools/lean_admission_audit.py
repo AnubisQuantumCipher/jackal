@@ -223,7 +223,8 @@ def code_without_comments_or_strings(source: str) -> str:
             continue
         if in_string:
             if char == "\\" and index + 1 < len(source):
-                output.extend("  ")
+                output.append(" ")
+                output.append("\n" if source[index + 1] == "\n" else " ")
                 index += 2
             elif char == '"':
                 output.append(" ")
@@ -262,7 +263,9 @@ def code_without_comments_or_strings(source: str) -> str:
     return "".join(output)
 
 
-def tracked_lean_paths(root: Path) -> list[str]:
+def tracked_lean_paths(
+    root: Path, *, require_git: bool = False
+) -> tuple[list[str], str]:
     completed = subprocess.run(
         ["git", "-C", str(root), "ls-files", "--", LEAN_DIR_REL.as_posix()],
         stdout=subprocess.PIPE,
@@ -274,6 +277,10 @@ def tracked_lean_paths(root: Path) -> list[str]:
         paths = sorted(
             line for line in completed.stdout.splitlines() if line.endswith(".lean")
         )
+        inventory_source = "git-ls-files"
+    elif require_git:
+        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        raise AuditError(f"git ls-files failed: {detail}")
     else:
         lean_dir = root / LEAN_DIR_REL
         paths = sorted(
@@ -281,11 +288,12 @@ def tracked_lean_paths(root: Path) -> list[str]:
             for path in lean_dir.rglob("*.lean")
             if path.is_file() and not path.is_symlink()
         )
+        inventory_source = "filesystem-fallback"
     if not paths:
         raise AuditError(f"no Lean sources found below {LEAN_DIR_REL}")
     if len(paths) != len(set(paths)):
         raise AuditError("duplicate Lean source path in inventory")
-    return paths
+    return paths, inventory_source
 
 
 def finding_record(
@@ -302,10 +310,19 @@ def finding_record(
 
 
 def scan_sources(
-    root: Path, relative_paths: Iterable[str] | None = None
+    root: Path,
+    relative_paths: Iterable[str] | None = None,
+    *,
+    require_git_inventory: bool = False,
 ) -> dict[str, Any]:
     root = root.resolve()
-    paths = sorted(relative_paths if relative_paths is not None else tracked_lean_paths(root))
+    if relative_paths is None:
+        paths, inventory_source = tracked_lean_paths(
+            root, require_git=require_git_inventory
+        )
+    else:
+        paths = sorted(relative_paths)
+        inventory_source = "explicit-paths"
     records: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     noncomputable_occurrences = 0
@@ -379,6 +396,7 @@ def scan_sources(
     allowed.sort(key=lambda row: (row["path"], row["line"], row["construct"]))
     payload = {
         "files": records,
+        "inventory_source": inventory_source,
         "construct_policy": {
             "allowed_exact_source_lines": expected_allowed,
             "allowed_findings": allowed,
@@ -680,7 +698,7 @@ def collect_toolchain(root: Path) -> dict[str, Any]:
 
 def build_audit(root: Path) -> dict[str, Any]:
     root = root.resolve()
-    inventory = scan_sources(root)
+    inventory = scan_sources(root, require_git_inventory=True)
     bindings, theorem_names, root_modules = collect_identity_bindings(root)
     theorem_audit = run_theorem_axiom_audit(
         root, theorem_names, root_modules, bindings
@@ -754,6 +772,7 @@ def write_atomic(path: Path, data: bytes) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
+        os.chmod(temporary, 0o644)
         os.replace(temporary, path)
     except BaseException:
         try:
@@ -789,7 +808,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     root = args.root.resolve()
     if args.source_check:
-        inventory = scan_sources(root)
+        inventory = scan_sources(root, require_git_inventory=True)
         print(
             "LEAN_SOURCE_ADMISSION_PASS "
             f"files={inventory['file_count']} admissions=0"

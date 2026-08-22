@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -447,6 +449,111 @@ def run_verify(
 
 
 class AnubisProgramVerifierTest(unittest.TestCase):
+    def test_rup_replay_has_a_wall_clock_budget(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-program-budget-") as td:
+            root = Path(td)
+            probe = root / "probe.py"
+            probe.write_text(
+                textwrap.dedent(
+                    """
+                    import importlib.util
+                    import pathlib
+                    import sys
+
+                    verifier = pathlib.Path(sys.argv[1])
+                    spec = importlib.util.spec_from_file_location("program_verify_probe", verifier)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    cnf = pathlib.Path(sys.argv[2])
+                    proof = pathlib.Path(sys.argv[3])
+
+                    class Clock:
+                        def __init__(self):
+                            self.calls = 0
+                        def __call__(self):
+                            self.calls += 1
+                            return 0.0 if self.calls == 1 else 31.0
+
+                    try:
+                        module.verify_rup(
+                            cnf,
+                            proof,
+                            timeout_seconds=30.0,
+                            clock=Clock(),
+                        )
+                    except module.Refusal as error:
+                        print(error.reason)
+                    """
+                ),
+                encoding="utf-8",
+            )
+            cnf = root / "probe.cnf"
+            cnf.write_text("p cnf 1 2\n1 0\n-1 0\n", encoding="ascii")
+            proof = root / "probe.drat"
+            proof.write_text("0\n", encoding="ascii")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-B",
+                    str(probe),
+                    str(VERIFIER),
+                    str(cnf),
+                    str(proof),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                timeout=30,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(completed.stdout.strip(), "proof-budget")
+
+    def test_manifest_rows_and_digest_come_from_one_read(self) -> None:
+        source = VERIFIER.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "verify_manifest"
+        )
+        calls = [
+            node
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "manifest"
+            and node.func.attr in {"read_bytes", "read_text"}
+        ]
+        self.assertEqual(
+            [(call.func.attr) for call in calls],
+            ["read_bytes"],
+            "manifest parsing and digesting must share one immutable byte buffer",
+        )
+
+    def test_snapshot_cleanup_is_guaranteed_by_finally(self) -> None:
+        source = VERIFIER.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "build_receipt"
+        )
+        cleanup_in_finally = any(
+            isinstance(node, ast.Try)
+            and any(
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Attribute)
+                and child.func.attr == "cleanup"
+                for statement in node.finalbody
+                for child in ast.walk(statement)
+            )
+            for node in ast.walk(function)
+        )
+        self.assertTrue(cleanup_in_finally)
+
     def test_surface_uses_honestly_weaker_inventory_profile(self) -> None:
         self.assertTrue(VERIFIER.is_file(), VERIFIER)
         self.assertTrue(POLICY_PATH.is_file(), POLICY_PATH)
@@ -525,6 +632,7 @@ class AnubisProgramVerifierTest(unittest.TestCase):
             self.assertEqual(document["assurance"]["runtime"], "not-observed")
             self.assertEqual(document["residual_non_claims"], RECEIPT_RESIDUALS)
 
+            replayed_receipt = Path(td) / "replayed-receipt.json"
             replay = subprocess.run(
                 [
                     sys.executable,
@@ -553,6 +661,8 @@ class AnubisProgramVerifierTest(unittest.TestCase):
                     "inventory-safe-v1",
                     "--nonce",
                     "test-nonce",
+                    "--emit-receipt",
+                    str(replayed_receipt),
                 ],
                 capture_output=True,
                 text=True,
@@ -561,6 +671,11 @@ class AnubisProgramVerifierTest(unittest.TestCase):
             )
             self.assertEqual(replay.returncode, 0, replay.stdout + replay.stderr)
             self.assertIn("status=verified-program-receipt", replay.stdout)
+            self.assertEqual(
+                json.loads(replayed_receipt.read_text(encoding="utf-8")),
+                document,
+                "receipt replay must emit the verifier-recomputed canonical receipt",
+            )
             self.assertFalse(marker.exists(), "receipt replay executed artifact")
 
     def test_plugin_program_success_statuses_exit_zero(self) -> None:

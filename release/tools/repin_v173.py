@@ -745,6 +745,6 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, PlanRefusal, subprocess.SubprocessError) as error:
+    except (OSError, PlanRefusal, ValueError, subprocess.SubprocessError) as error:
         print(f"REPIN_V173_REFUSED detail={str(error)[:512]}", file=sys.stderr)
         raise SystemExit(1) from None

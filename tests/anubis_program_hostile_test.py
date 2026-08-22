@@ -19,7 +19,10 @@ def sha(data: bytes) -> str:
 
 
 def dump(path: Path, value: object) -> None:
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
+    path.write_text(
+        json.dumps(value, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def record(name: str, ok: bool, observed: str) -> None:

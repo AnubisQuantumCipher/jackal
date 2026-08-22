@@ -31,6 +31,8 @@ CATALOG_PATH = Path("plugin/hermes/tools.json")
 PROFILE_DIR = Path("plugin/hermes/profiles")
 MANIFEST_PATH = Path("release/MANIFEST.sha256")
 ARTIFACT_PATH = Path("release/capability_inventory_v1.json")
+PROGRAM_FLOOR_PATH = Path("release/compat/v173_floor.json")
+PROGRAM_POLICY_PATH = Path("release/program/inventory_safe_v1.json")
 PROFILE_IDS = ("core", "formal", "full")
 EXPECTED_VERSION = "v1.7.3"
 EXPECTED_TOOL_COUNT = 41
@@ -226,7 +228,6 @@ DEPENDENCY_LABELS: dict[str, tuple[str, ...]] = {
         "anubis_program_verifier",
         "anubis_program_policy",
         "program-compatibility-floor",
-        "compiler_pin",
     ),
     "runtime-only": ("evaluator",),
 }
@@ -544,8 +545,54 @@ def _supported_fragment(row: dict[str, Any]) -> str:
     return f"{description.strip()} Inputs: {'; '.join(clauses)}"
 
 
+def _approved_program_compiler_identity(
+    root: Path, manifest: dict[str, dict[str, str | None]]
+) -> dict[str, str]:
+    bindings = (
+        ("program-compatibility-floor", PROGRAM_FLOOR_PATH),
+        ("anubis_program_policy", PROGRAM_POLICY_PATH),
+    )
+    documents: dict[str, dict[str, Any]] = {}
+    for label, relative in bindings:
+        entry = manifest.get(label)
+        if entry is None:
+            refuse("missing-checker-identity", f"manifest label {label!r} is absent")
+        if entry["locator"] != relative.as_posix():
+            refuse(
+                "checker-identity-path",
+                f"{label!r} points to {entry['locator']!r}, expected {relative.as_posix()!r}",
+            )
+        actual = _sha256_file(root / relative)
+        if entry["sha256"] != actual:
+            refuse(
+                "checker-identity-digest",
+                f"{label!r} manifest={entry['sha256']} actual={actual}",
+            )
+        documents[label] = _load_json(root / relative)
+    floor_pin = documents["program-compatibility-floor"].get(
+        "approved_check_compiler_sha256"
+    )
+    policy_pin = documents["anubis_program_policy"].get(
+        "approved_check_compiler_sha256"
+    )
+    if not isinstance(floor_pin, str) or HEX64.fullmatch(floor_pin) is None:
+        refuse("checker-identity-digest", "program compiler approval pin is malformed")
+    if policy_pin != floor_pin:
+        refuse(
+            "checker-identity-digest",
+            "program compatibility floor and policy compiler pins disagree",
+        )
+    return {
+        "label": "approved_program_compiler",
+        "locator": (
+            "release/compat/v173_floor.json#approved_check_compiler_sha256"
+        ),
+        "sha256": floor_pin,
+    }
+
+
 def _dependency_record(
-    family: str, manifest: dict[str, dict[str, str | None]]
+    family: str, manifest: dict[str, dict[str, str | None]], root: Path
 ) -> dict[str, Any]:
     labels = DEPENDENCY_LABELS[family]
     missing = [label for label in labels if label not in manifest]
@@ -554,9 +601,12 @@ def _dependency_record(
             "missing-checker-identity",
             f"dependency family {family!r} lacks manifest labels {missing}",
         )
+    identities = [dict(manifest[label]) for label in labels]
+    if family == "program-verifier":
+        identities.append(_approved_program_compiler_identity(root, manifest))
     return {
         "family": family,
-        "identities": [dict(manifest[label]) for label in labels],
+        "identities": identities,
     }
 
 
@@ -606,7 +656,7 @@ def build_inventory(root: Path | str) -> dict[str, Any]:
                 "status_classes": statuses,
                 "assurance_classes": _assurance_classes(name, statuses),
                 "consequence_ceiling": consequence_ceiling,
-                "dependency": _dependency_record(family, manifest),
+                "dependency": _dependency_record(family, manifest, root_path),
                 "supported_fragment": _supported_fragment(row),
                 "refusal_boundary": REFUSAL_BOUNDARIES[family],
                 "profiles": [

@@ -16,6 +16,7 @@ BUILDER = ROOT / "release/build_package_v173.sh"
 REPIN = ROOT / "release/tools/repin_v173.py"
 COMPAT = ROOT / "release/compat/v173_floor.json"
 ALIGNMENT_RECEIPT = ROOT / "release/evidence/package_alignment_v173_candidate.json"
+PROGRAM_DOGFOOD = ROOT / "release/evidence/anubis_program_dogfood_v1.json"
 PACKAGE_NAME = "jackal-v1.7.3-macos-arm64"
 REQUIRED_PACKAGE_INPUTS = {
     "release/capability_inventory_v1.json",
@@ -90,6 +91,20 @@ def complete_sha256sums(root: Path) -> bool:
 
 
 class UnifiedPackageV173Test(unittest.TestCase):
+    def test_program_dogfood_package_is_explicitly_historical(self) -> None:
+        dogfood = json.loads(PROGRAM_DOGFOOD.read_text(encoding="utf-8"))
+        alignment = json.loads(ALIGNMENT_RECEIPT.read_text(encoding="utf-8"))
+        package = dogfood["package"]
+        self.assertEqual(package["alignment_state"], "historical-pre-alignment-candidate")
+        self.assertEqual(
+            package["superseded_by"],
+            {
+                "path": "release/evidence/package_alignment_v173_candidate.json",
+                "sha256": alignment["package"]["sha256"],
+            },
+        )
+        self.assertNotEqual(package["sha256"], alignment["package"]["sha256"])
+
     def test_alignment_receipt_binds_reproducible_candidate_and_live_codex(self) -> None:
         document = json.loads(ALIGNMENT_RECEIPT.read_text(encoding="utf-8"))
         self.assertEqual(document["schema"], "jackal-package-alignment-v1")
@@ -156,6 +171,11 @@ class UnifiedPackageV173Test(unittest.TestCase):
         self.assertIn("RENAME_EXCL", builder)
         self.assertNotIn('/bin/mv "$PKG" "$FINAL_PKG"', builder)
         self.assertNotIn('/bin/mv "$STAGED_TARBALL" "$FINAL_TARBALL"', builder)
+        self.assertRegex(
+            repin,
+            r"except \([^)]*ValueError[^)]*\) as error:",
+            "malformed pinned JSON must refuse without a traceback",
+        )
 
     def test_repin_compiler_override_remains_hash_authorized(self) -> None:
         with tempfile.TemporaryDirectory(prefix="jackal-repin-compiler-") as td:

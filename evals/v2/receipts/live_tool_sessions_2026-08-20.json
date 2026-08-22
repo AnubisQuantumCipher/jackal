@@ -15,32 +15,34 @@
   "sessions": [
     {
       "attempted_tool": "jackal_range_bound",
-      "bytes": 17574,
-      "content_state": "private local command and output payload for item_3 redacted; event structure and status retained",
+      "bytes": 16304,
+      "content_state": "private local paths and sensitive command or output payloads redacted; event structure and status retained",
       "mode": "autonomous",
       "path": "evals/v2/receipts/codex_w3_autonomous_2026-08-20.jsonl",
-      "sha256": "dbee6073a943ae7f4049cdeff2df07518ad1920f5a20b5f4c1837330750e082a",
+      "sha256": "86d5ed76c133500c7ff44d60a799fe46d7a5c520412d10ad8682d542d5d790f3",
       "task": "W3 receipt validation",
       "tool_result": "cancelled-by-noninteractive-host",
       "verdict": "NOT_MEASURABLE"
     },
     {
       "attempted_tool": "jackal_verify_receipt",
-      "bytes": 27958,
+      "bytes": 27954,
+      "content_state": "private local paths redacted; event structure and status retained",
       "mode": "forced",
       "path": "evals/v2/receipts/codex_w3_forced_2026-08-20.jsonl",
-      "sha256": "da6335c1d2673204cc11a0f6f3515b803aa6999438203dde35ab96bf0b97c7a4",
+      "sha256": "1c9b3ec92d9e6530e0083f2d5ba5cf370cb6cc64fc9cffe2cab2f0f4f8c0edd3",
       "task": "W3 receipt replay",
       "tool_result": "cancelled-by-noninteractive-host",
       "verdict": "NOT_MEASURABLE"
     },
     {
       "attempted_tool": "jackal_decision_rank_v2",
-      "bytes": 2619,
+      "bytes": 2615,
+      "content_state": "private local paths redacted; event structure and status retained",
       "mode": "autonomous",
       "model_disclosed_no_verifier_establishment": true,
       "path": "evals/v2/receipts/codex_w10_comparison_2026-08-20.jsonl",
-      "sha256": "174c22fc4197a0d23d9f2df3101c4fa2802069af6ff75a2c3fb5b36ee00c0845",
+      "sha256": "da65f4f7a5031467c1cf5035a7082fdfcfab37dd95134444ab47912fb83cc014",
       "task": "W10 decision comparison",
       "tool_result": "cancelled-by-noninteractive-host",
       "verdict": "NOT_MEASURABLE"

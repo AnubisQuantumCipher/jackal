@@ -76,6 +76,8 @@ class InventoryFixture:
             Path("plugins/jackel/mcp/server.py"),
             Path("plugins/jackel/scripts/provision_runtime.py"),
             Path("release/evidence/anubis_program_dogfood_v1.json"),
+            INVENTORY.PROGRAM_FLOOR_PATH,
+            INVENTORY.PROGRAM_POLICY_PATH,
             *IDENTITY_PATHS,
             *(PROFILE_DIR / f"{profile}.json" for profile in ("core", "formal", "full")),
         ]
@@ -192,6 +194,34 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             }
             <= families
         )
+
+    def test_program_tools_bind_the_approved_program_compiler(self) -> None:
+        document = INVENTORY.build_inventory(ROOT)
+        approved = read_json(
+            ROOT / "release/compat/v173_floor.json"
+        )["approved_check_compiler_sha256"]
+        program_tools = [
+            row for row in document["tools"]
+            if row["dependency"]["family"] == "program-verifier"
+        ]
+        self.assertEqual(len(program_tools), 3)
+        for row in program_tools:
+            identities = {
+                identity["label"]: identity
+                for identity in row["dependency"]["identities"]
+            }
+            self.assertNotIn("compiler_pin", identities)
+            self.assertEqual(
+                identities["approved_program_compiler"],
+                {
+                    "label": "approved_program_compiler",
+                    "locator": (
+                        "release/compat/v173_floor.json"
+                        "#approved_check_compiler_sha256"
+                    ),
+                    "sha256": approved,
+                },
+            )
 
     def test_committed_artifact_is_generated_byte_for_byte(self) -> None:
         INVENTORY.check_committed(ROOT)

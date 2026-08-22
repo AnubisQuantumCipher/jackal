@@ -58,12 +58,12 @@ Instrument and baseline gates:
 
 | Command / artifact | Exit / observation | Scope boundary |
 |---|---|---|
-| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; current artifact SHA-256 `07d6b02eabc037a6e5a909b7d07ca7af34ba0df51cf3080cb0ef64bb179f8920` | binds candidate implementation ref `d25bcd…` and the additive Lean-audit manifest rows; does not assert a public tag |
-| `tests.capability_inventory_test` | 13 tests pass, including duplicate/unmapped/status/checker/artifact mutation controls | catalog/profile/manifest/proof-identity/Codex-input contract |
+| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; current artifact SHA-256 `d9479755d4618023c05b4aaececd9c02dcca541c8350d71e9f3f30d17544fddd` | binds candidate implementation ref `d25bcd…`, semantic integration bytes, and additive Lean-audit manifest rows; package-delivery pin is independently bound by the drift gate to avoid a package/inventory self-hash cycle |
+| `tests.capability_inventory_test` | 14 tests pass, including duplicate/unmapped/status/checker/artifact mutation controls and an acyclic package-delivery graph assertion | catalog/profile/manifest/proof-identity/semantic-integration contract; delivery pin remains a separate drift-gate contract |
 | `tools/capability_drift_gate.py` | exit 0; `CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3` | current marked surfaces only; historical 34-tool prose remains legal |
 | `tests.capability_drift_gate_test` | 11 tests pass, including current count, unknown skill tool, status vocabulary, package pin, wrapper count, marker, and plugin-identity refusals | semantic anti-drift instrument |
 | `tools/capability_drift_gate.py --write-plugin-identity` then `plugins/jackel/scripts/verify_plugin.py` | eight files; aggregate SHA-256 `2f6091fbc36f5ad3f1cdb444e3603cc57461a784d41f522f240c8df65720059a`; verifier exit 0 | now includes the candidate installation/operation README; tamper evidence, not author authentication |
-| combined inventory/drift/profile/unified suite | exit 0; 58 tests | repository surface and mutation controls |
+| combined inventory/drift/profile/unified suite | exit 0; 59 tests | repository surface, mutation controls, and acyclic package-delivery graph |
 | `/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v` | exit 0; 216 tests | repo-local plugin; fresh release-pin discovery remains open |
 | `lake build jackal_gaussian_check jackal_cert_check jackal_int_cert_check` | exit 0; 17,369 jobs from an absent local build library; three release checkers rebuilt | existing non-fatal style/deprecation linter output remains; no kernel/build failure |
 | three full proof-identity checks | exit 0 for Gaussian, range, and int-cert; exact identity/checker digests revalidated | current checker-accepted fragments only; no source-to-native or builder-authentication claim |
@@ -78,7 +78,7 @@ Instrument and baseline gates:
 
 | ID | Requirement | Evidence required | State |
 |---|---|---|---|
-| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: current artifact `07d6b02e…`; 13 tests; checkpoint `bbe43f9…` plus additive manifest refresh |
+| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: current artifact `d9479755…`; 14 tests; delivery identity remains independently enforced without a self-hash cycle |
 | R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | PARTIAL: kernel and Codex candidate show 41; public Hermes plugin is 34 |
 | R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex repository current blocks and design repaired; public descriptions, Hermes bytes, and PR #88446 remain open |
 | R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | OPEN |

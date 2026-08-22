@@ -16,7 +16,7 @@ This is the restart-safe evidence ledger for the architect-approved production-a
 | Surface | Path or remote | Branch / HEAD | Dirty and ownership boundary | Release/public state |
 |---|---|---|---|---|
 | JACKAL ambient checkout | `/Users/sicarii/Desktop/Projects/jackal-calc` | `feat/mathematical-evidence-kernel-v1.6.0` / `57739317b24250ff62fd9b23f67c760d9066ab94` | User-owned untracked `jackal_calc.anb.zip`, `jackal_calc.md`, `website/`; DO NOT EDIT | stale local branch |
-| JACKAL integration candidate | `/Users/sicarii/Worktrees/jackal-unified-completion-20260820` | `mission/jackal-unified-completion-20260820`; initial tool-containing ref `d25bcd9818e0d106f337798f80527ae611cc3acc`; latest feature checkpoint `41d0d341855b7ca6493ae1afea5fed268c7f3c29` | clean before this tracker; named-path alignment commits only | PR #12 draft; hosted checks green on pre-alignment head; no review decision |
+| JACKAL integration candidate | `/Users/sicarii/Worktrees/jackal-unified-completion-20260820` | `mission/jackal-unified-completion-20260820`; initial tool-containing ref `d25bcd9818e0d106f337798f80527ae611cc3acc`; latest implementation checkpoint `af149778a3d7e2c4991f39aef44d51e55cbf3b99` | named-path alignment commits only | PR #12 draft; no final review decision |
 | JACKAL public default | `AnubisQuantumCipher/jackal` | `master` / `73854110cb82d78b2843d5028e1e0d5970b0ad5a` | architect-owned public repo | latest release v1.7.2; repository description says 34 tools |
 | Installed Hermes plugin | `/Users/sicarii/.hermes/plugins/jackal-verified` | detached `86596e2b0e2679db68eca16bd102378c5bfa27b7`, annotated tag v5.0.0 | clean installed evidence; DO NOT EDIT | 34 tools; pins JACKAL v1.7.0 |
 | Hermes plugin public default | `AnubisQuantumCipher/hermes-jackal-verified` | `main` / `e157e4dc98ffc127bb9abca4ae2ea6cdd699db56` | architect-owned public repo | latest v5.0.0 at `86596e2…`; description says 34 tools |
@@ -58,25 +58,30 @@ Instrument and baseline gates:
 
 | Command / artifact | Exit / observation | Scope boundary |
 |---|---|---|
-| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; artifact SHA-256 `34da7a580798173241f3b6848309a5aab8d99b32695ecdb96a4d83456495fde2` | binds candidate implementation ref `d25bcd…`; does not assert a public tag |
+| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; current artifact SHA-256 `07d6b02eabc037a6e5a909b7d07ca7af34ba0df51cf3080cb0ef64bb179f8920` | binds candidate implementation ref `d25bcd…` and the additive Lean-audit manifest rows; does not assert a public tag |
 | `tests.capability_inventory_test` | 13 tests pass, including duplicate/unmapped/status/checker/artifact mutation controls | catalog/profile/manifest/proof-identity/Codex-input contract |
 | `tools/capability_drift_gate.py` | exit 0; `CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3` | current marked surfaces only; historical 34-tool prose remains legal |
 | `tests.capability_drift_gate_test` | 11 tests pass, including current count, unknown skill tool, status vocabulary, package pin, wrapper count, marker, and plugin-identity refusals | semantic anti-drift instrument |
 | `tools/capability_drift_gate.py --write-plugin-identity` then `plugins/jackel/scripts/verify_plugin.py` | seven files; aggregate SHA-256 `2a025bb5b7b53cd7f071f5185c85ee85bb241ea853215eb631b471d6668e9e5f`; verifier exit 0 | tamper evidence, not author authentication |
 | combined inventory/drift/profile/unified suite | exit 0; 58 tests | repository surface and mutation controls |
 | `/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v` | exit 0; 215 tests | repo-local plugin; fresh release-pin discovery remains open |
+| `lake build jackal_gaussian_check jackal_cert_check jackal_int_cert_check` | exit 0; 17,369 jobs from an absent local build library; three release checkers rebuilt | existing non-fatal style/deprecation linter output remains; no kernel/build failure |
+| three full proof-identity checks | exit 0 for Gaussian, range, and int-cert; exact identity/checker digests revalidated | current checker-accepted fragments only; no source-to-native or builder-authentication claim |
+| `tools/lean_admission_audit.py --check` | exit 0; `files=42 theorems=27 admissions=0`; artifact SHA-256 `4c680a6817ccfe27da254c5244e5ffc06469ed37a910ea61303abf8125bb3459`; semantic digest `c4d4440b8aa472f3fa2db682e4cff1144683b003e815e41d795a831b9fda57cf` | all tracked Lean sources; exact current release theorem set; 37 `noncomputable` occurrences classified as non-admissions; two dump-only `implemented_by` mirrors explicitly retained |
+| `tests.lean_admission_audit_test` | 12 tests pass, including injected `sorry`, `admit`, plain/modifier-prefixed axiom, `unsafe`, `partial`, `extern`, `native_decide`, and unclassified `implemented_by` refusals | comments/strings are excluded from executable-token findings; mutation fixtures never touch live sources |
+| `release/tools/repin_v173.py --check` and `release/build_package_v173.sh --dry-run` | exit 0; 49 manifest rows; package plan carries and semantically validates the Lean audit | staged package execution/double-build remains later release work |
 
 ## Requirement matrix
 
 | ID | Requirement | Evidence required | State |
 |---|---|---|---|
-| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: artifact `34da7a58…`; 13 tests; checkpoint `bbe43f9…` plus current derived update |
+| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: current artifact `07d6b02e…`; 13 tests; checkpoint `bbe43f9…` plus additive manifest refresh |
 | R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | PARTIAL: kernel and Codex candidate show 41; public Hermes plugin is 34 |
 | R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex repository current blocks and design repaired; public descriptions, Hermes bytes, and PR #88446 remain open |
 | R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | OPEN |
 | R5 | Production-equivalent Codex plugin | exact installed discovery and call parity from release pin | PARTIAL: 215 repo-local tests and generated seven-file identity pass; fresh release-pin gates open |
 | R6 | Complete JACKAL skills audit | classified inventory, exact hashes, real-name/schema fixtures, corrected routers | OPEN |
-| R7 | Lean build and admission/axiom audit | `lake build`, exact theorem axiom output, `sorry`/admit scan, trusted snapshot report | OPEN |
+| R7 | Lean build and admission/axiom audit | `lake build`, exact theorem axiom output, `sorry`/admit scan, trusted snapshot report | VERIFIED: 17,369-job clean-room build; 42 tracked files; 27 unique theorems with exactly `propext`, `Classical.choice`, `Quot.sound`; zero logical admissions/repository axioms; artifact `4c680a68…`; 12 tests |
 | R8 | Positive and hostile family coverage | all exported families plus wrong epoch/policy/proposition/unit/cert/pin controls | OPEN |
 | R9 | Claim A-to-B-to-A replay | pristine pass, semantic tamper refusal, pristine re-pass with exact identities | OPEN |
 | R10 | Reproducible package and release | clean double-build, byte equality, manifest and tag binding, release asset read-back | OPEN |
@@ -117,3 +122,4 @@ The following local `SKILL.md` files mention JACKAL/JACKEL and require classific
 | C0b executable plan | `5b50578e27211a1d8f0132634c11ebdee64a907f` | NON-FINAL, PUSHED |
 | C1 canonical inventory | `bbe43f9d5072a932d0b144919f263e9515af004e`; 41 unique; 46 tests at commit | NON-FINAL, PUSHED |
 | C2 semantic drift and Codex metadata | `41d0d341855b7ca6493ae1afea5fed268c7f3c29`; 58 surface tests + 215 Codex tests; identity `2a025bb5…` | NON-FINAL, PUSHED |
+| C3 Lean admission and axiom audit | `af149778a3d7e2c4991f39aef44d51e55cbf3b99`; 42 sources; 27 theorems; zero admissions; 12 audit tests; 49-row manifest | NON-FINAL, PUSHED |

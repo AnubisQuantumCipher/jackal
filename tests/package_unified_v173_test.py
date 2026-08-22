@@ -118,11 +118,13 @@ class UnifiedPackageV173Test(unittest.TestCase):
             document["package"],
             {
                 "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
-                "bytes": 158363755,
-                "extracted_file_bytes": 555512409,
+                "bytes": 158363786,
+                "extracted_file_bytes": 555511970,
                 "file_count": 106,
-                "sha256": "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d",
-                "sha256sums_root": "c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f",
+                "tree_entries": 119,
+                "roster_aggregate_sha256": "f88ba8a9988afe4b41ab247d5c75cb3da03159defba1bd8985c37190fa595654",
+                "sha256": "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae",
+                "sha256sums_root": "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a",
             },
         )
         source = document["source"]
@@ -151,8 +153,21 @@ class UnifiedPackageV173Test(unittest.TestCase):
             {"exit": 0, "passed": 218},
         )
         self.assertEqual(
-            document["gates"]["codex_live_acceptance"]["discovered_tool_count"],
-            41,
+            document["gates"]["codex_live_acceptance"],
+            {
+                "status": "accepted",
+                "discovered_tool_count": 41,
+                "wrapper_aggregate_sha256": "d4b6cdc32e55335eade1ca6d7cbc385c133c2dbecf4296a894877fe297fe27c3",
+                "runtime_package_sha256": "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae",
+                "runtime_tree_sha256": "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a",
+                "gates": {
+                    "claim_bundle": "verified",
+                    "exact": "exact",
+                    "formal": "formal-bounded",
+                    "formal_receipt": "verified",
+                    "unsupported_formal": "producer-refused",
+                },
+            },
         )
         self.assertIn("not-a-cryptographic-signature", document["non_claims"])
         self.assertIn("no-upstream-merge-assertion", document["non_claims"])

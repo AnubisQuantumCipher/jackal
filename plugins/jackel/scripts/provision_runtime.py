@@ -31,10 +31,10 @@ EPOCH = "v1.7.3"
 ASSET = "jackal-v1.7.3-macos-arm64.tar.gz"
 URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz"
 RELEASE_STATE = "published"
-PACKAGE_SIZE = 158363755
-PACKAGE_SHA256 = "b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d"
-EXTRACTED_SIZE = 555512409
-SHA256SUMS_SHA256 = "c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f"
+PACKAGE_SIZE = 158363786
+PACKAGE_SHA256 = "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae"
+EXTRACTED_SIZE = 555511970
+SHA256SUMS_SHA256 = "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a"
 PACKAGE_DIRECTORY = "jackal-v1.7.3-macos-arm64"
 MAX_ARCHIVE_MEMBERS = 8192
 MAX_RUNTIME_RECORDS = MAX_ARCHIVE_MEMBERS
@@ -1463,8 +1463,8 @@ def provision(
         raise ProvisionError("pinned runtime is not installed")
     if tarball is None and RELEASE_STATE != "published":
         raise ProvisionError(
-            "candidate release is unpublished; provide --tarball with the "
-            "locally built, pinned candidate package"
+            "release network provisioning is disabled; provide --tarball "
+            "with the pinned package"
         )
 
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -1,13 +1,15 @@
 # JACKAL Production Alignment Tracker — 2026-08-22
 
-Terminal tracker state: `BLOCKED_TRUST_SURFACE`.
+Checkpoint state: `AUTHORIZED_RELEASE_PROMOTION`.
 
-This maps to the architect goal's terminal label
-`BLOCKED_JACKAL_TRUST_SURFACE`. The executable, package, Hermes, Codex, skill,
-index, review, and public-metadata surfaces are mechanically aligned at 41
-tools. Two accept-condition decisions remain explicitly unapproved. No merge,
-tag, candidate release, installed-plugin replacement, or upstream merge is
-claimed or authorized.
+The architect explicitly approved both previously blocked trust-surface
+decisions and instructed Codex to merge and finish the release work. The
+authorization record is
+`release/evidence/architect_release_authorization_v173.json`, SHA-256
+`f81446a5e115d99690c125d806d3406565ea83b6626c802e666f1cea3791cc94`.
+This checkpoint binds the final reproducible package and release pins; merge,
+tag, GitHub-release read-back, Hermes promotion, installation, and upstream
+PR disposition remain subsequent recorded actions, not claims of this row.
 
 ## Authority and repository binding
 
@@ -15,9 +17,9 @@ claimed or authorized.
 |---|---|---|
 | Architect goal | 12,611 bytes; 172 lines; SHA-256 `8025fb5570587258ec3cf6c808df71451af5b8815a7a5778f7d1e48e296dad7d` | VERIFIED |
 | JACKAL public base | `AnubisQuantumCipher/jackal` `master` at `73854110cb82d78b2843d5028e1e0d5970b0ad5a` | latest public release line |
-| JACKAL package-producing source | `mission/jackal-unified-completion-20260820` commit `957ac893b243814d9059e6e104c21e0ce68e9ef5`, tree `b77c28e47bb03eddf28f580ff1ac95708ba7f1bd` | clean source; package reproduced |
-| JACKAL mechanical candidate head | commit `0bca7da98def582bb0ce34a7dfb9b540e599d1b1`, tree `f8e436e04d29b064aa84a3f876db72f8b1c16cb0` | pushed; PR #12 draft; this tracker is an intentionally non-self-referential documentation descendant |
-| JACKAL PR | [AnubisQuantumCipher/jackal#12](https://github.com/AnubisQuantumCipher/jackal/pull/12) | open, draft, mergeable, `SIGNOFF REQUIRED` |
+| JACKAL package-producing source | `mission/jackal-unified-completion-20260820` commit `aaf7058ce98bf84ecd7b587f1ffff5f6a923f878`, tree `e5f02743d121acbc1d9128d6c3ceaaf81542d583` | clean source; package reproduced twice |
+| JACKAL release-pin closure | descendant of `aaf7058…` | package receipt, Codex pins, and this intentionally non-self-referential tracker |
+| JACKAL PR | [AnubisQuantumCipher/jackal#12](https://github.com/AnubisQuantumCipher/jackal/pull/12) | open and mergeable at this checkpoint; authorization resolved |
 | Hermes v6 candidate | `AnubisQuantumCipher/hermes-jackal-verified` `mission/production-alignment-v6` at `936dab4458d4618f4ecf56c2da5c9f5cdbb9aef4`, tree `6315b680be8e5d3b109014910b774b84b565040d` | pushed; no tag or release |
 | Hermes upstream index | `AnubisQuantumCipher/hermes-agent` `feat/index-jackal-verified` at `28f5455001ce4784d8e584fbb521c442740f8e64`, tree `bce913a075326a5c32eb1d50bc5010b51b08a540` | [NousResearch/hermes-agent#88446](https://github.com/NousResearch/hermes-agent/pull/88446), open and mergeable; one tracked file changed |
 | Public README clarification | docs head `798b63148cdc01b0c17fb2bd888478cbbe037ffd`; merged as `6a42656df135eab1b2abfdf2b873b02df8efb6e9` | [plugin PR #4](https://github.com/AnubisQuantumCipher/hermes-jackal-verified/pull/4) merged after both CI runs passed |
@@ -84,24 +86,24 @@ verified-program-evidence, verified-program-receipt, indeterminate, and
 refused outcomes. Unsupported strong requests refuse; no adapter silently
 substitutes a weaker lane.
 
-## Reproducible v1.7.3 candidate package
+## Reproducible v1.7.3 release package
 
 | Property | Exact value |
 |---|---|
-| Builder SHA-256 | `b7683c5f6d0a2cc76292ad4377763925169f26a0770e2a34102fb37f9ebb8e5c` |
-| Release manifest SHA-256 | `70e18842dd3ff4ae08d5cac10961390b3aa1c13683cbb562129d1cc1a1d098d0` |
+| Builder SHA-256 | `686be8b66b7fccef3419eb032be8c8632619814b51f74814d1b85449f25cb58d` |
+| Release manifest SHA-256 | `ac52dafc0e9edbf74dde56b358c3c55ab5b705d3b66811558156c480b3530509` |
 | Program verifier SHA-256 | `4b80e29bdffc0737f05a6e215fce8cce3b6b828c24afbf55c68443399e5119dc` |
 | Package | `jackal-v1.7.3-macos-arm64.tar.gz` |
-| Package SHA-256 | `b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d` |
-| Package bytes | `158363755` |
+| Package SHA-256 | `68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae` |
+| Package bytes | `158363786` |
 | Regular files | `106` |
 | Complete extracted tree entries | `119` |
-| Extracted regular-file bytes | `555512409` |
-| Root `SHA256SUMS` SHA-256 | `c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f` |
-| Mode/size/digest roster aggregate | `696efce3279de95886e4d154ec1fda29d089496cdd2b683479649d22924e538e` |
-| Alignment receipt SHA-256 | `ebd36b93873e2945352ca2729d5e6a631703e35af0a112e025c15ecbdeb47c1e` |
+| Extracted regular-file bytes | `555511970` |
+| Root `SHA256SUMS` SHA-256 | `a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a` |
+| Mode/size/digest roster aggregate | `f88ba8a9988afe4b41ab247d5c75cb3da03159defba1bd8985c37190fa595654` |
+| Alignment receipt SHA-256 | `c15a3d174b847b02226f62ad26b217b887aa7102c9c21a7f392a9642e4e9a7bb` |
 
-Two distinct clean detached source worktrees at source commit `957ac893…`, each
+Two distinct clean detached source worktrees at source commit `aaf7058…`, each
 with its own destination, produced byte-identical tarballs, checksum lists,
 complete extracted trees, and file rosters. `cmp` and the directory comparison
 both exited 0. The approved compiler SHA-256 was
@@ -117,10 +119,10 @@ Pinned runtime inputs were:
 | Gaussian checker | `ccac690bf916f71a4e3baeb0622dac19aa47e3ca4af858c0800c295581ecfacb` |
 | composed-integral checker | `f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617` |
 
-These are candidate bytes. No public v1.7.3 tag, release, or download asset is
-asserted. The Codex provisioner therefore refuses its default network route
-before staging and accepts only an explicit verified local tarball for
-candidate review.
+These are the authorized release bytes. At this checkpoint, publication and
+download read-back have not yet been claimed. Offline provisioning of this
+exact tarball passed, after which the isolated Codex live gate discovered 41
+tools and passed exact, formal, refusal, claim-bundle, and receipt replay.
 
 ## Verification ledger
 
@@ -263,24 +265,22 @@ zero-finding second full review is claimed.
   `hermes_cli/data/plugin_index.json`, reports no hosted checks, and was not
   merged.
 
-## Terminal blockers
+## Authorization resolution and remaining promotion steps
 
-The only goal-level blockers are two architect trust-surface decisions:
-
-1. Approve the `inventory-safe-v1` program-verifier accept conditions and
-   status meaning as a production trust surface.
-2. Approve the v1.7.3 domain-pack compatibility minimum and promotion boundary.
-
-Until both approvals are explicit, do not merge JACKAL PR #12, tag or publish
-JACKAL v1.7.3, promote/tag/release Hermes v6, replace the installed Hermes v5
-plugin, or merge upstream PR #88446.
+The architect approved the `inventory-safe-v1` accept conditions, status
+meaning, v1.7.3 domain-pack compatibility minimum, and promotion boundary.
+The durable authorization receipt records the exact user instructions and
+explicitly does not override third-party permissions or branch protection.
+The remaining work is mechanical: merge and read back JACKAL v1.7.3; repin,
+merge, release, and install Hermes v6; then update and exhaust the permitted
+actions on upstream PR #88446.
 
 ## Final nonclaims
 
-- No public JACKAL v1.7.3 tag or release exists as a result of this work.
-- No public Hermes v6 tag or release exists as a result of this work.
+- At this checkpoint, no public JACKAL v1.7.3 or Hermes v6 release read-back is
+  asserted; later tracker revisions must bind those identities if published.
 - No upstream maintainer approval or merge is asserted.
 - No arbitrary-expression, compiler-correctness, source-native-refinement, or
   unrestricted formal-correctness claim is made.
-- Green tests, reproducible bytes, and resolved review findings do not
-  substitute for the two missing trust-surface approvals.
+- The architect authorization is an operator record, not a cryptographic
+  signature, proof of third-party authority, or expansion of formal coverage.

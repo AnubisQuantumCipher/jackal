@@ -15,13 +15,15 @@ The v1.7.3 release binds an ordered 41-tool surface through
 GitHub asset, and read-back receipt must match those exact bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
-## Candidate v1.7.3 — unified domain-pack and Anubis program evidence — 2026-08-20 — SIGNOFF REQUIRED
+## v1.7.3 — unified domain-pack and Anubis program evidence — 2026-08-20 to 2026-08-22
 
-This candidate starts from merged PR #11 commit
+This release line starts from merged PR #11 commit
 `73854110cb82d78b2843d5028e1e0d5970b0ad5a`; `git show --stat` on that
-commit names the W3/W4/W6/W10 merge. It is not a release: the new program
-accept conditions and the domain-pack compatibility minimum change require
-architect review before merge/tag/publication.
+commit names the W3/W4/W6/W10 merge. The new program accept conditions and
+domain-pack compatibility minimum were initially held for architect review;
+the approval is recorded in
+`release/evidence/architect_release_authorization_v173.json` before
+merge/tag/publication.
 
 ### Surface and trust contract
 
@@ -41,7 +43,7 @@ The three additive tools are `jackal_anubis_check_program`,
 
 The prototype profile name `contracted-safe-v1` was not inherited. The v3
 producer exports a producer-attested whole-function inventory but no
-independently checkable construct-total walker coverage. The shipped candidate
+independently checkable construct-total walker coverage. The shipped release
 therefore uses `inventory-safe-v1` and records
 `policy-construct-totality-not-established`, plus open source-to-VC,
 SMT-to-CNF, source-native, runtime, and universal-soundness boundaries.
@@ -65,22 +67,22 @@ with its own absolute `JACKAL_DIST`, produced byte-identical tarballs; `cmp`
 exited 0:
 
 The producing source was the clean commit
-`957ac893b243814d9059e6e104c21e0ce68e9ef5` (tree
-`b77c28e47bb03eddf28f580ff1ac95708ba7f1bd`). This provenance record is a
+`aaf7058ce98bf84ecd7b587f1ffff5f6a923f878` (tree
+`e5f02743d121acbc1d9128d6c3ceaaf81542d583`). This provenance record is a
 later derived checkpoint and is not represented as the commit that produced
 the package.
 
 ```text
 basename            jackal-v1.7.3-macos-arm64.tar.gz
-sha256              b317849234208ab6f435e5bad1336e4bf4d039981811323e35138c2e0a4ee68d
-bytes               158363755
+sha256              68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae
+bytes               158363786
 files               106
-extracted-file-bytes 555512409
-SHA256SUMS sha256    c0afbe8108517b30d36d8aab8ac3cddc0bae78588b41d86e976eee53da92be7f
+extracted-file-bytes 555511970
+SHA256SUMS sha256    a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a
 ```
 
 Tar member file bytes and fresh-extraction file bytes independently summed to
-`555512409`. `tests/package_unified_v173_test.py` checks exact checksum
+`555511970`. `tests/package_unified_v173_test.py` checks exact checksum
 inventory, extra/missing/tampered-file controls, missing-pack isolation,
 declared-but-unreachable program-tool refusal, stale source/binary refusal,
 profile/catalog parity, and the selected release window.

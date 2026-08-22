@@ -16,12 +16,12 @@ This is the restart-safe evidence ledger for the architect-approved production-a
 | Surface | Path or remote | Branch / HEAD | Dirty and ownership boundary | Release/public state |
 |---|---|---|---|---|
 | JACKAL ambient checkout | `/Users/sicarii/Desktop/Projects/jackal-calc` | `feat/mathematical-evidence-kernel-v1.6.0` / `57739317b24250ff62fd9b23f67c760d9066ab94` | User-owned untracked `jackal_calc.anb.zip`, `jackal_calc.md`, `website/`; DO NOT EDIT | stale local branch |
-| JACKAL integration candidate | `/Users/sicarii/Worktrees/jackal-unified-completion-20260820` | `mission/jackal-unified-completion-20260820` / `d25bcd9818e0d106f337798f80527ae611cc3acc`; upstream equal | clean before this tracker | PR #12 draft; hosted checks green on old head; no review decision |
+| JACKAL integration candidate | `/Users/sicarii/Worktrees/jackal-unified-completion-20260820` | `mission/jackal-unified-completion-20260820`; initial tool-containing ref `d25bcd9818e0d106f337798f80527ae611cc3acc`; latest feature checkpoint `41d0d341855b7ca6493ae1afea5fed268c7f3c29` | clean before this tracker; named-path alignment commits only | PR #12 draft; hosted checks green on pre-alignment head; no review decision |
 | JACKAL public default | `AnubisQuantumCipher/jackal` | `master` / `73854110cb82d78b2843d5028e1e0d5970b0ad5a` | architect-owned public repo | latest release v1.7.2; repository description says 34 tools |
 | Installed Hermes plugin | `/Users/sicarii/.hermes/plugins/jackal-verified` | detached `86596e2b0e2679db68eca16bd102378c5bfa27b7`, annotated tag v5.0.0 | clean installed evidence; DO NOT EDIT | 34 tools; pins JACKAL v1.7.0 |
 | Hermes plugin public default | `AnubisQuantumCipher/hermes-jackal-verified` | `main` / `e157e4dc98ffc127bb9abca4ae2ea6cdd699db56` | architect-owned public repo | latest v5.0.0 at `86596e2…`; description says 34 tools |
 | Hermes core ambient checkout | `/Users/sicarii/.hermes/hermes-agent` | `main` / `e02d1e41fc6104187e20af9eac8b2820566e3508`, ahead 1/behind 1 at census | extensive user-owned tracked and untracked changes; DO NOT EDIT | upstream is `NousResearch/hermes-agent` |
-| Codex plugin candidate | `plugins/jackel` inside JACKAL PR #12 | identity aggregate `f5102843b8112302ebfdc7bfa1dc7665a4194835fad360523c50fda9abe3983d` from PR record | clean with JACKAL worktree | version `0.1.0+codex.20260820135554`; pins v1.7.3 candidate package |
+| Codex plugin candidate | `plugins/jackel` inside JACKAL PR #12 | current generated identity aggregate `2a025bb5b7b53cd7f071f5185c85ee85bb241ea853215eb631b471d6668e9e5f`; prior PR record `f5102843…` | clean with JACKAL worktree before this tranche | version `0.1.0+codex.20260820135554`; pins v1.7.3 candidate package |
 | Installed Codex plugin | `/Users/sicarii/.codex/plugins/cache/anubis-quantum-cipher/jackel/0.1.0+codex.20260820135554` | exact seven-file identity manifest | installed cache evidence; DO NOT EDIT | wrapper requires 41 tools; package SHA-256 `b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175` |
 | Hermes PR branch | architect fork branch `feat/index-jackal-verified` | `08eb5173033e15117f51ac5abc9ca3d8bab313fe` | edit only in a fresh isolated checkout | PR title/body/index pin v5.0.0/34 tools; no hosted checks |
 
@@ -54,15 +54,27 @@ Instrument and baseline gates:
 | `/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v` | exit 0; 215 tests | repo-local Codex plugin suite on supported Python; fresh-package live discovery remains separate |
 | `tests.profile_contract_test` mutation controls | 12 positive and 16 refusal cases within the 43-test run | validates count/profile instrument can turn red |
 
+## Alignment implementation evidence
+
+| Command / artifact | Exit / observation | Scope boundary |
+|---|---|---|
+| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; artifact SHA-256 `34da7a580798173241f3b6848309a5aab8d99b32695ecdb96a4d83456495fde2` | binds candidate implementation ref `d25bcd…`; does not assert a public tag |
+| `tests.capability_inventory_test` | 13 tests pass, including duplicate/unmapped/status/checker/artifact mutation controls | catalog/profile/manifest/proof-identity/Codex-input contract |
+| `tools/capability_drift_gate.py` | exit 0; `CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3` | current marked surfaces only; historical 34-tool prose remains legal |
+| `tests.capability_drift_gate_test` | 11 tests pass, including current count, unknown skill tool, status vocabulary, package pin, wrapper count, marker, and plugin-identity refusals | semantic anti-drift instrument |
+| `tools/capability_drift_gate.py --write-plugin-identity` then `plugins/jackel/scripts/verify_plugin.py` | seven files; aggregate SHA-256 `2a025bb5b7b53cd7f071f5185c85ee85bb241ea853215eb631b471d6668e9e5f`; verifier exit 0 | tamper evidence, not author authentication |
+| combined inventory/drift/profile/unified suite | exit 0; 58 tests | repository surface and mutation controls |
+| `/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v` | exit 0; 215 tests | repo-local plugin; fresh release-pin discovery remains open |
+
 ## Requirement matrix
 
 | ID | Requirement | Evidence required | State |
 |---|---|---|---|
-| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | OPEN |
+| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: artifact `34da7a58…`; 13 tests; checkpoint `bbe43f9…` plus current derived update |
 | R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | PARTIAL: kernel and Codex candidate show 41; public Hermes plugin is 34 |
-| R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | OPEN; known stale public descriptions, Hermes bytes, PR #88446, and Codex design spec line 515 |
+| R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex repository current blocks and design repaired; public descriptions, Hermes bytes, and PR #88446 remain open |
 | R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | OPEN |
-| R5 | Production-equivalent Codex plugin | exact installed discovery and call parity from release pin | PARTIAL: 215 repo-local tests pass; fresh release-pin gates open |
+| R5 | Production-equivalent Codex plugin | exact installed discovery and call parity from release pin | PARTIAL: 215 repo-local tests and generated seven-file identity pass; fresh release-pin gates open |
 | R6 | Complete JACKAL skills audit | classified inventory, exact hashes, real-name/schema fixtures, corrected routers | OPEN |
 | R7 | Lean build and admission/axiom audit | `lake build`, exact theorem axiom output, `sorry`/admit scan, trusted snapshot report | OPEN |
 | R8 | Positive and hostile family coverage | all exported families plus wrong epoch/policy/proposition/unit/cert/pin controls | OPEN |
@@ -79,7 +91,7 @@ Instrument and baseline gates:
 2. `AnubisQuantumCipher/hermes-jackal-verified` public main/release/description, installed plugin, tests, and bundled skill are v5.0.0/v1.7.0/34-tool surfaces.
 3. NousResearch PR #88446 pins `86596e2…`, says 34 tools, and contains promotional self-assessment wording.
 4. The PR reviewer requires human verification of the pinned Lean/admission/tool-count claims and equally rigorous skills review.
-5. `docs/superpowers/specs/2026-08-17-jackel-codex-plugin-design.md` still says the runtime has 34 tools even though the current Codex plugin wrapper enforces 41.
+5. The Codex design's live 34-tool/v1.7.0 provisioner claims were corrected to the exact v1.7.3 candidate package; a semantic gate now fails if those marked current surfaces regress. Historical release facts were not rewritten.
 6. PR #12 itself says two architect decisions remain required. Green checks and `READY_FOR_SIGNOFF` are not sign-off.
 
 ## Skill census to classify
@@ -101,4 +113,7 @@ The following local `SKILL.md` files mention JACKAL/JACKEL and require classific
 
 | Checkpoint | Commit / evidence | Status |
 |---|---|---|
-| C0 current-state binding | this tracker, derived from live local/GitHub inspection on 2026-08-22 | NON-FINAL |
+| C0 current-state binding | `282551a7101f4303797e8bb3068d9eb7435e5406` | NON-FINAL, PUSHED |
+| C0b executable plan | `5b50578e27211a1d8f0132634c11ebdee64a907f` | NON-FINAL, PUSHED |
+| C1 canonical inventory | `bbe43f9d5072a932d0b144919f263e9515af004e`; 41 unique; 46 tests at commit | NON-FINAL, PUSHED |
+| C2 semantic drift and Codex metadata | `41d0d341855b7ca6493ae1afea5fed268c7f3c29`; 58 surface tests + 215 Codex tests; identity `2a025bb5…` | NON-FINAL, PUSHED |

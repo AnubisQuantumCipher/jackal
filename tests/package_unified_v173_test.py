@@ -118,11 +118,11 @@ class UnifiedPackageV173Test(unittest.TestCase):
             document["package"],
             {
                 "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
-                "bytes": 158362693,
-                "extracted_file_bytes": 555507667,
+                "bytes": 158362724,
+                "extracted_file_bytes": 555507658,
                 "file_count": 106,
-                "sha256": "5bc45b704d4de2a1413ea3a4a5520d768da740840146fe7286643a7a55de41c3",
-                "sha256sums_root": "3cc7fbb37a07939c8f7b4df6e0dabe873e5ef12ebc10876597993d02e7740d80",
+                "sha256": "d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4",
+                "sha256sums_root": "12e52bfd0b3fe3fc2f6f4c8acf4bd6d0d3c47be1ae9c334e8ef4b068c24e07e3",
             },
         )
         source = document["source"]

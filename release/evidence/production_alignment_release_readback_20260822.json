@@ -1,6 +1,6 @@
 {
   "schema": "jackal-production-alignment-release-readback-v1",
-  "observed_at": "2026-08-22T18:21:41Z",
+  "observed_at": "2026-08-22T18:37:42Z",
   "terminal_state": "PARTIAL_JACKAL_PRODUCTION_ALIGNMENT",
   "terminal_reason": "All architect-owned JACKAL, Codex, and Hermes release and installation work is complete; NousResearch/hermes-agent PR 88446 remains open behind third-party branch policy and maintainer review.",
   "architect_goal": {
@@ -136,6 +136,11 @@
     "merge_attempt": {
       "exit": 1,
       "message": "Pull request NousResearch/hermes-agent#88446 is not mergeable: the base branch policy prohibits the merge.",
+      "admin_bypass_used": false
+    },
+    "auto_merge_attempt": {
+      "exit": 1,
+      "message": "GraphQL: AnubisQuantumCipher does not have the correct permissions to execute EnablePullRequestAutoMerge (enablePullRequestAutoMerge)",
       "auto_merge_enabled": false,
       "admin_bypass_used": false
     }

@@ -6,8 +6,10 @@ All architect-owned JACKAL, Codex, and Hermes source, merge, release,
 description, installation, and read-back work is complete. The one remaining
 item is third-party: [NousResearch/hermes-agent#88446](https://github.com/NousResearch/hermes-agent/pull/88446)
 is open, mechanically mergeable, and blocked by the upstream base-branch
-policy with no maintainer review. An ordinary merge attempt exited 1; neither
-auto-merge nor administrator bypass was used.
+policy with no maintainer review. Both an ordinary merge attempt and a
+rule-respecting auto-merge attempt exited 1: the former was prohibited by the
+base policy, and the latter was denied because the fork owner lacks permission
+to enable auto-merge. Administrator bypass was not used.
 
 The machine-readable companion receipt is
 `release/evidence/production_alignment_release_readback_20260822.json`.
@@ -202,6 +204,7 @@ Every row exited 0 unless marked as an expected refusal or policy blocker.
 | installed Hermes doctor | v6.0.0; 41 tools; zero hooks |
 | upstream index JSON + focused wrapper | valid JSON; 38/38 via `scripts/run_tests.sh` |
 | upstream ordinary merge attempt | expected blocker: exit 1, base-branch policy prohibits merge |
+| upstream auto-merge attempt | expected blocker: exit 1, fork owner lacks `EnablePullRequestAutoMerge` permission |
 
 An earlier broad upstream wrapper run on the old base reported unrelated
 baseline/provider failures. No unrelated upstream source was changed to hide
@@ -260,7 +263,9 @@ downgrade.
   [issuecomment-5381898802](https://github.com/NousResearch/hermes-agent/pull/88446#issuecomment-5381898802).
 - GitHub reports `mergeable=true`, `mergeStateStatus=BLOCKED`. The ordinary
   squash-merge attempt returned: `the base branch policy prohibits the merge`.
-  Auto-merge was not enabled and administrator privileges were not used.
+  A subsequent rule-respecting auto-merge attempt returned that the fork owner
+  lacks `EnablePullRequestAutoMerge` permission. Auto-merge remains disabled;
+  administrator privileges were not used.
 
 ## Independent review dispositions
 

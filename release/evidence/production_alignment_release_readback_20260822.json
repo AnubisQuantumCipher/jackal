@@ -1,0 +1,165 @@
+{
+  "schema": "jackal-production-alignment-release-readback-v1",
+  "observed_at": "2026-08-22T18:21:41Z",
+  "terminal_state": "PARTIAL_JACKAL_PRODUCTION_ALIGNMENT",
+  "terminal_reason": "All architect-owned JACKAL, Codex, and Hermes release and installation work is complete; NousResearch/hermes-agent PR 88446 remains open behind third-party branch policy and maintainer review.",
+  "architect_goal": {
+    "bytes": 12611,
+    "lines": 172,
+    "sha256": "8025fb5570587258ec3cf6c808df71451af5b8815a7a5778f7d1e48e296dad7d"
+  },
+  "jackal": {
+    "repository": "https://github.com/AnubisQuantumCipher/jackal",
+    "pull_request": {
+      "number": 12,
+      "url": "https://github.com/AnubisQuantumCipher/jackal/pull/12",
+      "base": "73854110cb82d78b2843d5028e1e0d5970b0ad5a",
+      "head": "91d0684bb28e0ac54c98058b53ba4147569b4b6f",
+      "merge_commit": "a43919e83fe141320fbc041f9be649b5ebe9e82c",
+      "state": "merged"
+    },
+    "package_source": {
+      "commit": "aaf7058ce98bf84ecd7b587f1ffff5f6a923f878",
+      "tree": "e5f02743d121acbc1d9128d6c3ceaaf81542d583",
+      "two_clean_builds_byte_identical": true
+    },
+    "release": {
+      "tag": "v1.7.3",
+      "tag_object": "45a2534e3288d9b43ff453161e567d0158ea0ea6",
+      "tag_commit": "a43919e83fe141320fbc041f9be649b5ebe9e82c",
+      "url": "https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.3",
+      "published_at": "2026-08-22T17:54:12Z",
+      "draft": false,
+      "prerelease": false,
+      "github_immutable_release_enabled": false,
+      "assets": [
+        {
+          "name": "jackal-v1.7.3-macos-arm64.tar.gz",
+          "bytes": 158363786,
+          "sha256": "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae"
+        },
+        {
+          "name": "jackal-v1.7.3-evidence.tar.gz",
+          "bytes": 562653,
+          "sha256": "32c0ceffdfb347f25bcb57f2f4fefc7a688dc048a10e64312d65930a675d7e90"
+        },
+        {
+          "name": "jackal-v1.7.3-release-receipt.json",
+          "bytes": 5828,
+          "sha256": "fef6a8ba3ab99c27f67e8d901d852ea52ef35c0474683bbd6daa4f229fe4f372"
+        },
+        {
+          "name": "SHA256SUMS",
+          "bytes": 296,
+          "sha256": "1c5fd0526231f462028917be3d802de39ec73ddce9c2b11806e86983370c09ba"
+        }
+      ],
+      "fresh_download_byte_matches": 4,
+      "fresh_download_checksum_rows_passed": 3
+    },
+    "surface": {
+      "tool_count": 41,
+      "unique_tool_count": 41,
+      "capability_inventory_sha256": "e2a4984329b3fd2fecc8de738dce20a5f046e0a876119569e72e41a04192a8f5",
+      "codex_discovered_tools": 41,
+      "codex_wrapper_identity_sha256": "d4b6cdc32e55335eade1ca6d7cbc385c133c2dbecf4296a894877fe297fe27c3"
+    },
+    "description": "Mathematical evidence kernel for agents: exact, checked, bounded, formal-bounded, and refusal-preserving computation. JACKAL v1.7.3 provides the released 41-tool surface for JACKAL, Codex, and Hermes."
+  },
+  "hermes_plugin": {
+    "repository": "https://github.com/AnubisQuantumCipher/hermes-jackal-verified",
+    "pull_request": {
+      "number": 5,
+      "url": "https://github.com/AnubisQuantumCipher/hermes-jackal-verified/pull/5",
+      "base": "6a42656df135eab1b2abfdf2b873b02df8efb6e9",
+      "head": "ceb491f77ea040f82df20f759d5fb456f989bd12",
+      "merge_commit": "dab507a521406a69d308025bed380401eff967b9",
+      "state": "merged"
+    },
+    "release": {
+      "tag": "v6.0.0",
+      "tag_object": "ad0eaad6733a3ea04f63a91f9073026caca4afe3",
+      "tag_commit": "dab507a521406a69d308025bed380401eff967b9",
+      "url": "https://github.com/AnubisQuantumCipher/hermes-jackal-verified/releases/tag/v6.0.0",
+      "published_at": "2026-08-22T18:16:36Z",
+      "draft": false,
+      "prerelease": false,
+      "github_immutable_release_enabled": false,
+      "custom_assets": []
+    },
+    "bindings": {
+      "package_sha256": "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae",
+      "package_sha256sums_sha256": "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a",
+      "manifest_sha256": "d28808bb21f5f27f57fb884292586e053da5bd07f1b84607188e8936b84e59aa",
+      "skill_sha256": "4e7475e444251e1449de2b8a312ab5eb3288259e48ce54466a4555a1f88b739a",
+      "tool_count": 41,
+      "hook_count": 0
+    },
+    "hosted_runs": [
+      32589797976,
+      32589818664,
+      32590042317
+    ],
+    "local_install": {
+      "location": "~/.hermes/plugins/jackal-verified",
+      "commit": "dab507a521406a69d308025bed380401eff967b9",
+      "version": "6.0.0",
+      "enabled": true,
+      "doctor": "pass",
+      "registered_tools": 41,
+      "gateway_reloaded": true
+    },
+    "description": "Released 41-tool Hermes adapter for JACKAL v1.7.3: exact, checked, bounded, formal-bounded, claim, structural, decision, program-evidence, and refusal-preserving routes."
+  },
+  "upstream_index": {
+    "repository": "https://github.com/NousResearch/hermes-agent",
+    "pull_request": 88446,
+    "url": "https://github.com/NousResearch/hermes-agent/pull/88446",
+    "fork_branch": "AnubisQuantumCipher:feat/index-jackal-verified",
+    "head": "eea6b2bec7cf1bb36f49dd7518e272e2300c7546",
+    "tree": "b14075dca1414e0ed73f6c6665fd5eeaa4dfaeb7",
+    "base": "0cde4dd93aa794c65fee6cc85b0b5e4eee77e8e2",
+    "changed_files": [
+      "hermes_cli/data/plugin_index.json"
+    ],
+    "focused_tests": {
+      "command": "scripts/run_tests.sh tests/hermes_cli/test_plugin_index_search.py -q",
+      "passed": 38,
+      "failed": 0,
+      "exit": 0
+    },
+    "verification_comment": "https://github.com/NousResearch/hermes-agent/pull/88446#issuecomment-5381898802",
+    "mergeable": true,
+    "merge_state": "BLOCKED",
+    "reviews": 0,
+    "hosted_checks": 0,
+    "merge_attempt": {
+      "exit": 1,
+      "message": "Pull request NousResearch/hermes-agent#88446 is not mergeable: the base branch policy prohibits the merge.",
+      "auto_merge_enabled": false,
+      "admin_bypass_used": false
+    }
+  },
+  "lean_admission_audit": {
+    "artifact_sha256": "cabda2a1fb8c021ce384d9c2267f52f98e6799bb50b6b828e7d9eefa55bf2b2e",
+    "semantic_digest_sha256": "5e33809e2d8f73d8b554313bc9ea71a8b8d3c657810f0b37d4db3dd945578f29",
+    "tracked_lean_files": 42,
+    "named_theorems": 27,
+    "logical_admissions": 0,
+    "repository_axiom_declarations": 0,
+    "unexpected_constructs": 0,
+    "observed_theorem_axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ]
+  },
+  "non_claims": [
+    "No NousResearch maintainer approval or upstream merge is claimed.",
+    "GitHub release immutability is not enabled; annotated tag objects and downloaded asset digests are recorded separately.",
+    "SHA-256 identifies bytes and does not by itself establish authorship, authentication, or correctness.",
+    "Apple Silicon macOS only; JACKAL and the Hermes plugin are unsigned and unnotarized.",
+    "Formal-bounded applies only to checker-admitted fragments.",
+    "inventory-safe-v1 does not establish policy-construct totality, source-to-VC, SMT-to-CNF, source-native refinement, runtime behavior, or universal language soundness."
+  ]
+}

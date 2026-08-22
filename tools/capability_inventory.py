@@ -6,9 +6,9 @@ that ordered roster to profile membership, semantic integration bytes,
 release-manifest checker identities, proof-identity bytes, status vocabulary,
 and explicit admission/refusal summaries. Package-delivery pins are verified by
 ``tools/capability_drift_gate.py`` instead: the package contains this inventory,
-so binding the package-pinning provisioner here would create an unsealable
-content-hash cycle. It computes no mathematical result and changes no verifier
-accept condition.
+so binding either the package-pinning provisioner or the package receipt here
+would create an unsealable content-hash cycle. It computes no mathematical
+result and changes no verifier accept condition.
 
 Usage:
   python3 tools/capability_inventory.py --write [--root PATH]
@@ -68,7 +68,6 @@ INPUT_PATHS = (
     Path("plugins/jackel/.codex-plugin/plugin.json"),
     Path("plugins/jackel/mcp/server.py"),
     MANIFEST_PATH,
-    Path("release/evidence/anubis_program_dogfood_v1.json"),
     Path("release/evidence/range_proof_identity_v172.json"),
     Path("release/evidence/gaussian_proof_identity.json"),
     Path("release/evidence/int_cert_proof_identity_v172.json"),

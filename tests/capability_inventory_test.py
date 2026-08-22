@@ -89,14 +89,18 @@ class InventoryFixture:
 
 
 class CapabilityInventoryPositiveTest(unittest.TestCase):
-    def test_inventory_graph_excludes_self_referential_package_delivery_pin(self) -> None:
-        """The package contains this inventory, so it cannot hash its own pin."""
-        provisioner = Path("plugins/jackel/scripts/provision_runtime.py")
-        self.assertNotIn(provisioner, INVENTORY.INPUT_PATHS)
+    def test_inventory_graph_excludes_self_referential_package_delivery_pins(self) -> None:
+        """The package contains this inventory, so it cannot hash its own pins."""
+        delivery_pins = {
+            Path("plugins/jackel/scripts/provision_runtime.py"),
+            Path("release/evidence/anubis_program_dogfood_v1.json"),
+        }
+        self.assertTrue(delivery_pins.isdisjoint(INVENTORY.INPUT_PATHS))
         document = INVENTORY.build_inventory(ROOT)
-        self.assertNotIn(
-            provisioner.as_posix(),
-            {row["path"] for row in document["inputs"]},
+        self.assertTrue(
+            {path.as_posix() for path in delivery_pins}.isdisjoint(
+                {row["path"] for row in document["inputs"]}
+            )
         )
 
     def test_build_is_exact_ordered_41_tool_surface(self) -> None:

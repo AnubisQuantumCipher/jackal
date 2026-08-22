@@ -58,7 +58,7 @@ Instrument and baseline gates:
 
 | Command / artifact | Exit / observation | Scope boundary |
 |---|---|---|
-| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; current artifact SHA-256 `d9479755d4618023c05b4aaececd9c02dcca541c8350d71e9f3f30d17544fddd` | binds candidate implementation ref `d25bcd…`, semantic integration bytes, and additive Lean-audit manifest rows; package-delivery pin is independently bound by the drift gate to avoid a package/inventory self-hash cycle |
+| `tools/capability_inventory.py --write` then `--check` | exit 0; `CAPABILITY_INVENTORY_PASS tools=41 unique=41`; current artifact SHA-256 `3c58bd162625fdab22803a020592bf1acfeb31dab0d395a5f50b810f249d1c75` | binds candidate implementation ref `d25bcd…`, semantic integration bytes, and additive Lean-audit manifest rows; provisioner and package-receipt delivery pins are independently bound by the drift gate to avoid a package/inventory self-hash cycle |
 | `tests.capability_inventory_test` | 14 tests pass, including duplicate/unmapped/status/checker/artifact mutation controls and an acyclic package-delivery graph assertion | catalog/profile/manifest/proof-identity/semantic-integration contract; delivery pin remains a separate drift-gate contract |
 | `tools/capability_drift_gate.py` | exit 0; `CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3` | current marked surfaces only; historical 34-tool prose remains legal |
 | `tests.capability_drift_gate_test` | 11 tests pass, including current count, unknown skill tool, status vocabulary, package pin, wrapper count, marker, and plugin-identity refusals | semantic anti-drift instrument |
@@ -78,7 +78,7 @@ Instrument and baseline gates:
 
 | ID | Requirement | Evidence required | State |
 |---|---|---|---|
-| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: current artifact `d9479755…`; 14 tests; delivery identity remains independently enforced without a self-hash cycle |
+| R1 | Canonical machine-readable per-tool inventory | deterministic generator, committed artifact, `--check`, 41 unique ordered rows with schema/status/checker/fragment/refusal/exposure/release fields | VERIFIED: current artifact `3c58bd16…`; 14 tests; both delivery-pin sources remain independently enforced without a self-hash cycle |
 | R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | PARTIAL: kernel and Codex candidate show 41; public Hermes plugin is 34 |
 | R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex repository current blocks and design repaired; public descriptions, Hermes bytes, and PR #88446 remain open |
 | R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | OPEN |

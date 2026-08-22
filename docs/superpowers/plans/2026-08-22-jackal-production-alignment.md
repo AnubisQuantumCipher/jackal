@@ -167,7 +167,6 @@ The verifier must:
 ```python
 CURRENT_SURFACES = (
     "README.md", "GETTING-STARTED.md", "PROVENANCE.md",
-    "plugins/jackel/.codex-plugin/plugin.json",
     "plugins/jackel/skills/jackel/SKILL.md",
     "docs/superpowers/specs/2026-08-17-jackel-codex-plugin-design.md",
 )
@@ -242,8 +241,10 @@ later reruns the same identity scripts without `--proof-only`.
 - [ ] **Step 5: Repin through the generator and re-check**
 
 ```bash
-/opt/homebrew/bin/python3 -B release/tools/repin_v173.py --write
-/opt/homebrew/bin/python3 -B release/tools/repin_v173.py --check
+/opt/homebrew/bin/python3 -B release/tools/repin_v173.py \
+  --compiler-path "<PINNED_ANUBIS_COMPILER>" --write
+/opt/homebrew/bin/python3 -B release/tools/repin_v173.py \
+  --compiler-path "<PINNED_ANUBIS_COMPILER>" --check
 ```
 
 Any change to checker identity or accepted theorem set is a trust-surface blocker, not an automatic repin.
@@ -257,9 +258,9 @@ Run the new audit tests plus the existing Gaussian/range source-closure workflow
 **Files:**
 - Create: `tests/jackal_skill_contract_test.py`
 - Modify: `plugins/jackel/skills/jackel/SKILL.md`
-- Audit/update: `/Users/sicarii/.codex/skills/jackal-assurance-oracle/`
-- Audit/update: `/Users/sicarii/.hermes/skills/software-development/jackal-verified-computation/`
-- Audit/update: `/Users/sicarii/.hermes/skills/software-development/jackal-trust-boundary-reseal/`
+- Audit/update: `<CODEX_SKILLS_DIR>/jackal-assurance-oracle/`
+- Audit/update: `<HERMES_HOME>/skills/software-development/jackal-verified-computation/`
+- Audit/update: `<HERMES_HOME>/skills/software-development/jackal-trust-boundary-reseal/`
 - Audit/classify without forced edits: the five other JACKAL-mentioning personal Hermes skills listed in the tracker
 
 - [ ] **Step 1: Read every selected `SKILL.md` and referenced JACKAL file completely**
@@ -290,7 +291,7 @@ Use neutral capability facts from `release/capability_inventory_v1.json`. Preser
 
 ```bash
 /opt/homebrew/bin/python3 -B -m unittest tests.jackal_skill_contract_test -v
-cd /Users/sicarii/.hermes/hermes-agent
+cd "$HOME/.hermes/hermes-agent"
 python -m hermes_cli.main skills audit
 ```
 
@@ -314,9 +315,13 @@ Record `git rev-parse HEAD`, worktree status, builder digest, repin digest, chec
 
 ```bash
 env -i PATH=/opt/homebrew/bin:/usr/bin:/bin HOME="$HOME" \
-  /bin/zsh release/build_package_v173.sh --output-root /private/tmp/jackal-v173-build-a
+  JACKAL_ANUBIS_COMPILER_PATH="<PINNED_ANUBIS_COMPILER>" \
+  JACKAL_DIST="<TEMP_ROOT>/jackal-v173-build-a" \
+  /bin/zsh release/build_package_v173.sh --build
 env -i PATH=/opt/homebrew/bin:/usr/bin:/bin HOME="$HOME" \
-  /bin/zsh release/build_package_v173.sh --output-root /private/tmp/jackal-v173-build-b
+  JACKAL_ANUBIS_COMPILER_PATH="<PINNED_ANUBIS_COMPILER>" \
+  JACKAL_DIST="<TEMP_ROOT>/jackal-v173-build-b" \
+  /bin/zsh release/build_package_v173.sh --build
 ```
 
 Use the builder's actual supported output argument discovered from its source. If it has no output option, run in two fresh clones rather than editing the builder.
@@ -328,7 +333,7 @@ Require identical tarball SHA-256, byte size, extracted file roster, per-file SH
 - [ ] **Step 4: Run the five previously skipped package tests**
 
 ```bash
-JACKAL_TEST_PACKAGE_ROOT=/private/tmp/jackal-v173-build-a/jackal-v1.7.3-macos-arm64 \
+JACKAL_TEST_PACKAGE_ROOT="<TEMP_ROOT>/jackal-v173-build-a/jackal-v1.7.3-macos-arm64" \
   /opt/homebrew/bin/python3 -B -m unittest tests.package_unified_v173_test -v
 ```
 

@@ -13,7 +13,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 INVENTORY_PATH = Path("release/capability_inventory_v1.json")
 PLUGIN_MANIFEST_PATH = Path("plugins/jackel/.codex-plugin/plugin.json")
@@ -79,7 +79,7 @@ class DriftError(RuntimeError):
         super().__init__(f"reason={reason} detail={detail}")
 
 
-def refuse(reason: str, detail: str) -> None:
+def refuse(reason: str, detail: str) -> NoReturn:
     raise DriftError(reason, detail)
 
 

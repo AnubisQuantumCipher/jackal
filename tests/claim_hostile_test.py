@@ -510,7 +510,7 @@ def _trusted_producers() -> list[str]:
 
 def record(rid: str, ok: bool, expect: str, observed: str) -> None:
     ROWS.append({"id": rid, "ok": bool(ok), "expect": expect,
-                 "observed": observed[:200]})
+                 "observed": observed[:400]})
     print(f"{'PASS' if ok else 'FAIL'} {rid}"
           + ("" if ok else f" — expected {expect}, got {observed[:120]}"))
 
@@ -657,7 +657,7 @@ def family_serialization() -> None:
                           if k != "bundle_digest_sha256"}))
     ok = verdict == "verified" and f"bundle.digest={want}" in out
     record("S-canonical-roundtrip", ok, f"bundle.digest={want[:16]}",
-           out[:160].replace("\n", " "))
+           out.replace("\n", " "))
 
 
 def family_graph() -> None:
@@ -1504,7 +1504,7 @@ def family_render() -> None:
           and "VERIFIED\n" not in out
           and "input provenance supplied" in out.lower())
     record("R-pos-conditions-present", ok,
-           "rendering with conditions", out[:160].replace("\n", " "))
+           "rendering with conditions", out.replace("\n", " "))
 
 
 def main() -> int:

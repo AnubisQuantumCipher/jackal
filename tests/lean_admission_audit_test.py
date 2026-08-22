@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -32,6 +33,24 @@ def load_auditor():
 AUDITOR = load_auditor()
 
 
+def lean_is_available() -> bool:
+    try:
+        completed = subprocess.run(
+            ["lake", "env", "lean", "--version"],
+            cwd=ROOT / "proofs/lean",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
+
+
+LEAN_AVAILABLE = lean_is_available()
+
+
 class LeanAuditFixture:
     def __init__(self, source: str) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="jackal-lean-audit-")
@@ -44,6 +63,7 @@ class LeanAuditFixture:
         self.temporary.cleanup()
 
 
+@unittest.skipUnless(LEAN_AVAILABLE, "pinned Lean toolchain is unavailable")
 class LeanAdmissionAuditPositiveTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -51,12 +71,11 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
 
     def test_inventory_is_exactly_every_tracked_lean_file(self) -> None:
         expected = sorted(
-            path
+            os.fsdecode(path)
             for path in subprocess.check_output(
-                ["git", "-C", str(ROOT), "ls-files", "--", "proofs/lean"],
-                text=True,
-            ).splitlines()
-            if path.endswith(".lean")
+                ["git", "-C", str(ROOT), "ls-files", "-z", "--", "proofs/lean"],
+            ).split(b"\0")
+            if path.endswith(b".lean")
         )
         observed = [row["path"] for row in self.audit["source_inventory"]["files"]]
         self.assertEqual(observed, expected)
@@ -108,6 +127,17 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
                 "[propext, Classical.choice, Quot.sound]",
             )
 
+    def test_toolchain_identity_is_platform_neutral_and_exact(self) -> None:
+        lean = self.audit["toolchain"]["lean"]
+        self.assertEqual(
+            lean,
+            {
+                "build_profile": "Release",
+                "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+                "version": "4.32.0",
+            },
+        )
+
     def test_checker_bytes_match_each_source_identity(self) -> None:
         for lane in self.audit["release_bindings"]["current_proof_identities"]:
             self.assertEqual(lane["identity_checker_sha256"], lane["checker_sha256"])
@@ -152,6 +182,20 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
                 with self.assertRaisesRegex(AUDITOR.AuditError, "escapes audit root"):
                     AUDITOR.repository_path(ROOT, supplied, "test evidence")
 
+    def test_symlinked_evidence_path_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-lean-link-") as td:
+            temporary = Path(td)
+            root = temporary / "root"
+            outside = temporary / "outside"
+            root.mkdir()
+            outside.mkdir()
+            (outside / "evidence.json").write_text("{}\n", encoding="utf-8")
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(AUDITOR.AuditError, "escapes audit root"):
+                AUDITOR.repository_path(
+                    root, "linked/evidence.json", "test evidence"
+                )
+
     def test_finding_source_line_uses_only_lf_line_boundaries(self) -> None:
         source = "alpha\rbeta\naxiom counterfeit : False\n"
         finding = AUDITOR.finding_record(
@@ -166,17 +210,54 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
 
     def test_release_inventory_refuses_when_git_inventory_is_unavailable(self) -> None:
         failed = subprocess.CompletedProcess(
-            args=["git", "ls-files"], returncode=128, stdout="", stderr="boom"
+            args=["git", "ls-files"], returncode=128, stdout=b"", stderr=b"boom"
         )
         with mock.patch.object(AUDITOR.subprocess, "run", return_value=failed):
             with self.assertRaisesRegex(AUDITOR.AuditError, "git ls-files"):
                 AUDITOR.tracked_lean_paths(ROOT, require_git=True)
+
+    def test_git_inventory_uses_nul_delimiters_for_newline_paths(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["git", "ls-files", "-z"],
+            returncode=0,
+            stdout=b"proofs/lean/Line\nBreak.lean\0proofs/lean/Probe.lean\0",
+            stderr=b"",
+        )
+        with mock.patch.object(AUDITOR.subprocess, "run", return_value=completed):
+            paths, source = AUDITOR.tracked_lean_paths(ROOT, require_git=True)
+        self.assertEqual(
+            paths,
+            ["proofs/lean/Line\nBreak.lean", "proofs/lean/Probe.lean"],
+        )
+        self.assertEqual(source, "git-ls-files")
+
+    def test_axiom_program_forces_nonwrapping_output(self) -> None:
+        source = Path(AUDITOR_PATH).read_text(encoding="utf-8")
+        self.assertIn('"set_option format.width 1000"', source)
 
     def test_string_escape_preserves_newline_accounting(self) -> None:
         source = 'def message := "first\\\nsecond"\naxiom counterfeit : False\n'
         masked = AUDITOR.code_without_comments_or_strings(source)
         self.assertEqual(masked.count("\n"), source.count("\n"))
         self.assertEqual(len(masked), len(source))
+
+    def test_raw_strings_are_explicitly_refused(self) -> None:
+        for source in ('def value := r"raw\\text"\n', 'def value := r#"raw"#\n'):
+            with self.subTest(source=source), self.assertRaisesRegex(
+                AUDITOR.AuditError, "raw strings are unsupported"
+            ):
+                AUDITOR.code_without_comments_or_strings(source)
+
+    def test_command_timeout_override_is_bounded(self) -> None:
+        for value in ("0", "3601", "not-a-number"):
+            with self.subTest(value=value), mock.patch.dict(
+                os.environ, {AUDITOR.COMMAND_TIMEOUT_ENV: value}
+            ), self.assertRaisesRegex(AUDITOR.AuditError, "invalid"):
+                AUDITOR.command_timeout_seconds()
+        with mock.patch.dict(
+            os.environ, {AUDITOR.COMMAND_TIMEOUT_ENV: "600"}
+        ):
+            self.assertEqual(AUDITOR.command_timeout_seconds(), 600.0)
 
     def test_atomic_audit_output_is_world_readable(self) -> None:
         with tempfile.TemporaryDirectory(prefix="jackal-lean-write-") as td:
@@ -208,7 +289,9 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
         fixture = LeanAuditFixture(source)
         try:
             with self.assertRaisesRegex(AUDITOR.AuditError, reason):
-                AUDITOR.scan_sources(fixture.root)
+                AUDITOR.scan_sources(
+                    fixture.root, ["proofs/lean/Probe.lean"]
+                )
         finally:
             fixture.close()
 
@@ -220,7 +303,9 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
             "def ok : Nat := 1\n"
         )
         try:
-            inventory = AUDITOR.scan_sources(fixture.root)
+            inventory = AUDITOR.scan_sources(
+                fixture.root, ["proofs/lean/Probe.lean"]
+            )
             self.assertEqual(inventory["construct_policy"]["forbidden_findings"], [])
             self.assertEqual(inventory["construct_policy"]["allowed_findings"], [])
         finally:
@@ -240,7 +325,9 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
             "def ok' : Nat := 1\n"
         )
         try:
-            inventory = AUDITOR.scan_sources(fixture.root)
+            inventory = AUDITOR.scan_sources(
+                fixture.root, ["proofs/lean/Probe.lean"]
+            )
             self.assertEqual(inventory["construct_policy"]["forbidden_findings"], [])
             self.assertEqual(inventory["construct_policy"]["allowed_findings"], [])
         finally:

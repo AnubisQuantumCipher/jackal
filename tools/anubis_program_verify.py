@@ -15,11 +15,13 @@ if not (sys.flags.isolated and sys.flags.no_site):
     raise SystemExit(126)
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import re
 import subprocess
+import stat
 import tempfile
 import time
 from pathlib import Path, PurePosixPath
@@ -28,6 +30,7 @@ from typing import Any, Callable
 MAX_FILES = 512
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_JSON_BYTES = 8 * 1024 * 1024
+MAX_COMPILER_BYTES = 512 * 1024 * 1024
 MAX_PROOF_STEPS = 200_000
 MAX_CLAUSES = 2_000_000
 MAX_LITERALS = 20_000_000
@@ -226,6 +229,111 @@ def require_hex(value: Any, label: str) -> str:
     if not isinstance(value, str) or not HEX64.fullmatch(value):
         raise Refusal("hash-token", label)
     return value
+
+
+@contextlib.contextmanager
+def pinned_executable_snapshot(path: Path, expected_sha256: str):
+    """Copy one stable executable inode, then execute only the private copy.
+
+    The caller-selected path is opened without following a final symlink.  Its
+    identity is checked across the bounded copy and again after execution.  A
+    path replacement during the subprocess therefore cannot change the bytes
+    that run; any mutation of the original or the private snapshot also makes
+    the overall check refuse.
+    """
+
+    expected = require_hex(expected_sha256, "expected-compiler")
+
+    def identity(info: os.stat_result) -> tuple[int, int, int, int, int, int]:
+        return (
+            info.st_dev,
+            info.st_ino,
+            info.st_mode,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+        )
+
+    try:
+        before = path.lstat()
+    except OSError as exc:
+        raise Refusal("input-path", f"anubis-bin: {exc}") from None
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_size > MAX_COMPILER_BYTES
+    ):
+        raise Refusal("input-path", "anubis-bin")
+
+    source_fd = -1
+    owner: tempfile.TemporaryDirectory[str] | None = None
+    try:
+        source_fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        opened = os.fstat(source_fd)
+        if identity(opened) != identity(before):
+            raise Refusal("compiler-toctou")
+
+        owner = tempfile.TemporaryDirectory(prefix="jackal-anubis-compiler-")
+        snapshot = Path(owner.name) / path.name
+        destination_fd = os.open(
+            snapshot,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o500,
+        )
+        digest = hashlib.sha256()
+        total = 0
+        try:
+            while True:
+                chunk = os.read(source_fd, 1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_COMPILER_BYTES:
+                    raise Refusal("input-path", "anubis-bin exceeds byte bound")
+                digest.update(chunk)
+                remaining = memoryview(chunk)
+                while remaining:
+                    written = os.write(destination_fd, remaining)
+                    if written <= 0:
+                        raise OSError("short compiler snapshot write")
+                    remaining = remaining[written:]
+            os.fchmod(destination_fd, 0o500)
+            os.fsync(destination_fd)
+        finally:
+            os.close(destination_fd)
+
+        copied = os.fstat(source_fd)
+        try:
+            current = path.lstat()
+        except OSError:
+            raise Refusal("compiler-toctou") from None
+        if identity(opened) != identity(copied) or identity(copied) != identity(current):
+            raise Refusal("compiler-toctou")
+        if total != opened.st_size or digest.hexdigest() != expected:
+            raise Refusal("compiler-pin-mismatch")
+        if sha_file(snapshot) != expected:
+            raise Refusal("compiler-snapshot-toctou")
+
+        yield snapshot
+
+        after = os.fstat(source_fd)
+        try:
+            current = path.lstat()
+        except OSError:
+            raise Refusal("compiler-toctou") from None
+        if identity(copied) != identity(after) or identity(after) != identity(current):
+            raise Refusal("compiler-toctou")
+        if sha_file(snapshot) != expected:
+            raise Refusal("compiler-snapshot-toctou")
+    except Refusal:
+        raise
+    except OSError as exc:
+        raise Refusal("compiler-snapshot", str(exc)) from None
+    finally:
+        if source_fd >= 0:
+            os.close(source_fd)
+        if owner is not None:
+            owner.cleanup()
 
 
 def load_program_policy() -> tuple[dict[str, Any], str, str]:
@@ -539,7 +647,7 @@ def verify_rup(
         if steps > MAX_PROOF_STEPS:
             raise Refusal("proof-budget", proof_path.name)
         if saw_empty:
-            continue
+            break
     if not saw_empty:
         raise Refusal("proof-no-empty-clause", proof_path.name)
     return steps, variables, original_clause_count
@@ -1155,8 +1263,6 @@ def check_program(args: argparse.Namespace) -> dict[str, Any]:
     compiler = Path(args.anubis_bin)
     if source.is_symlink() or not source.is_file():
         raise Refusal("input-path", "source")
-    if compiler.is_symlink() or not compiler.is_file():
-        raise Refusal("input-path", "anubis-bin")
     expected_source = require_hex(args.expected_source_sha256, "expected-source")
     expected_compiler = require_hex(args.expected_compiler_sha256, "expected-compiler")
     expected_policy = require_hex(args.expected_policy_sha256, "expected-policy")
@@ -1166,28 +1272,25 @@ def check_program(args: argparse.Namespace) -> dict[str, Any]:
         raise Refusal("verification-time-invalid")
     if sha_file(source) != expected_source:
         raise Refusal("source-pin-mismatch")
-    if sha_file(compiler) != expected_compiler:
-        raise Refusal("compiler-pin-mismatch")
     if expected_compiler != APPROVED_CHECK_COMPILER_SHA256:
         raise Refusal("compiler-not-approved", expected_compiler)
     out_root = Path(args.out_root)
     if out_root.exists() or out_root.is_symlink():
         raise Refusal("output-exists", str(out_root))
     out_root.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        str(compiler),
-        "build",
-        str(source),
-        "--out",
-        str(out_root),
-        "--evidence",
-    ]
     try:
-        completed = subprocess.run(command, capture_output=True, timeout=900)
+        with pinned_executable_snapshot(compiler, expected_compiler) as snapshot:
+            command = [
+                str(snapshot),
+                "build",
+                str(source),
+                "--out",
+                str(out_root),
+                "--evidence",
+            ]
+            completed = subprocess.run(command, capture_output=True, timeout=900)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Refusal("producer-failed", str(exc)) from None
-    if sha_file(compiler) != expected_compiler:
-        raise Refusal("compiler-toctou")
     if completed.returncode != 0:
         detail = (completed.stdout + completed.stderr).decode("utf-8", "replace")[-2000:]
         raise Refusal("producer-rejected", detail)

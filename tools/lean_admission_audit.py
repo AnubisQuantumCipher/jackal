@@ -30,6 +30,9 @@ LEAN_DIR_REL = Path("proofs/lean")
 ALLOWED_AXIOMS = ("propext", "Classical.choice", "Quot.sound")
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 MAX_EVIDENCE_BYTES = 16 * 1024 * 1024
+COMMAND_TIMEOUT_ENV = "JACKAL_LEAN_AUDIT_TIMEOUT_SECONDS"
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 180.0
+MAX_COMMAND_TIMEOUT_SECONDS = 3600.0
 
 IDENTITY_CONFIGS = (
     (
@@ -73,6 +76,10 @@ CONSTRUCT_PATTERNS = {
 }
 
 AXIOM_LINE_RE = re.compile(r"^'([^']+)' depends on axioms: \[(.*)\]$")
+LEAN_VERSION_RE = re.compile(
+    r"^Lean \(version ([0-9]+\.[0-9]+\.[0-9]+), [^,]+, "
+    r"commit ([0-9a-f]{40}), (Release|Debug)\)$"
+)
 
 
 class AuditError(RuntimeError):
@@ -93,6 +100,19 @@ def pretty_bytes(value: Any) -> bytes:
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def command_timeout_seconds() -> float:
+    raw = os.environ.get(COMMAND_TIMEOUT_ENV)
+    if raw is None:
+        return DEFAULT_COMMAND_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise AuditError(f"invalid {COMMAND_TIMEOUT_ENV}: {raw!r}") from exc
+    if not 0 < value <= MAX_COMMAND_TIMEOUT_SECONDS:
+        raise AuditError(f"invalid {COMMAND_TIMEOUT_ENV}: {raw!r}")
+    return value
 
 
 def read_regular(path: Path, maximum: int) -> bytes:
@@ -251,6 +271,22 @@ def code_without_comments_or_strings(source: str) -> str:
                 output.append("\n" if char == "\n" else " ")
                 index += 1
             continue
+        raw_cursor = index + 1
+        while raw_cursor < len(source) and source[raw_cursor] == "#":
+            raw_cursor += 1
+        raw_string_prefix = (
+            char == "r"
+            and raw_cursor < len(source)
+            and source[raw_cursor] == '"'
+            and (
+                index == 0
+                or not (source[index - 1].isalnum() or source[index - 1] in "_'")
+            )
+        )
+        if raw_string_prefix:
+            raise AuditError(
+                "Lean raw strings are unsupported by the admission scanner"
+            )
         character_literal_end = _character_literal_end(source, index)
         if character_literal_end is not None:
             output.extend(
@@ -284,19 +320,20 @@ def tracked_lean_paths(
     root: Path, *, require_git: bool = False
 ) -> tuple[list[str], str]:
     completed = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "--", LEAN_DIR_REL.as_posix()],
+        ["git", "-C", str(root), "ls-files", "-z", "--", LEAN_DIR_REL.as_posix()],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
         check=False,
     )
     if completed.returncode == 0:
         paths = sorted(
-            line for line in completed.stdout.splitlines() if line.endswith(".lean")
+            os.fsdecode(item)
+            for item in completed.stdout.split(b"\0")
+            if item.endswith(b".lean")
         )
         inventory_source = "git-ls-files"
     elif require_git:
-        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        detail = os.fsdecode(completed.stderr).strip() or f"exit {completed.returncode}"
         raise AuditError(f"git ls-files failed: {detail}")
     else:
         lean_dir = root / LEAN_DIR_REL
@@ -445,7 +482,7 @@ def run_checked(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        timeout=180,
+        timeout=command_timeout_seconds(),
         check=False,
     )
     if completed.returncode != 0:
@@ -560,6 +597,7 @@ def run_theorem_axiom_audit(
         lane_theorems = binding["theorems"]
         program = "\n".join(
             [f"import {module}" for module in modules]
+            + ["set_option format.width 1000"]
             + [f"#print axioms {theorem}" for theorem in lane_theorems]
         ) + "\n"
         completed = run_checked(
@@ -698,22 +736,31 @@ def collect_toolchain(root: Path) -> dict[str, Any]:
     mathlib = [row for row in packages if isinstance(row, dict) and row.get("name") == "mathlib"]
     if len(mathlib) != 1 or not isinstance(mathlib[0].get("rev"), str):
         raise AuditError("lake manifest does not pin exactly one mathlib revision")
-    version = run_checked(["lake", "env", "lean", "--version"], cwd=lean_dir).stdout.strip()
-    executable_text = run_checked(["lake", "env", "which", "lean"], cwd=lean_dir).stdout.strip()
-    executable = Path(executable_text)
-    executable_raw = read_regular(executable, 512 * 1024 * 1024)
+    version_output = run_checked(
+        ["lake", "env", "lean", "--version"], cwd=lean_dir
+    ).stdout.strip()
+    version_match = LEAN_VERSION_RE.fullmatch(version_output)
+    if version_match is None:
+        raise AuditError(f"unexpected Lean version output: {version_output!r}")
+    version, commit, build_profile = version_match.groups()
     try:
         toolchain_token = configuration_bytes[
             "proofs/lean/lean-toolchain"
         ].decode("utf-8").strip()
     except UnicodeDecodeError as exc:
         raise AuditError("lean-toolchain is not UTF-8") from exc
+    expected_toolchain = f"leanprover/lean4:v{version}"
+    if toolchain_token != expected_toolchain:
+        raise AuditError(
+            "Lean runtime version does not match lean-toolchain: "
+            f"runtime={version} toolchain={toolchain_token!r}"
+        )
     return {
         "configuration_files": configuration_files,
         "lean": {
-            "executable_bytes": len(executable_raw),
-            "executable_sha256": sha256_bytes(executable_raw),
-            "version_output": version,
+            "build_profile": build_profile,
+            "commit": commit,
+            "version": version,
         },
         "lean_toolchain": toolchain_token,
         "mathlib_revision": mathlib[0]["rev"],
@@ -729,12 +776,23 @@ def build_audit(root: Path) -> dict[str, Any]:
     )
     compatibility = collect_compatibility_snapshots(root)
     generator_raw = read_regular(root / GENERATOR_REL, MAX_EVIDENCE_BYTES)
+    forbidden_findings = inventory["construct_policy"]["forbidden_findings"]
+    logical_admissions = [
+        row
+        for row in forbidden_findings
+        if row["construct"] in {"admit", "sorry"}
+    ]
+    repository_axioms = [
+        row
+        for row in forbidden_findings
+        if row["construct"] == "axiom_declaration"
+    ]
     document: dict[str, Any] = {
         "audit_result": {
-            "logical_admission_count": 0,
-            "repository_axiom_declaration_count": 0,
-            "status": "pass",
-            "unexpected_construct_count": 0,
+            "logical_admission_count": len(logical_admissions),
+            "repository_axiom_declaration_count": len(repository_axioms),
+            "status": "pass" if not forbidden_findings else "fail",
+            "unexpected_construct_count": len(forbidden_findings),
         },
         "generator": {
             "bytes": len(generator_raw),
@@ -772,8 +830,8 @@ def build_audit(root: Path) -> dict[str, Any]:
         "trust_surface": {
             "allowed_local_runtime_substitutions": inventory["construct_policy"]["allowed_findings"],
             "lean_standard_axioms": list(ALLOWED_AXIOMS),
-            "logical_admissions": [],
-            "repository_axiom_declarations": [],
+            "logical_admissions": logical_admissions,
+            "repository_axiom_declarations": repository_axioms,
             "runtime_substitution_boundary": (
                 "The two implemented_by attributes are confined to dump-only parser/lowering "
                 "mirrors; current checker acceptance uses neither definition."

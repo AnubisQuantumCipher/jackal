@@ -256,7 +256,8 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             ".github/workflows/jackal-codex-plugin.yml",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
-            inventory_step = source.index("tools/capability_inventory.py --check")
+            inventory_step = source.find("tools/capability_inventory.py --check")
+            self.assertGreaterEqual(inventory_step, 0, relative)
             checkout = source.rfind("uses: actions/checkout@", 0, inventory_step)
             self.assertGreaterEqual(checkout, 0, relative)
             next_step = source.find("\n      - name:", checkout)

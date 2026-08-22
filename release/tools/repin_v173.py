@@ -3,8 +3,8 @@
 
 The default and ``--plan`` modes print the complete proposed manifest without
 mutating ``release/MANIFEST.sha256``.  ``--check`` compares the proposal with
-that file.  A later, explicitly authorized sealing step may use ``--write``;
-this release-wiring slice intentionally does not do so.
+that file.  ``--write`` atomically replaces the manifest only when an operator
+explicitly selects that mode.
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "release/MANIFEST.sha256"
-DEFAULT_COMPILER_PATH = Path(
-    "/Users/sicarii/anubis-lang/vm/pins/anubis-a733565f237d"
-)
 COMPILER_PATH_ENV = "JACKAL_ANUBIS_COMPILER_PATH"
-COMPILER_PATH = Path(os.environ.get(COMPILER_PATH_ENV, os.fspath(DEFAULT_COMPILER_PATH)))
+_CONFIGURED_COMPILER_PATH = os.environ.get(COMPILER_PATH_ENV)
+COMPILER_PATH = (
+    Path(_CONFIGURED_COMPILER_PATH) if _CONFIGURED_COMPILER_PATH else None
+)
 COMPILER_SHA256 = (
     "a733565f237df171e7cf93b9b37700a42d8713576818fd92f8cd23a8ad7a69e2"
 )
@@ -209,16 +209,16 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(read_regular(path)).hexdigest()
 
 
-def identity_digest(path: Path) -> str:
-    value = read_json(path)
+def identity_digest(path: Path, raw: bytes) -> str:
+    value = decode_json(path, raw)
     digest = value.get("identity_digest_sha256")
     if not isinstance(digest, str) or len(digest) != 64:
         raise PlanRefusal(f"identity digest missing or malformed: {path}")
     return digest
 
 
-def audit_digest(path: Path) -> str:
-    value = read_json(path)
+def audit_digest(path: Path, raw: bytes) -> str:
+    value = decode_json(path, raw)
     digest = value.get("audit_digest_sha256")
     if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
         raise PlanRefusal(f"audit digest missing or malformed: {path}")
@@ -232,11 +232,15 @@ def audit_digest(path: Path) -> str:
     return digest
 
 
-def read_json(path: Path) -> dict[str, object]:
-    value = json.loads(read_regular(path).decode("utf-8"))
+def decode_json(path: Path, raw: bytes) -> dict[str, object]:
+    value = json.loads(raw.decode("utf-8"))
     if not isinstance(value, dict):
         raise PlanRefusal(f"JSON record is not an object: {path}")
     return value
+
+
+def read_json(path: Path) -> dict[str, object]:
+    return decode_json(path, read_regular(path))
 
 
 def nested(value: dict[str, object], *keys: str) -> object:
@@ -251,7 +255,7 @@ def nested(value: dict[str, object], *keys: str) -> object:
 def require_equal(observed: object, expected: object, label: str) -> None:
     if observed != expected:
         raise PlanRefusal(
-            f"v1.7.2 binding mismatch {label}: observed={observed!r} "
+            f"binding mismatch {label}: observed={observed!r} "
             f"expected={expected!r}"
         )
 
@@ -464,7 +468,11 @@ def validate_v172_contract() -> dict[str, str]:
     }
 
 
-def validate_compiler(compiler_path: Path = COMPILER_PATH) -> str:
+def validate_compiler(compiler_path: Path | None = COMPILER_PATH) -> str:
+    if compiler_path is None:
+        raise PlanRefusal(
+            f"compiler-path-unset: set {COMPILER_PATH_ENV} or pass --compiler-path"
+        )
     if compiler_path.is_symlink():
         raise PlanRefusal(f"compiler authority must not be a symlink: {compiler_path}")
     observed = sha256(compiler_path)
@@ -526,7 +534,7 @@ def validate_unified_contract() -> None:
     )
 
     profile_check = subprocess.run(
-        [sys.executable, "-B", "tools/profile_verify.py"],
+        [sys.executable, "-I", "-S", "-B", "tools/profile_verify.py"],
         cwd=ROOT,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -573,6 +581,8 @@ def validate_unified_contract() -> None:
     lean_audit_check = subprocess.run(
         [
             sys.executable,
+            "-I",
+            "-S",
             "-B",
             "tools/lean_admission_audit.py",
             "--check",
@@ -598,9 +608,11 @@ def plugin_bundle_digest() -> str:
     completed = subprocess.run(
         [
             sys.executable,
-            "-c",
-            "import sys; sys.path.insert(0, 'plugin/hermes'); "
-            "from bundle_hash import compute_bundle_hash; print(compute_bundle_hash())",
+            "-I",
+            "-S",
+            "-B",
+            "plugin/hermes/bundle_hash.py",
+            "print",
         ],
         cwd=ROOT,
         stdin=subprocess.DEVNULL,
@@ -618,14 +630,15 @@ def plugin_bundle_digest() -> str:
     return digest
 
 
-def build_rows(compiler_path: Path = COMPILER_PATH) -> list[str]:
+def build_rows(compiler_path: Path | None = COMPILER_PATH) -> list[str]:
     validate_compiler(compiler_path)
     validate_unified_contract()
     contract = validate_v172_contract()
     rows = [HEADER]
     for label, relative in FILE_ROWS:
         path = ROOT / relative
-        observed = sha256(path)
+        raw = read_regular(path)
+        observed = hashlib.sha256(raw).hexdigest()
         if label == "checker":
             require_equal(
                 observed, contract["range_checker_sha256"], "range checker TOCTOU"
@@ -655,9 +668,13 @@ def build_rows(compiler_path: Path = COMPILER_PATH) -> list[str]:
             "gaussian-proof-identity",
             "int-cert-proof-identity",
         }:
-            rows.append(f"{label.rsplit('-', 1)[0]}-digest {identity_digest(path)}")
+            rows.append(
+                f"{label.rsplit('-', 1)[0]}-digest {identity_digest(path, raw)}"
+            )
         elif label == "lean-admission-audit":
-            rows.append(f"lean-admission-audit-digest {audit_digest(path)}")
+            rows.append(
+                f"lean-admission-audit-digest {audit_digest(path, raw)}"
+            )
     rows.extend(
         [
             f"archival-v170-archive-source github-release-v1.7.0 {V170_ARCHIVE_SHA256}",
@@ -679,18 +696,25 @@ def build_rows(compiler_path: Path = COMPILER_PATH) -> list[str]:
     return [keyed[label] for label in ORDER]
 
 
-def manifest_text(compiler_path: Path = COMPILER_PATH) -> str:
+def manifest_text(compiler_path: Path | None = COMPILER_PATH) -> str:
     return "\n".join(build_rows(compiler_path)) + "\n"
 
 
 def write_atomic(path: Path, data: str) -> None:
+    destination_mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o644
     descriptor, temporary = tempfile.mkstemp(prefix=".MANIFEST.v173.", dir=path.parent)
     try:
+        os.fchmod(descriptor, destination_mode)
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except BaseException:
         try:
             os.unlink(temporary)
@@ -707,7 +731,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     modes.add_argument("--write", action="store_true", help="explicitly replace manifest")
     parser.add_argument(
         "--compiler-path",
-        default=os.environ.get(COMPILER_PATH_ENV, os.fspath(DEFAULT_COMPILER_PATH)),
+        default=_CONFIGURED_COMPILER_PATH,
+        required=_CONFIGURED_COMPILER_PATH is None,
         help=(
             "path to the exact compiler authority; may also be set with "
             f"{COMPILER_PATH_ENV}"

@@ -219,6 +219,31 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 )
         opener.assert_not_called()
 
+    def test_unpublished_candidate_refuses_default_download_before_staging(self):
+        opener = mock.Mock(side_effect=AssertionError("must not download"))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "support/runtimes/v1.7.3"
+            locator = root / "support/codex-plugin/runtime.json"
+            with self.assertRaisesRegex(
+                provisioner.ProvisionError,
+                "candidate release is unpublished; provide --tarball",
+            ):
+                provisioner.provision(
+                    runtime_target=target,
+                    locator_path=locator,
+                    expected_size=1,
+                    expected_sha256=self.sha(b"x"),
+                    expected_extracted_size=1,
+                    expected_tree_sha256=self.sha(b"tree"),
+                    opener=opener,
+                    system="Darwin",
+                    machine="arm64",
+                )
+            self.assertFalse(target.parent.exists())
+            self.assertFalse(locator.parent.exists())
+        opener.assert_not_called()
+
     def test_stream_download_requires_declared_exact_length(self):
         data = b"abcdef"
         for declared in (len(data) - 1, len(data) + 1):
@@ -1373,8 +1398,8 @@ class RuntimeProvisionerTests(unittest.TestCase):
             self.assertTrue((target / "plugin/hermes/jackal_hermes").exists())
             expected = {
                 "schema": "jackal-runtime-package-v1",
-                "epoch": provisioner.EPOCH,
-                "asset": provisioner.ASSET,
+                "epoch": "v1.7.3",
+                "asset": "jackal-v1.7.3-macos-arm64.tar.gz",
                 "package_size": tarball.stat().st_size,
                 "package_sha256": digest,
             }
@@ -1383,7 +1408,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
                 json.loads(locator.read_text()),
                 {
                     "schema": "jackal-codex-plugin-runtime-v1",
-                    "epoch": provisioner.EPOCH,
+                    "epoch": "v1.7.3",
                     "runtime_path": str(target),
                     "package_size": tarball.stat().st_size,
                     "package_sha256": digest,
@@ -1510,6 +1535,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
 
     def test_pinned_constants_and_default_paths(self):
         self.assertEqual(provisioner.EPOCH, "v1.7.3")
+        self.assertEqual(provisioner.RELEASE_STATE, "candidate-unpublished")
         self.assertEqual(provisioner.ASSET, "jackal-v1.7.3-macos-arm64.tar.gz")
         self.assertEqual(
             provisioner.URL,

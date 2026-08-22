@@ -26,7 +26,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 CATALOG_PATH = Path("plugin/hermes/tools.json")
 PROFILE_DIR = Path("plugin/hermes/profiles")
@@ -328,7 +328,7 @@ class InventoryError(RuntimeError):
         super().__init__(f"reason={reason} detail={detail}")
 
 
-def refuse(reason: str, detail: str) -> None:
+def refuse(reason: str, detail: str) -> NoReturn:
     raise InventoryError(reason, detail)
 
 

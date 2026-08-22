@@ -30,6 +30,7 @@ from typing import Callable, Iterable, Mapping
 EPOCH = "v1.7.3"
 ASSET = "jackal-v1.7.3-macos-arm64.tar.gz"
 URL = "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.3/jackal-v1.7.3-macos-arm64.tar.gz"
+RELEASE_STATE = "candidate-unpublished"
 PACKAGE_SIZE = 158362724
 PACKAGE_SHA256 = "d0c2c87d357aa9cae6551343215910032f30259e4a6b40cde0b64687cba107d4"
 EXTRACTED_SIZE = 555507658
@@ -1460,6 +1461,11 @@ def provision(
         return target
     if check_only:
         raise ProvisionError("pinned runtime is not installed")
+    if tarball is None and RELEASE_STATE != "published":
+        raise ProvisionError(
+            "candidate release is unpublished; provide --tarball with the "
+            "locally built, pinned candidate package"
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f".{epoch}.stage-", dir=target.parent) as temporary_directory:

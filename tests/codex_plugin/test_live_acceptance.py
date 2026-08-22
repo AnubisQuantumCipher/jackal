@@ -79,12 +79,16 @@ def formal_payload(emitted_at):
 class IdentityAndInstallPlanTests(unittest.TestCase):
     def test_formal_receipt_oracle_matches_current_hermes_bundle_pin(self):
         row = next(
-            line.split()
-            for line in (REPOSITORY_ROOT / "release/MANIFEST.sha256")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line.startswith("plugin_hermes ")
+            (
+                line.split()
+                for line in (REPOSITORY_ROOT / "release/MANIFEST.sha256")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.startswith("plugin_hermes ")
+            ),
+            None,
         )
+        self.assertIsNotNone(row, "release manifest has no plugin_hermes row")
         self.assertEqual(live.HERMES_BUNDLE_SHA256, row[-1])
 
     def test_dry_run_lists_each_mcp_tool_once(self):
@@ -446,6 +450,7 @@ class AcceptanceValidationTests(unittest.TestCase):
             live.validate_unsupported_formal(mcp_response("refuse", leaked), leaked)
 
     def test_receipt_replay_uses_fixed_int_cert_request(self):
+        self.assertEqual(live.FORMAL_RELEASE_EPOCH, "v1.7.2")
         receipt = formal_payload(10)["receipt"]
         arguments = live.receipt_verification_arguments(receipt)
         self.assertIs(arguments["receipt"], receipt)

@@ -213,6 +213,14 @@ if [ "$MODE" != "--build" ] || [ "$#" -ne 1 ]; then
   exit 2
 fi
 
+/bin/mkdir -p "$DIST"
+RELEASE_DEVICE=$(/usr/bin/stat -f '%d' "$ROOT/release")
+DIST_DEVICE=$(/usr/bin/stat -f '%d' "$DIST")
+[ "$RELEASE_DEVICE" = "$DIST_DEVICE" ] || {
+  echo "PACKAGE_V173_REFUSED reason=dist-cross-filesystem release_device=$RELEASE_DEVICE dist_device=$DIST_DEVICE path=$DIST" >&2
+  exit 5
+}
+
 [ ! -e "$FINAL_PKG" ] && [ ! -L "$FINAL_PKG" ] || {
   echo "PACKAGE_V173_REFUSED reason=output-exists path=$FINAL_PKG" >&2
   exit 5
@@ -518,7 +526,24 @@ cat > "$PKG/jackal-anubis-program" <<'WRAP'
 #!/bin/sh
 # check invokes only Anubis build --evidence; no subcommand executes artifact.
 set -eu
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SELF=$0
+LINK_HOPS=0
+while [ -L "$SELF" ]; do
+  LINK_HOPS=$((LINK_HOPS + 1))
+  if [ "$LINK_HOPS" -gt 16 ]; then
+    echo "status=refused reason=wrapper-symlink-depth" >&2
+    exit 126
+  fi
+  LINK_TARGET=$(/usr/bin/readlink "$SELF") || {
+    echo "status=refused reason=wrapper-symlink-read" >&2
+    exit 126
+  }
+  case "$LINK_TARGET" in
+    /*) SELF=$LINK_TARGET ;;
+    *) SELF=$(dirname -- "$SELF")/$LINK_TARGET ;;
+  esac
+done
+HERE=$(CDPATH= cd -P -- "$(dirname -- "$SELF")" && pwd -P)
 exec python3 -I -S -B "$HERE/tools/anubis_program_verify.py" "$@"
 WRAP
 
@@ -963,26 +988,30 @@ require(audit_result.get("logical_admission_count") == 0,
         "lean-audit-admission-count")
 source_inventory = lean_audit.get("source_inventory", {})
 source_files = source_inventory.get("files", [])
-require(source_inventory.get("file_count") == 42 and len(source_files) == 42,
+require(isinstance(source_files, list) and source_files and
+        source_inventory.get("file_count") == len(source_files),
         "lean-audit-source-count")
 source_paths = [item.get("path") for item in source_files
                 if isinstance(item, dict)]
-require(len(source_paths) == 42 and len(set(source_paths)) == 42,
+require(len(source_paths) == len(source_files) and
+        len(set(source_paths)) == len(source_paths),
         "lean-audit-source-uniqueness")
 construct_policy = source_inventory.get("construct_policy", {})
 require(construct_policy.get("forbidden_findings") == [],
         "lean-audit-forbidden-findings")
 allowed_findings = construct_policy.get("allowed_findings", [])
-require(len(allowed_findings) == 2 and
+require(isinstance(allowed_findings, list) and
         {item.get("construct") for item in allowed_findings} ==
         {"implemented_by"}, "lean-audit-allowed-findings")
 theorem_audit = lean_audit.get("theorem_axiom_audit", {})
 theorem_rows = theorem_audit.get("theorems", [])
-require(theorem_audit.get("theorem_count") == 27 and len(theorem_rows) == 27,
+require(isinstance(theorem_rows, list) and theorem_rows and
+        theorem_audit.get("theorem_count") == len(theorem_rows),
         "lean-audit-theorem-count")
 theorem_names = [item.get("theorem") for item in theorem_rows
                  if isinstance(item, dict)]
-require(len(theorem_names) == 27 and len(set(theorem_names)) == 27,
+require(len(theorem_names) == len(theorem_rows) and
+        len(set(theorem_names)) == len(theorem_names),
         "lean-audit-theorem-uniqueness")
 for item in theorem_rows:
     require(item.get("axioms") ==
@@ -1130,13 +1159,19 @@ PACK_VALIDATION=$(python3 -I -S -B "$PKG/tools/domain_pack_verify.py" \
   echo "PACKAGE_V173_REFUSED reason=staged-domain-pack detail=$PACK_VALIDATION" >&2
   exit 4
 }
-case "$PACK_VALIDATION" in
-  *'"status":"accepted"'*) ;;
-  *)
-    echo "PACKAGE_V173_REFUSED reason=staged-domain-pack-status detail=$PACK_VALIDATION" >&2
-    exit 4
-    ;;
-esac
+/usr/bin/printf '%s' "$PACK_VALIDATION" | python3 -I -S -B -c '
+import json
+import sys
+
+try:
+    report = json.load(sys.stdin)
+except (json.JSONDecodeError, UnicodeError):
+    raise SystemExit(1)
+raise SystemExit(0 if isinstance(report, dict) and report.get("status") == "accepted" else 1)
+' || {
+  echo "PACKAGE_V173_REFUSED reason=staged-domain-pack-status detail=$PACK_VALIDATION" >&2
+  exit 4
+}
 
 PLUGIN_SELFTEST=$("$PKG/plugin/hermes/jackal_hermes" selftest 2>&1) || {
   echo "PACKAGE_V173_REFUSED reason=staged-plugin-selftest detail=$PLUGIN_SELFTEST" >&2
@@ -1240,7 +1275,6 @@ with output.open("wb") as raw:
                     archive.addfile(info)
 PY
 
-/bin/mkdir -p "$DIST"
 # Blocker F: the preflight narrows the publication window and names an early
 # collision. Each publication itself uses macOS renamex_np(RENAME_EXCL), so an
 # object appearing after this check is refused atomically rather than replaced.

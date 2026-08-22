@@ -449,6 +449,65 @@ def run_verify(
 
 
 class AnubisProgramVerifierTest(unittest.TestCase):
+    def test_program_wrapper_resolves_a_symlinked_invocation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-program-wrapper-link-") as td:
+            link = Path(td) / "jackal-anubis-program"
+            link.symlink_to(ROOT / "jackal-anubis-program")
+            completed = subprocess.run(
+                [str(link), "--help"],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                timeout=30,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertIn("verify-receipt", completed.stdout)
+
+    def test_compiler_execution_uses_a_private_pinned_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="jackal-program-compiler-snapshot-") as td:
+            root = Path(td)
+            compiler = root / "anubis-test"
+            compiler.write_bytes(b"#!/bin/sh\nexit 0\n")
+            compiler.chmod(0o755)
+            original_digest = sha(compiler.read_bytes())
+            probe = textwrap.dedent(
+                f"""
+                import hashlib
+                import importlib.util
+                from pathlib import Path
+
+                verifier_path = Path({str(VERIFIER)!r})
+                compiler = Path({str(compiler)!r})
+                spec = importlib.util.spec_from_file_location(
+                    "anubis_program_verify_snapshot_test", verifier_path
+                )
+                verifier = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(verifier)
+                try:
+                    with verifier.pinned_executable_snapshot(
+                        compiler, {original_digest!r}
+                    ) as snapshot:
+                        assert snapshot != compiler
+                        assert snapshot.name == compiler.name
+                        assert hashlib.sha256(snapshot.read_bytes()).hexdigest() == {original_digest!r}
+                        compiler.write_bytes(b"#!/bin/sh\\nexit 99\\n")
+                        assert hashlib.sha256(snapshot.read_bytes()).hexdigest() == {original_digest!r}
+                except verifier.Refusal as refusal:
+                    print(refusal.reason)
+                else:
+                    raise SystemExit("compiler mutation was not reported")
+                """
+            )
+            completed = subprocess.run(
+                [sys.executable, "-I", "-S", "-B", "-c", probe],
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+                timeout=30,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertEqual(completed.stdout.strip(), "compiler-toctou")
+
     def test_fixture_quotes_execution_marker_path(self) -> None:
         with tempfile.TemporaryDirectory(
             prefix="jackal program fixture with spaces "

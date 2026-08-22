@@ -52,6 +52,15 @@ def inventory_names() -> set[str]:
     return {row["name"] for row in document["tools"]}
 
 
+def profile_counts() -> dict[str, int]:
+    document = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    counts = {"core": 0, "formal": 0, "full": 0}
+    for row in document["tools"]:
+        for profile in row["profiles"]:
+            counts[profile] += 1
+    return counts
+
+
 def current_block(text: str) -> str:
     if text.count(CURRENT_BEGIN) != 1 or text.count(CURRENT_END) != 1:
         raise AssertionError("skill must contain one canonical current-surface block")
@@ -93,7 +102,13 @@ class JackalSkillContractTest(unittest.TestCase):
         references = set(TOOL_REFERENCE.findall(text))
         self.assertTrue(REQUIRED_ROUTING <= references, references)
         self.assertEqual(references - inventory_names(), set())
-        self.assertIn("Current v1.7.3 profiles: `core=3`, `formal=13`, `full=41`", text)
+        counts = profile_counts()
+        self.assertIn(
+            "Current v1.7.3 profiles: "
+            f"`core={counts['core']}`, `formal={counts['formal']}`, "
+            f"`full={counts['full']}`",
+            text,
+        )
 
     def test_personal_hermes_router_uses_only_inventory_tools(self) -> None:
         if not PERSONAL_HERMES_ROUTER.is_file():

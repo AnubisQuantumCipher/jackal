@@ -160,11 +160,18 @@ not an automatic install hook. Version 0.1.0 candidate pins:
 - extracted `SHA256SUMS` SHA-256:
   `fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf`
 
+While `RELEASE_STATE` is `candidate-unpublished`, the provisioner refuses the
+network path before creating a staging directory and requires an explicit
+absolute `--tarball` path. The network path may be enabled only after the
+public release asset and its embedded `SHA256SUMS` have been read back and
+matched to the local candidate pins.
+
 The provisioner:
 
 1. Refuses unless the host is macOS on `arm64`.
-2. Downloads into a newly created temporary directory or accepts an explicit
-   local tarball path for offline installation.
+2. Accepts an explicit local tarball path for candidate installation; after a
+   verified public-release readback, the same bounded path may download into a
+   newly created temporary directory.
 3. Rejects a declared or streamed body larger than 158362324 bytes, then
    requires exactly that size and the fixed package SHA-256 before extraction.
    The per-operation network timeout is supplemented by a monotonic total download deadline,
@@ -473,6 +480,8 @@ status; the adapter is not authorized to create or promote that status.
 ### Provisioner tests
 
 - Reject non-macOS and non-arm64 hosts before downloading.
+- Refuse the unpublished candidate's default network path before staging or
+  opening a connection.
 - Verify the fixed v1.7.3 URL, epoch, filename, exact 158362324-byte length,
   bounded streaming download, and expected package SHA-256.
 - Exercise offline local-tarball provisioning with a fixture archive.

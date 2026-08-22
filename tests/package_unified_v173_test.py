@@ -185,9 +185,12 @@ class UnifiedPackageV173Test(unittest.TestCase):
         self.assertIn('COMPILER=${JACKAL_ANUBIS_COMPILER_PATH:-}', builder)
         self.assertIn("compiler-path-unset", builder)
         self.assertNotIn("/Users/sicarii", builder)
+        self.assertNotIn("/Users/sicarii", repin)
         self.assertNotRegex(builder, r"python3(?! -I -S -B)")
         self.assertIn("renamex_np", builder)
         self.assertIn("RENAME_EXCL", builder)
+        self.assertIn("dist-cross-filesystem", builder)
+        self.assertIn("/usr/bin/stat -f '%d'", builder)
         self.assertIn("--connect-timeout 20", builder)
         self.assertIn("--max-time 900", builder)
         self.assertIn("--retry 3", builder)
@@ -205,11 +208,28 @@ class UnifiedPackageV173Test(unittest.TestCase):
         self.assertIn('publish_noreplace "$FINAL_PKG" "$PKG"', builder)
         self.assertNotIn('/bin/mv "$PKG" "$FINAL_PKG"', builder)
         self.assertNotIn('/bin/mv "$STAGED_TARBALL" "$FINAL_TARBALL"', builder)
+        self.assertNotIn("*'\"status\":\"accepted\"'*", builder)
         self.assertRegex(
             repin,
             r"except \([^)]*ValueError[^)]*\) as error:",
             "malformed pinned JSON must refuse without a traceback",
         )
+
+    def test_claim_evidence_never_truncates_root_digests(self) -> None:
+        for relative in (
+            "release/evidence/claim_hostile_matrix_v160.json",
+            "release/evidence/claim_aba_v160.json",
+        ):
+            document = json.loads((ROOT / relative).read_text(encoding="utf-8"))
+            for row in document.get("rows", document.get("layers", [])):
+                observed = str(
+                    row.get("observed", row.get("observed_under_poison", ""))
+                )
+                if "root=" not in observed:
+                    continue
+                root_digest = observed.split("root=", 1)[1].split()[0]
+                with self.subTest(path=relative, row=row.get("id", row.get("layer"))):
+                    self.assertRegex(root_digest, r"^[0-9a-f]{64}$")
 
     def test_repin_compiler_override_remains_hash_authorized(self) -> None:
         with tempfile.TemporaryDirectory(prefix="jackal-repin-compiler-") as td:

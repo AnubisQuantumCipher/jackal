@@ -1,5 +1,5 @@
 {
-  "audit_digest_sha256": "62991b7eb7dbe4ecbbff1562a9fee788de2c944bec9c4ff5cd11aecd81510e1e",
+  "audit_digest_sha256": "264701eaa4c4721d0b734653cd8082d20e1b57d252e80e6dd9394ac50010af98",
   "audit_result": {
     "logical_admission_count": 0,
     "repository_axiom_declaration_count": 0,
@@ -7,9 +7,9 @@
     "unexpected_construct_count": 0
   },
   "generator": {
-    "bytes": 33645,
+    "bytes": 35776,
     "path": "tools/lean_admission_audit.py",
-    "sha256": "a6c5ec69a63adc6e9bdd954278106b68e08ee387cb5581cbcb3896ad7e2c1e78"
+    "sha256": "d7793e18aff6b31e66f1f5ab80b43a79260141b36f1afe67d7a13936aab7e5df"
   },
   "release_bindings": {
     "compatibility_snapshot_inputs": {
@@ -469,7 +469,7 @@
     "command": "lake env lean /dev/stdin",
     "invocations": [
       {
-        "input_program_sha256": "7c08e075d0e54298423806f4e3d2d65fba9c13b1636207de4fbfe40eeda9ff0b",
+        "input_program_sha256": "c386a99e206c4c3704a4a9300314b8675a239068a12a71aa718fcd1c08829528",
         "lane": "range",
         "output_sha256": "e381ce9d94cefcd81f860227e08fb2b16b98a77a97d25f25692fadf389dd0377",
         "root_modules": [
@@ -478,7 +478,7 @@
         "theorem_count": 8
       },
       {
-        "input_program_sha256": "d60c038144f580913b16b586518790a4d7a0a58c85888db6de96b10d121486dd",
+        "input_program_sha256": "4e56fc1f2ee6f108361a9dc852e185a263485d8e290f281ec9c82474f0e76b18",
         "lane": "gaussian",
         "output_sha256": "fb230d97d8103500631853f0adfca0c958a3d0a607b26cc8a37dcaea4c7c0f99",
         "root_modules": [
@@ -487,7 +487,7 @@
         "theorem_count": 6
       },
       {
-        "input_program_sha256": "23002a48402d78dd910d6e9baa56a0aa3718c2b1f9cb51a3da40b65d51f6b45c",
+        "input_program_sha256": "3b61e5ce72278a7615dd1a44c85ff49d2ec389403d17a6f8840f78462fa91000",
         "lane": "int-cert",
         "output_sha256": "d5ad3993f550eef9f96092e412d6c1088675b809dee86c444c87b4659b857b9d",
         "root_modules": [
@@ -767,9 +767,9 @@
       }
     ],
     "lean": {
-      "executable_bytes": 49968,
-      "executable_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
-      "version_output": "Lean (version 4.32.0, arm64-apple-darwin24.6.0, commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, Release)"
+      "build_profile": "Release",
+      "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "version": "4.32.0"
     },
     "lean_toolchain": "leanprover/lean4:v4.32.0",
     "mathlib_revision": "81a5d257c8e410db227a6665ed08f64fea08e997"

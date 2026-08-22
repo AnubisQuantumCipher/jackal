@@ -52,12 +52,19 @@ class LiveReceiptRedactionTest(unittest.TestCase):
 
     def test_summary_binds_exact_post_redaction_bytes(self) -> None:
         document = json.loads(SUMMARY.read_text(encoding="utf-8"))
-        relative = TRANSCRIPT.relative_to(ROOT).as_posix()
-        row = next(item for item in document["sessions"] if item["path"] == relative)
-        raw = TRANSCRIPT.read_bytes()
-        self.assertEqual(row["bytes"], len(raw))
-        self.assertEqual(row["sha256"], hashlib.sha256(raw).hexdigest())
-        self.assertIn("redacted", row["content_state"])
+        rows = {item["path"]: item for item in document["sessions"]}
+        expected_paths = {
+            transcript.relative_to(ROOT).as_posix() for transcript in TRANSCRIPTS
+        }
+        self.assertEqual(set(rows), expected_paths)
+        for transcript in TRANSCRIPTS:
+            relative = transcript.relative_to(ROOT).as_posix()
+            row = rows[relative]
+            raw = transcript.read_bytes()
+            with self.subTest(transcript=transcript.name):
+                self.assertEqual(row["bytes"], len(raw))
+                self.assertEqual(row["sha256"], hashlib.sha256(raw).hexdigest())
+                self.assertIn("redacted", row["content_state"])
 
 
 if __name__ == "__main__":

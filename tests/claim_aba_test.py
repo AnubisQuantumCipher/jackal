@@ -170,7 +170,7 @@ def main() -> int:
             "sha_restored": sha_r,
             "matrix_failed_under_poison": not ok_b,
             "case_failed_under_poison": case_failed,
-            "observed_under_poison": str(observed)[:160],
+            "observed_under_poison": str(observed)[:400],
             "restored_byte_identical": restored,
             "ok": status,
         })

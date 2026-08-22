@@ -141,13 +141,19 @@ PLUGIN_CASES: list[tuple[str, dict, set[str]]] = [
 
 
 def instrument_current() -> tuple[bool, str]:
-    if BUILDER.name != "build_package_v173.sh" or not BUILDER.is_file():
+    if BUILDER.name != "build_package_v173.sh":
         return False, "superseded-builder"
-    catalog = json.loads((ROOT / "plugin/hermes/tools.json").read_text())
+    if not BUILDER.is_file():
+        return False, "builder-missing"
+    catalog = json.loads(
+        (ROOT / "plugin/hermes/tools.json").read_text(encoding="utf-8")
+    )
     names = [row.get("name") for row in catalog.get("tools", [])]
     if catalog.get("version") != "v1.7.3" or len(names) != 41:
         return False, "stale-catalog"
-    full = json.loads((ROOT / "plugin/hermes/profiles/full.json").read_text())
+    full = json.loads(
+        (ROOT / "plugin/hermes/profiles/full.json").read_text(encoding="utf-8")
+    )
     if full.get("tools") != names:
         return False, "profile-catalog-divergence"
     return True, "current"
@@ -402,15 +408,15 @@ def main() -> int:
                 "verify returned no receipt",
             )
 
-        echo_path = Path("/bin/echo")
+        unapproved_compiler = Path(sys.executable).resolve(strict=True)
         check_refusal = plugin_call(
             pkg,
             "jackal_anubis_check_program",
             {
                 "source_path": str(source),
-                "anubis_bin": str(echo_path),
+                "anubis_bin": str(unapproved_compiler),
                 "expected_source_sha256": sha(source.read_bytes()),
-                "expected_compiler_sha256": sha(echo_path.read_bytes()),
+                "expected_compiler_sha256": sha(unapproved_compiler.read_bytes()),
                 "expected_policy_sha256": POLICY_SHA256,
                 "verification_time_unix": VERIFY_TIME,
                 "profile": "inventory-safe-v1",

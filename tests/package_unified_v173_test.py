@@ -514,6 +514,10 @@ class UnifiedPackageV173Test(unittest.TestCase):
         accepted, reason = module.instrument_current()
         self.assertFalse(accepted)
         self.assertEqual(reason, "superseded-builder")
+        module.BUILDER = ROOT / "missing/build_package_v173.sh"
+        accepted, reason = module.instrument_current()
+        self.assertFalse(accepted)
+        self.assertEqual(reason, "builder-missing")
 
 if __name__ == "__main__":
     unittest.main()

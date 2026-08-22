@@ -76,6 +76,7 @@ release/evidence/int_cert_proof_identity_v172.json
 release/evidence/range_proof_identity.json
 release/evidence/int_cert_proof_identity.json
 release/evidence/gaussian_proof_identity.json
+release/evidence/lean_admission_audit_v173.json
 release/compat/v172_floor.json
 release/compat/v173_floor.json
 release/compat/v170_floor.json
@@ -84,6 +85,7 @@ release/evidence/range_ordering_aba_v172.json
 release/evidence/int_cert_premise_aba_v172.json
 release/coverage/formal_coverage_inventory.json
 release/tools/repin_v173.py
+tools/lean_admission_audit.py
 tests/release_validate.py
 tools/gaussian_certificate.py
 tools/gaussian_release.py
@@ -167,6 +169,7 @@ if [ "$MODE" = "--dry-run" ]; then
   echo "tarball=$FINAL_TARBALL"
   echo "range_identity=range_proof_identity.json source=release/evidence/range_proof_identity_v172.json"
   echo "int_identity=int_cert_proof_identity.json source=release/evidence/int_cert_proof_identity_v172.json"
+  echo "lean_admission_audit=evidence/lean_admission_audit_v173.json"
   echo "compat=evidence/compat_v172_floor.json"
   echo "program_compat=evidence/compat_v173_floor.json"
   echo "program_profile=inventory-safe-v1"
@@ -264,6 +267,7 @@ copy_file "$INT_CHECKER" "$PKG/jackal_int_cert_check"
 copy_file "$ROOT/release/evidence/range_proof_identity_v172.json" "$PKG/range_proof_identity.json"
 copy_file "$ROOT/release/evidence/int_cert_proof_identity_v172.json" "$PKG/int_cert_proof_identity.json"
 copy_file "$ROOT/release/evidence/gaussian_proof_identity.json" "$PKG/gaussian_proof_identity.json"
+copy_file "$ROOT/release/evidence/lean_admission_audit_v173.json" "$PKG/evidence/lean_admission_audit_v173.json"
 copy_file "$ROOT/release/coverage/formal_coverage_inventory.json" "$PKG/formal_coverage_inventory.json"
 
 # Replay-only v1.7.0 receipts require the exact historical checker bytes.
@@ -618,6 +622,8 @@ GAUSSIAN_IDENTITY_FILE_ID=$(sha256 "$PKG/gaussian_proof_identity.json")
 RANGE_IDENTITY_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/range_proof_identity.json")
 INT_IDENTITY_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/int_cert_proof_identity.json")
 GAUSSIAN_IDENTITY_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/gaussian_proof_identity.json")
+LEAN_ADMISSION_AUDIT_ID=$(sha256 "$PKG/evidence/lean_admission_audit_v173.json")
+LEAN_ADMISSION_AUDIT_DIGEST=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["audit_digest_sha256"])' "$PKG/evidence/lean_admission_audit_v173.json")
 COVERAGE_ID=$(sha256 "$PKG/formal_coverage_inventory.json")
 COMPAT_ID=$(sha256 "$PKG/evidence/compat_v172_floor.json")
 PROGRAM_COMPAT_ID=$(sha256 "$PKG/evidence/compat_v173_floor.json")
@@ -648,6 +654,8 @@ archival_range_proof_identity evidence/range_proof_identity_v1.json $(sha256 "$P
 archival_range_proof_digest $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["identity_digest_sha256"])' "$PKG/evidence/range_proof_identity_v1.json")
 gaussian_proof_identity gaussian_proof_identity.json $GAUSSIAN_IDENTITY_FILE_ID
 gaussian_proof_digest $GAUSSIAN_IDENTITY_DIGEST
+lean_admission_audit evidence/lean_admission_audit_v173.json $LEAN_ADMISSION_AUDIT_ID
+lean_admission_audit_digest $LEAN_ADMISSION_AUDIT_DIGEST
 int_cert_producer int_cert_producer.py $INT_PRODUCER_ID
 int_cert_checker jackal_int_cert_check $INT_CHECKER_ID
 int_cert_proof_identity int_cert_proof_identity.json $INT_IDENTITY_FILE_ID
@@ -725,6 +733,9 @@ JACKAL v1.7.3 — explicit boundary
   door invokes only the exact approved compiler's build --evidence path.
 - No universal correctness, source-to-native refinement, input-truth proof,
   operating-system proof, or authenticated builder claim is made.
+- The repository-wide Lean admission audit binds tracked source, theorem
+  axioms, and observed checker bytes. It does not prove the compiler, kernel,
+  native code, operating system, hardware, or supply chain.
 EOF
 
 cat > "$PKG/README.txt" <<'EOF'
@@ -735,6 +746,8 @@ Current stable identities:
   range_proof_identity.json      schema jackal-range-proof-identity-v2
   int_cert_proof_identity.json   schema jackal-int-cert-proof-identity-v2
 Compatibility and A->B->A evidence live under evidence/.
+The repository-wide Lean admission record is
+evidence/lean_admission_audit_v173.json.
 The complete 41-tool catalog and core/formal/full profiles live under
 plugin/hermes/. Domain packs and their checkers retain repository-relative
 paths under domain_packs/ and tools/. Program verification uses
@@ -756,6 +769,7 @@ archival-plugin-hermes v1.7.0-plugin $V170_PLUGIN_HERMES_SHA256
 gaussian-checker jackal_gaussian_check $GAUSSIAN_CHECKER_ID
 range-proof-identity range_proof_identity.json $RANGE_IDENTITY_FILE_ID $RANGE_IDENTITY_DIGEST
 int-cert-proof-identity int_cert_proof_identity.json $INT_IDENTITY_FILE_ID $INT_IDENTITY_DIGEST
+lean-admission-audit evidence/lean_admission_audit_v173.json $LEAN_ADMISSION_AUDIT_ID $LEAN_ADMISSION_AUDIT_DIGEST
 compatibility-floor evidence/compat_v172_floor.json $COMPAT_ID
 program-compatibility-floor evidence/compat_v173_floor.json $PROGRAM_COMPAT_ID
 domain-pack-registry domain_packs/registry_v1.json $(sha256 "$PKG/domain_packs/registry_v1.json")
@@ -848,15 +862,20 @@ def row_hash(label: str) -> str:
 
 
 range_current = load_json("range_proof_identity.json")
+gaussian_current = load_json("gaussian_proof_identity.json")
 int_current = load_json("int_cert_proof_identity.json")
+lean_audit = load_json("evidence/lean_admission_audit_v173.json")
 range_archival = load_json("evidence/range_proof_identity_v1.json")
 int_revoked = load_json("evidence/int_cert_proof_identity_v1.json")
 compat = load_json("evidence/compat_v172_floor.json")
 
 range_checker = sha(package / "jackal_cert_check")
+gaussian_checker = sha(package / "jackal_gaussian_check")
 int_checker = sha(package / "jackal_int_cert_check")
 archival_range_checker = sha(package / "jackal_cert_check_v170")
 require(range_checker == row_hash("checker"), "range-checker-manifest")
+require(gaussian_checker == row_hash("gaussian_checker"),
+        "gaussian-checker-manifest")
 require(int_checker == row_hash("int_cert_checker"), "int-checker-manifest")
 require(archival_range_checker == expected_archival_range_checker,
         "archival-range-checker-pin")
@@ -875,6 +894,8 @@ require("archival_int_cert_checker" not in rows, "revoked-int-checker-row")
 proofs = (
     (range_current, "jackal-range-proof-identity-v2", range_checker,
      "range_proof_identity", "range_proof_digest"),
+    (gaussian_current, "jackal-gaussian-proof-identity-v1", gaussian_checker,
+     "gaussian_proof_identity", "gaussian_proof_digest"),
     (int_current, "jackal-int-cert-proof-identity-v2", int_checker,
      "int_cert_proof_identity", "int_cert_proof_digest"),
     (range_archival, "jackal-range-proof-identity-v1", archival_range_checker,
@@ -889,6 +910,75 @@ for proof, schema, checker, file_label, digest_label in proofs:
             f"proof-file:{file_label}")
     require(proof.get("identity_digest_sha256") == row_hash(digest_label),
             f"proof-digest:{file_label}")
+
+require(lean_audit.get("schema") == "jackal-lean-admission-audit-v1",
+        "lean-audit-schema")
+require(sha(package / "evidence/lean_admission_audit_v173.json") ==
+        row_hash("lean_admission_audit"), "lean-audit-file")
+lean_audit_digest = lean_audit.pop("audit_digest_sha256", None)
+computed_lean_audit_digest = hashlib.sha256(
+    json.dumps(lean_audit, sort_keys=True, separators=(",", ":"),
+               ensure_ascii=False).encode("utf-8")
+).hexdigest()
+require(lean_audit_digest == computed_lean_audit_digest,
+        "lean-audit-self-digest")
+require(lean_audit_digest == row_hash("lean_admission_audit_digest"),
+        "lean-audit-manifest-digest")
+audit_result = lean_audit.get("audit_result", {})
+require(audit_result.get("status") == "pass", "lean-audit-status")
+require(audit_result.get("logical_admission_count") == 0,
+        "lean-audit-admission-count")
+source_inventory = lean_audit.get("source_inventory", {})
+source_files = source_inventory.get("files", [])
+require(source_inventory.get("file_count") == 42 and len(source_files) == 42,
+        "lean-audit-source-count")
+source_paths = [item.get("path") for item in source_files
+                if isinstance(item, dict)]
+require(len(source_paths) == 42 and len(set(source_paths)) == 42,
+        "lean-audit-source-uniqueness")
+construct_policy = source_inventory.get("construct_policy", {})
+require(construct_policy.get("forbidden_findings") == [],
+        "lean-audit-forbidden-findings")
+allowed_findings = construct_policy.get("allowed_findings", [])
+require(len(allowed_findings) == 2 and
+        {item.get("construct") for item in allowed_findings} ==
+        {"implemented_by"}, "lean-audit-allowed-findings")
+theorem_audit = lean_audit.get("theorem_axiom_audit", {})
+theorem_rows = theorem_audit.get("theorems", [])
+require(theorem_audit.get("theorem_count") == 27 and len(theorem_rows) == 27,
+        "lean-audit-theorem-count")
+theorem_names = [item.get("theorem") for item in theorem_rows
+                 if isinstance(item, dict)]
+require(len(theorem_names) == 27 and len(set(theorem_names)) == 27,
+        "lean-audit-theorem-uniqueness")
+for item in theorem_rows:
+    require(item.get("axioms") ==
+            ["propext", "Classical.choice", "Quot.sound"],
+            f"lean-audit-axioms:{item.get('theorem')}")
+trust_surface = lean_audit.get("trust_surface", {})
+require(trust_surface.get("logical_admissions") == [],
+        "lean-audit-logical-admissions")
+require(trust_surface.get("repository_axiom_declarations") == [],
+        "lean-audit-repository-axioms")
+audit_bindings = lean_audit.get("release_bindings", {}).get(
+    "current_proof_identities", [])
+require(len(audit_bindings) == 3, "lean-audit-binding-count")
+expected_audit_bindings = {
+    "range": (range_checker, sha(package / "range_proof_identity.json")),
+    "gaussian": (gaussian_checker, sha(package / "gaussian_proof_identity.json")),
+    "int-cert": (int_checker, sha(package / "int_cert_proof_identity.json")),
+}
+for binding in audit_bindings:
+    lane = binding.get("lane")
+    require(lane in expected_audit_bindings, f"lean-audit-binding-lane:{lane}")
+    expected_checker, expected_identity = expected_audit_bindings.pop(lane)
+    require(binding.get("checker_sha256") == expected_checker,
+            f"lean-audit-binding-checker:{lane}")
+    require(binding.get("identity_checker_sha256") == expected_checker,
+            f"lean-audit-identity-checker:{lane}")
+    require(binding.get("identity_sha256") == expected_identity,
+            f"lean-audit-binding-identity:{lane}")
+require(expected_audit_bindings == {}, "lean-audit-binding-coverage")
 
 require(int_revoked.get("schema") == "jackal-int-cert-proof-identity-v1",
         "revoked-int-proof-schema")

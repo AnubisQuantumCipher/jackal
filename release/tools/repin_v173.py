@@ -14,6 +14,7 @@ import difflib
 import hashlib
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -59,6 +60,10 @@ FILE_ROWS = [
     ("range-proof-identity", "release/evidence/range_proof_identity_v172.json"),
     ("archival-range-proof-identity", "release/evidence/range_proof_identity.json"),
     ("gaussian-proof-identity", "release/evidence/gaussian_proof_identity.json"),
+    (
+        "lean-admission-audit",
+        "release/evidence/lean_admission_audit_v173.json",
+    ),
     ("int-cert-producer", "tools/int_cert_producer.py"),
     ("int-cert-checker", "proofs/lean/.lake/build/bin/jackal_int_cert_check"),
     (
@@ -121,6 +126,8 @@ ORDER = [
     "archival-range-proof-digest",
     "gaussian-proof-identity",
     "gaussian-proof-digest",
+    "lean-admission-audit",
+    "lean-admission-audit-digest",
     "int-cert-producer",
     "int-cert-checker",
     "int-cert-proof-identity",
@@ -205,6 +212,21 @@ def identity_digest(path: Path) -> str:
     digest = value.get("identity_digest_sha256")
     if not isinstance(digest, str) or len(digest) != 64:
         raise PlanRefusal(f"identity digest missing or malformed: {path}")
+    return digest
+
+
+def audit_digest(path: Path) -> str:
+    value = read_json(path)
+    digest = value.get("audit_digest_sha256")
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise PlanRefusal(f"audit digest missing or malformed: {path}")
+    body = {key: item for key, item in value.items() if key != "audit_digest_sha256"}
+    computed = hashlib.sha256(
+        json.dumps(
+            body, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+    ).hexdigest()
+    require_equal(digest, computed, "Lean admission audit self-digest")
     return digest
 
 
@@ -545,6 +567,29 @@ def validate_unified_contract() -> None:
         raise PlanRefusal(f"domain-pack verifier output malformed: {error}") from None
     require_equal(pack_report.get("status"), "accepted", "domain-pack status")
 
+    lean_audit_check = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "tools/lean_admission_audit.py",
+            "--check",
+            "--root",
+            str(ROOT),
+        ],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    if lean_audit_check.returncode != 0:
+        raise PlanRefusal(
+            "Lean admission audit refused: "
+            f"{(lean_audit_check.stderr or lean_audit_check.stdout)[:512]}"
+        )
+
 
 def plugin_bundle_digest() -> str:
     completed = subprocess.run(
@@ -608,6 +653,8 @@ def build_rows() -> list[str]:
             "int-cert-proof-identity",
         }:
             rows.append(f"{label.rsplit('-', 1)[0]}-digest {identity_digest(path)}")
+        elif label == "lean-admission-audit":
+            rows.append(f"lean-admission-audit-digest {audit_digest(path)}")
     rows.extend(
         [
             f"archival-v170-archive-source github-release-v1.7.0 {V170_ARCHIVE_SHA256}",
@@ -674,11 +721,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             print("REPIN_V173_CHECK_FAIL")
             return 1
-        print(f"REPIN_V173_CHECK_PASS rows={len(build_rows())}")
+        print(f"REPIN_V173_CHECK_PASS rows={len(proposed.splitlines())}")
         return 0
     if args.write:
         write_atomic(MANIFEST, proposed)
-        print(f"REPIN_V173_WRITTEN rows={len(build_rows())} manifest={MANIFEST}")
+        print(f"REPIN_V173_WRITTEN rows={len(proposed.splitlines())} manifest={MANIFEST}")
         return 0
     sys.stdout.write(proposed)
     return 0

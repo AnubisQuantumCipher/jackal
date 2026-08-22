@@ -31,6 +31,7 @@ REQUIRED_PACKAGE_INPUTS = {
     "tools/test_exists_verify.py",
     "tools/decision_verify.py",
     "release/program/SPEC.md",
+    "release/evidence/lean_admission_audit_v173.json",
     "tools/anubis_program_verify.py",
     "release/program/inventory_safe_v1.json",
     "plugin/hermes/profiles/core.json",
@@ -49,6 +50,8 @@ REQUIRED_MANIFEST_LABELS = {
     "source",
     "evaluator",
     "claim_inference_registry",
+    "lean-admission-audit",
+    "lean-admission-audit-digest",
 }
 
 
@@ -143,7 +146,7 @@ class UnifiedPackageV173Test(unittest.TestCase):
         self.assertTrue((package / "jackal-anubis-program").is_file())
         for relative in REQUIRED_PACKAGE_INPUTS:
             destination = relative
-            if relative.startswith("release/program/"):
+            if relative.startswith("release/"):
                 destination = relative.removeprefix("release/")
             self.assertTrue((package / destination).is_file(), destination)
         listed = subprocess.run(

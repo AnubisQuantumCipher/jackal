@@ -32,6 +32,12 @@ jobs:
           python3 release/tools/range_proof_identity.py check --lane range --proof-only
           python3 release/tools/range_proof_identity.py check --lane int-cert --proof-only
 
+      - name: Reject repository-wide Lean admissions and trust bypasses
+        run: |
+          python3 -B tools/lean_admission_audit.py --source-check
+          python3 -B -m unittest \
+            tests.lean_admission_audit_test.LeanAdmissionAuditMutationTest -v
+
       # The committed checker hashes are for the recorded macOS/arm64 builds.
       # A release seal must additionally run the full, platform-matching gate:
       # python3 release/tools/gaussian_proof_identity.py check --lane gaussian

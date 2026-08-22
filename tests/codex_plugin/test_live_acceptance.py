@@ -77,6 +77,16 @@ def formal_payload(emitted_at):
 
 
 class IdentityAndInstallPlanTests(unittest.TestCase):
+    def test_formal_receipt_oracle_matches_current_hermes_bundle_pin(self):
+        row = next(
+            line.split()
+            for line in (REPOSITORY_ROOT / "release/MANIFEST.sha256")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.startswith("plugin_hermes ")
+        )
+        self.assertEqual(live.HERMES_BUNDLE_SHA256, row[-1])
+
     def test_dry_run_lists_each_mcp_tool_once(self):
         document = live.dry_run_document(
             codex_binary=Path("/absolute/codex"),

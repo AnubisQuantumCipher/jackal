@@ -11,9 +11,9 @@ source → compiler pin → deterministic build → binary hash → gate receipt
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
 The `v1.7.3-candidate` binds an ordered 41-tool surface through
 `release/capability_inventory_v1.json`. Its package receipt is
-`9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e`
-(158362324 bytes), with extracted `SHA256SUMS` digest
-`fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf`.
+`c030076186791a551d7818412e39ea895da0f16a2fad88877554ff390c284d9c`
+(158362703 bytes), with extracted `SHA256SUMS` digest
+`15b179469a3519d124706a1b3281710ca2870e28a7073d107ac15eec156f2894`.
 These are candidate bytes; the block does not assert a public v1.7.3 tag or
 release.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
@@ -67,17 +67,23 @@ Two independent invocations of `release/build_package_v173.sh --build`, each
 with its own absolute `JACKAL_DIST`, produced byte-identical tarballs; `cmp`
 exited 0:
 
+The producing source was the clean commit
+`44381dcb10d7b0572f2531a26d8ccd6f88afe7dd` (tree
+`3f4bf69f11a8acfddfb8a670d522d55143a8e6ba`). This provenance record is a
+later derived checkpoint and is not represented as the commit that produced
+the package.
+
 ```text
 basename            jackal-v1.7.3-macos-arm64.tar.gz
-sha256              9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e
-bytes               158362324
+sha256              c030076186791a551d7818412e39ea895da0f16a2fad88877554ff390c284d9c
+bytes               158362703
 files               106
-extracted-file-bytes 555505387
-SHA256SUMS sha256    fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf
+extracted-file-bytes 555507432
+SHA256SUMS sha256    15b179469a3519d124706a1b3281710ca2870e28a7073d107ac15eec156f2894
 ```
 
 Tar member file bytes and fresh-extraction file bytes independently summed to
-`555505387`. `tests/package_unified_v173_test.py` checks exact checksum
+`555507432`. `tests/package_unified_v173_test.py` checks exact checksum
 inventory, extra/missing/tampered-file controls, missing-pack isolation,
 declared-but-unreachable program-tool refusal, stale source/binary refusal,
 profile/catalog parity, and the selected release window.
@@ -115,12 +121,15 @@ returned `receipt-semantic-mismatch`; pristine replay then returned
 
 ### Plugin and evaluation receipts
 
-The public plugin pins the package and complete `SHA256SUMS`. A fresh isolated
+The candidate Codex plugin pins the package and complete `SHA256SUMS`. A fresh isolated
 Codex install observed 41 registered tools; exact, formal, refusal, claim
 bundle, and formal-receipt gates returned their bounded expected statuses. A
 second fresh MCP process replayed the program receipt and refused its semantic
-tamper. The public-wrapper aggregate is
-`f5102843b8112302ebfdc7bfa1dc7665a4194835fad360523c50fda9abe3983d`.
+tamper. The candidate-wrapper aggregate is
+`3b2ea0858032d139949914daf6b2e45fa37150059f0771335512375b67c5e74f`;
+it is the SHA-256 of the generated eight-row
+`plugins/jackel/PLUGIN_IDENTITY.sha256` for this candidate, not an identity
+from the public default branch.
 
 Live transcript-bearing Codex sessions attempted the W3/W10 tools, but the
 noninteractive host cancelled every MCP call, including with

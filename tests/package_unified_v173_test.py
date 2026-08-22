@@ -113,11 +113,11 @@ class UnifiedPackageV173Test(unittest.TestCase):
             document["package"],
             {
                 "basename": "jackal-v1.7.3-macos-arm64.tar.gz",
-                "bytes": 158362324,
-                "extracted_file_bytes": 555505387,
+                "bytes": 158362703,
+                "extracted_file_bytes": 555507432,
                 "file_count": 106,
-                "sha256": "9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e",
-                "sha256sums_root": "fa2080c7c50a669c28b08e17739f559d1e22b4d8ca95fe31355e90f6b3c5aecf",
+                "sha256": "c030076186791a551d7818412e39ea895da0f16a2fad88877554ff390c284d9c",
+                "sha256sums_root": "15b179469a3519d124706a1b3281710ca2870e28a7073d107ac15eec156f2894",
             },
         )
         source = document["source"]
@@ -135,7 +135,7 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
         self.assertEqual(
             document["gates"]["package_unified_tests"],
-            {"exit": 0, "passed": 13, "skipped": 0},
+            {"exit": 0, "passed": 14, "skipped": 0},
         )
         self.assertEqual(
             document["gates"]["claim_package_parity"],
@@ -143,7 +143,7 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
         self.assertEqual(
             document["gates"]["codex_repository_tests"],
-            {"exit": 0, "passed": 216},
+            {"exit": 0, "passed": 217},
         )
         self.assertEqual(
             document["gates"]["codex_live_acceptance"]["discovered_tool_count"],

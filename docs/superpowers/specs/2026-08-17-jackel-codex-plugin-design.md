@@ -73,6 +73,7 @@ plugins/jackel/
   .codex-plugin/plugin.json
   .mcp.json
   PLUGIN_IDENTITY.sha256
+  README.md
   mcp/server.py
   scripts/launch_mcp.zsh
   scripts/provision_runtime.py
@@ -364,9 +365,9 @@ if defective or malicious. They are not part of JACKAL's mathematical checker
 TCB, but they are part of the end-to-end Codex request/result fidelity TCB.
 
 `plugins/jackel/PLUGIN_IDENTITY.sha256` records a stable, sorted digest
-inventory for the plugin manifest, MCP manifest, launcher, adapter,
-provisioner, verification script, and operational skill. The manifest excludes
-only itself. `scripts/verify_plugin.py` performs a bounded descriptor-relative,
+inventory for the plugin manifest, MCP manifest, installation/operation
+README, launcher, adapter, provisioner, verification script, and operational
+skill. The manifest excludes only itself. `scripts/verify_plugin.py` performs a bounded descriptor-relative,
 no-follow traversal and rejects every unlisted file, link, special entry,
 directory, bytecode cache, oversized manifest/file set, path-identity change,
 or parent-directory mutation before printing a deterministic

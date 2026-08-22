@@ -15,6 +15,7 @@ MARKETPLACE_PATH = REPOSITORY_ROOT / ".agents" / "plugins" / "marketplace.json"
 MCP_PATH = PLUGIN_ROOT / ".mcp.json"
 SKILL_PATH = PLUGIN_ROOT / "skills" / "jackel" / "SKILL.md"
 IDENTITY_PATH = PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
+README_PATH = PLUGIN_ROOT / "README.md"
 LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.zsh"
 SERVER_PATH = PLUGIN_ROOT / "mcp" / "server.py"
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "jackal-codex-plugin.yml"
@@ -333,6 +334,7 @@ class PluginMetadataTests(unittest.TestCase):
         manifest = self.load_json(MANIFEST_PATH)
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]
         referenced = {
+            "README.md",
             ".codex-plugin/plugin.json",
             manifest["mcpServers"].removeprefix("./"),
             "mcp/server.py",
@@ -355,6 +357,24 @@ class PluginMetadataTests(unittest.TestCase):
                 for path in PLUGIN_ROOT.iterdir()
             )
         )
+
+    def test_readme_documents_candidate_install_discovery_and_boundaries(self):
+        text = README_PATH.read_text(encoding="utf-8")
+        for required in (
+            "41-tool",
+            "v1.7.3 candidate",
+            "release/capability_inventory_v1.json",
+            "/bin/zsh scripts/launch_mcp.zsh provision --tarball",
+            "codex mcp list",
+            "jackal_claim",
+            "jackal_verify_receipt",
+            "jackal_anubis_verify_program_receipt",
+            "policy-construct-totality-not-established",
+            "refused",
+            "indeterminate",
+            "No silent downgrade",
+        ):
+            self.assertIn(required, text, required)
 
     def test_launcher_uses_only_explicit_absolute_python_candidates_and_exact_flags(self):
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]

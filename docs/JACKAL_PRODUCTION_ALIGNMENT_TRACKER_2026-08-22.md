@@ -21,7 +21,7 @@ This is the restart-safe evidence ledger for the architect-approved production-a
 | Installed Hermes plugin | `/Users/sicarii/.hermes/plugins/jackal-verified` | detached `86596e2b0e2679db68eca16bd102378c5bfa27b7`, annotated tag v5.0.0 | clean installed evidence; DO NOT EDIT | 34 tools; pins JACKAL v1.7.0 |
 | Hermes plugin public default | `AnubisQuantumCipher/hermes-jackal-verified` | `main` / `e157e4dc98ffc127bb9abca4ae2ea6cdd699db56` | architect-owned public repo | latest v5.0.0 at `86596e2…`; description says 34 tools |
 | Hermes core ambient checkout | `/Users/sicarii/.hermes/hermes-agent` | `main` / `e02d1e41fc6104187e20af9eac8b2820566e3508`, ahead 1/behind 1 at census | extensive user-owned tracked and untracked changes; DO NOT EDIT | upstream is `NousResearch/hermes-agent` |
-| Codex plugin candidate | `plugins/jackel` inside JACKAL PR #12 | current generated identity aggregate `2a025bb5b7b53cd7f071f5185c85ee85bb241ea853215eb631b471d6668e9e5f`; prior PR record `f5102843…` | clean with JACKAL worktree before this tranche | version `0.1.0+codex.20260820135554`; pins v1.7.3 candidate package |
+| Codex plugin candidate | `plugins/jackel` inside JACKAL PR #12 | current generated eight-file identity aggregate `2f6091fbc36f5ad3f1cdb444e3603cc57461a784d41f522f240c8df65720059a`; prior PR record `f5102843…` | named-path candidate changes only | version `0.1.0+codex.20260820135554`; pins v1.7.3 candidate package |
 | Installed Codex plugin | `/Users/sicarii/.codex/plugins/cache/anubis-quantum-cipher/jackel/0.1.0+codex.20260820135554` | exact seven-file identity manifest | installed cache evidence; DO NOT EDIT | wrapper requires 41 tools; package SHA-256 `b2c0819b2c631939217583dc420cc67ba9e4acf613b4b49c208f020ba1bd1175` |
 | Hermes PR branch | architect fork branch `feat/index-jackal-verified` | `08eb5173033e15117f51ac5abc9ca3d8bab313fe` | edit only in a fresh isolated checkout | PR title/body/index pin v5.0.0/34 tools; no hosted checks |
 
@@ -62,9 +62,9 @@ Instrument and baseline gates:
 | `tests.capability_inventory_test` | 13 tests pass, including duplicate/unmapped/status/checker/artifact mutation controls | catalog/profile/manifest/proof-identity/Codex-input contract |
 | `tools/capability_drift_gate.py` | exit 0; `CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3` | current marked surfaces only; historical 34-tool prose remains legal |
 | `tests.capability_drift_gate_test` | 11 tests pass, including current count, unknown skill tool, status vocabulary, package pin, wrapper count, marker, and plugin-identity refusals | semantic anti-drift instrument |
-| `tools/capability_drift_gate.py --write-plugin-identity` then `plugins/jackel/scripts/verify_plugin.py` | seven files; aggregate SHA-256 `2a025bb5b7b53cd7f071f5185c85ee85bb241ea853215eb631b471d6668e9e5f`; verifier exit 0 | tamper evidence, not author authentication |
+| `tools/capability_drift_gate.py --write-plugin-identity` then `plugins/jackel/scripts/verify_plugin.py` | eight files; aggregate SHA-256 `2f6091fbc36f5ad3f1cdb444e3603cc57461a784d41f522f240c8df65720059a`; verifier exit 0 | now includes the candidate installation/operation README; tamper evidence, not author authentication |
 | combined inventory/drift/profile/unified suite | exit 0; 58 tests | repository surface and mutation controls |
-| `/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v` | exit 0; 215 tests | repo-local plugin; fresh release-pin discovery remains open |
+| `/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v` | exit 0; 216 tests | repo-local plugin; fresh release-pin discovery remains open |
 | `lake build jackal_gaussian_check jackal_cert_check jackal_int_cert_check` | exit 0; 17,369 jobs from an absent local build library; three release checkers rebuilt | existing non-fatal style/deprecation linter output remains; no kernel/build failure |
 | three full proof-identity checks | exit 0 for Gaussian, range, and int-cert; exact identity/checker digests revalidated | current checker-accepted fragments only; no source-to-native or builder-authentication claim |
 | `tools/lean_admission_audit.py --check` | exit 0; `files=42 theorems=27 admissions=0`; artifact SHA-256 `4c680a6817ccfe27da254c5244e5ffc06469ed37a910ea61303abf8125bb3459`; semantic digest `c4d4440b8aa472f3fa2db682e4cff1144683b003e815e41d795a831b9fda57cf` | all tracked Lean sources; exact current release theorem set; 37 `noncomputable` occurrences classified as non-admissions; two dump-only `implemented_by` mirrors explicitly retained |
@@ -82,7 +82,7 @@ Instrument and baseline gates:
 | R2 | Kernel/Hermes/Codex name-set equality | independent discovery outputs and exact set diff | PARTIAL: kernel and Codex candidate show 41; public Hermes plugin is 34 |
 | R3 | Eliminate current stale counts, versions, pins, theorem/status claims | semantic drift gate plus reviewed current-surface allowlist | PARTIAL: JACKAL/Codex repository current blocks and design repaired; public descriptions, Hermes bytes, and PR #88446 remain open |
 | R4 | Production-equivalent Hermes plugin | 41 generated schemas, install/discovery/call/skill tests, refusal parity, exact package pin | OPEN |
-| R5 | Production-equivalent Codex plugin | exact installed discovery and call parity from release pin | PARTIAL: 215 repo-local tests and generated seven-file identity pass; fresh release-pin gates open |
+| R5 | Production-equivalent Codex plugin | exact installed discovery and call parity from release pin | PARTIAL: 216 repo-local tests and generated eight-file identity pass; candidate README now covers install/discovery/boundaries; fresh release-pin gates open |
 | R6 | Complete JACKAL skills audit | classified inventory, exact hashes, real-name/schema fixtures, corrected routers | PARTIAL: repo and personal routers/reseal are corrected and tested; public Hermes bundled skill remains Task 6 |
 | R7 | Lean build and admission/axiom audit | `lake build`, exact theorem axiom output, `sorry`/admit scan, trusted snapshot report | VERIFIED: 17,369-job clean-room build; 42 tracked files; 27 unique theorems with exactly `propext`, `Classical.choice`, `Quot.sound`; zero logical admissions/repository axioms; artifact `4c680a68…`; 12 tests |
 | R8 | Positive and hostile family coverage | all exported families plus wrong epoch/policy/proposition/unit/cert/pin controls | OPEN |
@@ -130,7 +130,7 @@ The following local `SKILL.md` files mention JACKAL/JACKEL and require classific
 | personal `adversarial-calculator-audit` | audit procedure | unchanged `bbbcc1a6…`; no current tool/count/version/pin claim |
 | personal `independent-oracle-mutation-audit` | audit procedure | unchanged `941d6ae0…`; no current tool/count/version/pin claim |
 | personal `receipt-semantic-replay-verification` | audit procedure | unchanged `f5e1c7ad…`; no current tool/count/version/pin claim |
-| repo Codex `plugins/jackel/skills/jackel` | direct/claim router | `64907dd4…` → `1fb8f703…`; canonical-name contract passes; plugin identity regenerated to `95272f05…` |
+| repo Codex `plugins/jackel/skills/jackel` | direct/claim router | `64907dd4…` → `1fb8f703…`; canonical-name contract passes; eight-file plugin identity including README is `2f6091fb…` |
 | public Hermes bundled router | direct/claim router | current public `a5e2fcf1…`; still v1.7.0/34 and remains open for the v6 candidate |
 
 ## Checkpoint log

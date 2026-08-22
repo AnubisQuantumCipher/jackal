@@ -32,6 +32,7 @@ CURRENT_SURFACES = (
 CODEX_PLUGIN_IDENTITY_FILES = (
     ".codex-plugin/plugin.json",
     ".mcp.json",
+    "README.md",
     "mcp/server.py",
     "scripts/launch_mcp.zsh",
     "scripts/provision_runtime.py",

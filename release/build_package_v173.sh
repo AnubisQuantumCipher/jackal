@@ -188,7 +188,7 @@ python3 -I -S -B "$ROOT/release/tools/repin_v173.py" \
   --compiler-path "$COMPILER" --check >/dev/null
 
 MODE=${1:-}
-if [ "$MODE" = "--dry-run" ]; then
+if [ "$MODE" = "--dry-run" ] && [ "$#" -eq 1 ]; then
   echo "PACKAGE_V173_DRY_RUN_PASS version=$VER platform=$PLATFORM"
   echo "compiler=$COMPILER compiler_sha256=$COMPILER_SHA256"
   echo "package=$FINAL_PKG"
@@ -309,6 +309,8 @@ if [ -n "${JACKAL_V170_ARCHIVE:-}" ]; then
 else
   /usr/bin/curl --fail --location --silent --show-error \
     --proto '=https' --tlsv1.2 \
+    --connect-timeout 20 --max-time 900 \
+    --retry 3 --retry-max-time 900 --retry-connrefused \
     "$V170_ARCHIVE_URL" --output "$V170_ARCHIVE"
 fi
 [ "$(sha256 "$V170_ARCHIVE")" = "$V170_ARCHIVE_SHA256" ] || {
@@ -521,13 +523,12 @@ cat > "$PKG/jackal-claim-verify" <<'WRAP'
 set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 M="$HERE/MANIFEST.sha256"
-sha() { shasum -a 256 "$1" | awk '{print $1}'; }
 set -- "$@" \
   --expected-inference-registry "$HERE/inference_registry_v1.json" \
-  --expected-inference-registry-sha256 "$(sha "$HERE/inference_registry_v1.json")" \
+  --expected-inference-registry-sha256 "$(awk '$1=="claim_inference_registry"{print $NF}' "$M")" \
   --expected-unit-registry "$HERE/unit_registry_v1.json" \
-  --expected-unit-registry-sha256 "$(sha "$HERE/unit_registry_v1.json")" \
-  --expected-environment-epoch "$(sha "$HERE/jackal-native")" \
+  --expected-unit-registry-sha256 "$(awk '$1=="claim_unit_registry"{print $NF}' "$M")" \
+  --expected-environment-epoch "$(awk '$1=="evaluator"{print $NF}' "$M")" \
   --receipt-verifier "$HERE/receipt_verify.py" --exact-verifier "$HERE/exact_verify.py" \
   --checker "$HERE/jackal_cert_check" --expected-checker "$(awk '$1=="checker"{print $NF}' "$M")" \
   --expected-evaluator "$(awk '$1=="evaluator"{print $NF}' "$M")" \
@@ -808,7 +809,7 @@ range-ordering-aba evidence/range_ordering_aba_v172.json $RANGE_ABA_ID
 int-cert-premise-aba evidence/int_cert_premise_aba_v172.json $INT_ABA_ID
 EOF
 
-(cd "$PKG" && /usr/bin/find . -type f ! -name SHA256SUMS | LC_ALL=C /usr/bin/sort |
+(cd "$PKG" && /usr/bin/find . -type f ! -path ./SHA256SUMS | LC_ALL=C /usr/bin/sort |
   while IFS= read -r file; do /usr/bin/shasum -a 256 "$file"; done > SHA256SUMS)
 
 # Validate the staged package itself before it can become a tarball or enter
@@ -1245,7 +1246,14 @@ PY
   exit 5
 }
 publish_noreplace "$PKG" "$FINAL_PKG" || exit 5
-publish_noreplace "$STAGED_TARBALL" "$FINAL_TARBALL" || exit 5
+publish_noreplace "$STAGED_TARBALL" "$FINAL_TARBALL" || {
+  publish_noreplace "$FINAL_PKG" "$PKG" || {
+    echo "PACKAGE_V173_REFUSED reason=publication-rollback-failed path=$FINAL_PKG" >&2
+    exit 5
+  }
+  echo "PACKAGE_V173_REFUSED reason=publication-rolled-back path=$FINAL_TARBALL" >&2
+  exit 5
+}
 
 echo "PACKAGE_V173_BUILD_PASS version=$VER platform=$PLATFORM"
 echo "package=$FINAL_PKG"

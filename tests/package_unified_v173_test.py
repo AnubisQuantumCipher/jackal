@@ -5,6 +5,7 @@ import hashlib
 import json
 import importlib.util
 import os
+import platform
 import subprocess
 import tempfile
 import shutil
@@ -42,7 +43,7 @@ REQUIRED_PACKAGE_INPUTS = {
     "plugin/hermes/profiles/full.json",
     "plugin/hermes/schemas/jackal_agent_profile.schema.json",
 }
-REQUIRED_MANIFEST_LABELS = {
+REQUIRED_REPOSITORY_MANIFEST_LABELS = {
     "domain_pack_registry",
     "domain_pack_verifier",
     "domain_pack_test_exists_checker",
@@ -55,6 +56,10 @@ REQUIRED_MANIFEST_LABELS = {
     "claim_inference_registry",
     "lean-admission-audit",
     "lean-admission-audit-digest",
+}
+REQUIRED_PACKAGE_MANIFEST_LABELS = {
+    "lean_admission_audit",
+    "lean_admission_audit_digest",
 }
 
 
@@ -171,13 +176,30 @@ class UnifiedPackageV173Test(unittest.TestCase):
         self.assertIn('JACKAL_DIST', builder)
         for relative in sorted(REQUIRED_PACKAGE_INPUTS):
             self.assertIn(relative, builder, relative)
-        for label in sorted(REQUIRED_MANIFEST_LABELS):
+        for label in sorted(REQUIRED_REPOSITORY_MANIFEST_LABELS):
             self.assertIn(label, repin, label)
+        for label in sorted(REQUIRED_PACKAGE_MANIFEST_LABELS):
+            self.assertIn(f"\n{label} ", builder, label)
         self.assertIn("jackal-anubis-program", builder)
         self.assertIn("PACKAGE_V173_BUILD_PASS", builder)
         self.assertNotRegex(builder, r"python3(?! -I -S -B)")
         self.assertIn("renamex_np", builder)
         self.assertIn("RENAME_EXCL", builder)
+        self.assertIn("--connect-timeout 20", builder)
+        self.assertIn("--max-time 900", builder)
+        self.assertIn("--retry 3", builder)
+        self.assertIn('! -path ./SHA256SUMS', builder)
+        self.assertNotIn('! -name SHA256SUMS', builder)
+        self.assertIn(
+            '$(awk \'$1=="claim_inference_registry"{print $NF}\' "$M")',
+            builder,
+        )
+        self.assertIn(
+            '$(awk \'$1=="claim_unit_registry"{print $NF}\' "$M")',
+            builder,
+        )
+        self.assertNotIn('sha() { shasum -a 256 "$1"', builder)
+        self.assertIn('publish_noreplace "$FINAL_PKG" "$PKG"', builder)
         self.assertNotIn('/bin/mv "$PKG" "$FINAL_PKG"', builder)
         self.assertNotIn('/bin/mv "$STAGED_TARBALL" "$FINAL_TARBALL"', builder)
         self.assertRegex(
@@ -236,6 +258,8 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
 
     def test_dry_run_and_repin_check_are_current_source_instruments(self) -> None:
+        if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
+            self.skipTest("release/build_package_v173.sh requires Darwin/arm64")
         dry = subprocess.run(
             [str(BUILDER), "--dry-run"],
             capture_output=True,
@@ -245,6 +269,15 @@ class UnifiedPackageV173Test(unittest.TestCase):
         )
         self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
         self.assertIn("PACKAGE_V173_DRY_RUN_PASS", dry.stdout)
+        extra = subprocess.run(
+            [str(BUILDER), "--dry-run", "unexpected"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            timeout=120,
+        )
+        self.assertEqual(extra.returncode, 2, extra.stdout + extra.stderr)
+        self.assertIn("usage:", extra.stderr)
         repin = subprocess.run(
             [os.fspath(REPIN), "--check"],
             capture_output=True,
@@ -262,6 +295,17 @@ class UnifiedPackageV173Test(unittest.TestCase):
         package = Path(package_root_raw)
         self.assertEqual(package.name, PACKAGE_NAME)
         self.assertTrue((package / "jackal-anubis-program").is_file())
+        manifest_labels = {
+            line.split()[0]
+            for line in (package / "MANIFEST.sha256").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if line.strip()
+        }
+        self.assertTrue(
+            REQUIRED_PACKAGE_MANIFEST_LABELS <= manifest_labels,
+            sorted(REQUIRED_PACKAGE_MANIFEST_LABELS - manifest_labels),
+        )
         for relative in REQUIRED_PACKAGE_INPUTS:
             destination = relative
             if relative.startswith("release/"):

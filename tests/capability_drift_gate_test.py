@@ -53,6 +53,8 @@ class DriftFixture:
         self.root = Path(tempfile.mkdtemp(prefix="jackal-capability-drift-"))
         paths = {
             *INVENTORY.INPUT_PATHS,
+            INVENTORY.PROGRAM_FLOOR_PATH,
+            INVENTORY.PROGRAM_POLICY_PATH,
             ARTIFACT_PATH,
             *CURRENT_SURFACES,
             Path("plugins/jackel/scripts/provision_runtime.py"),
@@ -133,14 +135,20 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
 
 
 class CapabilityDriftRefusalTest(unittest.TestCase):
+    def replace_once(self, source: str, needle: str, replacement: str) -> str:
+        self.assertIn(needle, source, f"mutation needle absent: {needle!r}")
+        mutated = source.replace(needle, replacement, 1)
+        self.assertNotEqual(mutated, source, "mutation did not change source")
+        return mutated
+
     def test_refuses_current_tool_count_drift(self) -> None:
         fixture = DriftFixture()
         try:
             path = fixture.root / "plugins/jackel/.codex-plugin/plugin.json"
             document = read_json(path)
-            document["interface"]["longDescription"] = document["interface"][
-                "longDescription"
-            ].replace("41-tool", "34-tool")
+            document["interface"]["longDescription"] = self.replace_once(
+                document["interface"]["longDescription"], "41-tool", "34-tool"
+            )
             write_json(path, document)
             with self.assertRaisesRegex(DRIFT.DriftError, "current-tool-count"):
                 DRIFT.verify_surface(fixture.root)
@@ -166,8 +174,12 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
         try:
             provisioner = fixture.root / "plugins/jackel/scripts/provision_runtime.py"
             source = provisioner.read_text(encoding="utf-8")
-            source = source.replace(
-                'PACKAGE_SHA256 = "9100bc77abd02dfdc1449d23d6fa211e041ad34b38e545024a9311bdb16cf93e"',
+            expected = read_json(ROOT / DRIFT.PACKAGE_EVIDENCE_PATH)["package"][
+                "sha256"
+            ]
+            source = self.replace_once(
+                source,
+                f'PACKAGE_SHA256 = "{expected}"',
                 f'PACKAGE_SHA256 = "{"0" * 64}"',
             )
             provisioner.write_text(source, encoding="utf-8")
@@ -194,8 +206,10 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
         fixture = DriftFixture()
         try:
             server = fixture.root / "plugins/jackel/mcp/server.py"
-            source = server.read_text(encoding="utf-8").replace(
-                "EXPECTED_TOOL_COUNT = 41", "EXPECTED_TOOL_COUNT = 40", 1
+            source = self.replace_once(
+                server.read_text(encoding="utf-8"),
+                "EXPECTED_TOOL_COUNT = 41",
+                "EXPECTED_TOOL_COUNT = 40",
             )
             server.write_text(source, encoding="utf-8")
             with self.assertRaisesRegex(DRIFT.DriftError, "codex-tool-count"):
@@ -207,8 +221,10 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
         fixture = DriftFixture()
         try:
             readme = fixture.root / "README.md"
-            text = readme.read_text(encoding="utf-8").replace(
-                DRIFT.CURRENT_SURFACE_BEGIN, "<!-- removed-current-surface -->", 1
+            text = self.replace_once(
+                readme.read_text(encoding="utf-8"),
+                DRIFT.CURRENT_SURFACE_BEGIN,
+                "<!-- removed-current-surface -->",
             )
             readme.write_text(text, encoding="utf-8")
             with self.assertRaisesRegex(DRIFT.DriftError, "current-surface-marker"):
@@ -220,9 +236,9 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
         fixture = DriftFixture()
         try:
             identity = fixture.root / "plugins/jackel/PLUGIN_IDENTITY.sha256"
+            source = identity.read_text(encoding="utf-8")
             identity.write_text(
-                identity.read_text(encoding="utf-8").replace("a", "b", 1),
-                encoding="utf-8",
+                self.replace_once(source, "a", "b"), encoding="utf-8"
             )
             with self.assertRaisesRegex(DRIFT.DriftError, "plugin-identity-drift"):
                 DRIFT.check_codex_plugin_identity(fixture.root)

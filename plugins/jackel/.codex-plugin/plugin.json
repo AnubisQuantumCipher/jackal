@@ -1,6 +1,6 @@
 {
   "name": "jackel",
-  "version": "0.1.0+codex.20260824111802",
+  "version": "0.1.0+codex.20260824183637",
   "description": "Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.",
   "author": {
     "name": "Anubis Quantum Cipher",

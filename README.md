@@ -22,7 +22,7 @@ same exact release bytes.
 
 ## Spacecraft finite-burn certificate
 
-The v1.7.4 release candidate adds a repository/release formal certificate for
+The v1.7.4 release adds a repository/release formal certificate for
 the spacecraft finite-burn case. Its public verdict is **CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions**. The Python producer is candidate-only; the
 pinned Lean checker and outer verifier bind the 35.9 MB witness, theorem, proof
 identity, request, model, epoch, nonce, and receipt. See

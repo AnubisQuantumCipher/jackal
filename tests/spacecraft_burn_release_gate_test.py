@@ -58,7 +58,19 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_text("publication surface\n")
             wrapped = gate.QUALIFIED_VERDICT.replace(" model,", "\nmodel,")
+            self.assertNotEqual(wrapped, gate.QUALIFIED_VERDICT)
             (root / gate.TARGETS[0]).write_text(wrapped + "\n")
+            self.assertEqual(gate.scan(root)["status"], "PASS")
+
+    def test_exact_qualifier_may_end_inside_markdown_emphasis(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("**" + gate.QUALIFIED_VERDICT + "**\n")
             self.assertEqual(gate.scan(root)["status"], "PASS")
 
     def test_qualified_verdict_rejects_appended_assurance_clause(self):

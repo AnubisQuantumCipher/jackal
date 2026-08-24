@@ -14,7 +14,7 @@ def noncanonicalIntegerBytes : String := minimalBytes.replace "config 80" "confi
 def trailingBytes : String := minimalBytes ++ "x\n"
 def crlfBytes : String := minimalBytes.replace "\n" "\r\n"
 def controlBytes : String := minimalBytes.replace "tube" ("tu" ++ (Char.ofNat 12).toString ++ "be")
-def oversizedRecordBytes : String := minimalBytes.replace "tube" ("tube" ++ String.ofList (List.replicate 4097 '0'))
+def oversizedRecordBytes : String := minimalBytes.replace "tube " ("tube " ++ String.ofList (List.replicate 4097 '0'))
 
 def parsesB (s : String) : Bool := (parseBurnWitness s).isOk
 

@@ -24,7 +24,7 @@ def fixtureCutoffTube : Box := ![
 
 #guard checkCutoffCoverage coverageSkeleton = .error "cutoff-coverage"
 #guard expectedInitialBox 80 0 = fixtureInitial
-#guard (expectedThrust 80 0).lo = fixtureThrust.lo
+#guard expectedThrust 80 0 = fixtureThrust
 #guard match orbitPostprocess 80 fixtureCutoffTube with
   | .ok _ => true
   | .error _ => false

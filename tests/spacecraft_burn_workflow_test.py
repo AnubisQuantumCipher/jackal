@@ -29,6 +29,7 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
         for action in actions:
             self.assertRegex(action, r"@[0-9a-f]{40}$")
         self.assertIn("if: always()", source)
+        self.assertIn("spacecraft-burn-evidence-${{ matrix.os }}-${{ github.sha }}", source)
 
     def test_primary_formal_workflow_builds_and_audits_spacecraft_lane(self):
         source = GAUSSIAN.read_text(encoding="utf-8")

@@ -175,7 +175,7 @@ class IndependentVerifierTests(unittest.TestCase):
                     }
                     receipt = temp / f"{field}.json"
                     receipt.write_text(json.dumps(candidate, sort_keys=True), encoding="utf-8")
-                    reasons = verifier.verify_formal_binding(
+                    reasons, _digests = verifier.verify_formal_binding(
                         candidate,
                         receipt,
                         witness_path=witness,
@@ -194,7 +194,7 @@ class IndependentVerifierTests(unittest.TestCase):
             candidate = {"verdict_qualifier": QUALIFIER, "formal_checker": base_binding}
             receipt = temp / "receipt-digest.json"
             receipt.write_text(json.dumps(candidate, sort_keys=True), encoding="utf-8")
-            reasons = verifier.verify_formal_binding(
+            reasons, _digests = verifier.verify_formal_binding(
                 candidate,
                 receipt,
                 witness_path=witness,
@@ -232,7 +232,7 @@ class IndependentVerifierTests(unittest.TestCase):
             }
             receipt = temp / "identity-theorem.json"
             receipt.write_text(json.dumps(candidate, sort_keys=True), encoding="utf-8")
-            reasons = verifier.verify_formal_binding(
+            reasons, _digests = verifier.verify_formal_binding(
                 candidate,
                 receipt,
                 witness_path=witness,

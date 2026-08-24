@@ -55,12 +55,12 @@ class CertifierContractTests(unittest.TestCase):
 
     def test_baseline_contract_integrates_mass_and_converts_thrust_to_km(self):
         c = load_certifier(self)
-        self.assertTrue(c.PROPAGATE_FULL_BOX)
-        self.assertTrue(c.INTEGRATE_MASS)
-        self.assertEqual(c.THRUST_KM_SCALE_TEXT, "0.001")
-        self.assertEqual(c.ENERGY_HALF_DENOMINATOR, 2)
-        self.assertEqual(c.APOAPSIS_ECCENTRICITY_SIGN, 1)
-        self.assertEqual(c.DECISION_MODE, "exact_lower_bound")
+        self.assertTrue(c.PROPAGATE_FULL_BOX, "full-box-coverage-mismatch")
+        self.assertTrue(c.INTEGRATE_MASS, "mass-integration-mismatch")
+        self.assertEqual(c.THRUST_KM_SCALE_TEXT, "0.001", "unit-scale-mismatch")
+        self.assertEqual(c.ENERGY_HALF_DENOMINATOR, 2, "energy-half-mismatch")
+        self.assertEqual(c.APOAPSIS_ECCENTRICITY_SIGN, 1, "apoapsis-plus-mismatch")
+        self.assertEqual(c.DECISION_MODE, "exact_lower_bound", "decision-rounding-mismatch")
 
         state = tuple(
             c.DInterval.point(Fraction(value))

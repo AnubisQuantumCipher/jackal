@@ -58,7 +58,7 @@ single-line acceptance result.
 | Artifact | SHA-256 |
 |---|---|
 | Full witness release asset | `27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c` |
-| Baseline receipt | `6b3ffd1d994729b759e0bdf6264e3ec3ddf544efe378b23f718cadbbfd940a64` |
+| Baseline receipt | `00fd8b1e951c6816761921b36b5ecadf3abd3db1b42d729778ef8f012ce70689` |
 | Lean checker executable | `23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26` |
 | Proof identity file | `3e74b9903a78e93e6829070237986d072de23d539a13494b00cabdaa2dacdb0f` |
 | Proof identity internal digest | `e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60` |
@@ -96,10 +96,10 @@ Build `jackal_spacecraft_burn_check`, reproduce
 and receipt with all caller pins, and run the outer verifier. Then run:
 
 ```sh
-/opt/homebrew/bin/python3 -B spacecraft_burn_cert/validate.py \
+python3 -B spacecraft_burn_cert/validate.py \
   --baseline spacecraft_burn_cert/evidence/baseline_receipt_v2.json
-/opt/homebrew/bin/python3 -B tools/spacecraft_burn_release_gate.py
-/opt/homebrew/bin/python3 -B spacecraft_burn_cert/release_evidence.py \
+python3 -B tools/spacecraft_burn_release_gate.py
+python3 -B spacecraft_burn_cert/release_evidence.py \
   --staging-dir /absolute/path/to/release-staging --check
 ```
 

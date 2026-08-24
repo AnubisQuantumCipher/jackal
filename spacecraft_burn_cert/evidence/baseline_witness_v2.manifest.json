@@ -14,7 +14,7 @@
     "theorem": "spacecraft_burn_certified_safe",
     "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
   },
-  "receipt_sha256": "c99d629952016b72781603df2a7b346d96e0efe560be44e1eb51acb90c118681",
+  "receipt_sha256": "00fd8b1e951c6816761921b36b5ecadf3abd3db1b42d729778ef8f012ce70689",
   "release_asset": "baseline_witness_v2.cert",
   "schema": "spacecraft-finite-burn-witness-manifest-v2",
   "sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c",

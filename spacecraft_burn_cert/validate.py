@@ -250,7 +250,8 @@ def step_refinement(receipt: dict) -> dict:
 
 
 def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
-    receipt = json.loads(baseline_path.read_text(encoding="utf-8"))
+    baseline_bytes = baseline_path.read_bytes()
+    receipt = json.loads(baseline_bytes.decode("utf-8"))
     if receipt.get("formal_checker_status") != "ACCEPT":
         raise RuntimeError("baseline is not bound to an accepted formal checker execution")
     formal_margin = receipt_interval(receipt["formal_decisive_margin"])
@@ -292,7 +293,7 @@ def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
     nominal_state, nominal_margin = nominal_rk4()
     result = {
         "schema": "spacecraft-finite-burn-instrument-validation-v2",
-        "baseline_receipt_sha256": hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
+        "baseline_receipt_sha256": hashlib.sha256(baseline_bytes).hexdigest(),
         "formal_checker_status": receipt["formal_checker_status"],
         "formal_checker_binding": receipt["formal_checker"],
         "formal_decisive_margin": receipt["formal_decisive_margin"],

@@ -499,18 +499,19 @@ def verify_identity_file(
     path: Path, expected_file_digest: str, expected_internal_digest: str,
     checker_digest: str, request_digest: str, model_id: str, epoch: str,
     reasons: list[str],
-) -> None:
+) -> str | None:
     try:
         raw = path.read_bytes()
         document = json.loads(raw)
     except (OSError, json.JSONDecodeError):
         reasons.append("proof-identity-invalid")
-        return
-    if hashlib.sha256(raw).hexdigest() != expected_file_digest:
+        return None
+    file_digest = hashlib.sha256(raw).hexdigest()
+    if file_digest != expected_file_digest:
         reasons.append("proof-identity-file-hash-mismatch")
     if not isinstance(document, dict):
         reasons.append("proof-identity-invalid")
-        return
+        return file_digest
     recorded_internal = document.get("identity_digest_sha256")
     body = {key: value for key, value in document.items() if key != "identity_digest_sha256"}
     actual_internal = hashlib.sha256(canonical_json_bytes(body)).hexdigest()
@@ -530,6 +531,7 @@ def verify_identity_file(
         fragment.get(key) != value for key, value in expected_fragment.items()
     ):
         reasons.append("proof-identity-fragment-mismatch")
+    return file_digest
 
 
 def verify_formal_binding(
@@ -546,14 +548,14 @@ def verify_formal_binding(
     expected_model_id: str | None,
     expected_epoch: str | None,
     nonce: str | None,
-) -> list[str]:
+) -> tuple[list[str], dict[str, str]]:
     pins = (
         witness_path, checker_path, proof_identity_path, expected_receipt_sha256,
         expected_proof_file_sha256, expected_proof_identity_sha256,
         expected_request_digest, expected_model_id, expected_epoch, nonce,
     )
     if any(value is None for value in pins):
-        return ["caller-pins-required"]
+        return ["caller-pins-required"], {}
     assert witness_path is not None and checker_path is not None
     assert proof_identity_path is not None and expected_receipt_sha256 is not None
     assert expected_proof_file_sha256 is not None
@@ -570,12 +572,13 @@ def verify_formal_binding(
         if not path.is_file() or path.is_symlink():
             reasons.append(reason)
     if reasons:
-        return reasons
-    if sha256_file(receipt_path) != expected_receipt_sha256:
+        return reasons, {}
+    receipt_digest = sha256_file(receipt_path)
+    if receipt_digest != expected_receipt_sha256:
         reasons.append("receipt-hash-mismatch")
     witness_digest = sha256_file(witness_path)
     checker_digest = sha256_file(checker_path)
-    verify_identity_file(
+    proof_file_digest = verify_identity_file(
         proof_identity_path, expected_proof_file_sha256,
         expected_proof_identity_sha256, checker_digest, expected_request_digest,
         expected_model_id, expected_epoch, reasons,
@@ -584,7 +587,7 @@ def verify_formal_binding(
     binding = candidate.get("formal_checker")
     if not isinstance(binding, dict):
         reasons.append("formal-checker-binding-invalid")
-        return sorted(set(reasons))
+        return sorted(set(reasons)), {}
     expected_fields = {
         "checker_sha256": checker_digest,
         "proof_identity_file_sha256": expected_proof_file_sha256,
@@ -616,7 +619,7 @@ def verify_formal_binding(
     if not isinstance(result_line, str) or "\n" in result_line or "\r" in result_line:
         reasons.append("checker-result-line-invalid")
     if reasons:
-        return sorted(set(reasons))
+        return sorted(set(reasons)), {}
 
     environment = {
         "LANG": "C",
@@ -636,14 +639,20 @@ def verify_formal_binding(
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return ["checker-execution-failed"]
+        return ["checker-execution-failed"], {}
     if completed.returncode != 0:
         reasons.append("checker-refused")
     if completed.stderr:
         reasons.append("checker-stderr")
     if completed.stdout != result_line + "\n":
         reasons.append("checker-result-mismatch")
-    return sorted(set(reasons))
+    digests = {
+        "receipt_sha256": receipt_digest,
+        "witness_sha256": witness_digest,
+        "checker_sha256": checker_digest,
+        "proof_identity_file_sha256": proof_file_digest or "",
+    }
+    return sorted(set(reasons)), digests
 
 
 def verify_receipt(
@@ -696,7 +705,7 @@ def verify_receipt(
         if not isinstance(candidate.get(field), dict):
             return {"status": "REFUSED", "reasons": [reason]}
 
-    formal_reasons = verify_formal_binding(
+    formal_reasons, formal_digests = verify_formal_binding(
         candidate,
         receipt_path,
         witness_path=None if witness_path is None else Path(witness_path).resolve(),
@@ -801,10 +810,7 @@ def verify_receipt(
         "status": "ACCEPT" if not reasons else "REFUSED",
         "reasons": sorted(set(reasons)),
         "binding": {
-            "receipt_sha256": sha256_file(receipt_path),
-            "witness_sha256": sha256_file(Path(witness_path).resolve()),
-            "checker_sha256": sha256_file(Path(checker_path).resolve()),
-            "proof_identity_file_sha256": sha256_file(Path(proof_identity_path).resolve()),
+            **formal_digests,
             "proof_identity_digest_sha256": expected_proof_identity_sha256,
             "request_digest": expected_request_digest,
             "model_id": expected_model_id,

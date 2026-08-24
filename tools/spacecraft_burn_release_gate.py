@@ -16,7 +16,7 @@ QUALIFIED_VERDICT = (
 )
 QUALIFIED_PATTERN = re.compile(
     r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split()))
-    + r"(?=(?:[.!?](?:[*_`]+)?|(?:[*_`]+)[.!?])(?:\s|$)|\s*$)",
+    + r"(?=(?:[.!?](?:[*_`]+)?|(?:[*_`]+)[.!?])(?:\s|$)|(?:[*_`]+)?\s*$)",
     re.IGNORECASE,
 )
 TARGETS = (

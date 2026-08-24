@@ -81,6 +81,8 @@ class MutationHarnessTests(unittest.TestCase):
         refused = {"status": "REFUSED", "reasons": ["witness-hash-mismatch"]}
         self.assertTrue(harness.witness_mutation_caught(1, refused))
         self.assertFalse(harness.witness_mutation_caught(124, refused))
+        self.assertTrue(harness.mutant_failure_caught(1, "unit-scale-mismatch", "unit-scale-mismatch"))
+        self.assertFalse(harness.mutant_failure_caught(1, "generic failure", "unit-scale-mismatch"))
 
     def test_json_parser_uses_complete_output_not_reporting_excerpt(self):
         harness = load_harness(self)

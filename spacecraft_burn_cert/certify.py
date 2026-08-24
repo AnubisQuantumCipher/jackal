@@ -476,6 +476,9 @@ def bind_formal_checker(
         witness_path, checker_path, proof_identity_path
     )):
         raise CertificationError("formal binding inputs must be regular non-symlink files")
+    witness_path = witness_path.resolve()
+    checker_path = checker_path.resolve()
+    proof_identity_path = proof_identity_path.resolve()
     try:
         identity = json.loads(proof_identity_path.read_text(encoding="utf-8"))
         identity_digest = identity["identity_digest_sha256"]
@@ -833,14 +836,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         or args.output is None
     ):
         parser.error("formal publication requires output, witness, and every formal binding argument")
+    if args.checker is not None and any(path.is_symlink() for path in (
+        args.witness, args.checker, args.proof_identity
+    )):
+        parser.error("formal publication inputs must not be symlinks")
     receipt, witness = certify()
     encoded_witness = witness_codec.encode_witness(witness)
     if args.witness:
         write_bytes_atomic(args.witness, encoded_witness)
     if args.checker is not None:
         bind_formal_checker(
-            receipt, args.witness.resolve(), args.checker.resolve(),
-            args.proof_identity.resolve(), args.request_digest, args.model_id,
+            receipt, args.witness, args.checker,
+            args.proof_identity, args.request_digest, args.model_id,
             args.epoch, args.nonce,
         )
     if args.output:

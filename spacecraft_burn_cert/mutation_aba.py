@@ -160,6 +160,10 @@ def completed_mutant_failure(returncode: int) -> bool:
     return returncode not in (0, 124)
 
 
+def mutant_failure_caught(returncode: int, output: str, expected_reason: str) -> bool:
+    return completed_mutant_failure(returncode) and expected_reason in output
+
+
 def normalized_mutant_test_output(output: str, isolated_source: Path) -> str:
     """Remove nondeterministic diagnostics before binding mutant-test output."""
     normalized = output.replace(str(isolated_source), "<MUTANT_CERTIFIER>")
@@ -227,7 +231,10 @@ def exercise_mutation(name: str) -> dict:
             timeout=45,
             extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
-        caught = completed_mutant_failure(test_record["returncode"])
+        reason_observed = mutation["expected_reason"] in test_record["output"]
+        caught = mutant_failure_caught(
+            test_record["returncode"], test_record["output"], mutation["expected_reason"]
+        )
         atomic_bytes(isolated, original, original_mode)
         restored_test = run(
             (
@@ -251,6 +258,7 @@ def exercise_mutation(name: str) -> dict:
         "restored_contract_test_passed": restored_test["returncode"] == 0,
         "mutant_tests_failed": completed_mutant_failure(test_record["returncode"]),
         "mutant_tests_timed_out": test_record["returncode"] == 124,
+        "reason_observed": reason_observed,
         "mutant_test_output_sha256": sha256(
             normalized_mutant_test_output(test_record["output"], isolated).encode("utf-8")
         ),

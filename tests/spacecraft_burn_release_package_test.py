@@ -31,7 +31,10 @@ class SpacecraftReleasePackageTests(unittest.TestCase):
             members = archive.getmembers()
             self.assertEqual([member.name for member in members], ["a/checker", "z/file"])
             self.assertTrue(all(member.mtime == 0 and member.uid == 0 and member.gid == 0 for member in members))
-            self.assertEqual(members[0].mode, 0o755)
+            self.assertEqual(
+                {member.name: member.mode for member in members},
+                {"a/checker": 0o755, "z/file": 0o644},
+            )
 
     def test_verification_instructions_preserve_model_qualifier(self):
         package = load_packager()

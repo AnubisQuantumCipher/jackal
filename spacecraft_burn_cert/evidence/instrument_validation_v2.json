@@ -42,7 +42,7 @@
     "deterministic_checks": 144,
     "status": "PASS"
   },
-  "baseline_receipt_sha256": "c99d629952016b72781603df2a7b346d96e0efe560be44e1eb51acb90c118681",
+  "baseline_receipt_sha256": "00fd8b1e951c6816761921b36b5ecadf3abd3db1b42d729778ef8f012ce70689",
   "corner_diagnostics": {
     "certified_lower_margin_km": "42.55875651181649",
     "classification": "deterministic corner samples; diagnostic only, not proof",

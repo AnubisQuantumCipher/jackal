@@ -91,18 +91,42 @@ previous request to rewrite quarantined historical bytes; they remain
 `residual-non-claim` because changing them would invalidate the preserved v1
 artifact identity.
 
-## Pass 5 status
+## Pass 5
 
-The final clean-worktree retry is pending on the post-Pass-4 fix commit.
+Reviewed detached commit: `bf202c74c8d10e7ee0667b83affddd6c716a6d68`
+
+CodeRabbit raised 14 issues. Twelve were confirmed and resolved in the next
+candidate:
+
+- gave each hosted OS matrix job a unique evidence-artifact name;
+- accepted terminal Markdown emphasis without accepting appended assurance;
+- asserted every deterministic archive member mode;
+- repaired the oversized-record fixture so it reaches the intended size gate;
+- compared both thrust-interval endpoints in the orbital fixture;
+- reused one baseline read for validation parsing and hashing;
+- rejected certifier input symlinks before resolution;
+- required the named expected reason for every source mutation;
+- reused formal-binding digests in verifier output;
+- made report reproduction commands portable;
+- updated the report to the regenerated receipt digest; and
+- made the wrapped-qualifier test non-vacuous.
+
+The request-digest warning repeated the exact already-present value and is
+invalid. The legacy-v1 mutation request again targets deliberately immutable,
+quarantined historical bytes and remains `residual-non-claim`.
+
+## Pass 6 status
+
+The final clean-worktree retry is pending on the post-Pass-5 fix commit.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 28 | fixed with tests; final push pending |
-| invalid | 3 | request digest independently matched |
+| resolved | 40 | fixed with tests; final push pending |
+| invalid | 4 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
 | unresolved release-blocking | 0 known | final independent retry pending |
 
 No publication or merge may use this record as a final clearance until the
-Pass 5 section records a completed review result.
+Pass 6 section records a completed review result.

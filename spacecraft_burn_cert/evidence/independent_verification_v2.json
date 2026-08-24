@@ -6,7 +6,7 @@
     "nonce": "spacecraft-burn-v2-publication-20260824",
     "proof_identity_digest_sha256": "e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60",
     "proof_identity_file_sha256": "3e74b9903a78e93e6829070237986d072de23d539a13494b00cabdaa2dacdb0f",
-    "receipt_sha256": "c99d629952016b72781603df2a7b346d96e0efe560be44e1eb51acb90c118681",
+    "receipt_sha256": "00fd8b1e951c6816761921b36b5ecadf3abd3db1b42d729778ef8f012ce70689",
     "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
     "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
   },

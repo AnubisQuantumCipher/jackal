@@ -134,6 +134,15 @@ class MutationHarnessTests(unittest.TestCase):
             self.assertEqual(result["a_before_sha256"], result["a_after_sha256"])
             self.assertTrue(result["restored"])
 
+    def test_atomic_evidence_write_cleans_temporary_on_replace_failure(self):
+        harness = load_harness(self)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "evidence.json"
+            with mock.patch.object(harness.os, "replace", side_effect=OSError("blocked")):
+                with self.assertRaisesRegex(OSError, "blocked"):
+                    harness.write_atomic(output, {"status": "PASS"})
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
 
 if __name__ == "__main__":
     unittest.main()

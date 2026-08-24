@@ -58,7 +58,7 @@ single-line acceptance result.
 | Artifact | SHA-256 |
 |---|---|
 | Full witness release asset | `27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c` |
-| Baseline receipt | `a79b4c1e512a120d39baad4c8ab594f4ea60b3cbfd95e4d3b5d078da2ad16652` |
+| Baseline receipt | `77ce2f1fd9864d75992b1c6c36764e74a01bede384c4158dce53ea775e372df0` |
 | Lean checker executable | `e2ab71210eb60db12b616962410a1de22582698d1a575e1888565bc7d34fc4a3` |
 | Proof identity file | `ce8d7bc20f084a6ee52abc6375d667c072da42a1cd5f96ede8cce3e373e258c7` |
 | Proof identity internal digest | `bab091fbd1c9db40cb087f7032b0d30f67f2d1e31a003cf790a6adb972d21f47` |

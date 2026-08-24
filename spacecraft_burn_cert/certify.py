@@ -457,10 +457,6 @@ def producer_status() -> dict[str, str]:
     }
 
 
-def sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
 def bind_formal_checker(
     receipt: dict,
     witness_path: Path,
@@ -480,10 +476,16 @@ def bind_formal_checker(
     checker_path = checker_path.resolve()
     proof_identity_path = proof_identity_path.resolve()
     try:
-        identity = json.loads(proof_identity_path.read_text(encoding="utf-8"))
+        proof_identity_bytes = proof_identity_path.read_bytes()
+        checker_bytes = checker_path.read_bytes()
+        witness_bytes = witness_path.read_bytes()
+        identity = json.loads(proof_identity_bytes)
         identity_digest = identity["identity_digest_sha256"]
-    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
         raise CertificationError("invalid proof identity") from error
+    checker_digest = hashlib.sha256(checker_bytes).hexdigest()
+    witness_digest = hashlib.sha256(witness_bytes).hexdigest()
+    proof_identity_file_digest = hashlib.sha256(proof_identity_bytes).hexdigest()
     completed = subprocess.run(
         [str(checker_path), str(witness_path), request_digest, model_id, epoch],
         cwd=checker_path.parent,
@@ -497,6 +499,11 @@ def bind_formal_checker(
     )
     if completed.returncode != 0 or completed.stderr:
         raise CertificationError("formal checker refused or emitted stderr")
+    try:
+        if checker_path.read_bytes() != checker_bytes or witness_path.read_bytes() != witness_bytes:
+            raise CertificationError("formal binding input changed during checker execution")
+    except OSError as error:
+        raise CertificationError("formal binding input became unreadable") from error
     result_line = completed.stdout.removesuffix("\n")
     if "\n" in result_line or "\r" in result_line:
         raise CertificationError("formal checker output is not one canonical line")
@@ -508,10 +515,10 @@ def bind_formal_checker(
         raise CertificationError("formal checker returned a non-positive or invalid margin")
     receipt["formal_checker_status"] = "ACCEPT"
     receipt["formal_checker"] = {
-        "checker_sha256": sha256_file(checker_path),
-        "proof_identity_file_sha256": sha256_file(proof_identity_path),
+        "checker_sha256": checker_digest,
+        "proof_identity_file_sha256": proof_identity_file_digest,
         "proof_identity_digest_sha256": identity_digest,
-        "witness_sha256": sha256_file(witness_path),
+        "witness_sha256": witness_digest,
         "request_digest": request_digest,
         "model_id": model_id,
         "epoch": epoch,

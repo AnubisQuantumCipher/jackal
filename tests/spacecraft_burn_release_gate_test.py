@@ -111,6 +111,23 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             self.assertEqual(result["status"], "FAIL")
             self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
 
+    def test_links_and_html_cannot_hide_unqualified_assurance(self):
+        gate = load_gate()
+        for claim in (
+            "[CERTIFIED](https://example.invalid) SAFE for flight.\n",
+            "<strong>CERTIFIED</strong> <em>SAFE</em> for flight.\n",
+        ):
+            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative in gate.TARGETS:
+                    destination = root / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_text("publication surface\n")
+                (root / gate.TARGETS[0]).write_text(claim)
+                result = gate.scan(root)
+                self.assertEqual(result["status"], "FAIL")
+                self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
 
 if __name__ == "__main__":
     unittest.main()

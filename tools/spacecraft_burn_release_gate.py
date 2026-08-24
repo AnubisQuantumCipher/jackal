@@ -32,6 +32,12 @@ FORBIDDEN = {
 }
 
 
+def rendered_assurance_text(text: str) -> str:
+    rendered = re.sub(r"\[([^\]\n]+)\]\([^\n)]*\)", r"\1", text)
+    rendered = re.sub(r"</?[A-Za-z][^>\n]*>", "", rendered)
+    return re.sub(r"[*_`]", "", rendered)
+
+
 def scan(root: Path) -> dict:
     findings = []
     for relative in TARGETS:
@@ -40,7 +46,7 @@ def scan(root: Path) -> dict:
             findings.append({"file": str(relative), "reason": "missing-publication-surface"})
             continue
         text = path.read_text(encoding="utf-8")
-        normalized = re.sub(r"[*_`]", "", text)
+        normalized = rendered_assurance_text(text)
         for reason, pattern in FORBIDDEN.items():
             for match in pattern.finditer(normalized):
                 findings.append({

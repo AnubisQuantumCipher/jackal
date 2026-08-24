@@ -37,6 +37,9 @@ private def max4 (a b c d : Int) : Int := max (max a b) (max c d)
 def floorDiv (n d : Int) : Int := ⌊(n : ℚ) / (d : ℚ)⌋
 def ceilDiv (n d : Int) : Int := ⌈(n : ℚ) / (d : ℚ)⌉
 
+def pointRat (bits : Nat) (q : ℚ) : DInterval :=
+  ⟨⌊q * (scale bits : ℚ)⌋, ⌈q * (scale bits : ℚ)⌉⟩
+
 def mul (bits : Nat) (a b : DInterval) : DInterval :=
   let p0 := a.lo * b.lo
   let p1 := a.lo * b.hi
@@ -72,9 +75,12 @@ def ceilSqrtInt (n : Int) : Int :=
   let root := Int.sqrt n
   if root * root < n then root + 1 else root
 
+def sqrtUnchecked (bits : Nat) (a : DInterval) : DInterval :=
+  ⟨Int.sqrt (a.lo * scale bits), ceilSqrtInt (a.hi * scale bits)⟩
+
 def sqrt (bits : Nat) (a : DInterval) : Except String DInterval :=
   if a.lo < 0 then .error "sqrt-negative-interval"
-  else .ok ⟨Int.sqrt (a.lo * scale bits), ceilSqrtInt (a.hi * scale bits)⟩
+  else .ok (sqrtUnchecked bits a)
 
 def hull (a b : DInterval) : DInterval := ⟨min a.lo b.lo, max a.hi b.hi⟩
 
@@ -123,6 +129,22 @@ private theorem le_ceil_scaled (bits : Nat) (n : Int) :
   have hr : (n : ℝ) / (scale bits : ℝ) ≤
       ((ceilDiv n (scale bits) : Int) : ℝ) := by exact_mod_cast hq
   exact div_le_div_of_nonneg_right hr (scale_real_pos bits).le
+
+theorem pointRat_sound (bits : Nat) (q : ℚ) :
+    Mem bits ((q : ℚ) : ℝ) (pointRat bits q) := by
+  constructor
+  · have hq : ((⌊q * (scale bits : ℚ)⌋ : Int) : ℚ) ≤
+        q * (scale bits : ℚ) := Int.floor_le _
+    have hr : ((⌊q * (scale bits : ℚ)⌋ : Int) : ℝ) ≤
+        ((q : ℚ) : ℝ) * (scale bits : ℝ) := by exact_mod_cast hq
+    simpa [Mem, lower, pointRat, (scale_real_pos bits).ne'] using
+      (div_le_iff₀ (scale_real_pos bits)).2 hr
+  · have hq : q * (scale bits : ℚ) ≤
+        ((⌈q * (scale bits : ℚ)⌉ : Int) : ℚ) := Int.le_ceil _
+    have hr : ((q : ℚ) : ℝ) * (scale bits : ℝ) ≤
+        ((⌈q * (scale bits : ℚ)⌉ : Int) : ℝ) := by exact_mod_cast hq
+    simpa [Mem, upper, pointRat, (scale_real_pos bits).ne'] using
+      (le_div_iff₀ (scale_real_pos bits)).2 hr
 
 private theorem floor_ratio_scaled_le (bits : Nat) (a b : Int) (hb : b ≠ 0) :
     ((floorDiv (a * scale bits) b : Int) : ℝ) / (scale bits : ℝ) ≤
@@ -431,6 +453,10 @@ theorem sqrt_sound {bits : Nat} {a : DInterval} {x : ℝ}
             ((scale bits : ℝ) ^ 2) := div_le_div_of_nonneg_right hir (sq_nonneg _)
         _ = (((ceilSqrtInt (a.hi * scale bits) : Int) : ℝ) /
             (scale bits : ℝ)) ^ 2 := by rw [div_pow]
+
+theorem lower_pos_of_lo_pos {bits : Nat} {a : DInterval} (h : 0 < a.lo) :
+    0 < lower bits a :=
+  div_pos (by exact_mod_cast h) (scale_real_pos bits)
 theorem hull_sound_left {bits : Nat} {a b : DInterval} {x : ℝ}
     (hx : Mem bits x a) : Mem bits x (hull a b) := by
   constructor

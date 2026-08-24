@@ -1892,6 +1892,8 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
                 "package_sha256":
                     "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e",
                 "package_directory": "jackal-v1.7.0-macos-arm64",
+                "sha256sums_sha256":
+                    "f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28",
             },
             default_locator_path=lambda: self.root / "locator.json",
             validate_host=mock.Mock(return_value=None),
@@ -2177,6 +2179,7 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
                 "epoch": "v1.7.0", "asset": "fixture.tar.gz",
                 "package_size": 123, "package_sha256": "c" * 64,
                 "package_directory": "fixture",
+                "sha256sums_sha256": hashlib.sha256(checksums).hexdigest(),
             },
             SELFTEST_TIMEOUT=2.0, SELFTEST_OUTPUT_LIMIT=65536,
             validate_host=mock.Mock(return_value=None),

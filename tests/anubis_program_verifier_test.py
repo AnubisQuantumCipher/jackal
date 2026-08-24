@@ -538,6 +538,10 @@ class AnubisProgramVerifierTest(unittest.TestCase):
                 verifier = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(verifier)
                 verifier.APPROVED_CHECK_COMPILER_SHA256 = {compiler_sha!r}
+                # Host-agnostic: check_program resolves the anchor via the host
+                # helper, so patch it directly (the macOS constant above is not
+                # consulted on a Linux/aarch64 host).
+                verifier._approved_check_compiler_sha256_for_host = lambda: {compiler_sha!r}
                 arguments = argparse.Namespace(
                     source={str(source)!r},
                     anubis_bin={str(compiler)!r},

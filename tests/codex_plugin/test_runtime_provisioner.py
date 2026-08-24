@@ -139,10 +139,15 @@ class RuntimeProvisionerTests(unittest.TestCase):
         )
         return files
 
-    def test_validate_host_accepts_only_darwin_arm64(self):
-        provisioner.validate_host("Darwin", "arm64")
-        for system, machine in (("Linux", "arm64"), ("Darwin", "x86_64"), ("Linux", "x86_64")):
-            with self.subTest(system=system, machine=machine), self.assertRaises(provisioner.ProvisionError):
+    def test_validate_host_accepts_supported_hosts_and_refuses_others(self):
+        # Darwin/arm64 and the Linux/aarch64 Omarchy port are supported; Linux/x86_64
+        # is a declared host gate (its release pin is None, so provisioning still
+        # refuses without a published asset). Genuinely foreign hosts must refuse.
+        for system, machine in (("Darwin", "arm64"), ("Linux", "aarch64"), ("Linux", "x86_64")):
+            with self.subTest(accept=(system, machine)):
+                provisioner.validate_host(system, machine)
+        for system, machine in (("Linux", "arm64"), ("Darwin", "x86_64"), ("Darwin", "aarch64"), ("Windows", "AMD64")):
+            with self.subTest(refuse=(system, machine)), self.assertRaises(provisioner.ProvisionError):
                 provisioner.validate_host(system, machine)
 
     def test_runtime_subprocess_environment_is_minimal_and_preserves_only_jackal_home(self):
@@ -1598,13 +1603,15 @@ class RuntimeProvisionerTests(unittest.TestCase):
 class HostPortabilityTests(unittest.TestCase):
     """The host guard admits exactly the hosts whose primitives are implemented."""
 
-    def test_resolve_host_admits_both_supported_hosts(self):
+    def test_resolve_host_admits_supported_hosts(self):
         self.assertEqual(provisioner.resolve_host("Darwin", "arm64"), "macos-arm64")
         self.assertEqual(provisioner.resolve_host("Linux", "aarch64"), "linux-aarch64")
+        self.assertEqual(provisioner.resolve_host("Linux", "x86_64"), "linux-x86_64")
 
     def test_resolve_host_refuses_near_misses_without_guessing(self):
+        # Linux/x86_64 is a recognized host tag (declared gate); the near-misses
+        # below are foreign hosts resolve_host must refuse rather than guess.
         for system, machine in (
-            ("Linux", "x86_64"),
             ("Darwin", "x86_64"),
             ("Linux", "arm64"),
             ("Darwin", "aarch64"),

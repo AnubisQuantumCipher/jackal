@@ -118,9 +118,51 @@ class CertifierContractTests(unittest.TestCase):
     def test_decision_is_strict_and_never_uses_display_rounding(self):
         c = load_certifier(self)
         tiny = Fraction(1, 1 << 50)
-        self.assertEqual(c.decide(c.DInterval.point(tiny)), "PROVED SAFE")
-        self.assertEqual(c.decide(c.DInterval.from_fractions(-tiny, tiny)), "INDETERMINATE")
+        self.assertEqual(
+            c.classify_margin(c.DInterval.point(tiny)),
+            {
+                "verdict": "CERTIFIED SAFE",
+                "qualifier": (
+                    "under the stated finite-burn ODE model, supplied input bounds, "
+                    "and machine-checked interval-certificate assumptions"
+                ),
+            },
+        )
+        self.assertEqual(
+            c.classify_margin(c.DInterval.point(-tiny))["verdict"],
+            "INDETERMINATE",
+        )
+        self.assertEqual(
+            c.classify_margin(c.DInterval.from_fractions(-tiny, tiny))["verdict"],
+            "INDETERMINATE",
+        )
         self.assertEqual(c.reported_lower_bound(c.DInterval.point(tiny)), tiny)
+
+    def test_producer_status_cannot_mint_formal_assurance(self):
+        c = load_certifier(self)
+        self.assertEqual(
+            c.producer_status(),
+            {
+                "producer_assurance": "candidate-only",
+                "formal_checker_status": "NOT_EXECUTED",
+            },
+        )
+
+    def test_summary_keeps_model_qualifier_adjacent_to_positive_verdict(self):
+        c = load_certifier(self)
+        receipt = {
+            "verdict": c.VERDICT_CERTIFIED_SAFE,
+            "verdict_qualifier": c.MODEL_QUALIFIER,
+            "decisive_margin": {"reported_lower_decimal": "1.0000"},
+        }
+        self.assertEqual(
+            c.format_summary(receipt, Path("candidate.json")),
+            (
+                "CERTIFIED SAFE under the stated finite-burn ODE model, supplied "
+                "input bounds, and machine-checked interval-certificate assumptions "
+                "margin_lo=1.0000 receipt=candidate.json"
+            ),
+        )
 
 
 if __name__ == "__main__":

@@ -42,6 +42,14 @@ ENERGY_HALF_DENOMINATOR = 2
 PROPAGATE_FULL_BOX = True
 DECISION_MODE = "exact_lower_bound"
 
+SCHEMA_V2 = "spacecraft-finite-burn-formal-receipt-v2"
+VERDICT_CERTIFIED_SAFE = "CERTIFIED SAFE"
+VERDICT_INDETERMINATE = "INDETERMINATE"
+MODEL_QUALIFIER = (
+    "under the stated finite-burn ODE model, supplied input bounds, "
+    "and machine-checked interval-certificate assumptions"
+)
+
 
 class CertificationError(RuntimeError):
     pass
@@ -420,13 +428,20 @@ def reported_lower_bound(margin: DInterval) -> Fraction:
     raise CertificationError("unknown decision mode")
 
 
-def decide(margin: DInterval) -> str:
+def classify_margin(margin: DInterval) -> dict[str, str]:
     lower = reported_lower_bound(margin)
     if lower > 0:
-        return "PROVED SAFE"
-    if margin.hi_fraction() <= 0:
-        return "PROVED UNSAFE"
-    return "INDETERMINATE"
+        verdict = VERDICT_CERTIFIED_SAFE
+    else:
+        verdict = VERDICT_INDETERMINATE
+    return {"verdict": verdict, "qualifier": MODEL_QUALIFIER}
+
+
+def producer_status() -> dict[str, str]:
+    return {
+        "producer_assurance": "candidate-only",
+        "formal_checker_status": "NOT_EXECUTED",
+    }
 
 
 def partition(lo: Fraction, hi: Fraction, count: int) -> tuple[DInterval, ...]:
@@ -545,10 +560,10 @@ def certify() -> dict:
 
     if cutoff_hull is None or minimum_margin is None or minimum_formula_margin is None:
         raise CertificationError("no cutoff states were processed")
-    verdict = decide(minimum_margin)
+    classification = classify_margin(minimum_margin)
     reported = reported_lower_bound(minimum_margin)
     return {
-        "schema": "spacecraft-finite-burn-interval-receipt-v1",
+        "schema": SCHEMA_V2,
         "source_sha256": _source_sha256(),
         "method": {
             "arithmetic": "exact-integer outward-rounded dyadic intervals",
@@ -609,7 +624,9 @@ def certify() -> dict:
             "reported_lower_decimal": decimal_text(reported),
             "minimum_location": minimum_location,
         },
-        "verdict": verdict,
+        "verdict": classification["verdict"],
+        "verdict_qualifier": classification["qualifier"],
+        **producer_status(),
         "evidence_classification": {
             "inputs_and_unit_constants": "exact",
             "interval_arithmetic": "exact integer implementation with outward rounding",
@@ -639,6 +656,14 @@ def write_json_atomic(path: Path, payload: dict) -> None:
     os.replace(temporary, path)
 
 
+def format_summary(receipt: dict, path: Path) -> str:
+    return (
+        f"{receipt['verdict']} {receipt['verdict_qualifier']} "
+        f"margin_lo={receipt['decisive_margin']['reported_lower_decimal']} "
+        f"receipt={path}"
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
@@ -646,10 +671,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     receipt = certify()
     if args.output:
         write_json_atomic(args.output, receipt)
-        print(
-            f"{receipt['verdict']} margin_lo={receipt['decisive_margin']['reported_lower_decimal']} "
-            f"receipt={args.output.resolve()}"
-        )
+        print(format_summary(receipt, args.output.resolve()))
     else:
         print(json.dumps(receipt, sort_keys=True, indent=2))
     return 0

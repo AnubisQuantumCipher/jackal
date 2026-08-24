@@ -477,8 +477,15 @@ def verify_receipt(receipt_path: Path | str, source_path: Path | str) -> dict:
         candidate = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"status": "REFUSED", "reasons": ["invalid-receipt-json"]}
-    if not isinstance(candidate, dict) or candidate.get("schema") != "spacecraft-finite-burn-interval-receipt-v1":
+    if not isinstance(candidate, dict):
         return {"status": "REFUSED", "reasons": ["invalid-receipt-schema"]}
+    schema = candidate.get("schema")
+    if schema == "spacecraft-finite-burn-interval-receipt-v1":
+        return {"status": "REFUSED", "reasons": ["legacy-unproved-verdict-schema"]}
+    if schema != "spacecraft-finite-burn-formal-receipt-v2":
+        return {"status": "REFUSED", "reasons": ["invalid-receipt-schema"]}
+    if candidate.get("formal_checker_status") != "ACCEPT":
+        return {"status": "REFUSED", "reasons": ["formal-checker-not-bound"]}
 
     try:
         literals = source_literals(source_path)
@@ -560,7 +567,7 @@ def verify_receipt(receipt_path: Path | str, source_path: Path | str) -> dict:
     expected_lower = Fraction(expected["minimum_cell"][0], DEN)
     if Fraction(decisive.get("reported_lower_exact")) != expected_lower:
         reasons.append("reported-lower-bound-mismatch")
-    if candidate.get("verdict") != ("PROVED SAFE" if expected_lower > 0 else "INDETERMINATE"):
+    if candidate.get("verdict") != ("CERTIFIED SAFE" if expected_lower > 0 else "INDETERMINATE"):
         reasons.append("verdict-mismatch")
 
     return {

@@ -214,7 +214,7 @@ def step_refinement(receipt: dict) -> dict:
         "trace_sha256": receipt["method"]["trace_sha256"],
     }
     records.insert(1, baseline)
-    if any(record["verdict"] != "PROVED SAFE" for record in records):
+    if any(record["verdict"] != "CERTIFIED SAFE" for record in records):
         raise RuntimeError("step refinement did not preserve the safe decision")
     return {
         "status": "PASS",

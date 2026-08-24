@@ -36,6 +36,11 @@ def fixtureBrokenStep : StepWitness where
   step := 2
   tube := fixtureTube
 
+def fixtureWideInitial : Box := Function.update fixtureInitial 4
+  ⟨(fixtureInitial 4).lo, (fixtureInitial 4).lo + 3 * scale 80⟩
+
+def fixtureFastInitial : Box := Function.update fixtureInitial 3 (pointRat 80 100)
+
 def refused {α : Type} : Except String α → Bool
   | .error _ => true
   | .ok _ => false
@@ -53,6 +58,12 @@ def refused {α : Type} : Except String α → Bool
   [fixtureStep0] = .ok fixtureEndpoint
 #guard refused (checkBranchSteps 80 (1 / 32) 0 fixtureThrust fixtureInitial 0
   [fixtureStep0, fixtureBrokenStep])
+#guard existenceGuard 80 1 fixtureInitial fixtureThrust =
+  .error "existence-time-radius"
+#guard existenceGuard 80 (1 / 32) fixtureWideInitial fixtureThrust =
+  .error "existence-initial-radius"
+#guard existenceGuard 80 (1 / 32) fixtureFastInitial fixtureThrust =
+  .error "existence-field-norm"
 
 example {bits : Nat} {h : ℚ} {initial tube : Box}
     {thrustIv : DInterval} {endpoint : Box}
@@ -72,5 +83,7 @@ example {bits : Nat} {h : ℚ} {initial tube : Box}
 #print axioms picard_tube_encloses
 #print axioms picard_endpoint_encloses
 #print axioms checked_steps_compose
+#print axioms exists_classicalSolution_of_checkStep
+#print axioms checked_steps_nonvacuous
 
 end JackalIv.Spacecraft

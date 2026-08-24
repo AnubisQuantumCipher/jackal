@@ -4,6 +4,8 @@ import JackalIv.Spacecraft.VectorField
 
 namespace JackalIv.Spacecraft
 
+open scoped NNReal
+
 def subsetIv (inner outer : DInterval) : Bool :=
   outer.lo ≤ inner.lo ∧ inner.hi ≤ outer.hi
 
@@ -50,13 +52,185 @@ def endpointBox (bits : Nat) (h : ℚ) (initial tube : Box)
   let field ← burnFieldIv bits tube thrust
   pure (addBox initial (scaleBox bits (pointRat bits h) field))
 
+def existenceBox (bits : Nat) (initial : Box) : Box := fun i =>
+  ⟨(initial i).lo - 4 * scale bits, (initial i).lo + 4 * scale bits⟩
+
+noncomputable def existenceCenter (bits : Nat) (initial : Box) : State :=
+  fun i => lower bits (initial i)
+
+def initialRadiusAccepts (bits : Nat) (initial : Box) : Bool :=
+  ∀ i, (initial i).hi - (initial i).lo ≤ 2 * scale bits
+
+def fieldNormAccepts (bits : Nat) (field : Box) : Bool :=
+  ∀ i, -12 * scale bits ≤ (field i).lo ∧ (field i).hi ≤ 12 * scale bits
+
+/-- A conservative, independently checked Picard--Lindelöf ball.  It uses a
+sup-norm ball of radius four about the lower corner of the initial box, admits
+all initial points within radius two, and bounds the field norm by twelve. -/
+def existenceGuard (bits : Nat) (h : ℚ) (initial : Box)
+    (thrust : DInterval) : Except String Unit :=
+  match burnFieldIv bits (existenceBox bits initial) thrust with
+  | .error error => .error error
+  | .ok field =>
+      if !initialRadiusAccepts bits initial then .error "existence-initial-radius"
+      else if !fieldNormAccepts bits field then .error "existence-field-norm"
+      else if 12 * h > 2 then .error "existence-time-radius"
+      else .ok ()
+
+def checkStepCore (bits : Nat) (h : ℚ) (initial tube : Box)
+    (thrust : DInterval) : Except String Box := do
+  let mapped ← picardMap bits h initial tube thrust
+  if strictInsideBox mapped tube then
+    endpointBox bits h initial tube thrust
+  else .error "picard-strict-interior"
+
 def checkStep (bits : Nat) (h : ℚ) (initial tube : Box)
     (thrust : DInterval) : Except String Box :=
   if h ≤ 0 then .error "step-size" else do
-    let mapped ← picardMap bits h initial tube thrust
-    if strictInsideBox mapped tube then
-      endpointBox bits h initial tube thrust
-    else .error "picard-strict-interior"
+    existenceGuard bits h initial thrust
+    checkStepCore bits h initial tube thrust
+
+theorem checkStep_positive {bits : Nat} {h : ℚ} {initial tube endpoint : Box}
+    {thrustIv : DInterval}
+    (hcheck : checkStep bits h initial tube thrustIv = .ok endpoint) :
+    (0 : ℝ) < (h : ℝ) := by
+  have hq : 0 < h := by
+    by_contra hn
+    have hle : h ≤ 0 := le_of_not_gt hn
+    simp [checkStep, hle] at hcheck
+  exact_mod_cast hq
+
+theorem checkStep_guard {bits : Nat} {h : ℚ} {initial tube endpoint : Box}
+    {thrustIv : DInterval}
+    (hcheck : checkStep bits h initial tube thrustIv = .ok endpoint) :
+    existenceGuard bits h initial thrustIv = .ok () := by
+  have hh : ¬h ≤ 0 := not_le_of_gt (by
+    have := checkStep_positive hcheck
+    exact_mod_cast this)
+  simp only [checkStep, if_neg hh] at hcheck
+  generalize hg : existenceGuard bits h initial thrustIv = result at hcheck
+  cases result with
+  | error error =>
+    change (Except.error error >>= fun _ =>
+      checkStepCore bits h initial tube thrustIv) = .ok endpoint at hcheck
+    contradiction
+  | ok value =>
+    cases value
+    rfl
+
+theorem checkStep_core {bits : Nat} {h : ℚ} {initial tube endpoint : Box}
+    {thrustIv : DInterval}
+    (hcheck : checkStep bits h initial tube thrustIv = .ok endpoint) :
+    checkStepCore bits h initial tube thrustIv = .ok endpoint := by
+  have hh : ¬h ≤ 0 := not_le_of_gt (by
+    have := checkStep_positive hcheck
+    exact_mod_cast this)
+  have hg := checkStep_guard hcheck
+  simp only [checkStep, if_neg hh] at hcheck
+  rw [hg] at hcheck
+  exact hcheck
+
+theorem existenceGuard_data {bits : Nat} {h : ℚ} {initial : Box}
+    {thrustIv : DInterval}
+    (hguard : existenceGuard bits h initial thrustIv = .ok ()) :
+    ∃ field,
+      burnFieldIv bits (existenceBox bits initial) thrustIv = .ok field ∧
+      initialRadiusAccepts bits initial = true ∧
+      fieldNormAccepts bits field = true ∧ 12 * h ≤ 2 := by
+  generalize hfield : burnFieldIv bits (existenceBox bits initial) thrustIv = result
+  simp only [existenceGuard, hfield] at hguard
+  cases result with
+  | error error => contradiction
+  | ok field =>
+    by_cases hr : initialRadiusAccepts bits initial = true
+    · by_cases hf : fieldNormAccepts bits field = true
+      · have htime : ¬12 * h > 2 := by
+          intro hbad
+          simp [hr, hf, hbad] at hguard
+        exact ⟨field, rfl, hr, hf, le_of_not_gt htime⟩
+      · have hff : fieldNormAccepts bits field = false :=
+          Bool.eq_false_of_not_eq_true hf
+        simp [hr, hff] at hguard
+    · have hrf : initialRadiusAccepts bits initial = false :=
+        Bool.eq_false_of_not_eq_true hr
+      simp [hrf] at hguard
+
+theorem closedBall_existenceCenter_subset {bits : Nat} {initial : Box} :
+    Metric.closedBall (existenceCenter bits initial) 4 ⊆
+      tubeSet bits (existenceBox bits initial) := by
+  intro state hs
+  rw [Metric.mem_closedBall, dist_eq_norm] at hs
+  have hall : ∀ i, ‖(state - existenceCenter bits initial) i‖ ≤ (4 : ℝ) :=
+    (pi_norm_le_iff_of_nonneg (by norm_num)).mp hs
+  rw [mem_tubeSet_iff]
+  intro i
+  have hi := hall i
+  simp only [Pi.sub_apply, Real.norm_eq_abs, abs_le] at hi
+  change -4 ≤ state i - lower bits (initial i) ∧
+    state i - lower bits (initial i) ≤ 4 at hi
+  simpa [Mem, existenceBox, lower, upper, sub_div, add_div, add_comm,
+    (scale_real_pos bits).ne'] using hi
+
+theorem initial_mem_existenceBall {bits : Nat} {initial : Box}
+    {initialState : State}
+    (hradius : initialRadiusAccepts bits initial = true)
+    (hi : ∀ i, Mem bits (initialState i) (initial i)) :
+    initialState ∈ Metric.closedBall (existenceCenter bits initial) 2 := by
+  rw [Metric.mem_closedBall, dist_eq_norm, pi_norm_le_iff_of_nonneg (by norm_num)]
+  have hw : ∀ i, (initial i).hi - (initial i).lo ≤ 2 * scale bits :=
+    of_decide_eq_true hradius
+  intro i
+  rw [Real.norm_eq_abs, abs_le]
+  have hlo := (hi i).1
+  have hupp := (hi i).2
+  have hwidth :
+      ((initial i).hi : ℝ) / (scale bits : ℝ) -
+        ((initial i).lo : ℝ) / (scale bits : ℝ) ≤ 2 := by
+    have hw' : ((initial i).hi : ℝ) - ((initial i).lo : ℝ) ≤
+        2 * (scale bits : ℝ) := by exact_mod_cast hw i
+    calc
+      ((initial i).hi : ℝ) / (scale bits : ℝ) -
+          ((initial i).lo : ℝ) / (scale bits : ℝ) =
+          (((initial i).hi : ℝ) - ((initial i).lo : ℝ)) /
+            (scale bits : ℝ) := (sub_div _ _ _).symm
+      _ ≤ 2 := (div_le_iff₀ (scale_real_pos bits)).2 (by linarith)
+  simp only [existenceCenter, Pi.sub_apply]
+  constructor
+  · linarith
+  · exact (sub_le_sub_right hupp _).trans hwidth
+
+theorem burnField_norm_le_of_existenceGuard {bits : Nat} {initial : Box}
+    {thrustIv : DInterval} {field : Box} {thrust : ℝ} {state : State}
+    (hfield : burnFieldIv bits (existenceBox bits initial) thrustIv = .ok field)
+    (hbound : fieldNormAccepts bits field = true)
+    (ht : Mem bits thrust thrustIv)
+    (hs : state ∈ Metric.closedBall (existenceCenter bits initial) 4) :
+    ‖burnField thrust state‖ ≤ 12 := by
+  have hdout := burnFieldIv_ok_iff.mp hfield
+  have hfeq := hdout.2
+  subst field
+  have hd := hdout.1
+  have hmem := fieldEnclosed hd
+    (mem_tubeSet_iff.mp (closedBall_existenceCenter_subset hs)) ht
+  have hb : ∀ i,
+      -12 * scale bits ≤
+        (burnFieldIvCore bits (existenceBox bits initial) thrustIv i).lo ∧
+      (burnFieldIvCore bits (existenceBox bits initial) thrustIv i).hi ≤
+        12 * scale bits := of_decide_eq_true hbound
+  rw [pi_norm_le_iff_of_nonneg (by norm_num)]
+  intro i
+  rw [Real.norm_eq_abs, abs_le]
+  have hlo : (-12 : ℝ) ≤ lower bits
+      (burnFieldIvCore bits (existenceBox bits initial) thrustIv i) := by
+    apply (le_div_iff₀ (scale_real_pos bits)).2
+    have := hb i |>.1
+    exact_mod_cast this
+  have hupp : upper bits
+      (burnFieldIvCore bits (existenceBox bits initial) thrustIv i) ≤ (12 : ℝ) := by
+    apply (div_le_iff₀ (scale_real_pos bits)).2
+    have := hb i |>.2
+    exact_mod_cast this
+  exact ⟨hlo.trans (hmem i).1, (hmem i).2.trans hupp⟩
 
 def checkBranchSteps (bits : Nat) (h : ℚ) (branch : Nat)
     (thrust : DInterval) : Box → Nat → List StepWitness → Except String Box
@@ -214,6 +388,50 @@ structure IsClassicalSolution (h : ℚ) (thrust : ℝ)
   hasDeriv : ∀ t ∈ Set.Icc (0 : ℝ) (h : ℝ),
     HasDerivWithinAt trajectory (burnField thrust (trajectory t))
       (Set.Icc (0 : ℝ) (h : ℝ)) t
+
+/-- An accepted step has an actual classical solution for every represented
+initial state and thrust.  This closes the non-vacuity boundary independently
+of the narrower asymmetric enclosure tube. -/
+theorem exists_classicalSolution_of_checkStep {bits : Nat} {h : ℚ}
+    {initial tube endpoint : Box} {thrustIv : DInterval}
+    {initialState : State} {thrust : ℝ}
+    (hcheck : checkStep bits h initial tube thrustIv = .ok endpoint)
+    (hi : ∀ i, Mem bits (initialState i) (initial i))
+    (ht : Mem bits thrust thrustIv) :
+    ∃ trajectory : ℝ → State,
+      IsClassicalSolution h thrust initialState trajectory := by
+  have hh := checkStep_positive hcheck
+  obtain ⟨field, hfield, hradius, hbound, htime⟩ :=
+    existenceGuard_data (checkStep_guard hcheck)
+  have hd := (burnFieldIv_ok_iff.mp hfield).1
+  have hlocal := (burnField_locallyLipschitzOn_of_domain thrust hd).mono
+    (closedBall_existenceCenter_subset (bits := bits) (initial := initial))
+  obtain ⟨K, hK⟩ :=
+    LocallyLipschitzOn.exists_lipschitzOnWith_of_compact
+      (isCompact_closedBall (existenceCenter bits initial) 4) hlocal
+  let t0 : Set.Icc (0 : ℝ) (h : ℝ) := ⟨0, le_rfl, hh.le⟩
+  have hnorm : ∀ state ∈ Metric.closedBall (existenceCenter bits initial) 4,
+      ‖burnField thrust state‖ ≤ (12 : ℝ≥0) := by
+    intro state hs
+    exact burnField_norm_le_of_existenceGuard hfield hbound ht hs
+  have hmul : (12 : ℝ≥0) *
+      max (((h : ℝ) - (t0 : ℝ))) (((t0 : ℝ) - 0)) ≤
+        (4 : ℝ≥0) - (2 : ℝ≥0) := by
+    change (12 : ℝ) * max ((h : ℝ) - 0) (0 - 0) ≤ 4 - 2
+    rw [max_eq_left]
+    · norm_num at htime ⊢
+      exact_mod_cast htime
+    · simpa using hh.le
+  have hpl : IsPicardLindelof (fun _ : ℝ => burnField thrust)
+      (tmin := (0 : ℝ)) (tmax := (h : ℝ)) t0
+      (existenceCenter bits initial) 4 2 12 K :=
+    IsPicardLindelof.of_time_independent hnorm hK hmul
+  have hinit : initialState ∈
+      Metric.closedBall (existenceCenter bits initial) (2 : ℝ≥0) :=
+    initial_mem_existenceBall hradius hi
+  obtain ⟨trajectory, hzero, hderiv⟩ :=
+    hpl.exists_eq_forall_mem_Icc_hasDerivWithinAt hinit
+  exact ⟨trajectory, ⟨hzero, hderiv⟩⟩
 
 theorem classicalSolution_picard_eq {h : ℚ} {thrust : ℝ}
     {initial : State} {trajectory : ℝ → State}
@@ -375,23 +593,22 @@ theorem picard_tube_encloses {bits : Nat} {h : ℚ}
     (ht : Mem bits thrust thrustIv)
     (hsol : IsClassicalSolution h thrust initialState trajectory) :
     ∀ t ∈ Set.Icc (0 : ℝ) (h : ℝ), trajectory t ∈ tubeSet bits tube := by
-  by_cases hh : h ≤ 0
-  · simp_all [checkStep]
-  · simp only [checkStep, if_neg hh] at hcheck
-    generalize hmap : picardMap bits h initial tube thrustIv = result at hcheck
-    cases result with
-    | error error =>
-      change Except.error error = Except.ok endpoint at hcheck
-      contradiction
-    | ok mapped =>
-      change (if strictInsideBox mapped tube then
-        endpointBox bits h initial tube thrustIv
-        else Except.error "picard-strict-interior") = Except.ok endpoint at hcheck
-      by_cases hstrict : strictInsideBox mapped tube = true
-      · exact picard_tube_encloses_core hmap hstrict hi ht hsol
-      · have hsfalse : strictInsideBox mapped tube = false :=
-          Bool.eq_false_of_not_eq_true hstrict
-        simp [hsfalse] at hcheck
+  have hcore := checkStep_core hcheck
+  generalize hmap : picardMap bits h initial tube thrustIv = result at hcore
+  simp only [checkStepCore, hmap] at hcore
+  cases result with
+  | error error =>
+    change Except.error error = Except.ok endpoint at hcore
+    contradiction
+  | ok mapped =>
+    change (if strictInsideBox mapped tube then
+      endpointBox bits h initial tube thrustIv
+      else Except.error "picard-strict-interior") = Except.ok endpoint at hcore
+    by_cases hstrict : strictInsideBox mapped tube = true
+    · exact picard_tube_encloses_core hmap hstrict hi ht hsol
+    · have hsfalse : strictInsideBox mapped tube = false :=
+        Bool.eq_false_of_not_eq_true hstrict
+      simp [hsfalse] at hcore
 
 theorem endpointBox_sound {bits : Nat} {h : ℚ} {initial tube : Box}
     {thrustIv : DInterval} {endpoint : Box}
@@ -418,37 +635,25 @@ theorem endpointBox_sound {bits : Nat} {h : ℚ} {initial tube : Box}
   have hsum := addBox_sound hi hscaled
   exact hsum
 
-theorem checkStep_positive {bits : Nat} {h : ℚ} {initial tube endpoint : Box}
-    {thrustIv : DInterval}
-    (hcheck : checkStep bits h initial tube thrustIv = .ok endpoint) :
-    (0 : ℝ) < (h : ℝ) := by
-  have hq : 0 < h := by
-    by_contra hn
-    have hle : h ≤ 0 := le_of_not_gt hn
-    simp [checkStep, hle] at hcheck
-  exact_mod_cast hq
-
 theorem checkStep_endpoint {bits : Nat} {h : ℚ} {initial tube endpoint : Box}
     {thrustIv : DInterval}
     (hcheck : checkStep bits h initial tube thrustIv = .ok endpoint) :
     endpointBox bits h initial tube thrustIv = .ok endpoint := by
-  have hh : ¬h ≤ 0 := not_le_of_gt (by
-    have := checkStep_positive hcheck
-    exact_mod_cast this)
-  simp only [checkStep, if_neg hh] at hcheck
-  generalize hmap : picardMap bits h initial tube thrustIv = result at hcheck
+  have hcore := checkStep_core hcheck
+  generalize hmap : picardMap bits h initial tube thrustIv = result at hcore
+  simp only [checkStepCore, hmap] at hcore
   cases result with
   | error error =>
-    change Except.error error = Except.ok endpoint at hcheck
+    change Except.error error = Except.ok endpoint at hcore
     contradiction
   | ok mapped =>
     change (if strictInsideBox mapped tube then
       endpointBox bits h initial tube thrustIv
-      else Except.error "picard-strict-interior") = Except.ok endpoint at hcheck
+      else Except.error "picard-strict-interior") = Except.ok endpoint at hcore
     by_cases hs : strictInsideBox mapped tube = true
-    · simpa [hs] using hcheck
+    · simpa [hs] using hcore
     · have hsfalse := Bool.eq_false_of_not_eq_true hs
-      simp [hsfalse] at hcheck
+      simp [hsfalse] at hcore
 
 theorem picard_endpoint_encloses {bits : Nat} {h : ℚ}
     {initial tube endpoint : Box} {thrustIv : DInterval}
@@ -569,5 +774,41 @@ theorem checked_steps_compose {bits : Nat} {h : ℚ} {branch expected : Nat}
           have hiNext := picard_endpoint_encloses hstep hi ht solution
           have htail := ih hcheck hiNext
           exact ⟨.cons trajectory solution henclosed htail.1, htail.2⟩
+
+/-- Executable acceptance constructs a nonempty, physically continuous chain
+of classical solutions over every checked step. -/
+theorem checked_steps_nonvacuous {bits : Nat} {h : ℚ} {branch expected : Nat}
+    {thrustIv : DInterval} {current final : Box} {steps : List StepWitness}
+    {initialState : State} {thrust : ℝ}
+    (hcheck : checkBranchSteps bits h branch thrustIv current expected steps = .ok final)
+    (hi : ∀ i, Mem bits (initialState i) (current i))
+    (ht : Mem bits thrust thrustIv) :
+    ∃ terminalState,
+      ClassicalSolutionChain h thrust initialState steps terminalState ∧
+        ∀ i, Mem bits (terminalState i) (final i) := by
+  induction steps generalizing current expected initialState with
+  | nil =>
+      simp only [checkBranchSteps] at hcheck
+      cases hcheck
+      exact ⟨initialState, .nil initialState, hi⟩
+  | cons step tail ih =>
+      simp only [checkBranchSteps] at hcheck
+      by_cases horder : step.branch ≠ branch ∨ step.step ≠ expected
+      · simp only [if_pos horder] at hcheck
+        contradiction
+      · simp only [if_neg horder] at hcheck
+        generalize hstep : checkStep bits h current step.tube thrustIv = result at hcheck
+        cases result with
+        | error error =>
+          change Except.error error = Except.ok final at hcheck
+          contradiction
+        | ok endpoint =>
+          change checkBranchSteps bits h branch thrustIv endpoint
+            (expected + 1) tail = .ok final at hcheck
+          obtain ⟨trajectory, hsolution⟩ :=
+            exists_classicalSolution_of_checkStep hstep hi ht
+          have hiNext := picard_endpoint_encloses hstep hi ht hsolution
+          obtain ⟨terminalState, htail, hfinal⟩ := ih hcheck hiNext
+          exact ⟨terminalState, .cons trajectory hsolution htail, hfinal⟩
 
 end JackalIv.Spacecraft

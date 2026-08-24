@@ -432,25 +432,25 @@ git commit -m "proof(spacecraft): verify burn vector-field domain"
 - Create: `proofs/lean/JackalIv/Spacecraft/Picard.lean`
 - Create: `proofs/lean/JackalIv/Spacecraft/PicardFixtures.lean`
 
-- [ ] **Step 1: Write failing one-step and broken-chain fixtures**
+- [x] **Step 1: Write failing one-step and broken-chain fixtures**
 
 Create one accepted constant-field step, one tube whose mapping touches the
 outer boundary, one tube producing an incorrect derived endpoint, and two
 individually valid steps whose derived chain is broken by the second tube.
 Only the first may check.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: missing `checkStep`, `picard_tube_encloses`, and
 `checked_steps_compose`.
 
-- [ ] **Step 3: Implement the exact step decision**
+- [x] **Step 3: Implement the exact step decision**
 
 `checkStep` must recompute `hull(initial, initial + [0,h] * field(tube))`,
 require strict interior inclusion, recompute the endpoint enclosure using
 `[h,h]`, check denominator domains, and require exact branch/step continuity.
 
-- [ ] **Step 4: Prove enclosure without a project-local Picard axiom**
+- [x] **Step 4: Prove enclosure without a project-local Picard axiom**
 
 Use `ODE.picard_eq_of_hasDerivAt` for arbitrary classical solutions and a
 first-exit argument over the strict tube interior. Separately instantiate
@@ -473,18 +473,18 @@ theorem checked_steps_compose
     EveryAdmissibleTrajectoryIsEnclosed request steps
 ```
 
-- [ ] **Step 5: Prove non-vacuity**
+- [x] **Step 5: Prove non-vacuity**
 
 Export an existence theorem for each accepted step and prove the checked chain
 constructs at least one solution over the full burn interval. The universal
 safety theorem must not be true merely because `IsClassicalSolution` is empty.
 
-- [ ] **Step 6: Run fixtures, full build, and theorem axiom output**
+- [x] **Step 6: Run fixtures, full build, and theorem axiom output**
 
 Reject any `sorryAx`, project-local axiom, or theorem that assumes the desired
 enclosure conclusion.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add proofs/lean/JackalIv/Spacecraft/Picard.lean \

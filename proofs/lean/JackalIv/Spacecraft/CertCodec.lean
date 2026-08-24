@@ -30,7 +30,7 @@ private def intervalOr (loToken hiToken : List Char) : Except String DInterval :
 
 private def boxOfList (values : List DInterval) : Except String Box :=
   if h : values.length = 5 then
-    .ok (fun index => values.get ⟨index.val, by simpa [h] using index.isLt⟩)
+    .ok (fun index => values.get ⟨index.val, by simp [h, index.isLt]⟩)
   else refuse "box-dimension"
 
 private def parseBox : List (List Char) → Except String Box
@@ -105,7 +105,7 @@ private def parseBranchLine (expected : Nat) (line : List Char) :
         if observed ≠ expected then refuse "branch-order" else do
           let initial ← parseBox (rest.take 10)
           let thrust ← match rest.drop 10 with
-            | [lo, hi] => intervalOr lo hi
+            | [lowToken, highToken] => intervalOr lowToken highToken
             | _ => refuse "unexpected-record"
           return (initial, thrust)
   | _ => refuse "unexpected-record"

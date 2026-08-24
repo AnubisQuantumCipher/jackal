@@ -3,7 +3,7 @@
 This lane certifies a universal lower bound for the finite-duration periapsis
 burn challenge. The publication verdict is:
 
-> CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions
+> CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions.
 
 The Python producer constructs a candidate certificate using exact integer,
 outward-rounded dyadic intervals. It cannot mint `formal-bounded`. The pinned
@@ -30,9 +30,9 @@ interval calculation.
 Run the local tests and claim-language gate from the repository root:
 
 ```sh
-/opt/homebrew/bin/python3 -B -m unittest discover -s spacecraft_burn_cert/tests -p 'test_*.py' -v
-/opt/homebrew/bin/python3 -B tools/spacecraft_burn_release_gate.py
-/opt/homebrew/bin/python3 -B spacecraft_burn_cert/release_evidence.py \
+python3 -B -m unittest discover -s spacecraft_burn_cert/tests -p 'test_*.py' -v
+python3 -B tools/spacecraft_burn_release_gate.py
+python3 -B spacecraft_burn_cert/release_evidence.py \
   --staging-dir /absolute/path/to/release-staging --check
 ```
 

@@ -103,10 +103,12 @@ jobs:
         run: |
           python3 -B spacecraft_burn_cert/release_evidence.py \
             --staging-dir "$RUN_A" \
-            --evidence-dir "$RUNNER_TEMP/spacecraft-v2/reproduced-evidence"
+            --evidence-dir "$RUNNER_TEMP/spacecraft-v2/reproduced-evidence" \
+            --include-witness
           python3 -B spacecraft_burn_cert/release_evidence.py \
             --staging-dir "$RUN_A" \
-            --evidence-dir "$RUNNER_TEMP/spacecraft-v2/reproduced-evidence" --check
+            --evidence-dir "$RUNNER_TEMP/spacecraft-v2/reproduced-evidence" \
+            --include-witness --check
 
       - name: Reproduce full witness and receipt byte for byte
         run: |

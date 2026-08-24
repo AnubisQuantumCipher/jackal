@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """A -> B -> A mutation campaign for the six required failure modes."""
 
 from __future__ import annotations

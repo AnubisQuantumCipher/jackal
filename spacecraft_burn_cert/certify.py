@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """Rigorous interval enclosure for the uncertain finite-burn challenge.
 
 The proof-producing lane uses fixed-denominator dyadic intervals.  Every

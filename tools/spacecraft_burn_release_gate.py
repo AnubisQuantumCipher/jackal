@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """Fail closed on unqualified spacecraft assurance language."""
 
 from __future__ import annotations
@@ -15,7 +15,9 @@ QUALIFIED_VERDICT = (
     "and machine-checked interval-certificate assumptions"
 )
 QUALIFIED_PATTERN = re.compile(
-    r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split())), re.IGNORECASE
+    r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split()))
+    + r"(?=(?:[.!?](?:[*_`]+)?|(?:[*_`]+)[.!?])(?:\s|$)|\s*$)",
+    re.IGNORECASE,
 )
 TARGETS = (
     Path("README.md"),

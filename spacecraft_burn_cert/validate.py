@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """Independent reconciliation and diagnostic validation of the certifier.
 
 Nothing in this file is used to prove the universal mission result.  It checks

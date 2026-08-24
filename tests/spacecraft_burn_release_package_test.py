@@ -35,9 +35,19 @@ class SpacecraftReleasePackageTests(unittest.TestCase):
 
     def test_verification_instructions_preserve_model_qualifier(self):
         package = load_packager()
-        text = package.verification_text("a" * 40, "b" * 64, "c" * 64, "d" * 64, "e" * 64).decode()
+        binding = {
+            "request_digest": "f" * 64,
+            "model_id": "model-from-receipt",
+            "epoch": "v1.7.4",
+            "nonce": "nonce-from-receipt",
+        }
+        text = package.verification_text(
+            "a" * 40, "b" * 64, "c" * 64, "d" * 64, "e" * 64, binding
+        ).decode()
         self.assertIn("CERTIFIED SAFE under the stated finite-burn ODE model", text)
         self.assertIn("does not establish physical-model adequacy", text)
+        self.assertIn("`" + binding["request_digest"] + "`", text)
+        self.assertIn("`" + binding["nonce"] + "`", text)
 
 
 if __name__ == "__main__":

@@ -75,7 +75,8 @@ def source_closure(identity: dict) -> list[Path]:
 
 
 def verification_text(commit: str, receipt_sha: str, witness_sha: str,
-                      proof_file_sha: str, proof_internal_sha: str) -> bytes:
+                      proof_file_sha: str, proof_internal_sha: str,
+                      binding: dict[str, str]) -> bytes:
     text = f"""# JACKAL {VERSION} spacecraft certificate verification
 
 Tag `{VERSION}` must resolve to merge commit `{commit}`.
@@ -88,10 +89,10 @@ Pinned identities:
 - witness SHA-256: `{witness_sha}`
 - proof identity file SHA-256: `{proof_file_sha}`
 - proof identity internal digest: `{proof_internal_sha}`
-- request digest: `03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7`
-- model: `jackal-spacecraft-finite-burn-ode-v2`
-- epoch: `{VERSION}`
-- nonce: `spacecraft-burn-v2-publication-20260824`
+- request digest: `{binding["request_digest"]}`
+- model: `{binding["model_id"]}`
+- epoch: `{binding["epoch"]}`
+- nonce: `{binding["nonce"]}`
 
 First run `shasum -a 256 -c SHA256SUMS`. Extract `{ARCHIVE_NAME}`, then invoke the bundled checker and outer verifier with the caller-pinned values above. The checker must emit one `ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded` line, and the outer verifier must return `status: ACCEPT` with no reasons.
 
@@ -110,6 +111,16 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
     identity_bytes = IDENTITY.read_bytes()
     identity = json.loads(identity_bytes)
     binding = receipt["formal_checker"]
+    request_bytes = (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
+    expected_binding = {
+        "request_digest": sha256(request_bytes),
+        "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+        "epoch": VERSION,
+    }
+    if not isinstance(binding, dict) or any(
+        binding.get(key) != value for key, value in expected_binding.items()
+    ) or not isinstance(binding.get("nonce"), str) or not binding["nonce"]:
+        raise RuntimeError("receipt release binding is invalid")
     if sha256(witness_bytes) != receipt["witness"]["sha256"]:
         raise RuntimeError("witness digest does not match receipt")
     if sha256(CHECKER.read_bytes()) != binding["checker_sha256"]:
@@ -125,7 +136,7 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         f"{prefix}/verifier/verify_receipt.py": ((ROOT / "spacecraft_burn_cert/verify_receipt.py").read_bytes(), 0o644),
         f"{prefix}/verifier/witness_codec.py": ((ROOT / "spacecraft_burn_cert/witness_codec.py").read_bytes(), 0o644),
         f"{prefix}/evidence/{PROOF_NAME}": (identity_bytes, 0o644),
-        f"{prefix}/request_v2.json": ((ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes(), 0o644),
+        f"{prefix}/request_v2.json": (request_bytes, 0o644),
         f"{prefix}/proofs/lean-toolchain": ((ROOT / "proofs/lean/lean-toolchain").read_bytes(), 0o644),
         f"{prefix}/proofs/lakefile.toml": ((ROOT / "proofs/lean/lakefile.toml").read_bytes(), 0o644),
     }
@@ -142,12 +153,12 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         "instrument_validation_v2.json": (staging / "instrument_validation_v2.json").read_bytes(),
         "mutation_aba_v2.json": (staging / "mutation_aba_v2.json").read_bytes(),
         REVIEW_NAME: REVIEW.read_bytes(),
-        "request_v2.json": (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes(),
+        "request_v2.json": request_bytes,
         ARCHIVE_NAME: archive_bytes,
     }
     assets["VERIFICATION.md"] = verification_text(
         commit, sha256(receipt_bytes), sha256(witness_bytes), sha256(identity_bytes),
-        identity["identity_digest_sha256"],
+        identity["identity_digest_sha256"], binding,
     )
     for name, data in assets.items():
         atomic_write(output / name, data)

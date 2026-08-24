@@ -67,21 +67,42 @@ Those bytes are deliberately immutable, excluded from current claim surfaces,
 and never used as v2 authority. Rewriting them would destroy the preserved v1
 artifact identity.
 
-## Pass 4 status
+## Pass 4
 
-The clean detached review at `f5091fd` was attempted after the fixes. The
-service returned `rate_limit` after all three included reviews were consumed,
-with a 16-minute retry interval. Release-blocking disposition remains pending
-until the clean-worktree retry completes.
+Reviewed detached commit: `eb3031abebaa72294a1d0c8d97b3cfb16cfcc842`
+
+CodeRabbit completed a full review and raised 10 issues. Seven were confirmed
+and resolved in the next candidate:
+
+- restored candidate wording until publication is complete;
+- required a sentence boundary after the approved model-conditional verdict;
+- hashed proof-identity and producer-source bytes from the same reads used for
+  parsing;
+- added explicit installation and verification of the optional full witness;
+- derived release-verification request/model/epoch/nonce text from the bound
+  receipt and validated the release binding;
+- replaced machine-specific Python shebangs across the spacecraft lane; and
+- made the reproduction commands portable.
+
+The request-digest warning was again invalid: the workflow, Lean constant,
+proof identity, receipt binding, and SHA-256 of `request_v2.json` are exactly
+the same value recorded in Pass 1. The two legacy-v1 findings repeated the
+previous request to rewrite quarantined historical bytes; they remain
+`residual-non-claim` because changing them would invalidate the preserved v1
+artifact identity.
+
+## Pass 5 status
+
+The final clean-worktree retry is pending on the post-Pass-4 fix commit.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 21 | fixed with tests and pushed |
-| invalid | 2 | request digest independently matched |
+| resolved | 28 | fixed with tests; final push pending |
+| invalid | 3 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
 | unresolved release-blocking | 0 known | final independent retry pending |
 
 No publication or merge may use this record as a final clearance until the
-Pass 4 section records a completed review result.
+Pass 5 section records a completed review result.

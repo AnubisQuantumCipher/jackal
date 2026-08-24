@@ -1,5 +1,5 @@
 {
-  "baseline_source_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
+  "baseline_source_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
   "baseline_verifier_after": {
     "binding": {
       "checker_sha256": "23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26",
@@ -8,7 +8,7 @@
       "nonce": "spacecraft-burn-v2-publication-20260824",
       "proof_identity_digest_sha256": "e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60",
       "proof_identity_file_sha256": "3e74b9903a78e93e6829070237986d072de23d539a13494b00cabdaa2dacdb0f",
-      "receipt_sha256": "6b3ffd1d994729b759e0bdf6264e3ec3ddf544efe378b23f718cadbbfd940a64",
+      "receipt_sha256": "c99d629952016b72781603df2a7b346d96e0efe560be44e1eb51acb90c118681",
       "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
       "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
     },
@@ -39,7 +39,7 @@
       "nonce": "spacecraft-burn-v2-publication-20260824",
       "proof_identity_digest_sha256": "e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60",
       "proof_identity_file_sha256": "3e74b9903a78e93e6829070237986d072de23d539a13494b00cabdaa2dacdb0f",
-      "receipt_sha256": "6b3ffd1d994729b759e0bdf6264e3ec3ddf544efe378b23f718cadbbfd940a64",
+      "receipt_sha256": "c99d629952016b72781603df2a7b346d96e0efe560be44e1eb51acb90c118681",
       "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
       "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
     },
@@ -62,12 +62,12 @@
       "vis_viva_cleared_denominator_expansion": true
     }
   },
-  "final_source_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
+  "final_source_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
   "mutations": [
     {
-      "a_after_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "a_before_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "b_sha256": "99dca04f6a42b9329c4a4d5ee18906a2b504a6ee3e007de7fd9dfdf9883c5782",
+      "a_after_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "a_before_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "b_sha256": "538f4a3a0a5ca7628609b9ba2b81a7690d46b9ea91d65410cfb4720b507c489a",
       "bug": "uses m/s^2 thrust acceleration in a km/s^2 state model",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
@@ -80,9 +80,9 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "a_before_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "b_sha256": "f654cddf691cde5876b4ac001a4cf3871b96716d2ae8542558e7daa54b7c0ae1",
+      "a_after_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "a_before_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "b_sha256": "219bd31f767fa318c77537d41d9306104467d939855c7c04eccb8f007be6fa83",
       "bug": "freezes mass and sets propellant mass flow to zero",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
@@ -95,9 +95,9 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "a_before_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "b_sha256": "3c683b22ecad0a41d22555e231cc01b48e452ede95bc749301e7d8fb05e8a2d3",
+      "a_after_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "a_before_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "b_sha256": "d11e6d6e2e3d6e1e0abaa549b2a46c4420af6b6bdf576052fd8a1ec5aedcef79",
       "bug": "uses a(1-e) instead of a(1+e)",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
@@ -110,9 +110,9 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "a_before_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "b_sha256": "680d9b243f3913504f0bbf863c804cf2564a88a81af61399296cf5b8d762ce88",
+      "a_after_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "a_before_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "b_sha256": "fce0b1a4f62b49f4fa0305d70991237dc166d0ac9f7e966f7243877c8a006fbd",
       "bug": "uses v^2 instead of v^2/2 in specific orbital energy",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
@@ -125,9 +125,9 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "a_before_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "b_sha256": "beb6e4ca9a142f4a94e800d83e7cfe157ff27b770d1dd17bf16ddc9947071ef5",
+      "a_after_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "a_before_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "b_sha256": "b503bfd722b2471b8dad23a8ccf75a575c1e6d24b553a55feae72eab32e5521d",
       "bug": "uses the center of each uncertainty interval",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
@@ -140,9 +140,9 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "a_before_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
-      "b_sha256": "0247869bbdebeb63b02c2a6ca762b48d844af677dae7e58b3256ca5d25c522dc",
+      "a_after_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "a_before_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
+      "b_sha256": "d5175b23de2be569efd32cd5411b63bcad3add352c728a44e95703cfff3c8817",
       "bug": "ceil-rounds a lower bound before reporting and deciding",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",

@@ -69,6 +69,38 @@ class ReleaseEvidenceTests(unittest.TestCase):
             self.assertEqual(manifest["receipt_sha256"], module.sha256(module.canonical_json(receipt)))
             self.assertNotIn("baseline_witness_v2.cert", files)
 
+    def test_optional_witness_is_installed_and_checked_when_requested(self):
+        module = self.load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / "staging"
+            evidence = root / "evidence"
+            staging.mkdir()
+            witness = b"canonical witness\n"
+            receipt = {
+                "witness": {
+                    "sha256": module.sha256(witness), "byte_size": len(witness),
+                    "branch_count": 1, "tube_count": 2, "cutoff_cell_count": 1,
+                },
+                "formal_checker": {"theorem": "spacecraft_burn_certified_safe"},
+            }
+            (staging / "baseline_witness_v2.cert").write_bytes(witness)
+            (staging / "baseline_receipt_v2.json").write_bytes(module.canonical_json(receipt))
+            for name in module.JSON_NAMES[1:]:
+                (staging / name).write_text("{}\n")
+            module.install_or_check(
+                staging, check=False, evidence_dir=evidence, include_witness=True
+            )
+            self.assertEqual((evidence / "baseline_witness_v2.cert").read_bytes(), witness)
+            module.install_or_check(
+                staging, check=True, evidence_dir=evidence, include_witness=True
+            )
+            (evidence / "baseline_witness_v2.cert").write_bytes(b"corrupt\n")
+            with self.assertRaisesRegex(RuntimeError, "baseline_witness_v2.cert"):
+                module.install_or_check(
+                    staging, check=True, evidence_dir=evidence, include_witness=True
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

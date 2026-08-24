@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """Install or reproduce the canonical v2 spacecraft release evidence."""
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ JSON_NAMES = (
 )
 MANIFEST = "baseline_witness_v2.manifest.json"
 SUMS = "SHA256SUMS"
-ALLOWED_EXTRA = {"legacy-v1", "baseline_witness_v2.cert"}
+ALLOWED_EXTRA = {"legacy-v1"}
 
 
 def sha256(data: bytes) -> str:
@@ -32,7 +32,7 @@ def canonical_json(payload: dict) -> bytes:
     return (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
-def expected_files(staging: Path) -> dict[str, bytes]:
+def expected_files(staging: Path, include_witness: bool = False) -> dict[str, bytes]:
     witness_path = staging / "baseline_witness_v2.cert"
     receipt_path = staging / "baseline_receipt_v2.json"
     witness_bytes = witness_path.read_bytes()
@@ -55,6 +55,8 @@ def expected_files(staging: Path) -> dict[str, bytes]:
     }
     files = {name: (staging / name).read_bytes() for name in JSON_NAMES}
     files[MANIFEST] = canonical_json(manifest)
+    if include_witness:
+        files["baseline_witness_v2.cert"] = witness_bytes
     sum_names = (*JSON_NAMES, MANIFEST)
     files[SUMS] = "".join(f"{sha256(files[name])}  {name}\n" for name in sum_names).encode("ascii")
     return files
@@ -70,9 +72,17 @@ def atomic_write(path: Path, data: bytes) -> None:
     os.replace(temporary, path)
 
 
-def install_or_check(staging: Path, check: bool, evidence_dir: Path | None = None) -> None:
+def install_or_check(
+    staging: Path,
+    check: bool,
+    evidence_dir: Path | None = None,
+    include_witness: bool = False,
+) -> None:
     destination_root = EVIDENCE if evidence_dir is None else evidence_dir.resolve()
-    files = expected_files(staging.resolve())
+    files = expected_files(staging.resolve(), include_witness=include_witness)
+    witness_destination = destination_root / "baseline_witness_v2.cert"
+    if check and not include_witness and witness_destination.exists():
+        files["baseline_witness_v2.cert"] = (staging / "baseline_witness_v2.cert").read_bytes()
     mismatches = []
     for name, expected in files.items():
         destination = destination_root / name
@@ -95,8 +105,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--staging-dir", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--include-witness", action="store_true")
     args = parser.parse_args(argv)
-    install_or_check(args.staging_dir, args.check, args.evidence_dir)
+    install_or_check(
+        args.staging_dir, args.check, args.evidence_dir, args.include_witness
+    )
     print("SPACECRAFT_EVIDENCE_REPRODUCED" if args.check else "SPACECRAFT_EVIDENCE_INSTALLED")
     return 0
 

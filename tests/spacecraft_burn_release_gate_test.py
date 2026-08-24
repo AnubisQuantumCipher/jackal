@@ -61,6 +61,20 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             (root / gate.TARGETS[0]).write_text(wrapped + "\n")
             self.assertEqual(gate.scan(root)["status"], "PASS")
 
+    def test_qualified_verdict_rejects_appended_assurance_clause(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            text = gate.QUALIFIED_VERDICT + " and the physical spacecraft is safe.\n"
+            (root / gate.TARGETS[0]).write_text(text)
+            result = gate.scan(root)
+            self.assertEqual(result["status"], "FAIL")
+            self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
     def test_certified_safe_detection_is_case_insensitive(self):
         gate = load_gate()
         with tempfile.TemporaryDirectory() as directory:

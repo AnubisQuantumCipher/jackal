@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """Independent verifier for spacecraft finite-burn interval receipts.
 
 This file deliberately imports nothing from ``certify.py``.  It uses a second
@@ -444,8 +444,8 @@ CONTRACT = {
 }
 
 
-def source_literals(path: Path) -> dict[str, object]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+def source_literals(raw: bytes, path: Path) -> dict[str, object]:
+    tree = ast.parse(raw.decode("utf-8"), filename=str(path))
     values = {}
     for node in tree.body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
@@ -506,7 +506,7 @@ def verify_identity_file(
     except (OSError, json.JSONDecodeError):
         reasons.append("proof-identity-invalid")
         return
-    if sha256_file(path) != expected_file_digest:
+    if hashlib.sha256(raw).hexdigest() != expected_file_digest:
         reasons.append("proof-identity-file-hash-mismatch")
     if not isinstance(document, dict):
         reasons.append("proof-identity-invalid")
@@ -714,13 +714,14 @@ def verify_receipt(
         return {"status": "REFUSED", "reasons": formal_reasons}
 
     try:
-        literals = source_literals(source_path)
-    except (OSError, SyntaxError, ValueError):
+        source_raw = source_path.read_bytes()
+        literals = source_literals(source_raw, source_path)
+    except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
         return {"status": "REFUSED", "reasons": ["invalid-producer-source"]}
     for name, (required, reason) in CONTRACT.items():
         if literals.get(name) != required:
             reasons.append(reason)
-    source_digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    source_digest = hashlib.sha256(source_raw).hexdigest()
     if candidate.get("source_sha256") != source_digest:
         reasons.append("source-hash-mismatch")
 

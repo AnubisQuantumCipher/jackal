@@ -298,7 +298,7 @@
   },
   "producer_assurance": "candidate-only",
   "schema": "spacecraft-finite-burn-formal-receipt-v2",
-  "source_sha256": "30bcc1b642877d92a5b885d483cb2b89e7c65c524cdc8bb1d1cbb140e4a9a375",
+  "source_sha256": "feba10c83be503ff4ebf77dea68f0f000299a2a69b45831642c665532c066a72",
   "verdict": "CERTIFIED SAFE",
   "verdict_qualifier": "under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions",
   "witness": {

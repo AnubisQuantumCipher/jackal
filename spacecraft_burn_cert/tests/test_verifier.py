@@ -5,6 +5,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -40,6 +41,33 @@ def load_verifier(testcase: unittest.TestCase):
 
 
 class IndependentVerifierTests(unittest.TestCase):
+    def test_identity_digest_uses_the_already_parsed_bytes(self):
+        verifier = load_verifier(self)
+        identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
+        reasons: list[str] = []
+        with mock.patch.object(
+            verifier, "sha256_file", side_effect=AssertionError("unexpected reread")
+        ):
+            verifier.verify_identity_file(
+                PROOF_IDENTITY,
+                sha(PROOF_IDENTITY),
+                identity["identity_digest_sha256"],
+                identity["checker"]["sha256"],
+                REQUEST_DIGEST,
+                MODEL_ID,
+                EPOCH,
+                reasons,
+            )
+        self.assertEqual(reasons, [])
+
+    def test_source_literals_parse_caller_supplied_bytes(self):
+        verifier = load_verifier(self)
+        raw = b'THRUST_KM_SCALE_TEXT = "0.001"\nINTEGRATE_MASS = True\n'
+        self.assertEqual(
+            verifier.source_literals(raw, Path("producer.py")),
+            {"THRUST_KM_SCALE_TEXT": "0.001", "INTEGRATE_MASS": True},
+        )
+
     def test_exact_symbolic_orbital_identities_hold(self):
         verifier = load_verifier(self)
         results = verifier.verify_symbolic_identities()

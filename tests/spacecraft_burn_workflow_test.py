@@ -31,6 +31,7 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
     def test_full_hosted_campaign_is_bounded_and_complete(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         source = executable_workflow_surface(source)
+        self.assertIn("timeout-minutes: 60", source)
         request_digest = hashlib.sha256(
             (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
         ).hexdigest()

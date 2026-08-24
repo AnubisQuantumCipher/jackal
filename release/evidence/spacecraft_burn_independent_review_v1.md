@@ -297,6 +297,15 @@ release-blocking review issue remains. Machine-readable clearance may now be
 completed for Pass 15; merge and publication remain separately conditional on
 green hosted checks and fresh downloaded-asset readback.
 
+## Pass 16 status
+
+The PR merge-ref hosted run showed that a cold 17,340-job macOS build can use
+approximately 35 minutes, leaving too little of the original 45-minute bound
+for the full certificate campaign. The push run completed green. The workflow
+bound is raised to a still-finite 60 minutes, with a regression pinning that
+value. Independent review of this final workflow-only change is pending, so
+machine-readable clearance is reopened and packaging is fail-closed.
+
 ## Current disposition
 
 | Class | Count | Status |
@@ -304,7 +313,7 @@ green hosted checks and fresh downloaded-asset readback.
 | resolved | 75 | fixed with tests; digest repetitions reclassified valid |
 | invalid | 0 | none |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
-| unresolved release-blocking | 0 | Pass 15 complete with zero findings |
+| unresolved release-blocking | 0 known | Pass 16 workflow retry pending |
 
-Independent review is complete. Merge and publication remain gated by hosted
-checks, exact tag/merge identity, and downloaded release-asset readback.
+No merge or publication may proceed until Pass 16 completes with zero
+release-blocking findings and machine-readable clearance returns to complete.

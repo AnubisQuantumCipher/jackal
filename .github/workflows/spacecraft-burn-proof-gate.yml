@@ -14,7 +14,7 @@ jobs:
     # Ubuntu independently builds/audits the Lean source closure in
     # gaussian-proof-gate.yml, but does not claim executable-byte parity.
     runs-on: macos-14
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       MODEL_ID: jackal-spacecraft-finite-burn-ode-v2
       RELEASE_EPOCH: v1.7.4

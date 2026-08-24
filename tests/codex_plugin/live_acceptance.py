@@ -21,6 +21,7 @@ import select
 import selectors
 import secrets
 import signal
+import platform
 import stat
 import subprocess
 import sys
@@ -1921,7 +1922,7 @@ def verify_runtime(runtime_root: Path | str) -> None:
 def dry_run_document(
     *, codex_binary: Path | str, repository_root: Path | str,
 ) -> dict[str, Any]:
-    placeholder = Path("/private/tmp/jackel-codex-isolated-CODEX_HOME")
+    placeholder = _fixed_temp_root() / "jackel-codex-isolated-CODEX_HOME"
     plan = build_codex_install_plan(
         codex_home=placeholder, repository_root=repository_root,
         codex_binary=codex_binary,
@@ -1946,8 +1947,18 @@ def dry_run_document(
     }
 
 
+def _fixed_temp_root() -> Path:
+    """The physical system temp directory for this host.
+
+    macOS exposes it as /private/tmp with /tmp as a symlink; on Linux /tmp is
+    already the physical directory. The path stays fixed per platform rather
+    than being read from the environment.
+    """
+    return Path("/private/tmp") if platform.system() == "Darwin" else Path("/tmp")
+
+
 def _isolated_codex_temp_parent() -> Path:
-    parent = Path("/private/tmp")
+    parent = _fixed_temp_root()
     try:
         info = parent.lstat()
         resolved = parent.resolve(strict=True)

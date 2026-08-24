@@ -107,6 +107,8 @@ class _ProvisionerAPI(Protocol):
     ASSET: str
     PACKAGE_SIZE: int
     PACKAGE_SHA256: str
+
+    def effective_release_pins(self) -> dict: ...
     SHA256SUMS_SHA256: str
     SELFTEST_TIMEOUT: float
     SELFTEST_OUTPUT_LIMIT: int
@@ -856,13 +858,14 @@ def resolve_runtime_path(
     expected_keys = {"schema", "epoch", "runtime_path", "package_size", "package_sha256"}
     if set(document) != expected_keys:
         raise StartupError("runtime locator has an unsupported shape")
+    _pins = provisioner.effective_release_pins()
     if (
         document["schema"] != "jackal-codex-plugin-runtime-v1"
-        or document["epoch"] != provisioner.EPOCH
-        or document["package_size"] != provisioner.PACKAGE_SIZE
-        or document["package_sha256"] != provisioner.PACKAGE_SHA256
+        or document["epoch"] != _pins["epoch"]
+        or document["package_size"] != _pins["package_size"]
+        or document["package_sha256"] != _pins["package_sha256"]
     ):
-        raise StartupError("runtime locator does not match wrapper-side release pins")
+        raise StartupError("runtime locator does not match this host's release pins")
     return _canonical_absolute_directory(document["runtime_path"], subject="located runtime")
 
 
@@ -872,12 +875,13 @@ def _verify_package_metadata(runtime: Path, provisioner: _ProvisionerAPI) -> Non
         limit=16 * 1024,
         subject="runtime package metadata",
     )
+    _pins = provisioner.effective_release_pins()
     expected = {
         "schema": "jackal-runtime-package-v1",
-        "epoch": provisioner.EPOCH,
-        "asset": provisioner.ASSET,
-        "package_size": provisioner.PACKAGE_SIZE,
-        "package_sha256": provisioner.PACKAGE_SHA256,
+        "epoch": _pins["epoch"],
+        "asset": _pins["asset"],
+        "package_size": _pins["package_size"],
+        "package_sha256": _pins["package_sha256"],
     }
     if document != expected:
         raise StartupError("runtime package metadata does not match wrapper-side release pins")

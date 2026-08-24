@@ -1,0 +1,79 @@
+{
+  "current_release_epoch": "v1.7.2",
+  "lanes": {
+    "int_cert": {
+      "archival_v1": {
+        "allowed_release_epochs": [],
+        "checker_file": "jackal_int_cert_check_v170",
+        "checker_sha256": "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49",
+        "identity_file": "release/evidence/int_cert_proof_identity.json",
+        "identity_file_sha256": "f0323e312d8b0e05a7200546fd819fc191d5f146d359bb14efec5b1575f16844",
+        "inventory_file": "release/coverage/formal_coverage_inventory_v170.json",
+        "inventory_file_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+        "mode": "revoked-refuse",
+        "reason": "v1 artifact-only checker does not bind the raw request expression to the proved QExpr",
+        "schema": "jackal-int-cert-proof-identity-v1"
+      },
+      "current": {
+        "allowed_release_epochs": [
+          "v1.7.2"
+        ],
+        "identity_file": "release/evidence/int_cert_proof_identity_v172.json",
+        "identity_file_sha256": "533c5cc4718331e2739ec92513487842aa48471b4b7d1be57db08999a9d90f95",
+        "minimum_schema_version": 2,
+        "schema": "jackal-int-cert-proof-identity-v2"
+      }
+    },
+    "range": {
+      "archival_v1": {
+        "allowed_release_epochs": [
+          "v1.5.0"
+        ],
+        "checker_file": "jackal_cert_check_v170",
+        "checker_sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
+        "identity_file": "release/evidence/range_proof_identity.json",
+        "identity_file_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+        "inventory_file": "release/coverage/formal_coverage_inventory_v170.json",
+        "inventory_file_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+        "mode": "replay-only",
+        "schema": "jackal-range-proof-identity-v1"
+      },
+      "current": {
+        "allowed_release_epochs": [
+          "v1.7.2"
+        ],
+        "identity_file": "release/evidence/range_proof_identity_v172.json",
+        "identity_file_sha256": "c6caed2434cbd77cba19bb0279936bfa322a696301e6d20c932a9b412f2fa0ca",
+        "minimum_schema_version": 2,
+        "schema": "jackal-range-proof-identity-v2"
+      }
+    },
+    "rational_variants": {
+      "archival_v1": {
+        "allowed_release_epochs": [
+          "v1.5.0"
+        ],
+        "checker_file": "jackal_cert_check_v170",
+        "checker_sha256": "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a",
+        "identity_file": "release/evidence/range_proof_identity.json",
+        "identity_file_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+        "inventory_file": "release/coverage/formal_coverage_inventory_v170.json",
+        "inventory_file_sha256": "18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6",
+        "mode": "replay-only",
+        "schema": "jackal-range-proof-identity-v1"
+      },
+      "current": {
+        "allowed_release_epochs": [
+          "v1.7.2"
+        ],
+        "identity_file": "release/evidence/range_proof_identity_v172.json",
+        "identity_file_sha256": "c6caed2434cbd77cba19bb0279936bfa322a696301e6d20c932a9b412f2fa0ca",
+        "minimum_schema_version": 2,
+        "schema": "jackal-range-proof-identity-v2"
+      }
+    }
+  },
+  "reversed_interval_policy": "revoked-refuse",
+  "schema": "jackal-proof-compatibility-floor-v1",
+  "unsupported_policy": "refuse"
+}

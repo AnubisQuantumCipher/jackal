@@ -16,7 +16,8 @@ MCP_PATH = PLUGIN_ROOT / ".mcp.json"
 SKILL_PATH = PLUGIN_ROOT / "skills" / "jackel" / "SKILL.md"
 IDENTITY_PATH = PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
 README_PATH = PLUGIN_ROOT / "README.md"
-LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.zsh"
+LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.sh"
+ZSH_LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.zsh"
 SERVER_PATH = PLUGIN_ROOT / "mcp" / "server.py"
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "jackal-codex-plugin.yml"
 DESIGN_PATH = (
@@ -281,8 +282,8 @@ class PluginMetadataTests(unittest.TestCase):
             {
                 "mcpServers": {
                     "jackel": {
-                        "command": "/bin/zsh",
-                        "args": ["./scripts/launch_mcp.zsh"],
+                        "command": "/bin/sh",
+                        "args": ["./scripts/launch_mcp.sh"],
                         "cwd": ".",
                         "env_vars": ["JACKAL_HOME"],
                         "tool_timeout_sec": 3700,
@@ -317,9 +318,10 @@ class PluginMetadataTests(unittest.TestCase):
             "error estimate is not a bound",
             "Source-to-native refinement remains open and unclaimed",
             "Run a weaker lane only when the caller explicitly requests one",
-            "Apple Silicon macOS only",
-            "Do not bypass the Darwin/arm64 host guard",
-            "Python >=3.10 at `/opt/homebrew/bin/python3`",
+            "Darwin/arm64 and Linux/aarch64",
+            "Do not bypass the host guard",
+            "no published release asset for host linux-aarch64",
+            "Python >=3.10",
             "brew install python",
         ):
             self.assertIn(phrase, skill)
@@ -339,6 +341,7 @@ class PluginMetadataTests(unittest.TestCase):
             manifest["mcpServers"].removeprefix("./"),
             "mcp/server.py",
             "scripts/provision_runtime.py",
+            "scripts/launch_mcp.sh",
             "scripts/launch_mcp.zsh",
             "scripts/verify_plugin.py",
             "skills/jackel/SKILL.md",
@@ -350,7 +353,7 @@ class PluginMetadataTests(unittest.TestCase):
         self.assertEqual(identity_paths, referenced)
         for relative in referenced:
             self.assertTrue((PLUGIN_ROOT / relative).is_file(), relative)
-        self.assertEqual(mcp["args"], ["./scripts/launch_mcp.zsh"])
+        self.assertEqual(mcp["args"], ["./scripts/launch_mcp.sh"])
         self.assertFalse(
             any(
                 path.name.endswith(".tar.gz") or path.name.startswith("jackal-v")
@@ -364,7 +367,7 @@ class PluginMetadataTests(unittest.TestCase):
             "41-tool",
             "v1.7.3 release",
             "release/capability_inventory_v1.json",
-            "/bin/zsh scripts/launch_mcp.zsh provision",
+            "/bin/sh scripts/launch_mcp.sh provision",
             "codex mcp list",
             "jackal_claim",
             "jackal_verify_receipt",
@@ -378,7 +381,7 @@ class PluginMetadataTests(unittest.TestCase):
 
     def test_launcher_uses_only_explicit_absolute_python_candidates_and_exact_flags(self):
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]
-        self.assertEqual(mcp["command"], "/bin/zsh")
+        self.assertEqual(mcp["command"], "/bin/sh")
         source = LAUNCHER_PATH.read_text(encoding="utf-8")
         self.assertIn("/opt/homebrew/bin/python3", source)
         self.assertIn("/usr/local/bin/python3", source)
@@ -392,7 +395,7 @@ class PluginMetadataTests(unittest.TestCase):
             '"WEXITED"', '"WNOHANG"', '"WNOWAIT"', '"CLD_EXITED"',
             '"CLD_KILLED"', '"CLD_DUMPED"', '"killpg"',
             '"set_blocking"', '"socketpair"', "ctypes.CDLL",
-            '"renameatx_np"', "selectors.DefaultSelector",
+            '"renameatx_np"', '"renameat2"', "selectors.DefaultSelector",
             "signal.setitimer", "signal.getitimer", "signal.ITIMER_REAL",
             "signal.SIGALRM", "tarfile.open", "urllib.request.urlopen",
             "is_absolute",
@@ -400,15 +403,45 @@ class PluginMetadataTests(unittest.TestCase):
             self.assertIn(required_probe, source)
         self.assertIn('exec "$python" -I -S -B', source)
 
-    def _run_rewritten_launcher(self, candidate_sources, *launcher_arguments):
-        source = LAUNCHER_PATH.read_text(encoding="utf-8")
-        marker = textwrap.dedent("""\
-            PYTHON_CANDIDATES=(
-              /opt/homebrew/bin/python3
-              /usr/local/bin/python3
-              /usr/bin/python3
-            )
-        """)
+    REFUSING_CANDIDATE = (
+        'printf \'%s\\n\' "refused:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"\nexit 17\n'
+    )
+    ACCEPTING_CANDIDATE = textwrap.dedent("""\
+        if [ "$4" = "-c" ]; then
+          printf '%s\\n' "accepted:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"
+          exit 0
+        fi
+        printf '%s\\n' "accepted:$*" >> "$LAUNCHER_FIXTURE_LOG"
+        exit 23
+    """)
+
+    SH_CANDIDATE_MARKER = (
+        'PYTHON_CANDIDATES="/opt/homebrew/bin/python3\n'
+        '/usr/local/bin/python3\n'
+        '/usr/bin/python3"\n'
+    )
+    ZSH_CANDIDATE_MARKER = textwrap.dedent("""\
+        PYTHON_CANDIDATES=(
+          /opt/homebrew/bin/python3
+          /usr/local/bin/python3
+          /usr/bin/python3
+        )
+    """)
+
+    def _run_rewritten_launcher(
+        self, candidate_sources, *launcher_arguments, shell="/bin/sh",
+    ):
+        """Run a launcher whose interpreter candidates are swapped for fixtures."""
+        if shell.endswith("zsh"):
+            source = ZSH_LAUNCHER_PATH.read_text(encoding="utf-8")
+            marker = self.ZSH_CANDIDATE_MARKER
+            launcher_name = "launch_mcp.zsh"
+            shebang = "#!/bin/zsh\n"
+        else:
+            source = LAUNCHER_PATH.read_text(encoding="utf-8")
+            marker = self.SH_CANDIDATE_MARKER
+            launcher_name = "launch_mcp.sh"
+            shebang = "#!/bin/sh\n"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "plugin"
             scripts = root / "scripts"
@@ -420,18 +453,23 @@ class PluginMetadataTests(unittest.TestCase):
             for index, body in enumerate(candidate_sources):
                 candidate = root / f"candidate-{index}"
                 candidate.write_text(
-                    "#!/bin/zsh\n"
-                    f"export LAUNCHER_FIXTURE_LOG={str(log)!r}\n"
+                    shebang
+                    + f"export LAUNCHER_FIXTURE_LOG={str(log)!r}\n"
                     + body,
                     encoding="utf-8",
                 )
                 candidate.chmod(0o755)
                 candidates.append(candidate)
-            replacement = "PYTHON_CANDIDATES=(\n" + "".join(
-                f"  {candidate}\n" for candidate in candidates
-            ) + ")\n"
+            if marker is self.ZSH_CANDIDATE_MARKER:
+                replacement = "PYTHON_CANDIDATES=(\n" + "".join(
+                    f"  {candidate}\n" for candidate in candidates
+                ) + ")\n"
+            else:
+                replacement = 'PYTHON_CANDIDATES="' + "\n".join(
+                    str(candidate) for candidate in candidates
+                ) + '"\n'
             self.assertIn(marker, source)
-            (scripts / "launch_mcp.zsh").write_text(
+            (scripts / launcher_name).write_text(
                 source.replace(marker, replacement), encoding="utf-8",
             )
             (mcp / "server.py").write_text("raise SystemExit(99)\n", encoding="utf-8")
@@ -439,23 +477,16 @@ class PluginMetadataTests(unittest.TestCase):
                 "raise SystemExit(98)\n", encoding="utf-8",
             )
             completed = subprocess.run(
-                ["/bin/zsh", str(scripts / "launch_mcp.zsh"), *launcher_arguments],
+                [shell, str(scripts / launcher_name), *launcher_arguments],
                 cwd=root, capture_output=True, text=True, check=False,
-                env={"PATH": "/definitely/not/a/python/path"}, timeout=2,
+                env={"PATH": "/definitely/not/a/python/path"}, timeout=5,
             )
             calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
             return completed, calls, root
 
     def test_launcher_simulates_capability_fallback_and_provision_mode(self):
-        refusing = 'print -r -- "refused:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"\nexit 17\n'
-        accepting = textwrap.dedent("""\
-            if [[ "$4" == "-c" ]]; then
-              print -r -- "accepted:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"
-              exit 0
-            fi
-            print -r -- "accepted:$*" >> "$LAUNCHER_FIXTURE_LOG"
-            exit 23
-        """)
+        refusing = self.REFUSING_CANDIDATE
+        accepting = self.ACCEPTING_CANDIDATE
         completed, calls, root = self._run_rewritten_launcher(
             [refusing, accepting], "provision", "--check",
         )
@@ -469,18 +500,60 @@ class PluginMetadataTests(unittest.TestCase):
         )
         self.assertFalse(any(root.rglob("*.pyc")))
 
+    LAUNCHER_REFUSAL = (
+        "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 "
+        "with an atomic no-replace rename (Darwin renameatx_np / Linux renameat2) "
+        "at one of the fixed candidate paths' recovery='macOS: brew install python "
+        "| Linux: install a distribution python3 >=3.10 at /usr/bin/python3'\n"
+    )
+
     def test_launcher_refuses_once_with_126_when_no_candidate_passes(self):
-        refusing = 'print -r -- "refused:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"\nexit 17\n'
         completed, calls, unused_root = self._run_rewritten_launcher(
-            [refusing, refusing],
+            [self.REFUSING_CANDIDATE, self.REFUSING_CANDIDATE],
         )
         self.assertEqual(completed.returncode, 126)
         self.assertEqual(completed.stdout, "")
-        self.assertEqual(
-            completed.stderr,
-            "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 at /opt/homebrew/bin/python3' recovery='brew install python'\n",
-        )
+        self.assertEqual(completed.stderr, self.LAUNCHER_REFUSAL)
         self.assertEqual(len(calls), 2)
+
+    def test_launcher_resolves_its_root_without_any_external_command(self):
+        """The caller PATH is untrusted, so no PATH-resolved binary may be used."""
+        completed, calls, unused_root = self._run_rewritten_launcher(
+            [self.REFUSING_CANDIDATE],
+        )
+        self.assertEqual(completed.returncode, 126)
+        self.assertEqual(completed.stderr, self.LAUNCHER_REFUSAL)
+        for external in ("dirname", "basename", "readlink", "realpath", "not found"):
+            self.assertNotIn(external, completed.stderr)
+        self.assertEqual(len(calls), 1)
+
+    @unittest.skipUnless(Path("/bin/zsh").exists(), "zsh launcher requires /bin/zsh")
+    def test_zsh_launcher_matches_the_portable_launcher_behaviour(self):
+        completed, calls, unused_root = self._run_rewritten_launcher(
+            [self.REFUSING_CANDIDATE, self.REFUSING_CANDIDATE], shell="/bin/zsh",
+        )
+        self.assertEqual(completed.returncode, 126)
+        self.assertEqual(completed.stderr, self.LAUNCHER_REFUSAL)
+        self.assertEqual(len(calls), 2)
+
+    def test_both_launchers_carry_a_byte_identical_capability_probe(self):
+        def probe_of(path):
+            source = path.read_text(encoding="utf-8")
+            start = source.index("probe='") + len("probe='")
+            return source[start:source.index("'", start + 1)]
+
+        self.assertEqual(probe_of(LAUNCHER_PATH), probe_of(ZSH_LAUNCHER_PATH))
+
+    def test_probe_requires_the_atomic_rename_symbol_for_this_host_only(self):
+        """Neither symbol may be demanded unconditionally on the wrong host."""
+        source = LAUNCHER_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            '{"Darwin": "renameatx_np", "Linux": "renameat2"}.get(platform.system())',
+            source,
+        )
+        self.assertIn("assert atomic_rename is not None", source)
+        self.assertIn("assert callable(getattr(libc, atomic_rename, None))", source)
+        self.assertNotIn('getattr(libc, "renameatx_np", None)', source)
 
     def test_hosted_macos_workflow_mechanically_runs_all_repo_local_plugin_gates(self):
         self.assertTrue(WORKFLOW_PATH.is_file(), "hosted JACKAL plugin workflow is missing")

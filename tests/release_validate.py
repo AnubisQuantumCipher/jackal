@@ -25,6 +25,7 @@ import base64
 import hashlib
 import json
 import os
+import platform
 import re
 import stat
 import subprocess
@@ -428,7 +429,13 @@ def _emit_formal_receipt(path: str | Path, *, receipt: dict, cert_bytes: bytes,
         if release_epoch == CURRENT_PROOF_RELEASE_EPOCH
         else "range_proof_identity.json"
     )
+    _host_tag = f"{platform.system().lower()}-{platform.machine().lower()}"
+    _host_proof_name = proof_name[:-5] + f".{_host_tag}.json"
     proof_candidates = [
+        # A source build on this host carries host-suffixed proof identity that
+        # binds the locally built checker bytes; fall back to the macOS release
+        # identity when no host-specific record is present.
+        os.path.join(_here, "..", "release", "evidence", _host_proof_name),
         os.path.join(_here, "..", "release", "evidence", proof_name),
         os.path.join(_here, proof_name),
     ]

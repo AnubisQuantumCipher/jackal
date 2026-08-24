@@ -12,6 +12,57 @@ env:
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
+  linux-aarch64-plugin:
+    name: Linux aarch64 plugin gates
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the supported host and fixed Python prerequisite
+        run: |
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = aarch64
+          test -x /usr/bin/python3
+          /usr/bin/python3 -c 'import sys; assert sys.version_info >= (3, 10)'
+
+      - name: Require the host atomic no-replace rename primitive
+        run: |
+          /usr/bin/python3 -c '
+          import ctypes
+          libc = ctypes.CDLL(None, use_errno=True)
+          assert callable(getattr(libc, "renameat2", None)), "glibc renameat2 is required"
+          '
+
+      - name: Verify canonical capability and documentation contracts
+        run: |
+          /usr/bin/python3 -B tools/capability_inventory.py --check
+          /usr/bin/python3 -B tools/capability_drift_gate.py
+          /usr/bin/python3 -B -m unittest \
+            tests.capability_inventory_test \
+            tests.capability_drift_gate_test -v
+
+      - name: Run complete Codex plugin unit suite
+        run: /usr/bin/python3 -B -m unittest discover -s tests/codex_plugin -v
+
+      - name: Verify exact plugin identity
+        run: /usr/bin/python3 -B plugins/jackel/scripts/verify_plugin.py
+
+      - name: Portable launcher starts and refuses for the documented reason
+        run: |
+          cd plugins/jackel
+          set +e
+          output=$(/bin/sh scripts/launch_mcp.sh provision --check 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -eq 1
+          printf '%s\n' "$output" | grep -q "no published release asset for host linux-aarch64"
+
   macos-arm64-plugin:
     name: macOS arm64 plugin gates
     runs-on: macos-14

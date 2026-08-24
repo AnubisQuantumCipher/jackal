@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "jackel": {
-      "command": "/bin/zsh",
+      "command": "/bin/sh",
       "args": [
-        "./scripts/launch_mcp.zsh"
+        "./scripts/launch_mcp.sh"
       ],
       "cwd": ".",
       "env_vars": [

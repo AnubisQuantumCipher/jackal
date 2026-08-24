@@ -12,7 +12,7 @@ capability-name and status source; the release tag, package receipt, and asset
 must bind the same exact bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
-JACKAL exposes the full tool inventory on Apple Silicon macOS. Use it to
+JACKAL exposes the full tool inventory on its supported hosts. Use it to
 classify a quantitative claim, select the strongest admitted evidence lane,
 and preserve the exact assurance boundary returned by the runtime.
 
@@ -121,27 +121,37 @@ Do not turn `refused` or `indeterminate` into an MCP error or a plausible
 number. Do not summarize away route traces, assumptions, receipt identities,
 checker verdicts, or residual non-claims.
 
-## macOS runtime
+## Host runtime
 
-This plugin supports Apple Silicon macOS only and uses the pinned v1.7.3
-candidate macOS-arm64 runtime. Until that candidate is published, provision it
-from the separately verified local tarball path.
-Do not bypass the Darwin/arm64 host guard or substitute another platform build.
+The installer supports exactly two hosts, Darwin/arm64 and Linux/aarch64, and
+each is admitted only because its atomic no-replace install primitive is
+implemented (`renameatx_np` with `RENAME_EXCL` on Darwin, `renameat2` with
+`RENAME_NOREPLACE` on Linux). Do not bypass the host guard or substitute
+another platform build.
 
-Python >=3.10 at `/opt/homebrew/bin/python3` is the supported fixed-path
-prerequisite on Apple Silicon. If it is absent or fails the launcher's
-capability probe, install it with `brew install python`, then rerun the same
-launcher command. The launcher also probes `/usr/local/bin/python3` and
-`/usr/bin/python3` when either already satisfies the complete contract; it
-never searches caller `PATH`.
+A supported host is not a published runtime. Only the macOS-arm64 release
+asset is published today; on Linux/aarch64 the release table carries no pin, so
+provisioning refuses with `no published release asset for host linux-aarch64`
+rather than installing another host's bytes. Provision it from a separately
+verified local tarball and its own pins.
+
+Python >=3.10 is the fixed-path prerequisite: `/opt/homebrew/bin/python3` on
+Apple Silicon (install with `brew install python`), or `/usr/bin/python3` on
+Linux. The launcher probes `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`
+and `/usr/bin/python3` in that order, accepts the first that satisfies the
+complete capability probe including the host's atomic rename symbol, and never
+searches caller `PATH`.
 
 When provisioning is requested, run from the plugin root:
 
 ```bash
-/bin/zsh scripts/launch_mcp.zsh provision
-/bin/zsh scripts/launch_mcp.zsh provision --check
-/bin/zsh scripts/launch_mcp.zsh provision --tarball /absolute/path/to/jackal-v1.7.3-macos-arm64.tar.gz
+/bin/sh scripts/launch_mcp.sh provision
+/bin/sh scripts/launch_mcp.sh provision --check
+/bin/sh scripts/launch_mcp.sh provision --tarball /absolute/path/to/jackal-v1.7.3-macos-arm64.tar.gz
 ```
+
+`scripts/launch_mcp.zsh` remains available for hosts that prefer it; both
+launchers carry a byte-identical capability probe.
 
 The default MCP bridge reads the verified runtime locator. Set `JACKAL_HOME`
 only to an independently verified, canonical absolute runtime directory.

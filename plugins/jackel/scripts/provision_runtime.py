@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the one pinned JACKAL macOS arm64 runtime, fail closed."""
+"""Install the one pinned JACKAL runtime for a supported host, fail closed."""
 
 from __future__ import annotations
 
@@ -36,6 +36,40 @@ PACKAGE_SHA256 = "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505
 EXTRACTED_SIZE = 555511970
 SHA256SUMS_SHA256 = "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a"
 PACKAGE_DIRECTORY = "jackal-v1.7.3-macos-arm64"
+
+# A host is supported only when its atomic no-replace install primitive and its
+# release pin are both known. Adding a row is not enough to make a runtime
+# exist: RELEASE_PINS decides whether an asset has actually been published.
+SUPPORTED_HOSTS = {
+    ("Darwin", "arm64"): "macos-arm64",
+    ("Linux", "aarch64"): "linux-aarch64",
+}
+
+# ``None`` means "this host is supported by the installer but no release asset
+# has been published for it yet". It must refuse, never fall back to another
+# host's bytes.
+RELEASE_PINS: dict[str, dict[str, object] | None] = {
+    "macos-arm64": {
+        "asset": ASSET,
+        "url": URL,
+        "package_size": PACKAGE_SIZE,
+        "package_sha256": PACKAGE_SHA256,
+        "extracted_size": EXTRACTED_SIZE,
+        "sha256sums_sha256": SHA256SUMS_SHA256,
+        "package_directory": PACKAGE_DIRECTORY,
+    },
+    "linux-aarch64": {
+        # Locally built runtime (source build on this host). No published
+        # upstream asset — install with `provision --tarball <path>`.
+        "asset": "jackal-v1.7.3-linux-aarch64.tar.gz",
+        "url": None,
+        "package_size": 177404638,
+        "package_sha256": "d4618d6e153ff1a94ca7a064995e346c10874fe0e2b1afafdb19ef7b2cdb2720",
+        "extracted_size": 686413084,
+        "sha256sums_sha256": "d33dd68643c55db7014a48296371bdfadd748d5218b6a859899b2c578ad26256",
+        "package_directory": "jackal-v1.7.3-linux-aarch64",
+    },
+}
 MAX_ARCHIVE_MEMBERS = 8192
 MAX_RUNTIME_RECORDS = MAX_ARCHIVE_MEMBERS
 MAX_RUNTIME_ENTRIES = MAX_ARCHIVE_MEMBERS + 2
@@ -48,8 +82,14 @@ NETWORK_TIMEOUT = 30.0
 DOWNLOAD_TOTAL_TIMEOUT = 300.0
 SELFTEST_TIMEOUT = 30.0
 SELFTEST_OUTPUT_LIMIT = 64 * 1024
-SNAPSHOT_BYTE_LIMIT = EXTRACTED_SIZE + 1024 * 1024
-MAX_RUNTIME_FILE_BYTES = EXTRACTED_SIZE
+# Byte caps bound extraction/verification against zip-bomb inputs. They must fit
+# the LARGEST supported runtime (RELEASE_PINS is defined above), not only macOS;
+# exact integrity stays pinned by each host's extracted_size and SHA256SUMS.
+_MAX_SUPPORTED_EXTRACTED = max(
+    [EXTRACTED_SIZE] + [pin["extracted_size"] for pin in RELEASE_PINS.values() if pin]
+)
+SNAPSHOT_BYTE_LIMIT = _MAX_SUPPORTED_EXTRACTED + 1024 * 1024
+MAX_RUNTIME_FILE_BYTES = _MAX_SUPPORTED_EXTRACTED
 MAX_RUNTIME_TOTAL_BYTES = SNAPSHOT_BYTE_LIMIT
 RUNTIME_ENV_ALLOWLIST = ("JACKAL_HOME",)
 FIXED_SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
@@ -65,21 +105,84 @@ class _LeaderAnchorLost(ProvisionError):
     pass
 
 
-def default_runtime_target(home: Path | None = None) -> Path:
-    root = Path.home() if home is None else Path(home)
-    return root / "Library/Application Support/JACKAL/runtimes" / EPOCH
+def _data_home(root: Path, system: str | None = None) -> Path:
+    """Per-host application data root.
+
+    Fixed by platform, never read from the environment: the launcher sanitizes
+    the environment down to RUNTIME_ENV_ALLOWLIST, so an installer path that
+    honoured XDG_DATA_HOME would be attacker-influenced on exactly the hosts
+    that need it least.
+    """
+    actual_system = platform.system() if system is None else system
+    if actual_system == "Darwin":
+        return root / "Library/Application Support"
+    return root / ".local/share"
 
 
-def default_locator_path(home: Path | None = None) -> Path:
+def default_runtime_target(home: Path | None = None, system: str | None = None) -> Path:
     root = Path.home() if home is None else Path(home)
-    return root / "Library/Application Support/JACKAL/codex-plugin/runtime.json"
+    return _data_home(root, system) / "JACKAL/runtimes" / EPOCH
+
+
+def default_locator_path(home: Path | None = None, system: str | None = None) -> Path:
+    root = Path.home() if home is None else Path(home)
+    return _data_home(root, system) / "JACKAL/codex-plugin/runtime.json"
+
+
+def resolve_host(system: str | None = None, machine: str | None = None) -> str:
+    """Return the release host tag, or refuse. Never guesses a nearby host."""
+    actual_system = platform.system() if system is None else system
+    actual_machine = platform.machine() if machine is None else machine
+    tag = SUPPORTED_HOSTS.get((actual_system, actual_machine))
+    if tag is None:
+        supported = ", ".join(
+            f"{key[0]}/{key[1]}" for key in sorted(SUPPORTED_HOSTS)
+        )
+        raise ProvisionError(
+            f"unsupported host: {actual_system}/{actual_machine}; requires one of {supported}"
+        )
+    return tag
 
 
 def validate_host(system: str | None = None, machine: str | None = None) -> None:
-    actual_system = platform.system() if system is None else system
-    actual_machine = platform.machine() if machine is None else machine
-    if actual_system != "Darwin" or actual_machine != "arm64":
-        raise ProvisionError(f"unsupported host: {actual_system}/{actual_machine}; requires Darwin/arm64")
+    resolve_host(system, machine)
+
+
+def effective_release_pins(system: str | None = None, machine: str | None = None) -> dict[str, object]:
+    """The (epoch, asset, size, sha256, directory) this host installs/serves.
+
+    Falls back to the built-in macOS constants when the host has a published
+    pin identical to them; otherwise returns the host's own release pin values.
+    Used by the MCP server so its locator/metadata checks match whatever the
+    provisioner actually installed on this host.
+    """
+    host_tag = resolve_host(system, machine)
+    pin = RELEASE_PINS.get(host_tag)
+    if not pin:
+        return {
+            "epoch": EPOCH, "asset": ASSET,
+            "package_size": PACKAGE_SIZE, "package_sha256": PACKAGE_SHA256,
+            "package_directory": PACKAGE_DIRECTORY,
+        }
+    return {
+        "epoch": EPOCH, "asset": pin["asset"],
+        "package_size": pin["package_size"], "package_sha256": pin["package_sha256"],
+        "package_directory": pin["package_directory"],
+    }
+
+
+def release_pin(host_tag: str) -> dict[str, object]:
+    """Return the published release pin for a host, or refuse."""
+    try:
+        pin = RELEASE_PINS[host_tag]
+    except KeyError:
+        raise ProvisionError(f"no release pin table entry for host {host_tag}") from None
+    if pin is None:
+        raise ProvisionError(
+            f"no published release asset for host {host_tag}; "
+            "supply a locally built runtime and its pins instead"
+        )
+    return pin
 
 
 def runtime_subprocess_environment(
@@ -1352,6 +1455,18 @@ def _verify_outer_file(path: Path, expected_size: int, expected_sha256: str):
         raise
 
 
+# macOS renameatx_np(2) flag; Linux renameat2(2) flag. Both mean the same
+# thing: rename atomically and fail with EEXIST rather than clobber the target.
+_RENAME_EXCL = 0x00000004
+_RENAME_NOREPLACE = 0x00000001
+
+
+def _raise_rename_error(error_number: int, target_name: str) -> None:
+    if error_number == errno.EEXIST:
+        raise FileExistsError(error_number, os.strerror(error_number), target_name)
+    raise OSError(error_number, os.strerror(error_number), target_name)
+
+
 def _renameatx_np_exclusive(
     source_parent_fd: int,
     source_name: str,
@@ -1364,18 +1479,68 @@ def _renameatx_np_exclusive(
     renameatx = libc.renameatx_np
     renameatx.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
     renameatx.restype = ctypes.c_int
+    ctypes.set_errno(0)
     result = renameatx(
         source_parent_fd,
         os.fsencode(source_name),
         target_parent_fd,
         os.fsencode(target_name),
-        0x00000004,
+        _RENAME_EXCL,
     )
     if result != 0:
-        error_number = ctypes.get_errno()
-        if error_number == errno.EEXIST:
-            raise FileExistsError(error_number, os.strerror(error_number), target_name)
-        raise OSError(error_number, os.strerror(error_number), target_name)
+        _raise_rename_error(ctypes.get_errno(), target_name)
+
+
+def _renameat2_noreplace(
+    source_parent_fd: int,
+    source_name: str,
+    target_parent_fd: int,
+    target_name: str,
+) -> None:
+    """Linux equivalent of renameatx_np(..., RENAME_EXCL).
+
+    RENAME_NOREPLACE carries the same guarantee: the rename is atomic and fails
+    with EEXIST rather than replacing an existing target. Filesystems that do
+    not implement the flag report EINVAL or ENOSYS, which propagates as a
+    refusal -- there is deliberately no fallback to a clobbering rename.
+    """
+    if platform.system() != "Linux":
+        raise ProvisionError("renameat2 no-replace installation requires Linux")
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise ProvisionError(
+            "atomic no-replace installation requires glibc renameat2 (glibc >= 2.28)"
+        )
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameat2(
+        source_parent_fd,
+        os.fsencode(source_name),
+        target_parent_fd,
+        os.fsencode(target_name),
+        _RENAME_NOREPLACE,
+    )
+    if result != 0:
+        _raise_rename_error(ctypes.get_errno(), target_name)
+
+
+_RENAME_EXCLUSIVE_BY_SYSTEM = {
+    "Darwin": _renameatx_np_exclusive,
+    "Linux": _renameat2_noreplace,
+}
+
+
+def rename_exclusive_for_host(system: str | None = None) -> Callable:
+    """Select the atomic no-replace primitive for this host, or refuse."""
+    actual_system = platform.system() if system is None else system
+    operation = _RENAME_EXCLUSIVE_BY_SYSTEM.get(actual_system)
+    if operation is None:
+        raise ProvisionError(
+            f"atomic no-replace installation is unsupported on {actual_system}"
+        )
+    return operation
 
 
 def _install_no_replace(
@@ -1386,7 +1551,7 @@ def _install_no_replace(
 ) -> None:
     source_path = Path(source)
     target_path = Path(target)
-    operation = _renameatx_np_exclusive if rename_exclusive is None else rename_exclusive
+    operation = rename_exclusive_for_host() if rename_exclusive is None else rename_exclusive
     source_parent_fd = -1
     target_parent_fd = -1
     try:
@@ -1428,7 +1593,26 @@ def provision(
     install_no_replace: Callable | None = None,
 ) -> Path:
     """Validate or atomically install the pinned runtime."""
-    validate_host(system, machine)
+    host_tag = resolve_host(system, machine)
+    relying_on_builtin_pins = (
+        asset == ASSET
+        and url == URL
+        and expected_size == PACKAGE_SIZE
+        and expected_sha256 == PACKAGE_SHA256
+    )
+    if relying_on_builtin_pins:
+        # The caller is relying on the built-in pins rather than supplying its
+        # own. Bind them to THIS host's published release pin (refusing when no
+        # asset exists for the host) instead of letting another host's bytes
+        # reach the hash check and surface as a confusing digest mismatch.
+        pin = release_pin(host_tag)
+        asset = pin["asset"]
+        url = pin["url"] if pin["url"] is not None else url
+        expected_size = pin["package_size"]
+        expected_sha256 = pin["package_sha256"]
+        expected_extracted_size = pin["extracted_size"]
+        expected_tree_sha256 = pin["sha256sums_sha256"]
+        expected_top_level = pin["package_directory"]
     if (
         expected_size < 0
         or expected_extracted_size < 0
@@ -1564,8 +1748,12 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:
         print("jackal_runtime=refused detail=unexpected provisioning failure", file=sys.stderr)
         return 1
+    try:
+        _sha = effective_release_pins()["package_sha256"]
+    except ProvisionError:
+        _sha = PACKAGE_SHA256
     print(
-        f"jackal_runtime=ready epoch={EPOCH} runtime={runtime} package_sha256={PACKAGE_SHA256}"
+        f"jackal_runtime=ready epoch={EPOCH} runtime={runtime} package_sha256={_sha}"
     )
     return 0
 

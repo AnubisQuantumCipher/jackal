@@ -2,7 +2,15 @@
 # Fail-closed root wrapper for theorem-backed Gaussian integration.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-MANIFEST="$ROOT/release/MANIFEST.sha256"
+# Per-host release identity: a source build on this host produces
+# byte-different compiled artifacts (jackal-native + Lean checkers), so it
+# carries its own MANIFEST.<host>.sha256. The macOS arm64 manifest remains
+# the default when no host-specific one is present.
+HOST_TAG="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+MANIFEST="$ROOT/release/MANIFEST.$HOST_TAG.sha256"
+[ -f "$MANIFEST" ] || MANIFEST="$ROOT/release/MANIFEST.sha256"
+PROOF_ID="$ROOT/release/evidence/gaussian_proof_identity.$HOST_TAG.json"
+[ -f "$PROOF_ID" ] || PROOF_ID="$ROOT/release/evidence/gaussian_proof_identity.json"
 PRODUCER="$ROOT/tools/gaussian_certificate.py"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
 
@@ -32,7 +40,7 @@ exec python3 -I -S -B "$ROOT/tools/isolated_entry.py" gaussian \
   --expected-producer "$EXPECTED_PRODUCER" --expected-checker "$EXPECTED_CHECKER" \
   --inventory "$ROOT/release/coverage/formal_coverage_inventory.json" \
   --expected-inventory "$EXPECTED_INVENTORY" \
-  --proof-identity "$ROOT/release/evidence/gaussian_proof_identity.json" \
+  --proof-identity "$PROOF_ID" \
   --expected-proof-identity-file "$EXPECTED_PROOF_FILE" \
   --expected-proof-identity-digest "$EXPECTED_PROOF_DIGEST" \
   --receipt "$5" --release-epoch v1.5.0 --timeout "$TIMEOUT"

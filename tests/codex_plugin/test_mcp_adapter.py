@@ -1885,6 +1885,14 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             SHA256SUMS_SHA256="f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28",
             SELFTEST_TIMEOUT=30.0,
             SELFTEST_OUTPUT_LIMIT=65536,
+            effective_release_pins=lambda *a, **k: {
+                "epoch": "v1.7.0",
+                "asset": "jackal-v1.7.0-macos-arm64.tar.gz",
+                "package_size": 118862060,
+                "package_sha256":
+                    "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e",
+                "package_directory": "jackal-v1.7.0-macos-arm64",
+            },
             default_locator_path=lambda: self.root / "locator.json",
             validate_host=mock.Mock(return_value=None),
             runtime_subprocess_environment=mock.Mock(
@@ -2165,6 +2173,11 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             EPOCH="v1.7.0", ASSET="fixture.tar.gz", PACKAGE_SIZE=123,
             PACKAGE_SHA256="c" * 64,
             SHA256SUMS_SHA256=hashlib.sha256(checksums).hexdigest(),
+            effective_release_pins=lambda *a, **k: {
+                "epoch": "v1.7.0", "asset": "fixture.tar.gz",
+                "package_size": 123, "package_sha256": "c" * 64,
+                "package_directory": "fixture",
+            },
             SELFTEST_TIMEOUT=2.0, SELFTEST_OUTPUT_LIMIT=65536,
             validate_host=mock.Mock(return_value=None),
             validate_runtime=real_provisioner.validate_runtime,

@@ -582,8 +582,8 @@ class MCPClientTests(unittest.TestCase):
             base = {
                 "mcpServers": {
                     "jackel": {
-                        "command": "/bin/zsh",
-                        "args": ["./scripts/launch_mcp.zsh"],
+                        "command": "/bin/sh",
+                        "args": ["./scripts/launch_mcp.sh"],
                         "cwd": ".",
                         "env_vars": ["JACKAL_HOME"],
                         "tool_timeout_sec": 3700,
@@ -826,8 +826,8 @@ class HostDiscoveryAcceptanceTests(unittest.TestCase):
                 "disabled_reason": None,
                 "transport": {
                     "type": "stdio",
-                    "command": "/bin/zsh",
-                    "args": ["./scripts/launch_mcp.zsh"],
+                    "command": "/bin/sh",
+                    "args": ["./scripts/launch_mcp.sh"],
                     "env": None,
                     "env_vars": ["JACKAL_HOME"],
                     "cwd": str(installed / "."),
@@ -1837,7 +1837,7 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
         direct = mock.Mock(return_value={"status": "exact"})
         temporary = mock.Mock()
         temporary.__enter__ = mock.Mock(
-            return_value="/private/tmp/jackel-codex-live-fixture"
+            return_value=str(live._fixed_temp_root() / "jackel-codex-live-fixture")
         )
         temporary.__exit__ = mock.Mock(return_value=False)
 
@@ -1869,7 +1869,7 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
 
         sanitizer.assert_called_once()
         temporary_directory.assert_called_once_with(
-            prefix="jackel-codex-live-", dir=Path("/private/tmp")
+            prefix="jackel-codex-live-", dir=live._fixed_temp_root()
         )
         self.assertEqual(sanitizer.call_args.args[0], runtime)
         mcp_client.assert_called_once_with(installed, environment)

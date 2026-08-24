@@ -1,7 +1,9 @@
 # JACKAL for Codex (legacy package ID `jackel`)
 
-This repo-local Codex plugin exposes the JACKAL v1.7.3 release runtime on Apple
-Silicon macOS. Its current source contract is the ordered 41-tool inventory in
+This repo-local Codex plugin exposes the JACKAL v1.7.3 release runtime. The
+installer supports Darwin/arm64 and Linux/aarch64; only the macOS-arm64 release
+asset is published today, so Linux hosts must supply a locally built runtime and
+its own pins. Its current source contract is the ordered 41-tool inventory in
 `release/capability_inventory_v1.json`; the package receipt and downloaded
 release asset must bind the same exact bytes.
 
@@ -21,19 +23,20 @@ absolute path for an offline installation:
 codex plugin marketplace add /absolute/path/to/jackal
 codex plugin add jackel@anubis-quantum-cipher
 cd /absolute/path/to/the/installed/jackel/plugin
-/bin/zsh scripts/launch_mcp.zsh provision
+/bin/sh scripts/launch_mcp.sh provision
 # Offline alternative:
-# /bin/zsh scripts/launch_mcp.zsh provision --tarball \
+# /bin/sh scripts/launch_mcp.sh provision --tarball \
 #   /absolute/path/to/jackal-v1.7.3-macos-arm64.tar.gz
-/bin/zsh scripts/launch_mcp.zsh provision --check
+/bin/sh scripts/launch_mcp.sh provision --check
 codex mcp list --json
 ```
 
 Require exactly 41 unique JACKAL tool names and an MCP working directory bound
 to the installed plugin copy. Python 3.10 or newer at
-`/opt/homebrew/bin/python3` is the supported prerequisite; the launcher also
-accepts the two other fixed absolute candidates only when they pass its full
-capability probe. It never searches caller `PATH`.
+`/opt/homebrew/bin/python3` (macOS) or `/usr/bin/python3` (Linux) is the
+supported prerequisite; the launcher accepts any of its three fixed absolute
+candidates that pass the full capability probe, which includes the host's
+atomic no-replace rename symbol. It never searches caller `PATH`.
 
 ## Routing
 
@@ -63,9 +66,9 @@ establish runtime behavior.
 From the JACKAL repository root:
 
 ```bash
-/opt/homebrew/bin/python3 -B plugins/jackel/scripts/verify_plugin.py
-/opt/homebrew/bin/python3 -B tools/capability_drift_gate.py
-/opt/homebrew/bin/python3 -B -m unittest discover -s tests/codex_plugin -v
+python3 -B plugins/jackel/scripts/verify_plugin.py
+python3 -B tools/capability_drift_gate.py
+python3 -B -m unittest discover -s tests/codex_plugin -v
 ```
 
 The wrapper identity manifest is tamper evidence bound to a separately trusted

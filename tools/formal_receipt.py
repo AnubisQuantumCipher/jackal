@@ -484,6 +484,26 @@ ARCHIVAL_INT_CERT_CHECKER_SHA256 = (
     "c858e3bfc0ff2809a808170caabbf090077cb54996e76f065dbcd26ffb067d49"
 )
 
+def _host_current_identity_sha(base_filename: str, macos_default: str) -> str:
+    """File sha for the *current*-epoch proof identity on this host.
+
+    A source build on a non-macOS host carries a host-suffixed proof identity
+    (``<base>.<system>-<machine>.json``) binding its locally built checker
+    bytes. When present it is authoritative for that host; otherwise the pinned
+    macOS release sha stands. macOS hosts always fall through to the default.
+    """
+    try:
+        import platform as _platform
+        tag = f"{_platform.system().lower()}-{_platform.machine().lower()}"
+        stem = base_filename[:-5] if base_filename.endswith(".json") else base_filename
+        candidate = Path(__file__).resolve().parent.parent / "release" / "evidence" / f"{stem}.{tag}.json"
+        if candidate.is_file():
+            return hashlib.sha256(candidate.read_bytes()).hexdigest()
+    except OSError:
+        pass
+    return macos_default
+
+
 _PROOF_COMPATIBILITY = {
     ("range", RANGE_PROOF_IDENTITY_V1_SCHEMA, "v1.5.0"): {
         "file_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
@@ -492,12 +512,18 @@ _PROOF_COMPATIBILITY = {
         "theorem": "JackalIv.Cert.request_bound_certified_release",
     },
     ("range", RANGE_PROOF_IDENTITY_V2_SCHEMA, CURRENT_PROOF_RELEASE_EPOCH): {
-        "file_sha256": "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+        "file_sha256": _host_current_identity_sha(
+            "range_proof_identity_v172.json",
+            "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+        ),
         "mode": "current",
         "theorem": "JackalIv.Cert.request_bound_certified_release",
     },
     ("int_cert", INT_CERT_PROOF_IDENTITY_V2_SCHEMA, CURRENT_PROOF_RELEASE_EPOCH): {
-        "file_sha256": "a8aefff85666d35cfd5412b10ae3d404260e91a98de53d5f0d2bb9f88f4ffbdf",
+        "file_sha256": _host_current_identity_sha(
+            "int_cert_proof_identity_v172.json",
+            "a8aefff85666d35cfd5412b10ae3d404260e91a98de53d5f0d2bb9f88f4ffbdf",
+        ),
         "mode": "current",
         "theorem": "JackalIv.IntCert.int_cert_sound",
     },

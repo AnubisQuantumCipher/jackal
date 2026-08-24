@@ -1555,8 +1555,23 @@ class RuntimeProvisionerTests(unittest.TestCase):
             "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a",
         )
         self.assertEqual(
-            provisioner.default_runtime_target(Path("/Users/tester")),
+            provisioner.default_runtime_target(Path("/Users/tester"), "Darwin"),
             Path("/Users/tester/Library/Application Support/JACKAL/runtimes/v1.7.3"),
+        )
+        self.assertEqual(
+            provisioner.default_locator_path(Path("/Users/tester"), "Darwin"),
+            Path(
+                "/Users/tester/Library/Application Support/JACKAL"
+                "/codex-plugin/runtime.json"
+            ),
+        )
+        self.assertEqual(
+            provisioner.default_runtime_target(Path("/home/tester"), "Linux"),
+            Path("/home/tester/.local/share/JACKAL/runtimes/v1.7.3"),
+        )
+        self.assertEqual(
+            provisioner.default_locator_path(Path("/home/tester"), "Linux"),
+            Path("/home/tester/.local/share/JACKAL/codex-plugin/runtime.json"),
         )
 
     def test_cli_rejects_relative_tarball_with_one_bounded_line_and_no_traceback(self):
@@ -1578,6 +1593,155 @@ class RuntimeProvisionerTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertLessEqual(len(lines[0]), 320)
         self.assertNotIn("Traceback", lines[0])
+
+
+class HostPortabilityTests(unittest.TestCase):
+    """The host guard admits exactly the hosts whose primitives are implemented."""
+
+    def test_resolve_host_admits_both_supported_hosts(self):
+        self.assertEqual(provisioner.resolve_host("Darwin", "arm64"), "macos-arm64")
+        self.assertEqual(provisioner.resolve_host("Linux", "aarch64"), "linux-aarch64")
+
+    def test_resolve_host_refuses_near_misses_without_guessing(self):
+        for system, machine in (
+            ("Linux", "x86_64"),
+            ("Darwin", "x86_64"),
+            ("Linux", "arm64"),
+            ("Darwin", "aarch64"),
+            ("Windows", "AMD64"),
+            ("FreeBSD", "aarch64"),
+        ):
+            with self.subTest(system=system, machine=machine):
+                with self.assertRaises(provisioner.ProvisionError) as caught:
+                    provisioner.resolve_host(system, machine)
+                detail = str(caught.exception)
+                self.assertIn(f"{system}/{machine}", detail)
+                self.assertIn("unsupported host", detail)
+
+    def test_release_pin_resolves_for_hosts_with_a_pin(self):
+        self.assertEqual(
+            provisioner.release_pin("macos-arm64")["asset"], provisioner.ASSET
+        )
+        # linux-aarch64 carries a locally built runtime pin
+        self.assertEqual(
+            provisioner.release_pin("linux-aarch64")["package_directory"],
+            "jackal-v1.7.3-linux-aarch64",
+        )
+
+    def test_release_pin_refuses_for_a_host_with_no_published_asset(self):
+        """A supported host with a None pin refuses rather than guessing bytes."""
+        with mock.patch.dict(provisioner.RELEASE_PINS, {"linux-aarch64": None}):
+            with self.assertRaises(provisioner.ProvisionError) as caught:
+                provisioner.release_pin("linux-aarch64")
+            self.assertIn("no published release asset", str(caught.exception))
+
+    def test_default_pin_provisioning_refuses_when_the_host_pin_is_absent(self):
+        """A supported host with no pin is not a published runtime."""
+        with mock.patch.dict(provisioner.RELEASE_PINS, {"linux-aarch64": None}):
+            with self.assertRaises(provisioner.ProvisionError) as caught:
+                provisioner.provision(
+                    check_only=True, system="Linux", machine="aarch64",
+                )
+            self.assertIn("no published release asset", str(caught.exception))
+
+    def test_caller_supplied_pins_bypass_the_release_table_not_the_host_guard(self):
+        with self.assertRaises(provisioner.ProvisionError) as caught:
+            provisioner.provision(
+                check_only=True,
+                system="Linux",
+                machine="riscv64",
+                expected_size=1,
+                expected_sha256="0" * 64,
+            )
+        self.assertIn("unsupported host", str(caught.exception))
+
+    def test_rename_primitive_is_selected_per_host_and_refuses_elsewhere(self):
+        self.assertIs(
+            provisioner.rename_exclusive_for_host("Darwin"),
+            provisioner._renameatx_np_exclusive,
+        )
+        self.assertIs(
+            provisioner.rename_exclusive_for_host("Linux"),
+            provisioner._renameat2_noreplace,
+        )
+        with self.assertRaises(provisioner.ProvisionError) as caught:
+            provisioner.rename_exclusive_for_host("Windows")
+        self.assertIn("unsupported on Windows", str(caught.exception))
+
+    def test_each_primitive_refuses_to_run_on_the_wrong_host(self):
+        wrong = (
+            (provisioner._renameatx_np_exclusive, "Linux"),
+            (provisioner._renameat2_noreplace, "Darwin"),
+        )
+        for operation, foreign_system in wrong:
+            with self.subTest(operation=operation.__name__):
+                with mock.patch.object(
+                    provisioner.platform, "system", return_value=foreign_system
+                ):
+                    with self.assertRaises(provisioner.ProvisionError):
+                        operation(-1, "a", -1, "b")
+
+    def test_supported_hosts_and_release_pins_describe_the_same_hosts(self):
+        self.assertEqual(
+            set(provisioner.SUPPORTED_HOSTS.values()),
+            set(provisioner.RELEASE_PINS),
+        )
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "Linux rename primitive")
+class LinuxRenameNoReplaceTests(unittest.TestCase):
+    """renameat2(RENAME_NOREPLACE) must match renameatx_np(RENAME_EXCL) semantics."""
+
+    def _parents(self, root, source_name, target_name, *, payload=b"runtime"):
+        (root / source_name).write_bytes(payload)
+        return os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+
+    def test_rename_moves_into_a_free_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fd = self._parents(root, "src", "dst")
+            try:
+                provisioner._renameat2_noreplace(fd, "src", fd, "dst")
+            finally:
+                os.close(fd)
+            self.assertFalse((root / "src").exists())
+            self.assertEqual((root / "dst").read_bytes(), b"runtime")
+
+    def test_rename_refuses_to_clobber_an_existing_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "dst").write_bytes(b"installed")
+            fd = self._parents(root, "src", "dst", payload=b"attacker")
+            try:
+                with self.assertRaises(FileExistsError) as caught:
+                    provisioner._renameat2_noreplace(fd, "src", fd, "dst")
+            finally:
+                os.close(fd)
+            self.assertEqual(caught.exception.errno, errno.EEXIST)
+            self.assertEqual((root / "dst").read_bytes(), b"installed")
+            self.assertEqual((root / "src").read_bytes(), b"attacker")
+
+    def test_missing_source_reports_enoent_not_a_silent_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with self.assertRaises(OSError) as caught:
+                    provisioner._renameat2_noreplace(fd, "absent", fd, "dst")
+            finally:
+                os.close(fd)
+            self.assertEqual(caught.exception.errno, errno.ENOENT)
+            self.assertNotIsInstance(caught.exception, FileExistsError)
+
+    def test_install_no_replace_uses_the_host_primitive_end_to_end(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "staged").mkdir()
+            (root / "staged" / "marker").write_bytes(b"x")
+            provisioner._install_no_replace(root / "staged", root / "final")
+            self.assertTrue((root / "final" / "marker").is_file())
+            (root / "staged").mkdir()
+            with self.assertRaises(FileExistsError):
+                provisioner._install_no_replace(root / "staged", root / "final")
 
 
 if __name__ == "__main__":

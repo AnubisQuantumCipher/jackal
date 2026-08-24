@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 import os
 import re
 import subprocess
@@ -207,7 +208,9 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
         "integrate", args.expression, canonical_lo, canonical_hi, canonical_tolerance
     )
     here = Path(__file__).resolve().parent
+    _host_tag = f"{platform.system().lower()}-{platform.machine().lower()}"
     proof_candidates = [
+        here.parent / "release" / "evidence" / f"gaussian_proof_identity.{_host_tag}.json",
         here.parent / "release" / "evidence" / "gaussian_proof_identity.json",
         here / "gaussian_proof_identity.json",
     ]

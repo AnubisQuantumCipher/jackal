@@ -1,0 +1,803 @@
+{
+  "audit_digest_sha256": "1cf4ad275356b38eda697d18ffb782f50b041a46a3fef373e0594f6c92375447",
+  "audit_result": {
+    "logical_admission_count": 0,
+    "repository_axiom_declaration_count": 0,
+    "status": "pass",
+    "unexpected_construct_count": 0
+  },
+  "generator": {
+    "bytes": 36483,
+    "path": "tools/lean_admission_audit.py",
+    "sha256": "d72856931ddd1ede4e62d2312b660d71010df833d00eb3eded7ae381d9a2c768"
+  },
+  "release_bindings": {
+    "compatibility_snapshot_inputs": {
+      "classification": "Compatibility snapshots constrain replay or refusal policy; they are evidence inputs, not Lean logical admissions.",
+      "current_release_epoch": "v1.7.2",
+      "floor_bytes": 3474,
+      "floor_path": "release/compat/v172_floor.json",
+      "floor_sha256": "1a7baa000a86a07189df2cec73258db431cd5ab66e80465c5770b980e0ee4f61",
+      "reversed_interval_policy": "revoked-refuse",
+      "snapshots": [
+        {
+          "allowed_release_epochs": [],
+          "epoch_class": "archival_v1",
+          "identity_path": "release/evidence/int_cert_proof_identity.json",
+          "identity_schema": "jackal-int-cert-proof-identity-v1",
+          "identity_sha256": "f0323e312d8b0e05a7200546fd819fc191d5f146d359bb14efec5b1575f16844",
+          "lane": "int_cert",
+          "mode": "revoked-refuse",
+          "reason": "v1 artifact-only checker does not bind the raw request expression to the proved QExpr"
+        },
+        {
+          "allowed_release_epochs": [
+            "v1.7.2"
+          ],
+          "epoch_class": "current",
+          "identity_path": "release/evidence/int_cert_proof_identity_v172.json",
+          "identity_schema": "jackal-int-cert-proof-identity-v2",
+          "identity_sha256": "a8aefff85666d35cfd5412b10ae3d404260e91a98de53d5f0d2bb9f88f4ffbdf",
+          "lane": "int_cert",
+          "mode": "current",
+          "reason": null
+        },
+        {
+          "allowed_release_epochs": [
+            "v1.5.0"
+          ],
+          "epoch_class": "archival_v1",
+          "identity_path": "release/evidence/range_proof_identity.json",
+          "identity_schema": "jackal-range-proof-identity-v1",
+          "identity_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+          "lane": "range",
+          "mode": "replay-only",
+          "reason": null
+        },
+        {
+          "allowed_release_epochs": [
+            "v1.7.2"
+          ],
+          "epoch_class": "current",
+          "identity_path": "release/evidence/range_proof_identity_v172.json",
+          "identity_schema": "jackal-range-proof-identity-v2",
+          "identity_sha256": "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+          "lane": "range",
+          "mode": "current",
+          "reason": null
+        },
+        {
+          "allowed_release_epochs": [
+            "v1.5.0"
+          ],
+          "epoch_class": "archival_v1",
+          "identity_path": "release/evidence/range_proof_identity.json",
+          "identity_schema": "jackal-range-proof-identity-v1",
+          "identity_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+          "lane": "rational_variants",
+          "mode": "replay-only",
+          "reason": null
+        },
+        {
+          "allowed_release_epochs": [
+            "v1.7.2"
+          ],
+          "epoch_class": "current",
+          "identity_path": "release/evidence/range_proof_identity_v172.json",
+          "identity_schema": "jackal-range-proof-identity-v2",
+          "identity_sha256": "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+          "lane": "rational_variants",
+          "mode": "current",
+          "reason": null
+        }
+      ],
+      "unsupported_policy": "refuse"
+    },
+    "current_proof_identities": [
+      {
+        "checker_bytes": 181566968,
+        "checker_path": "proofs/lean/.lake/build/bin/jackal_cert_check",
+        "checker_sha256": "89e4e42d8daa57d4a9a19f9b95b29bd5e96fae5ad7060ac3adf355f1dfeb870c",
+        "identity_bytes": 18388,
+        "identity_checker_bytes": 181566968,
+        "identity_checker_sha256": "89e4e42d8daa57d4a9a19f9b95b29bd5e96fae5ad7060ac3adf355f1dfeb870c",
+        "identity_digest_sha256": "e373a459c1ddbd87be1b8bb881440338872a527cf1805d13340833e2e7d098d1",
+        "identity_path": "release/evidence/range_proof_identity_v172.linux-aarch64.json",
+        "identity_schema": "jackal-range-proof-identity-v2",
+        "identity_sha256": "c6caed2434cbd77cba19bb0279936bfa322a696301e6d20c932a9b412f2fa0ca",
+        "lane": "range",
+        "root_modules": [
+          "JackalIv.CertCheckMain"
+        ],
+        "theorems": [
+          "JackalIv.Cert.request_bound_certified_release",
+          "JackalIv.Cert.requestMatches_true",
+          "JackalIv.Cert.requestMatches_interval_order",
+          "JackalIv.Cert.releaseNodesOk_modelTCB",
+          "JackalIv.Cert.lowerRaw_toExpr",
+          "JackalIv.Cert.rawExprOf_toExpr",
+          "JackalIv.Cert.cert_check_sound",
+          "JackalIv.parse_lower_encloses"
+        ]
+      },
+      {
+        "checker_bytes": 181303904,
+        "checker_path": "proofs/lean/.lake/build/bin/jackal_gaussian_check",
+        "checker_sha256": "1f21c6b2e41c171414405c0aa6fee089851716d1add707727ace45395f4ed379",
+        "identity_bytes": 16114,
+        "identity_checker_bytes": 181303904,
+        "identity_checker_sha256": "1f21c6b2e41c171414405c0aa6fee089851716d1add707727ace45395f4ed379",
+        "identity_digest_sha256": "489780aab2b7b5f16bc529b141c5c7967a9307cbc539c3fff8eab9f0789263fe",
+        "identity_path": "release/evidence/gaussian_proof_identity.linux-aarch64.json",
+        "identity_schema": "jackal-gaussian-proof-identity-v1",
+        "identity_sha256": "610624b48f48dcd089e0ad14ddac7ebbc25071e7d70cc8516ad6c3c09c747404",
+        "lane": "gaussian",
+        "root_modules": [
+          "JackalIv.GaussianCertMain"
+        ],
+        "theorems": [
+          "JackalIv.GaussianCert.gaussian_integral_check_sound",
+          "JackalIv.Gaussian.scaled_gaussian_enclosed",
+          "JackalIv.Gaussian.checker_core_enclosed",
+          "JackalIv.Gaussian.expNegQ_encloses",
+          "JackalIv.Gaussian.sqrtPi_enclosed",
+          "JackalIv.GaussianCert.checkCert_iff"
+        ]
+      },
+      {
+        "checker_bytes": 181725072,
+        "checker_path": "proofs/lean/.lake/build/bin/jackal_int_cert_check",
+        "checker_sha256": "f2e26f506f921b577fd8609a095b69789b3b76cce65d8c293d1a11f3007a8078",
+        "identity_bytes": 22009,
+        "identity_checker_bytes": 181725072,
+        "identity_checker_sha256": "f2e26f506f921b577fd8609a095b69789b3b76cce65d8c293d1a11f3007a8078",
+        "identity_digest_sha256": "a024ab9cb1010721297703bab38a0e43a7a48ac65b0c1d71292599e813e3dad9",
+        "identity_path": "release/evidence/int_cert_proof_identity_v172.linux-aarch64.json",
+        "identity_schema": "jackal-int-cert-proof-identity-v2",
+        "identity_sha256": "533c5cc4718331e2739ec92513487842aa48471b4b7d1be57db08999a9d90f95",
+        "lane": "int-cert",
+        "root_modules": [
+          "JackalIv.IntCertMain"
+        ],
+        "theorems": [
+          "JackalIv.IntCert.int_cert_sound",
+          "JackalIv.IntCert.int_cert_core_sound",
+          "JackalIv.IntCert.intRequestMatches_true",
+          "JackalIv.IntCert.checkIntCertRequest_ok",
+          "JackalIv.IntCert.checkIntCert_rootQExpr_exists",
+          "JackalIv.IntCert.rootRawExpr_rootQExpr_embed",
+          "JackalIv.IntCert.range_leaf_sound",
+          "JackalIv.IntCert.taylor2_leaf_sound",
+          "JackalIv.IntCert.taylor4_leaf_sound",
+          "JackalIv.IntCert.split_sound",
+          "JackalIv.IntCert.sem_measurable",
+          "JackalIv.IntCert.embedQ_DQ",
+          "JackalIv.IntCert.qexprOf_embed",
+          "JackalIv.Cert.releaseNodesOk_modelTCB",
+          "JackalIv.Cert.cert_check_sound"
+        ]
+      }
+    ],
+    "lane_identifier_mapping": {
+      "classification": "Compatibility-floor lane keys and proof-checker lane ids are separate namespaces; this map is their explicit relationship.",
+      "compatibility_floor_to_proof_checker": {
+        "int_cert": "int-cert",
+        "range": "range",
+        "rational_variants": "range"
+      },
+      "proof_checker_without_compatibility_floor": [
+        "gaussian"
+      ]
+    },
+    "release_state": "v1.7.3"
+  },
+  "residual_nonclaims": [
+    "This audit is not a cryptographic signature or builder authentication.",
+    "Lean kernel, compiler, mathlib, operating system, hardware, and supply chain remain trusted dependencies.",
+    "The audit does not prove Lean source-to-native checker refinement.",
+    "Runtime request parsing, provenance validation, and release-policy enforcement remain outside the named theorem statements except where a checker premise explicitly binds them.",
+    "Compatibility snapshots state replay/refusal policy and do not turn historical artifacts into current proofs."
+  ],
+  "schema": "jackal-lean-admission-audit-v1",
+  "source_inventory": {
+    "aggregate_sha256": "8cacb3fe30d3cf9ae10e9c939d7d7a56efb90f41ddfbdab578dbacd6253aa32c",
+    "construct_policy": {
+      "allowed_exact_source_lines": [
+        {
+          "construct": "implemented_by",
+          "path": "proofs/lean/JackalIv/Correspondence.lean",
+          "source_line": "@[implemented_by Dump.parseSexpImpl]"
+        },
+        {
+          "construct": "implemented_by",
+          "path": "proofs/lean/JackalIv/Correspondence.lean",
+          "source_line": "@[implemented_by Dump.lowerSexpImpl]"
+        }
+      ],
+      "allowed_findings": [
+        {
+          "classification": "dump-only trusted runtime mirror",
+          "construct": "implemented_by",
+          "line": 102,
+          "path": "proofs/lean/JackalIv/Correspondence.lean",
+          "source_line": "@[implemented_by Dump.parseSexpImpl]"
+        },
+        {
+          "classification": "dump-only trusted runtime mirror",
+          "construct": "implemented_by",
+          "line": 108,
+          "path": "proofs/lean/JackalIv/Correspondence.lean",
+          "source_line": "@[implemented_by Dump.lowerSexpImpl]"
+        }
+      ],
+      "forbidden_by_default": [
+        "admit",
+        "axiom_declaration",
+        "extern",
+        "implemented_by",
+        "native_decide",
+        "partial",
+        "sorry",
+        "unsafe"
+      ],
+      "forbidden_findings": [],
+      "noncomputable_classification": "Lean noncomputable declarations are counted but are not logical admissions or executable-code substitutions.",
+      "noncomputable_occurrences": 37,
+      "scan_scope": "comments and string bodies removed; executable Lean tokens scanned"
+    },
+    "file_count": 42,
+    "files": [
+      {
+        "bytes": 1035,
+        "path": "proofs/lean/JackalIv.lean",
+        "sha256": "fffba0936e102b0cb6dfc5d7521e242f818d3c8bc0530ea8073dba79b5229c8b"
+      },
+      {
+        "bytes": 11165,
+        "path": "proofs/lean/JackalIv/Arith.lean",
+        "sha256": "2bc091be9dd47acae8d4b8af7b272827a3cea7b5ec08773566ad8fe40a12bf83"
+      },
+      {
+        "bytes": 27102,
+        "path": "proofs/lean/JackalIv/CertCheck.lean",
+        "sha256": "02cec1630ed5f822f226155e0d4b7c1b62acf056826b03e5e8b191544789b6de"
+      },
+      {
+        "bytes": 3768,
+        "path": "proofs/lean/JackalIv/CertCheckMain.lean",
+        "sha256": "81ad8de226c15e7c3398e9aaa76abe85981ec0d1f94b958ed455e163361e698c"
+      },
+      {
+        "bytes": 54454,
+        "path": "proofs/lean/JackalIv/CertCodec.lean",
+        "sha256": "66ac121b53dd12ec395dbd88ddf16f726bf3afdb4946f1f4deabee8af001cd9d"
+      },
+      {
+        "bytes": 31404,
+        "path": "proofs/lean/JackalIv/CertRequest.lean",
+        "sha256": "fb57f1c3dfac97362629045f9b6342978150630836a4c3b2f76e6e8f2351073a"
+      },
+      {
+        "bytes": 3791,
+        "path": "proofs/lean/JackalIv/CertRequestOrderingContract.lean",
+        "sha256": "1795649d74abf8f9bc88ca48db461e768e3bdfdd27beb3d314ffeefba6ffb950"
+      },
+      {
+        "bytes": 52899,
+        "path": "proofs/lean/JackalIv/CertSound.lean",
+        "sha256": "bc602fc99d0652fb78de65488065337000ac5fa78038273d22abc702215a0ec9"
+      },
+      {
+        "bytes": 16791,
+        "path": "proofs/lean/JackalIv/CertTypes.lean",
+        "sha256": "0f241bce34f817a1f415d9722d0c34652cb4f312b7261d842b4000b23d7b4139"
+      },
+      {
+        "bytes": 6139,
+        "path": "proofs/lean/JackalIv/Correspondence.lean",
+        "sha256": "2b4acd4c904c8069f65a230eabf5bd1cacc0c73d077df650bbf12a24c12b18f3"
+      },
+      {
+        "bytes": 21715,
+        "path": "proofs/lean/JackalIv/CritIn.lean",
+        "sha256": "e1cd562087083e985162654f416f423f8bfbf8b9457b781ada32f0f6a533a27a"
+      },
+      {
+        "bytes": 30555,
+        "path": "proofs/lean/JackalIv/Deriv.lean",
+        "sha256": "618bce22f169ce7ff4b0f2b53d0148451b0bb3dafb64d2a01b4082560adca77e"
+      },
+      {
+        "bytes": 12026,
+        "path": "proofs/lean/JackalIv/Dump.lean",
+        "sha256": "3baba94104288e5783c763723f9582a25db40131849a41e743669cfac8445495"
+      },
+      {
+        "bytes": 33040,
+        "path": "proofs/lean/JackalIv/Embed.lean",
+        "sha256": "0a1ff6ddbcea4ca9d36ad3ae099ac361bd2e863250f42e4b3fecac6d79b4947c"
+      },
+      {
+        "bytes": 17004,
+        "path": "proofs/lean/JackalIv/Exact.lean",
+        "sha256": "a4c0f493b0d69b1a9756205d7b61f5852bde225a5fe532140ec178b97576ce28"
+      },
+      {
+        "bytes": 7290,
+        "path": "proofs/lean/JackalIv/Gaussian.lean",
+        "sha256": "2aaaaa895141dab699f6cd936639948976e9560c07d015708e02545b02a045fe"
+      },
+      {
+        "bytes": 7647,
+        "path": "proofs/lean/JackalIv/GaussianCert.lean",
+        "sha256": "a86f48a1dcf7a6eaa5170b984cd97815644e25cd19ab13bcd2e87020786b9b7e"
+      },
+      {
+        "bytes": 1001,
+        "path": "proofs/lean/JackalIv/GaussianCertMain.lean",
+        "sha256": "1690e3412ec811567da9801dbeda7d57b30735f461e22711a97ebe99f5017aa3"
+      },
+      {
+        "bytes": 9715,
+        "path": "proofs/lean/JackalIv/GaussianIntegral.lean",
+        "sha256": "7c3b53502d4d64a4d17ffa59929565e37d9f5a1c45cd8aec93bbfe9d9a6ee16b"
+      },
+      {
+        "bytes": 18448,
+        "path": "proofs/lean/JackalIv/IntCertCheck.lean",
+        "sha256": "a225b06b8ef09906eb4b54954616578b74bdf9151a9101d53828b306d86be0b8"
+      },
+      {
+        "bytes": 10176,
+        "path": "proofs/lean/JackalIv/IntCertCodec.lean",
+        "sha256": "82c59bec607d97e3e72a0d251d5efebfd1b4b5641c34ba2fd3798e5d12c23072"
+      },
+      {
+        "bytes": 3973,
+        "path": "proofs/lean/JackalIv/IntCertFixtures.lean",
+        "sha256": "da82459425ec8d04bf35b5ad60341987429511594341f34a4dc1fb9fba8067cc"
+      },
+      {
+        "bytes": 2086,
+        "path": "proofs/lean/JackalIv/IntCertMain.lean",
+        "sha256": "de900f9b4699be843784b596efcf6dbcdb32b0177819a58bef4c462fde20cbac"
+      },
+      {
+        "bytes": 12823,
+        "path": "proofs/lean/JackalIv/IntCertMeasure.lean",
+        "sha256": "5ccae2f48055e00503657dfff16af24d813cd721fc7a789bdb93e39b29331c3f"
+      },
+      {
+        "bytes": 1975,
+        "path": "proofs/lean/JackalIv/IntCertPremiseContract.lean",
+        "sha256": "3a5c493ddf1badfa1ac44b04af5154f7e81417e7b11b387ac3783403e1c180c2"
+      },
+      {
+        "bytes": 14280,
+        "path": "proofs/lean/JackalIv/IntCertQExpr.lean",
+        "sha256": "91fec5cb08fd9a9cc4bcc2a2486526785a464d469aaee3b7828b599cbc07d87b"
+      },
+      {
+        "bytes": 33862,
+        "path": "proofs/lean/JackalIv/IntCertSound.lean",
+        "sha256": "5c4b8d92f6f3b03cc47716d78b5ed7dd85b3b6a552849fc95a4a085fc5c6c541"
+      },
+      {
+        "bytes": 6746,
+        "path": "proofs/lean/JackalIv/IntCertTypes.lean",
+        "sha256": "b1a3b9f7fe81cce66180f032a0d91e385d901be4714e65a5c43f3ea991ad0877"
+      },
+      {
+        "bytes": 21540,
+        "path": "proofs/lean/JackalIv/Ledger.lean",
+        "sha256": "dd2c1a3328c8759431b1deed3b38d9efc2fde4f6ac3626eb1e4303811304a753"
+      },
+      {
+        "bytes": 17818,
+        "path": "proofs/lean/JackalIv/Lower.lean",
+        "sha256": "32d7f453bee0ddc1999b2693f8bb9bdb9706976172e29a120e23aa118409d9f2"
+      },
+      {
+        "bytes": 7137,
+        "path": "proofs/lean/JackalIv/Midpoint.lean",
+        "sha256": "54cdda7dd3473a7dd6f2661449ad9b99925e79f3e557bdea2dff9b61810c0419"
+      },
+      {
+        "bytes": 3704,
+        "path": "proofs/lean/JackalIv/Model.lean",
+        "sha256": "81b13207259c86ccd816cf3d93dd70f11cc042722f2b42320b61ec7a301cb306"
+      },
+      {
+        "bytes": 6837,
+        "path": "proofs/lean/JackalIv/Monotone.lean",
+        "sha256": "87f262d6f0fb7d60b7ea1fdc716c95625c6131830aee0e2d5a45d62397533a8e"
+      },
+      {
+        "bytes": 4695,
+        "path": "proofs/lean/JackalIv/Pad.lean",
+        "sha256": "82cce18646e2522695fec7c68796f9a60a85abc20b6bfe1c45dac8070578c5d1"
+      },
+      {
+        "bytes": 1542,
+        "path": "proofs/lean/JackalIv/ParseDumpMain.lean",
+        "sha256": "9de4d4e15f816718594082b7a58bb19226794dda1ec3203f24ea7c5ecc273cec"
+      },
+      {
+        "bytes": 23310,
+        "path": "proofs/lean/JackalIv/Parser.lean",
+        "sha256": "fe5d803c7af09e36d1543517921af618351390f49ebbb46f0ecc1f79b2a86cc3"
+      },
+      {
+        "bytes": 11388,
+        "path": "proofs/lean/JackalIv/Pow.lean",
+        "sha256": "0d80581069c3934274ca4992c6c07867e10821c8fedc43ec6c6fedd6e0971332"
+      },
+      {
+        "bytes": 8639,
+        "path": "proofs/lean/JackalIv/Solve.lean",
+        "sha256": "c6421cb46b54571ffec8c5177fa915dfe57a746be47f20d80e990a44a6166d90"
+      },
+      {
+        "bytes": 17044,
+        "path": "proofs/lean/JackalIv/Syntax.lean",
+        "sha256": "552bf222b26a615b779a5f0c8abf44beb258609551b158ee3141729dedcf7651"
+      },
+      {
+        "bytes": 25406,
+        "path": "proofs/lean/JackalIv/Taylor.lean",
+        "sha256": "b3a5c2bbb8374b845624f13fc66b7cb8ad0bf0ca987c6b923631f3ea275febd2"
+      },
+      {
+        "bytes": 20215,
+        "path": "proofs/lean/JackalIv/Transcend.lean",
+        "sha256": "2fce308fdf161d6fc1edb3d41cb0148e6d8544ab0954a17a7c29ae915a7f1569"
+      },
+      {
+        "bytes": 24529,
+        "path": "proofs/lean/JackalIv/Trig.lean",
+        "sha256": "c65e6db19679c0081d833d4a15cf9d46b4f73e395ed7564505fc0c2e586078d4"
+      }
+    ],
+    "inventory_source": "git-ls-files"
+  },
+  "theorem_axiom_audit": {
+    "allowed_exactly": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "command": "lake env lean /dev/stdin",
+    "invocations": [
+      {
+        "input_program_sha256": "c386a99e206c4c3704a4a9300314b8675a239068a12a71aa718fcd1c08829528",
+        "lane": "range",
+        "output_sha256": "e381ce9d94cefcd81f860227e08fb2b16b98a77a97d25f25692fadf389dd0377",
+        "root_modules": [
+          "JackalIv.CertCheckMain"
+        ],
+        "theorem_count": 8
+      },
+      {
+        "input_program_sha256": "4e56fc1f2ee6f108361a9dc852e185a263485d8e290f281ec9c82474f0e76b18",
+        "lane": "gaussian",
+        "output_sha256": "fb230d97d8103500631853f0adfca0c958a3d0a607b26cc8a37dcaea4c7c0f99",
+        "root_modules": [
+          "JackalIv.GaussianCertMain"
+        ],
+        "theorem_count": 6
+      },
+      {
+        "input_program_sha256": "3b61e5ce72278a7615dd1a44c85ff49d2ec389403d17a6f8840f78462fa91000",
+        "lane": "int-cert",
+        "output_sha256": "d5ad3993f550eef9f96092e412d6c1088675b809dee86c444c87b4659b857b9d",
+        "root_modules": [
+          "JackalIv.IntCertMain"
+        ],
+        "theorem_count": 15
+      }
+    ],
+    "root_modules": [
+      "JackalIv.CertCheckMain",
+      "JackalIv.GaussianCertMain",
+      "JackalIv.IntCertMain"
+    ],
+    "theorem_count": 27,
+    "theorems": [
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.cert_check_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.cert_check_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.lowerRaw_toExpr' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.lowerRaw_toExpr"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.rawExprOf_toExpr' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.rawExprOf_toExpr"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.releaseNodesOk_modelTCB' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.releaseNodesOk_modelTCB"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.requestMatches_interval_order' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.requestMatches_interval_order"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.requestMatches_true' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.requestMatches_true"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Cert.request_bound_certified_release' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Cert.request_bound_certified_release"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Gaussian.checker_core_enclosed' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Gaussian.checker_core_enclosed"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Gaussian.expNegQ_encloses' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Gaussian.expNegQ_encloses"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Gaussian.scaled_gaussian_enclosed' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Gaussian.scaled_gaussian_enclosed"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.Gaussian.sqrtPi_enclosed' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.Gaussian.sqrtPi_enclosed"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.GaussianCert.checkCert_iff' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.GaussianCert.checkCert_iff"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.GaussianCert.gaussian_integral_check_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.GaussianCert.gaussian_integral_check_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.checkIntCertRequest_ok' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.checkIntCertRequest_ok"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.checkIntCert_rootQExpr_exists' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.checkIntCert_rootQExpr_exists"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.embedQ_DQ' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.embedQ_DQ"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.intRequestMatches_true' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.intRequestMatches_true"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.int_cert_core_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.int_cert_core_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.int_cert_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.int_cert_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.qexprOf_embed' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.qexprOf_embed"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.range_leaf_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.range_leaf_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.rootRawExpr_rootQExpr_embed' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.rootRawExpr_rootQExpr_embed"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.sem_measurable' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.sem_measurable"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.split_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.split_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.taylor2_leaf_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.taylor2_leaf_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.IntCert.taylor4_leaf_sound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.IntCert.taylor4_leaf_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "raw_output": "'JackalIv.parse_lower_encloses' depends on axioms: [propext, Classical.choice, Quot.sound]",
+        "theorem": "JackalIv.parse_lower_encloses"
+      }
+    ]
+  },
+  "toolchain": {
+    "configuration_files": [
+      {
+        "bytes": 901,
+        "path": "proofs/lean/lakefile.toml",
+        "sha256": "21eef36ea0d9a665622b171dcf1f96460aa250ef214314d766112e01dadf1eaf"
+      },
+      {
+        "bytes": 3127,
+        "path": "proofs/lean/lake-manifest.json",
+        "sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4"
+      },
+      {
+        "bytes": 25,
+        "path": "proofs/lean/lean-toolchain",
+        "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e"
+      }
+    ],
+    "lean": {
+      "build_profile": "Release",
+      "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "version": "4.32.0"
+    },
+    "lean_toolchain": "leanprover/lean4:v4.32.0",
+    "mathlib_revision": "81a5d257c8e410db227a6665ed08f64fea08e997"
+  },
+  "trust_surface": {
+    "allowed_local_runtime_substitutions": [
+      {
+        "classification": "dump-only trusted runtime mirror",
+        "construct": "implemented_by",
+        "line": 102,
+        "path": "proofs/lean/JackalIv/Correspondence.lean",
+        "source_line": "@[implemented_by Dump.parseSexpImpl]"
+      },
+      {
+        "classification": "dump-only trusted runtime mirror",
+        "construct": "implemented_by",
+        "line": 108,
+        "path": "proofs/lean/JackalIv/Correspondence.lean",
+        "source_line": "@[implemented_by Dump.lowerSexpImpl]"
+      }
+    ],
+    "lean_standard_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "logical_admissions": [],
+    "repository_axiom_declarations": [],
+    "runtime_substitution_boundary": "The two implemented_by attributes are confined to dump-only parser/lowering mirrors; current checker acceptance uses neither definition."
+  }
+}

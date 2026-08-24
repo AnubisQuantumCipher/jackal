@@ -287,10 +287,15 @@ stderr to UTF-8 replacement-decoded text before hashing and recording complete
 failure evidence. Timeout remains a refusal and can never count as a caught
 mutation. A regression covers byte-valued partial stdout and stderr.
 
-## Pass 15 status
+## Pass 15
 
-The clean-worktree review of the Pass-14 timeout-evidence fix is pending. The
-machine-readable clearance remains pending and packaging remains fail-closed.
+Reviewed clean committed branch head:
+`6e850d84963e0ae387a03293f2f8e23285d65c43`.
+
+CodeRabbit completed the full branch review with zero findings. No known
+release-blocking review issue remains. Machine-readable clearance may now be
+completed for Pass 15; merge and publication remain separately conditional on
+green hosted checks and fresh downloaded-asset readback.
 
 ## Current disposition
 
@@ -299,7 +304,7 @@ machine-readable clearance remains pending and packaging remains fail-closed.
 | resolved | 75 | fixed with tests; digest repetitions reclassified valid |
 | invalid | 0 | none |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
-| unresolved release-blocking | 0 known | Pass 15 retry pending |
+| unresolved release-blocking | 0 | Pass 15 complete with zero findings |
 
-No merge or publication may proceed until Pass 15 records zero unresolved
-release-blocking findings and machine-readable clearance returns to complete.
+Independent review is complete. Merge and publication remain gated by hosted
+checks, exact tag/merge identity, and downloaded release-asset readback.

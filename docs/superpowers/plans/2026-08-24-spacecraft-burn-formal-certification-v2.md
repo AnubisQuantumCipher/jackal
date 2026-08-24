@@ -792,12 +792,12 @@ peer review.
 
 Each fix is a new commit; do not amend a pushed review checkpoint.
 
-- [ ] **Step 6: Rerun the independent review on the final candidate**
+- [x] **Step 6: Rerun the independent review on the final candidate**
 
 The final report must bind the exact reviewed commit and record zero unresolved
 release-blocking findings.
 
-- [ ] **Step 7: Commit and push the review checkpoint**
+- [x] **Step 7: Commit and push the review checkpoint**
 
 Stage the workflows, workflow tests, and review report by name; push the branch
 as explicitly non-final.

@@ -1,0 +1,20 @@
+{
+  "reasons": [],
+  "replay": {
+    "domain_lower_bounds": {
+      "mass_exact": "1382062217417427315736792485/1208925819614629174706176",
+      "radius_squared_exact": "53912371654328477687089108767263/1208925819614629174706176",
+      "speed_squared_exact": "72158111333449500373422077/1208925819614629174706176"
+    },
+    "exact_lower_bound": "51450379597827184853505075/1208925819614629174706176",
+    "formula_only_exact_lower_bound": "4684830994590880152455811/1208925819614629174706176",
+    "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe"
+  },
+  "status": "ACCEPT",
+  "symbolic_identities": {
+    "angular_momentum_lagrange_identity": true,
+    "apoapsis_plus_expansion": true,
+    "eccentricity_vector_reduction": true,
+    "energy_definition_substitution": true
+  }
+}

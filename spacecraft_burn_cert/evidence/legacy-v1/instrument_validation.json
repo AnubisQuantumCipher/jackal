@@ -1,0 +1,89 @@
+{
+  "analytic_mass": {
+    "analytic_exact": [
+      "448476801/392266",
+      "64327657/56038"
+    ],
+    "certified_hull_exact": [
+      "1382062217417427315736792485/1208925819614629174706176",
+      "693930450374043282864501281/604462909807314587353088"
+    ],
+    "status": "PASS"
+  },
+  "arithmetic_corpus": {
+    "deterministic_checks": 144,
+    "status": "PASS"
+  },
+  "baseline_receipt_sha256": "3ed9881842e19f97989325235ee1c6f196a3349b3bcfb1fa4ac3bf0be5ca583d",
+  "corner_diagnostics": {
+    "certified_lower_margin_km": "42.55875651181649",
+    "classification": "deterministic corner samples; diagnostic only, not proof",
+    "minimum_sample_inputs": [
+      "6677.9995",
+      "0.0005",
+      "2e-05",
+      "7.7258",
+      "1201.5",
+      "1995",
+      "118.5"
+    ],
+    "minimum_sampled_margin_km": "43.68554532892449",
+    "rk4_step_exact": "1/32",
+    "sample_count": 128,
+    "status": "PASS"
+  },
+  "nominal_diagnostic": {
+    "classification": "numerically estimated diagnostic only",
+    "cutoff_state": [
+      "6614.208208105401",
+      "936.2929755636172",
+      "-1.082817074173849",
+      "7.855089015561425",
+      "1145.615135308472"
+    ],
+    "margin_km": "61.36001821038917",
+    "rk4_step_exact": "1/64"
+  },
+  "reconciliation": {
+    "expected_postprocess_count": 3072,
+    "expected_tube_count": 124416,
+    "postprocess_count": 3072,
+    "status": "PASS",
+    "tube_count": 124416
+  },
+  "schema": "spacecraft-finite-burn-instrument-validation-v1",
+  "status": "PASS",
+  "step_refinement": {
+    "classification": "rigorous step-size cross-check; not a formal convergence theorem",
+    "runs": [
+      {
+        "formula_only_lower_exact": "-432326007546259997927907/302231454903657293676544",
+        "lower_decimal": "42.1568120515684803341452720024",
+        "lower_exact": "12741114640445575480510219/302231454903657293676544",
+        "step_exact": "1/16",
+        "trace_sha256": "5ae19a47fd23c9260839e06c604accd88c7acfdf81dfe2b6d59c6779cb187f8a",
+        "tube_count": 62208,
+        "verdict": "PROVED SAFE"
+      },
+      {
+        "formula_only_lower_exact": "4684830994590880152455811/1208925819614629174706176",
+        "lower_decimal": "42.5587565118164884375971897690",
+        "lower_exact": "51450379597827184853505075/1208925819614629174706176",
+        "step_exact": "1/32",
+        "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe",
+        "tube_count": 124416,
+        "verdict": "PROVED SAFE"
+      },
+      {
+        "formula_only_lower_exact": "122758415466224196074663/18889465931478580854784",
+        "lower_decimal": "42.7598567664322865457310281679",
+        "lower_exact": "1615421715248853099851473/37778931862957161709568",
+        "step_exact": "1/64",
+        "trace_sha256": "fea9eee2950846be97bacb90a442d570be56779b2e16e3545dbf2199f07edd71",
+        "tube_count": 248832,
+        "verdict": "PROVED SAFE"
+      }
+    ],
+    "status": "PASS"
+  }
+}

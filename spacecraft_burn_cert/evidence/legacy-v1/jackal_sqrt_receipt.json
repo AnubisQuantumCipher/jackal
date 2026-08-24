@@ -1,0 +1,131 @@
+{
+  "schema": "spacecraft-jackal-postprocess-evidence-v1",
+  "independently_replayed_input": {
+    "expression": "sqrt(x)",
+    "input_lo": "3351816859579158189993/1208925819614629174706176",
+    "input_hi": "3662779467674981330153/1208925819614629174706176"
+  },
+  "produced": {
+    "checker_output": "ACCEPT request-bound theorem=request_bound_certified_release command=range-bound-cert output 82273569521904294156639319/1562500000000000000000000000 550434388798342039629804474500000000001/10000000000000000000000000000000000000000",
+    "checker_rerun": "ACCEPT",
+    "receipt": {
+      "assumptions": [
+        "Range interval ordering and release-fragment ModelTCB are derived inside the proved checker from requestMatches and checkCert acceptance",
+        "The sqrt_rat cert node bypasses every LibmModel obligation (Runs.sqrtRat carries no `Approx δlib` fact)",
+        "The Lean releaseNodeOp allowlist admits the `sqrt_rat` constructor with zero libm TCB",
+        "Lean 4 kernel + pinned Mathlib toolchain that compiled jackal_cert_check",
+        "Canonical exact-rational request/certificate codecs compiled into jackal_cert_check",
+        "The pinned sqrt_rat producer and checker bytes executed as their hashes describe",
+        "Lean native code generation, the C/C++ compiler and linker, and the dynamic loader preserve the checker semantics",
+        "The operating system, CPU, memory, and storage execute and retain the pinned bytes correctly"
+      ],
+      "certificate": {
+        "bytes_b64": "amFja2FsLWV2YWwtY2VydCB2Mgptb2RlbCBqYWNrYWwtaXYtbW9kZWwtdjEKZXhlIDRiYzk1YzMzMTQzMGQyMzUwZmFjZmIxOWRhOWFiYTQ4M2FiN2IzNjk4NzU0ZTdhZjJlNWRlYjc5N2UwOTc5MjYKc3RhdHVzIGJvdW5kZWQKZXhwciAoY2FsbCBzcXJ0ICh2YXIgeCkpCnNvdXJjZSBOR0UyTXpNek9UUmhNemRrT0dKak1XVTNOV0ZrTVdJMFpHWTRZekkyTmpjeE4ySTRZalExT1RGaU5tSmhabUUwWkRJeVltSTVNelV5WmpJNFpqa3lOUT09CmlucHV0IDMzNTE4MTY4NTk1NzkxNTgxODk5OTMvMTIwODkyNTgxOTYxNDYyOTE3NDcwNjE3NiAzNjYyNzc5NDY3Njc0OTgxMzMwMTUzLzEyMDg5MjU4MTk2MTQ2MjkxNzQ3MDYxNzYKcm9vdCAxCm91dHB1dCA4MjI3MzU2OTUyMTkwNDI5NDE1NjYzOTMxOS8xNTYyNTAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIDU1MDQzNDM4ODc5ODM0MjAzOTYyOTgwNDQ3NDUwMDAwMDAwMDAwMS8xMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMApub2RlIDAgdmFyIGNoaWxkcmVuW10gb3V0WzMzNTE4MTY4NTk1NzkxNTgxODk5OTMvMTIwODkyNTgxOTYxNDYyOTE3NDcwNjE3NiwzNjYyNzc5NDY3Njc0OTgxMzMwMTUzLzEyMDg5MjU4MTk2MTQ2MjkxNzQ3MDYxNzZdIG5hbWUgeApub2RlIDEgc3FydF9yYXQgY2hpbGRyZW5bMF0gb3V0WzgyMjczNTY5NTIxOTA0Mjk0MTU2NjM5MzE5LzE1NjI1MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAsNTUwNDM0Mzg4Nzk4MzQyMDM5NjI5ODA0NDc0NTAwMDAwMDAwMDAxLzEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwXQplbmQK",
+        "model_const_version": "jackal-iv-model-v1",
+        "schema": "jackal-eval-cert v2",
+        "sexp": "(call sqrt (var x))",
+        "sha256": "e0c48511b9f47b74a4e1d587716599711494fd46ef6a84b36cd5ebd0178eb4ee"
+      },
+      "checker": {
+        "reverify_required": true,
+        "verdict": "ACCEPT"
+      },
+      "emitted_at_unix": 1787573053,
+      "fragment": {
+        "admitted_operators": [
+          "sqrt",
+          "var"
+        ],
+        "coverage_inventory_sha256": "6373641cd7833bb46a08f44acf683a119e0a637c8acb88d22797b81188d896b6",
+        "coverage_row_ids": [
+          "jackal_sqrt_rat_bound"
+        ],
+        "expression_operators": [
+          "sqrt",
+          "var"
+        ],
+        "unsupported_refused": [
+          "every expression except sqrt(x)"
+        ]
+      },
+      "identities": {
+        "checker_sha256": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
+        "evaluator_sha256": "4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926",
+        "plugin_sha256": "c6a27483077b89d899d8c73c03bfeb3191f25db2a22f8021254a7dec763ba5fe",
+        "producer_sha256": "4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926",
+        "source_anb_sha256": null
+      },
+      "non_claims": [
+        "NOT universal correctness across all operators or expressions",
+        "sqrt_rat admits ONLY the exact form `sqrt(x)` on a canonical rational interval",
+        "Every other transcendental operator (exp/ln/tan/cbrt/atan/asin/acos/log10/log2/hypot/atan2) FAIL CLOSED on this variant",
+        "The Python sqrt_rat producer is untrusted; formal release requires independent checker ACCEPT",
+        "SHA-256 identifies bytes; it does NOT authenticate an author",
+        "The artifact is unsigned and has not received an independent external proof audit"
+      ],
+      "proof_identity": {
+        "authenticated": false,
+        "build_attestation_digest_sha256": "10859f82a5192be663daf6572ff84a433db54741179d7d5fc5e65721b972d6c3",
+        "checker_sha256": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
+        "file_sha256": "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+        "identity_digest_sha256": "7b5e76c38fb9bf60f247b42bca75ab378d7dbe4f32c07858759a62470de53d6d",
+        "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+        "lean_executable_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+        "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
+        "schema": "jackal-range-proof-identity-v2",
+        "soundness_theorem": "JackalIv.Cert.request_bound_certified_release",
+        "source_closure_sha256": "3994b85ae959554579fd57cb866a2f700f84e4721fa85d16c6fe4dc929825218"
+      },
+      "receipt_digest_sha256": "fd2f237349fc31592a8204c5c601e066f36d011b92217fa5559c6109f106b33f",
+      "release_epoch": "v1.7.2",
+      "request": {
+        "canonical_hi": "3662779467674981330153/1208925819614629174706176",
+        "canonical_lo": "3351816859579158189993/1208925819614629174706176",
+        "command": "range-bound-cert",
+        "expression": "sqrt(x)",
+        "input_hi": "3662779467674981330153/1208925819614629174706176",
+        "input_lo": "3351816859579158189993/1208925819614629174706176",
+        "request_commitment_b64": "NGE2MzMzOTRhMzdkOGJjMWU3NWFkMWI0ZGY4YzI2NjcxN2I4YjQ1OTFiNmJhZmE0ZDIyYmI5MzUyZjI4ZjkyNQ=="
+      },
+      "result": {
+        "cert_status": "bounded",
+        "enclosure_hi": "550434388798342039629804474500000000001/10000000000000000000000000000000000000000",
+        "enclosure_lo": "82273569521904294156639319/1562500000000000000000000000",
+        "status": "formal-bounded"
+      },
+      "schema": "jackal-formal-receipt-v1",
+      "theorem": {
+        "id": "request_bound_certified_release",
+        "lean_kernel_axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ]
+      },
+      "variant": "sqrt_rat"
+    },
+    "status": "formal-bounded",
+    "variant": "sqrt_rat"
+  },
+  "verified": {
+    "certificate_sha256": "e0c48511b9f47b74a4e1d587716599711494fd46ef6a84b36cd5ebd0178eb4ee",
+    "checker_sha256": "f7a82524d082b51a8d66f9bed653b9c8da51b5424386659c9048b9c0ae276545",
+    "coverage_inventory_sha256": "6373641cd7833bb46a08f44acf683a119e0a637c8acb88d22797b81188d896b6",
+    "enclosure": [
+      "82273569521904294156639319/1562500000000000000000000000",
+      "550434388798342039629804474500000000001/10000000000000000000000000000000000000000"
+    ],
+    "evaluator_sha256": "4bc95c331430d2350facfb19da9aba483ab7b3698754e7af2e5deb797e097926",
+    "expression_operators": [
+      "sqrt",
+      "var"
+    ],
+    "plugin_sha256": "c6a27483077b89d899d8c73c03bfeb3191f25db2a22f8021254a7dec763ba5fe",
+    "proof_identity_digest_sha256": "7b5e76c38fb9bf60f247b42bca75ab378d7dbe4f32c07858759a62470de53d6d",
+    "proof_identity_file_sha256": "84963be9b0a8851a03a38ae71da558b3e9d2c37d9d55ad7da31afbd23188499c",
+    "receipt_digest_sha256": "fd2f237349fc31592a8204c5c601e066f36d011b92217fa5559c6109f106b33f",
+    "request_commitment": "NGE2MzMzOTRhMzdkOGJjMWU3NWFkMWI0ZGY4YzI2NjcxN2I4YjQ1OTFiNmJhZmE0ZDIyYmI5MzUyZjI4ZjkyNQ==",
+    "status": "verified",
+    "verdict": "ACCEPT"
+  }
+}

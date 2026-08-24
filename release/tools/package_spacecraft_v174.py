@@ -26,6 +26,11 @@ CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check"
 IDENTITY = ROOT / "release/evidence" / PROOF_NAME
 REVIEW = ROOT / "release/evidence" / REVIEW_NAME
 EVIDENCE = ROOT / "spacecraft_burn_cert/evidence"
+AUXILIARY_EVIDENCE_NAMES = (
+    "independent_verification_v2.json",
+    "instrument_validation_v2.json",
+    "mutation_aba_v2.json",
+)
 QUALIFIED_VERDICT = (
     "CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, "
     "and machine-checked interval-certificate assumptions"
@@ -39,6 +44,38 @@ QUALIFIED_PATTERN = re.compile(
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def committed_evidence_digests() -> dict[str, str]:
+    result: dict[str, str] = {}
+    for line in (EVIDENCE / "SHA256SUMS").read_text(encoding="ascii").splitlines():
+        digest, name = line.split(maxsplit=1)
+        name = name.strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", digest) or Path(name).name != name or name in result:
+            raise RuntimeError("invalid committed evidence checksum manifest")
+        result[name] = digest
+    return result
+
+
+def validated_staged_evidence(staging: Path, expected: dict[str, str]) -> dict[str, bytes]:
+    result: dict[str, bytes] = {}
+    for name in AUXILIARY_EVIDENCE_NAMES:
+        if name not in expected:
+            raise RuntimeError(f"missing committed evidence digest: {name}")
+        data = (staging / name).read_bytes()
+        if sha256(data) != expected[name]:
+            raise RuntimeError(f"staged evidence digest mismatch: {name}")
+        result[name] = data
+    return result
+
+
+def validate_witness_digests(witness_bytes: bytes, receipt: dict) -> str:
+    digest = sha256(witness_bytes)
+    if digest != receipt["witness"]["sha256"]:
+        raise RuntimeError("witness digest does not match receipt")
+    if digest != receipt["formal_checker"]["witness_sha256"]:
+        raise RuntimeError("checker-bound witness digest does not match packaged witness")
+    return digest
 
 
 def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
@@ -154,8 +191,7 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         binding.get(key) != value for key, value in expected_binding.items()
     ) or not isinstance(binding.get("nonce"), str) or not binding["nonce"]:
         raise RuntimeError("receipt release binding is invalid")
-    if sha256(witness_bytes) != receipt["witness"]["sha256"]:
-        raise RuntimeError("witness digest does not match receipt")
+    validate_witness_digests(witness_bytes, receipt)
     if sha256(checker_bytes) != binding["checker_sha256"]:
         raise RuntimeError("checker digest does not match receipt")
     if sha256(identity_bytes) != binding["proof_identity_file_sha256"]:
@@ -178,13 +214,12 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         entries[f"{prefix}/proofs/{relative.as_posix()}"] = (source_bytes, 0o644)
     archive_bytes = deterministic_tar_gz(entries)
 
+    auxiliary_evidence = validated_staged_evidence(staging, committed_evidence_digests())
     assets = {
         WITNESS_NAME: witness_bytes,
         RECEIPT_NAME: receipt_bytes,
         PROOF_NAME: identity_bytes,
-        "independent_verification_v2.json": (staging / "independent_verification_v2.json").read_bytes(),
-        "instrument_validation_v2.json": (staging / "instrument_validation_v2.json").read_bytes(),
-        "mutation_aba_v2.json": (staging / "mutation_aba_v2.json").read_bytes(),
+        **auxiliary_evidence,
         REVIEW_NAME: REVIEW.read_bytes(),
         "request_v2.json": request_bytes,
         ARCHIVE_NAME: archive_bytes,

@@ -193,18 +193,44 @@ The request-digest finding again proposes the already-present exact value and
 is invalid. The legacy-v1 path finding remains an immutable historical
 `residual-non-claim`.
 
-## Pass 10 status
+## Pass 10
 
-The final clean-worktree retry is pending on the post-Pass-9 fix commit.
+Reviewed clean committed branch head:
+`a6f8da1fb17f0665c2b11bf95fd862d5b4d8cf9c`.
+
+CodeRabbit raised 9 issues. Six were confirmed and resolved in the next
+candidate:
+
+- excluded comments before workflow command, action, condition, artifact, and
+  ordering assertions;
+- normalized HTML-comment delimiters, HTML entities, and Markdown escapes
+  before assurance matching;
+- marked the README verdict explicitly candidate-only until review, audit,
+  hosted gates, and release readback complete;
+- executed the outer checker and witness from private byte snapshots bound to
+  the hashes used for acceptance;
+- required staged auxiliary evidence bytes to match the committed evidence
+  checksum manifest before packaging; and
+- required the packaged witness digest to match both the receipt witness row
+  and the formal-checker binding.
+
+The request-digest warning again quotes the exact already-present 64-character
+value and is invalid. The two legacy-v1 findings target deliberately immutable,
+quarantined historical evidence and remain `residual-non-claim`; altering those
+bytes would destroy their recorded historical identity.
+
+## Pass 11 status
+
+The final clean-worktree retry is pending on the post-Pass-10 fix commit.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 53 | fixed with tests; final push pending |
-| invalid | 8 | request digest independently matched |
+| resolved | 59 | fixed with tests; final push pending |
+| invalid | 9 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
 | unresolved release-blocking | 0 known | final independent retry pending |
 
 No publication or merge may use this record as a final clearance until the
-Pass 10 section records a completed review result.
+Pass 11 section records a completed review result.

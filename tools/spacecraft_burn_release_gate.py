@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 from pathlib import Path
@@ -33,8 +34,11 @@ FORBIDDEN = {
 
 
 def rendered_assurance_text(text: str) -> str:
-    rendered = re.sub(r"\[([^\]\n]+)\]\([^\n)]*\)", r"\1", text)
+    rendered = re.sub(r"<!--(.*?)-->", r"\1", text, flags=re.DOTALL)
+    rendered = html.unescape(rendered)
+    rendered = re.sub(r"\[([^\]\n]+)\]\([^\n)]*\)", r"\1", rendered)
     rendered = re.sub(r"</?[A-Za-z][^>\n]*>", "", rendered)
+    rendered = re.sub(r"\\([\\`*{}\[\]()#+.!_>\- ])", r"\1", rendered)
     return re.sub(r"[*_`]", "", rendered)
 
 

@@ -10,9 +10,26 @@ WORKFLOW = ROOT / ".github" / "workflows" / "spacecraft-burn-proof-gate.yml"
 GAUSSIAN = ROOT / ".github" / "workflows" / "gaussian-proof-gate.yml"
 
 
+def executable_workflow_surface(source: str) -> str:
+    """Return YAML execution/configuration values with comments removed."""
+    surface = []
+    for line in source.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        surface.append(line.split(" #", 1)[0])
+    return "\n".join(surface)
+
+
 class SpacecraftBurnWorkflowTests(unittest.TestCase):
+    def test_comment_only_workflow_literals_are_not_executable_surface(self):
+        source = """name: decoy\njobs:\n  check:\n    # run: jackal_spacecraft_burn_check\n    steps:\n      # - uses: actions/upload-artifact@0123456789012345678901234567890123456789\n      - run: echo harmless\n"""
+        surface = executable_workflow_surface(source)
+        self.assertNotIn("jackal_spacecraft_burn_check", surface)
+        self.assertNotIn("upload-artifact@", surface)
+
     def test_full_hosted_campaign_is_bounded_and_complete(self):
         source = WORKFLOW.read_text(encoding="utf-8")
+        source = executable_workflow_surface(source)
         for required in (
             "timeout-minutes:", "jackal_spacecraft_burn_check",
             "spacecraft_burn_proof_identity.py", "lean_admission_audit.py",
@@ -33,6 +50,7 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
 
     def test_primary_formal_workflow_builds_and_audits_spacecraft_lane(self):
         source = GAUSSIAN.read_text(encoding="utf-8")
+        source = executable_workflow_surface(source)
         self.assertIn("jackal_spacecraft_burn_check", source)
         self.assertIn("spacecraft_burn_proof_identity.py check --proof-only", source)
         self.assertIn("release/compat/v173_lakefile.toml", source)

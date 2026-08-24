@@ -18,6 +18,7 @@ import json
 import math
 import os
 import subprocess
+import tempfile
 from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -498,10 +499,10 @@ def canonical_json_bytes(value: object) -> bytes:
 def verify_identity_file(
     path: Path, expected_file_digest: str, expected_internal_digest: str,
     checker_digest: str, request_digest: str, model_id: str, epoch: str,
-    reasons: list[str],
+    reasons: list[str], raw: bytes | None = None,
 ) -> str | None:
     try:
-        raw = path.read_bytes()
+        raw = path.read_bytes() if raw is None else raw
         document = json.loads(raw)
     except (OSError, json.JSONDecodeError):
         reasons.append("proof-identity-invalid")
@@ -532,6 +533,35 @@ def verify_identity_file(
     ):
         reasons.append("proof-identity-fragment-mismatch")
     return file_digest
+
+
+def run_checker_snapshot(
+    checker_bytes: bytes,
+    witness_bytes: bytes,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+    timeout: int,
+) -> subprocess.CompletedProcess[str]:
+    environment = {"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"}
+    with tempfile.TemporaryDirectory(prefix="jackal-checker-snapshot-") as directory:
+        private = Path(directory)
+        checker = private / "jackal_spacecraft_burn_check"
+        witness = private / "witness.cert"
+        checker.write_bytes(checker_bytes)
+        witness.write_bytes(witness_bytes)
+        checker.chmod(0o700)
+        witness.chmod(0o600)
+        return subprocess.run(
+            [str(checker), str(witness), request_digest, model_id, epoch],
+            cwd=private,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
 
 
 def verify_formal_binding(
@@ -576,12 +606,18 @@ def verify_formal_binding(
     receipt_digest = sha256_file(receipt_path)
     if receipt_digest != expected_receipt_sha256:
         reasons.append("receipt-hash-mismatch")
-    witness_digest = sha256_file(witness_path)
-    checker_digest = sha256_file(checker_path)
+    try:
+        witness_bytes = witness_path.read_bytes()
+        checker_bytes = checker_path.read_bytes()
+        proof_identity_bytes = proof_identity_path.read_bytes()
+    except OSError:
+        return ["binding-input-unreadable"], {}
+    witness_digest = hashlib.sha256(witness_bytes).hexdigest()
+    checker_digest = hashlib.sha256(checker_bytes).hexdigest()
     proof_file_digest = verify_identity_file(
         proof_identity_path, expected_proof_file_sha256,
         expected_proof_identity_sha256, checker_digest, expected_request_digest,
-        expected_model_id, expected_epoch, reasons,
+        expected_model_id, expected_epoch, reasons, raw=proof_identity_bytes,
     )
 
     binding = candidate.get("formal_checker")
@@ -621,22 +657,10 @@ def verify_formal_binding(
     if reasons:
         return sorted(set(reasons)), {}
 
-    environment = {
-        "LANG": "C",
-        "LC_ALL": "C",
-        "PATH": "/usr/bin:/bin",
-    }
     try:
-        completed = subprocess.run(
-            [str(checker_path), str(witness_path), expected_request_digest,
-             expected_model_id, expected_epoch],
-            cwd=checker_path.parent,
-            env=environment,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=180,
-            check=False,
+        completed = run_checker_snapshot(
+            checker_bytes, witness_bytes, expected_request_digest,
+            expected_model_id, expected_epoch, 180,
         )
     except (OSError, subprocess.TimeoutExpired):
         return ["checker-execution-failed"], {}

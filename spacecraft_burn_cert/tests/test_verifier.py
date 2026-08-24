@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,30 @@ def load_verifier(testcase: unittest.TestCase):
 
 
 class IndependentVerifierTests(unittest.TestCase):
+    def test_checker_execution_uses_private_byte_snapshots(self):
+        verifier = load_verifier(self)
+        checker_bytes = b"#!/bin/sh\nexit 0\n"
+        witness_bytes = b"bound witness\n"
+        observed: dict[str, object] = {}
+
+        def fake_run(command, **kwargs):
+            checker_snapshot, witness_snapshot = map(Path, command[:2])
+            observed["checker"] = checker_snapshot.read_bytes()
+            observed["witness"] = witness_snapshot.read_bytes()
+            observed["private"] = checker_snapshot.parent == witness_snapshot.parent
+            return subprocess.CompletedProcess(command, 0, "ACCEPT\n", "")
+
+        with mock.patch.object(verifier.subprocess, "run", side_effect=fake_run):
+            completed = verifier.run_checker_snapshot(
+                checker_bytes, witness_bytes, "request", "model", "epoch", 10
+            )
+        self.assertEqual(completed.stdout, "ACCEPT\n")
+        self.assertEqual(observed, {
+            "checker": checker_bytes,
+            "witness": witness_bytes,
+            "private": True,
+        })
+
     def test_identity_digest_uses_the_already_parsed_bytes(self):
         verifier = load_verifier(self)
         identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))

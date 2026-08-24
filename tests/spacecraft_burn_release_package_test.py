@@ -5,7 +5,9 @@ import tarfile
 import unittest
 from io import BytesIO
 import json
+import hashlib
 from pathlib import Path
+import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +24,32 @@ def load_packager():
 
 
 class SpacecraftReleasePackageTests(unittest.TestCase):
+    def test_staged_auxiliary_evidence_must_match_committed_digests(self):
+        package = load_packager()
+        names = package.AUXILIARY_EVIDENCE_NAMES
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory)
+            expected = {}
+            for name in names:
+                data = ("bound-" + name).encode()
+                (staging / name).write_bytes(data)
+                expected[name] = hashlib.sha256(data).hexdigest()
+            loaded = package.validated_staged_evidence(staging, expected)
+            self.assertEqual(set(loaded), set(names))
+            (staging / names[0]).write_bytes(b"mutated")
+            with self.assertRaisesRegex(RuntimeError, "staged evidence digest mismatch"):
+                package.validated_staged_evidence(staging, expected)
+
+    def test_checker_binding_must_match_packaged_witness(self):
+        package = load_packager()
+        witness = b"witness"
+        receipt = {
+            "witness": {"sha256": hashlib.sha256(witness).hexdigest()},
+            "formal_checker": {"witness_sha256": "0" * 64},
+        }
+        with self.assertRaisesRegex(RuntimeError, "checker-bound witness digest"):
+            package.validate_witness_digests(witness, receipt)
+
     def test_generated_claim_gate_rejects_unqualified_assurance(self):
         package = load_packager()
         with self.assertRaisesRegex(RuntimeError, "unqualified assurance"):

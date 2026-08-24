@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import platform
 from pathlib import Path
 import subprocess
 import sys
@@ -24,10 +25,19 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
             check=False,
         )
 
-    def test_committed_identity_reproduces(self) -> None:
-        result = self.run_gate("check")
+    def test_committed_source_and_proof_identity_reproduce_cross_platform(self) -> None:
+        result = self.run_gate("check", "--proof-only")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS spacecraft-burn proof identity", result.stdout)
+
+    @unittest.skipUnless(
+        sys.platform == "darwin" and platform.machine() == "arm64",
+        "committed executable identity is macOS/arm64-specific",
+    )
+    def test_committed_checker_binary_identity_reproduces_on_owning_platform(self) -> None:
+        result = self.run_gate("check")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("checker build binding", result.stdout)
 
     def test_mutated_checker_identity_refuses(self) -> None:
         document = json.loads(IDENTITY.read_text(encoding="utf-8"))

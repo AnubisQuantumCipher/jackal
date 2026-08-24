@@ -43,3 +43,5 @@ import JackalIv.Spacecraft.VectorField
 import JackalIv.Spacecraft.VectorFieldFixtures
 import JackalIv.Spacecraft.Picard
 import JackalIv.Spacecraft.PicardFixtures
+import JackalIv.Spacecraft.Orbit
+import JackalIv.Spacecraft.OrbitFixtures

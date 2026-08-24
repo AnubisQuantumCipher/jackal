@@ -498,30 +498,30 @@ git commit -m "proof(spacecraft): verify Picard tube composition"
 - Create: `proofs/lean/JackalIv/Spacecraft/Orbit.lean`
 - Create: `proofs/lean/JackalIv/Spacecraft/OrbitFixtures.lean`
 
-- [ ] **Step 1: Write failing coverage and orbital mutations**
+- [x] **Step 1: Write failing coverage and orbital mutations**
 
 Cover missing cutoff cells, duplicated branch IDs, wrong energy factor,
 `a(1-e)`, empty eccentricity intersection, unit mismatch, and upward-rounded
 margin. Include the exact four polynomial identities checked by the Python v1
 verifier.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: missing coverage and orbital checker definitions.
 
-- [ ] **Step 3: Implement exact coverage decisions**
+- [x] **Step 3: Implement exact coverage decisions**
 
 Require the exact Cartesian partition `(4,1,1,2,2,2)`, 32 branches, 3,888
 steps per branch, 96 cutoff cells per branch, and complete coverage of
 `[118.5,121.5]` at `h=1/32`.
 
-- [ ] **Step 4: Prove the orbital chain**
+- [x] **Step 4: Prove the orbital chain**
 
 Prove the radius, energy, semimajor axis, angular momentum, both eccentricity
 routes, intersection, apoapsis, altitude, and margin enclosures. Derive the
 four polynomial identities within Lean rather than trusting recorded booleans.
 
-- [ ] **Step 5: Prove the conditional safety theorem**
+- [x] **Step 5: Prove the conditional safety theorem**
 
 ```lean
 theorem orbit_margin_positive_implies_safe
@@ -531,12 +531,12 @@ theorem orbit_margin_positive_implies_safe
       ApoapsisAltitude trajectory ≥ 1000
 ```
 
-- [ ] **Step 6: Run fixtures, build, and axiom audit**
+- [x] **Step 6: Run fixtures, build, and axiom audit**
 
 Expected: every deliberate mutation refuses and theorem dependencies remain
 within the approved foundation set.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add proofs/lean/JackalIv/Spacecraft/Orbit.lean \

@@ -41,3 +41,5 @@ import JackalIv.Spacecraft.Interval
 import JackalIv.Spacecraft.IntervalFixtures
 import JackalIv.Spacecraft.VectorField
 import JackalIv.Spacecraft.VectorFieldFixtures
+import JackalIv.Spacecraft.Picard
+import JackalIv.Spacecraft.PicardFixtures

@@ -26,6 +26,16 @@ def fixtureEndpoint : Box := ![
 def fixtureThrust : DInterval :=
   ⟨2411807010131185203538821120, 2417851639229258349412352000⟩
 
+def fixtureStep0 : StepWitness where
+  branch := 0
+  step := 0
+  tube := fixtureTube
+
+def fixtureBrokenStep : StepWitness where
+  branch := 0
+  step := 2
+  tube := fixtureTube
+
 def refused {α : Type} : Except String α → Bool
   | .error _ => true
   | .ok _ => false
@@ -39,6 +49,10 @@ def refused {α : Type} : Except String α → Bool
   .error "step-size"
 #guard refused (checkStep 80 (1 / 32) fixtureInitial
   ![⟨0, 0⟩, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, 0⟩] fixtureThrust)
+#guard checkBranchSteps 80 (1 / 32) 0 fixtureThrust fixtureInitial 0
+  [fixtureStep0] = .ok fixtureEndpoint
+#guard refused (checkBranchSteps 80 (1 / 32) 0 fixtureThrust fixtureInitial 0
+  [fixtureStep0, fixtureBrokenStep])
 
 example {bits : Nat} {h : ℚ} {initial tube : Box}
     {thrustIv : DInterval} {endpoint : Box}
@@ -57,5 +71,6 @@ example {bits : Nat} {h : ℚ} {initial tube : Box}
 #print axioms classicalSolution_picard_eq
 #print axioms picard_tube_encloses
 #print axioms picard_endpoint_encloses
+#print axioms checked_steps_compose
 
 end JackalIv.Spacecraft

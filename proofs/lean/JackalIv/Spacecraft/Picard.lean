@@ -510,4 +510,64 @@ theorem picard_endpoint_encloses {bits : Nat} {h : ℚ}
   rw [hproj]
   exact hsum i
 
+/-- A physically continuous finite-step burn: each local classical solution
+starts at the exact endpoint of the preceding local solution.  The witness
+steps index the chain, so disconnected or missing trajectories cannot inhabit
+this proposition. -/
+inductive ClassicalSolutionChain (h : ℚ) (thrust : ℝ) :
+    State → List StepWitness → State → Prop where
+  | nil (state : State) : ClassicalSolutionChain h thrust state [] state
+  | cons {initial terminal : State} {step : StepWitness}
+      {steps : List StepWitness} (trajectory : ℝ → State)
+      (solution : IsClassicalSolution h thrust initial trajectory)
+      (tail : ClassicalSolutionChain h thrust (trajectory (h : ℝ)) steps terminal) :
+      ClassicalSolutionChain h thrust initial (step :: steps) terminal
+
+/-- The proof-carrying counterpart of `ClassicalSolutionChain`.  It records
+the checked tube enclosure for every concrete trajectory in the same chain. -/
+inductive EnclosedSolutionChain (bits : Nat) (h : ℚ) (thrust : ℝ) :
+    State → List StepWitness → State → Prop where
+  | nil (state : State) : EnclosedSolutionChain bits h thrust state [] state
+  | cons {initial terminal : State} {step : StepWitness}
+      {steps : List StepWitness} (trajectory : ℝ → State)
+      (solution : IsClassicalSolution h thrust initial trajectory)
+      (enclosed : ∀ t ∈ Set.Icc (0 : ℝ) (h : ℝ),
+        trajectory t ∈ tubeSet bits step.tube)
+      (tail : EnclosedSolutionChain bits h thrust
+        (trajectory (h : ℝ)) steps terminal) :
+      EnclosedSolutionChain bits h thrust initial (step :: steps) terminal
+
+theorem checked_steps_compose {bits : Nat} {h : ℚ} {branch expected : Nat}
+    {thrustIv : DInterval} {current final : Box} {steps : List StepWitness}
+    {initialState terminalState : State} {thrust : ℝ}
+    (hcheck : checkBranchSteps bits h branch thrustIv current expected steps = .ok final)
+    (hi : ∀ i, Mem bits (initialState i) (current i))
+    (ht : Mem bits thrust thrustIv)
+    (hchain : ClassicalSolutionChain h thrust initialState steps terminalState) :
+    EnclosedSolutionChain bits h thrust initialState steps terminalState ∧
+      ∀ i, Mem bits (terminalState i) (final i) := by
+  induction hchain generalizing current expected final with
+  | nil state =>
+      simp only [checkBranchSteps] at hcheck
+      cases hcheck
+      exact ⟨.nil state, hi⟩
+  | @cons initial terminal step tail trajectory solution chain ih =>
+      simp only [checkBranchSteps] at hcheck
+      by_cases horder : step.branch ≠ branch ∨ step.step ≠ expected
+      · simp only [if_pos horder] at hcheck
+        contradiction
+      · simp only [if_neg horder] at hcheck
+        generalize hstep : checkStep bits h current step.tube thrustIv = result at hcheck
+        cases result with
+        | error error =>
+          change Except.error error = Except.ok final at hcheck
+          contradiction
+        | ok endpoint =>
+          change checkBranchSteps bits h branch thrustIv endpoint
+            (expected + 1) tail = .ok final at hcheck
+          have henclosed := picard_tube_encloses hstep hi ht solution
+          have hiNext := picard_endpoint_encloses hstep hi ht solution
+          have htail := ih hcheck hiNext
+          exact ⟨.cons trajectory solution henclosed htail.1, htail.2⟩
+
 end JackalIv.Spacecraft

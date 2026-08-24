@@ -133,7 +133,7 @@ APPROVED_CHECK_COMPILER_SHA256 = (
 # NOT the guest's ambient bytes. The Darwin declaration above stays exact in the
 # FROZEN inventory-safe-v1 policy body; only the runtime selection below is host-aware.
 APPROVED_CHECK_COMPILER_LINUX_AARCH64_SHA256 = (
-    "7cdafb305f3b8df53e66e037433803d5154b4f5872758d9b15f7eeedc9670398"
+    "6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a"
 )
 
 

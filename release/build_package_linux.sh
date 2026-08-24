@@ -364,7 +364,7 @@ APPROVED_Z3_SHA256="b6fcd93b2ccec9aa848ac148c4d9b4270577ad046601f211784586eb9f01
 # against the manifest-pinned identity.
 CCDIR="${JACKAL_CC_DIR:?set JACKAL_CC_DIR to the approved native check compiler}"
 require_regular "$CCDIR/jackal_anubis_check_v1"
-APPROVED_CC_SHA256="7cdafb305f3b8df53e66e037433803d5154b4f5872758d9b15f7eeedc9670398"
+APPROVED_CC_SHA256="6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a"
 [ "$(sha256 "$CCDIR/jackal_anubis_check_v1")" = "$APPROVED_CC_SHA256" ] || {
   echo "PACKAGE_V173_REFUSED reason=approved-check-compiler-identity observed=$(sha256 "$CCDIR/jackal_anubis_check_v1")" >&2
   exit 4

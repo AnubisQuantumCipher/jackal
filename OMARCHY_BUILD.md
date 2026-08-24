@@ -70,11 +70,12 @@ program-evidence anchor), `cargo`/`rustc` (stable), `elan` (Lean), `python3`.
 ## Trust-surface sign-offs
     - jackal_anubis_check_program: RESOLVED 2026-08-24 — architect (khephri.labs@proton.me)
       designated the clean-source Linux/aarch64 anubis CHECK COMPILER sha256
-      7cdafb30… (double-built byte-identical, from anubis-lang commit 6aa6fd92,
+      6c3ae920… (double-built byte-identical, from anubis-lang commit 0ad40aaf =
+      6aa6fd92 + host-honest doctor; supersedes 7cdafb30 which lacked the doctor fix,
       recipe §1). Scope: Linux/aarch64 only; macOS 0d6a8f89 not reused;
       inventory-safe-v1 policy body byte-frozen (1b94350a). Verifier anchor is
       host-aware (Darwin=0d6a8f89 preserved). Independently re-verified 2026-08-24
-      (verified-program-evidence, 4 proofs, receipt 81d6477e…). Records:
+      (verified-program-evidence, 4 proofs, receipt 46c7b357… (D2)). Records:
       release/evidence/anubis_program_dogfood_linux_aarch64_v1.json and
       ~/omarchy-jackal-completion/evidence/compiler/SIGNOFF_linux_aarch64.json;
       finding ~/omarchy-jackal-completion/evidence/I_check_compiler_finding.json

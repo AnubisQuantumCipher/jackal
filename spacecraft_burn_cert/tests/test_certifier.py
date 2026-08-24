@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import math
 import unittest
@@ -147,6 +148,20 @@ class CertifierContractTests(unittest.TestCase):
                 "formal_checker_status": "NOT_EXECUTED",
             },
         )
+
+    def test_full_candidate_emits_complete_canonical_witness(self):
+        c = load_certifier(self)
+        receipt, witness = c.certify()
+        encoded = c.witness_codec.encode_witness(witness)
+        self.assertEqual(len(witness.branches), 32)
+        self.assertEqual(witness.steps_per_branch, 3888)
+        self.assertEqual(sum(len(branch.steps) for branch in witness.branches), 124416)
+        self.assertEqual(receipt["witness"]["branch_count"], 32)
+        self.assertEqual(receipt["witness"]["tube_count"], 124416)
+        self.assertEqual(receipt["witness"]["cutoff_cell_count"], 3072)
+        self.assertEqual(receipt["witness"]["byte_size"], len(encoded))
+        self.assertEqual(receipt["witness"]["sha256"], hashlib.sha256(encoded).hexdigest())
+        self.assertEqual(c.witness_codec.encode_witness(c.witness_codec.decode_witness(encoded)), encoded)
 
     def test_summary_keeps_model_qualifier_adjacent_to_positive_verdict(self):
         c = load_certifier(self)

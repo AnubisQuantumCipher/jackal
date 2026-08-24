@@ -30,6 +30,11 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
 
+try:
+    from spacecraft_burn_cert import witness_codec
+except ModuleNotFoundError:  # Direct execution from the package directory.
+    import witness_codec  # type: ignore[no-redef]
+
 
 SCALE_BITS = 80
 SCALE = 1 << SCALE_BITS
@@ -491,7 +496,16 @@ def _source_sha256() -> str:
     return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
-def certify() -> dict:
+def _witness_interval(value: DInterval) -> witness_codec.Interval:
+    value._require_nonempty()
+    return witness_codec.Interval(value.lo, value.hi)
+
+
+def _witness_box(values: Sequence[DInterval]) -> witness_codec.Box:
+    return witness_codec.Box(tuple(_witness_interval(value) for value in values))
+
+
+def certify() -> tuple[dict, witness_codec.BurnWitness]:
     branches = branch_boxes()
     burn_lo_steps = BURN_TIME_BOUNDS[0] / STEP
     burn_hi_steps = BURN_TIME_BOUNDS[1] / STEP
@@ -512,12 +526,17 @@ def certify() -> dict:
     domain_radius_squared_lo = None
     domain_speed_squared_lo = None
     domain_mass_lo = None
+    witness_branches: list[witness_codec.BranchWitness] = []
 
     for branch_index, (initial, thrust) in enumerate(branches):
         state = initial
         initial_mass = initial[4]
+        witness_steps: list[witness_codec.StepWitness] = []
         for step_index in range(total_steps):
             tube, iterations = picard_tube(state, thrust, STEP, initial_mass)
+            witness_steps.append(
+                witness_codec.StepWitness(branch_index, step_index, _witness_box(tube))
+            )
             endpoint = endpoint_from_tube(state, tube, thrust, STEP, initial_mass)
             max_picard_iterations = max(max_picard_iterations, iterations)
             tube_count += 1
@@ -557,12 +576,32 @@ def certify() -> dict:
                 ):
                     minimum_formula_margin = formula_margin
             state = endpoint
+        witness_branches.append(
+            witness_codec.BranchWitness(
+                branch_index,
+                _witness_box(initial),
+                _witness_interval(thrust),
+                tuple(witness_steps),
+            )
+        )
 
     if cutoff_hull is None or minimum_margin is None or minimum_formula_margin is None:
         raise CertificationError("no cutoff states were processed")
     classification = classify_margin(minimum_margin)
     reported = reported_lower_bound(minimum_margin)
-    return {
+    witness = witness_codec.BurnWitness(
+        scale_bits=SCALE_BITS,
+        step_num=STEP.numerator,
+        step_den=STEP.denominator,
+        partition_counts=PARTITION_COUNTS,
+        steps_per_branch=total_steps,
+        first_cutoff_step=lo_step,
+        branches=tuple(witness_branches),
+    )
+    encoded_witness = witness_codec.encode_witness(witness)
+    branch_count = len(witness.branches)
+    cutoff_cell_count = branch_count * (total_steps - lo_step)
+    receipt = {
         "schema": SCHEMA_V2,
         "source_sha256": _source_sha256(),
         "method": {
@@ -593,6 +632,14 @@ def certify() -> dict:
             "energy_denominator": ENERGY_HALF_DENOMINATOR,
             "propagate_full_box": PROPAGATE_FULL_BOX,
             "decision_mode": DECISION_MODE,
+        },
+        "witness": {
+            "format": witness_codec.MAGIC.decode("ascii").rstrip("\n"),
+            "sha256": hashlib.sha256(encoded_witness).hexdigest(),
+            "byte_size": len(encoded_witness),
+            "branch_count": branch_count,
+            "tube_count": tube_count,
+            "cutoff_cell_count": cutoff_cell_count,
         },
         "problem": {
             "mu_km3_s2": "398600.4418",
@@ -642,6 +689,7 @@ def certify() -> dict:
             "No Monte Carlo or nominal trajectory supports the universal verdict.",
         ],
     }
+    return receipt, witness
 
 
 def write_json_atomic(path: Path, payload: dict) -> None:
@@ -651,6 +699,17 @@ def write_json_atomic(path: Path, payload: dict) -> None:
     data = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
     with temporary.open("xb") as stream:
         stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def write_bytes_atomic(path: Path, payload: bytes) -> None:
+    path = path.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    with temporary.open("xb") as stream:
+        stream.write(payload)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
@@ -667,8 +726,12 @@ def format_summary(receipt: dict, path: Path) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--witness", type=Path)
     args = parser.parse_args(argv)
-    receipt = certify()
+    receipt, witness = certify()
+    encoded_witness = witness_codec.encode_witness(witness)
+    if args.witness:
+        write_bytes_atomic(args.witness, encoded_witness)
     if args.output:
         write_json_atomic(args.output, receipt)
         print(format_summary(receipt, args.output.resolve()))

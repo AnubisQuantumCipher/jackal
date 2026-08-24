@@ -186,7 +186,7 @@ def step_refinement(receipt: dict) -> dict:
     try:
         for step_size in (Fraction(1, 16), Fraction(1, 64)):
             certifier.STEP = step_size
-            result = certifier.certify()
+            result, _witness = certifier.certify()
             records.append(
                 {
                     "step_exact": f"{step_size.numerator}/{step_size.denominator}",

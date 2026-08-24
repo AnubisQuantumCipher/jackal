@@ -471,9 +471,27 @@ CURRENT_PROOF_RELEASE_EPOCH = "v1.7.2"
 RANGE_ARCHIVAL_RELEASE_EPOCHS = frozenset({"v1.5.0"})
 RATIONAL_ARCHIVAL_RELEASE_EPOCHS = RANGE_ARCHIVAL_RELEASE_EPOCHS
 INT_CERT_ARCHIVAL_RELEASE_EPOCHS = frozenset()
-ARCHIVAL_RANGE_CHECKER_SHA256 = (
-    "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a"
-)
+def _host_archival_range_checker_sha256() -> str:
+    """Archival v1.7.0 range checker identity for this host.
+
+    The Omarchy (Linux) edition ships a natively rebuilt v1.7.0 checker; macOS
+    keeps the original release bytes. A host-suffixed evidence marker selects
+    the native identity when present.
+    """
+    try:
+        import platform as _platform
+        if _platform.system() != "Darwin":
+            marker = Path(__file__).resolve().parent.parent / "release" / "evidence" / f"archival_range_checker.{_platform.system().lower()}-{_platform.machine().lower()}"
+            if marker.is_file():
+                text = marker.read_text().strip()
+                if len(text) == 64:
+                    return text
+    except OSError:
+        pass
+    return "05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a"
+
+
+ARCHIVAL_RANGE_CHECKER_SHA256 = _host_archival_range_checker_sha256()
 ARCHIVAL_RANGE_INVENTORY_FILE = (
     "release/coverage/formal_coverage_inventory_v170.json"
 )
@@ -506,7 +524,10 @@ def _host_current_identity_sha(base_filename: str, macos_default: str) -> str:
 
 _PROOF_COMPATIBILITY = {
     ("range", RANGE_PROOF_IDENTITY_V1_SCHEMA, "v1.5.0"): {
-        "file_sha256": "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+        "file_sha256": _host_current_identity_sha(
+            "range_proof_identity.json",
+            "1b2d623904930d748bfbf489637e0e8aa720188e7d68f5250e5bd8f257b89a67",
+        ),
         "mode": "replay-only",
         "checker_sha256": ARCHIVAL_RANGE_CHECKER_SHA256,
         "theorem": "JackalIv.Cert.request_bound_certified_release",

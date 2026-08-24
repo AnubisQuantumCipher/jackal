@@ -44,9 +44,8 @@ COMPILER=${JACKAL_ANUBIS_COMPILER_PATH:-}
 RANGE_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
 GAUSSIAN_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_gaussian_check"
 INT_CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_int_cert_check"
-V170_ARCHIVE_URL="https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.0/jackal-v1.7.0-macos-arm64.tar.gz"
 V170_ARCHIVE_SHA256="21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e"
-V170_RANGE_CHECKER_SHA256="05c3518b836f239712f897c483a2ddadad9f544e0887b1b7bb1424a27289de8a"
+V170_RANGE_CHECKER_SHA256="d515cdc2e66e53e46aef49ebb0d804a3ebd30d0b69fc7e8de7a3a19aac5170f2"
 V170_COVERAGE_INVENTORY_SHA256="18ff7b1d428dbc6f807fd4de27751ba415b33ef0b356088d7fa316ed74bb0ba6"
 V170_PLUGIN_HERMES_SHA256="d141c909e8f5f03e268a2112f291e6bd79fafff906522eb7ca9accc247a3274b"
 
@@ -110,6 +109,7 @@ proofs/lean/.lake/build/bin/jackal_int_cert_check
 release/evidence/range_proof_identity_v172.json
 release/evidence/int_cert_proof_identity_v172.json
 release/evidence/range_proof_identity.json
+release/evidence/range_proof_identity.linux-aarch64.json
 release/evidence/int_cert_proof_identity.json
 release/evidence/gaussian_proof_identity.json
 release/evidence/range_proof_identity_v172.linux-aarch64.json
@@ -327,58 +327,24 @@ copy_file "$ROOT/release/coverage/formal_coverage_inventory.json" "$PKG/formal_c
 # Accept an operator-supplied local copy of the published archive, otherwise
 # fetch the public release asset, then verify the whole archive before reading
 # only the two named regular-file members. No archive path is extracted.
-V170_ARCHIVE="$STAGE/jackal-v1.7.0-macos-arm64.tar.gz"
-if [ -n "${JACKAL_V170_ARCHIVE:-}" ]; then
-  require_regular "$JACKAL_V170_ARCHIVE"
-  /bin/cp "$JACKAL_V170_ARCHIVE" "$V170_ARCHIVE"
-else
-  /usr/bin/curl --fail --location --silent --show-error \
-    --proto '=https' --tlsv1.2 \
-    --connect-timeout 20 --max-time 900 \
-    --retry 3 --retry-max-time 900 --retry-connrefused \
-    "$V170_ARCHIVE_URL" --output "$V170_ARCHIVE"
-fi
-[ "$(sha256 "$V170_ARCHIVE")" = "$V170_ARCHIVE_SHA256" ] || {
-  echo "PACKAGE_V173_REFUSED reason=archival-archive-identity" >&2
+# Omarchy (Linux) edition: the archival v1.7.0 range checker is a natively
+# rebuilt ELF, not the macOS release binary. Copy it and the platform-neutral
+# archival coverage inventory from JACKAL_ARCHIVAL_DIR instead of downloading
+# the Apple archive, so the package carries zero macOS bytes.
+ARCHIVAL_DIR="${JACKAL_ARCHIVAL_DIR:?set JACKAL_ARCHIVAL_DIR to the native archival artifacts}"
+require_regular "$ARCHIVAL_DIR/jackal_cert_check_v170"
+require_regular "$ARCHIVAL_DIR/formal_coverage_inventory_v170.json"
+[ "$(sha256 "$ARCHIVAL_DIR/jackal_cert_check_v170")" = "$V170_RANGE_CHECKER_SHA256" ] || {
+  echo "PACKAGE_V173_REFUSED reason=archival-checker-identity" >&2
   exit 4
 }
-python3 -I -S -B - "$V170_ARCHIVE" "$PKG" \
-  "$V170_RANGE_CHECKER_SHA256" "$V170_COVERAGE_INVENTORY_SHA256" <<'PY'
-import hashlib
-import os
-import pathlib
-import sys
-import tarfile
-
-archive = pathlib.Path(sys.argv[1])
-package = pathlib.Path(sys.argv[2])
-expected = {
-    "jackal-v1.7.0-macos-arm64/jackal_cert_check": (
-        package / "jackal_cert_check_v170", sys.argv[3], 0o755
-    ),
-    "jackal-v1.7.0-macos-arm64/formal_coverage_inventory.json": (
-        package / "evidence/formal_coverage_inventory_v170.json", sys.argv[4],
-        0o644
-    ),
+[ "$(sha256 "$ARCHIVAL_DIR/formal_coverage_inventory_v170.json")" = "$V170_COVERAGE_INVENTORY_SHA256" ] || {
+  echo "PACKAGE_V173_REFUSED reason=archival-inventory-identity" >&2
+  exit 4
 }
-with tarfile.open(archive, "r:gz") as bundle:
-    members = {member.name: member for member in bundle.getmembers()}
-    for name, (destination, digest, mode) in expected.items():
-        member = members.get(name)
-        if member is None or not member.isfile() or member.size > 256 * 1024 * 1024:
-            raise SystemExit(f"archival-checker-member-refused:{name}")
-        source = bundle.extractfile(member)
-        if source is None:
-            raise SystemExit(f"archival-checker-read-refused:{name}")
-        data = source.read(256 * 1024 * 1024 + 1)
-        if len(data) != member.size or hashlib.sha256(data).hexdigest() != digest:
-            raise SystemExit(f"archival-checker-identity-refused:{name}")
-        with destination.open("xb") as output:
-            output.write(data)
-            output.flush()
-            os.fsync(output.fileno())
-        destination.chmod(mode)
-PY
+/bin/cp "$ARCHIVAL_DIR/jackal_cert_check_v170" "$PKG/jackal_cert_check_v170"
+/bin/chmod 0755 "$PKG/jackal_cert_check_v170"
+/bin/cp "$ARCHIVAL_DIR/formal_coverage_inventory_v170.json" "$PKG/evidence/formal_coverage_inventory_v170.json"
 
 for relative in \
   tests/release_validate.py \
@@ -433,7 +399,7 @@ copy_file "$ROOT/release/compat/v170_floor.json" "$PKG/evidence/compat_v170_floo
 copy_file "$ROOT/release/compat/v150_floor.json" "$PKG/evidence/compat_v150_floor.json"
 copy_file "$ROOT/release/evidence/range_ordering_aba_v172.json" "$PKG/evidence/range_ordering_aba_v172.json"
 copy_file "$ROOT/release/evidence/int_cert_premise_aba_v172.json" "$PKG/evidence/int_cert_premise_aba_v172.json"
-copy_file "$ROOT/release/evidence/range_proof_identity.json" "$PKG/evidence/range_proof_identity_v1.json"
+copy_file "$ROOT/release/evidence/range_proof_identity.linux-aarch64.json" "$PKG/evidence/range_proof_identity_v1.json"
 copy_file "$ROOT/release/evidence/int_cert_proof_identity.json" "$PKG/evidence/int_cert_proof_identity_v1.json"
 copy_file "$ROOT/release/evidence/range_proof_identity_v172.linux-aarch64.json" "$PKG/evidence/range_proof_identity_v172.json"
 copy_file "$ROOT/release/evidence/int_cert_proof_identity_v172.linux-aarch64.json" "$PKG/evidence/int_cert_proof_identity_v172.json"

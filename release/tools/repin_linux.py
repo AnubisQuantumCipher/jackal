@@ -44,6 +44,7 @@ PROOF_IDENTITY_ROWS = {
     "range-proof-identity": ("range_proof_identity_v172", "range-proof-digest"),
     "gaussian-proof-identity": ("gaussian_proof_identity", "gaussian-proof-digest"),
     "int-cert-proof-identity": ("int_cert_proof_identity_v172", "int-cert-proof-digest"),
+    "archival-range-proof-identity": ("range_proof_identity", "archival-range-proof-digest"),
 }
 EVIDENCE_DIR = "release/evidence"
 
@@ -79,6 +80,15 @@ def build_manifest() -> str:
     comp = compiler_path()
     comp_sha = sha256(comp)
     tag = host_tag()
+
+    # Omarchy edition rebinds the archival v1.7.0 range checker row to the
+    # natively rebuilt checker named by release/evidence/archival_range_checker.<host>.
+    archival_marker = ROOT / EVIDENCE_DIR / f"archival_range_checker.{tag}"
+    archival_sha = None
+    if archival_marker.is_file():
+        text = archival_marker.read_text().strip()
+        if len(text) == 64:
+            archival_sha = text
 
     def host_evidence(base: str) -> Path | None:
         candidate = ROOT / EVIDENCE_DIR / f"{base}.{tag}.json"
@@ -123,6 +133,9 @@ def build_manifest() -> str:
                 out.append(f"{label} {rel} {sha256(ev)}")
         elif label in digest_overrides:
             out.append(f"{label} {digest_overrides[label]}")
+        elif label == "archival-range-checker" and archival_sha is not None:
+            name = line.split()[1]
+            out.append(f"{label} {name} {archival_sha}")
         else:
             out.append(line)
     missing = set(BINARY_ROWS) - seen_binary

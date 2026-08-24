@@ -10,7 +10,11 @@ permissions:
 
 jobs:
   full-certificate-campaign:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     env:
       MODEL_ID: jackal-spacecraft-finite-burn-ode-v2
@@ -47,7 +51,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/spacecraft-v2"
           python3 -B release/tools/spacecraft_burn_proof_identity.py generate \
             --output "$RUNNER_TEMP/spacecraft-v2/proof_identity.json"
-          echo "PROOF_FILE_SHA=$(sha256sum "$RUNNER_TEMP/spacecraft-v2/proof_identity.json" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "PROOF_FILE_SHA=$(python3 -c 'import hashlib,os; print(hashlib.sha256(open(os.environ["RUNNER_TEMP"]+"/spacecraft-v2/proof_identity.json","rb").read()).hexdigest())')" >> "$GITHUB_ENV"
           echo "PROOF_IDENTITY_SHA=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/spacecraft-v2/proof_identity.json"))["identity_digest_sha256"])')" >> "$GITHUB_ENV"
 
       - name: Generate and formally check the complete witness

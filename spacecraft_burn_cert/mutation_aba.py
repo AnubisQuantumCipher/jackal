@@ -94,29 +94,31 @@ def mutated_bytes(original: bytes, name: str) -> bytes:
     return original.replace(old, new, 1)
 
 
-def hash_only_cycle(name: str) -> dict:
-    original = SOURCE.read_bytes()
-    mode = SOURCE.stat().st_mode & 0o777
+def hash_only_cycle(name: str, source: Path = SOURCE) -> dict:
+    original = source.read_bytes()
+    mode = source.stat().st_mode & 0o777
     a_before = sha256(original)
     b_data = mutated_bytes(original, name)
     try:
-        atomic_bytes(SOURCE, b_data, mode)
-        b_hash = sha256(SOURCE.read_bytes())
+        atomic_bytes(source, b_data, mode)
+        b_hash = sha256(source.read_bytes())
     finally:
-        atomic_bytes(SOURCE, original, mode)
-    a_after = sha256(SOURCE.read_bytes())
+        atomic_bytes(source, original, mode)
+    a_after = sha256(source.read_bytes())
     return {
         "mutation": name,
         "a_before_sha256": a_before,
         "b_sha256": b_hash,
         "a_after_sha256": a_after,
-        "restored": a_before == a_after and SOURCE.read_bytes() == original,
+        "restored": a_before == a_after and source.read_bytes() == original,
     }
 
 
-def run(command: Sequence[str], timeout: int = 150) -> dict:
+def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | None = None) -> dict:
     environment = dict(os.environ)
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    if extra_env:
+        environment.update(extra_env)
     try:
         completed = subprocess.run(
             list(command),
@@ -149,6 +151,10 @@ def parse_json_output(record: dict) -> dict | None:
         return json.loads(record["output_excerpt"])
     except (json.JSONDecodeError, TypeError):
         return None
+
+
+def completed_mutant_failure(returncode: int) -> bool:
+    return returncode not in (0, 124)
 
 
 class FormalInputs(NamedTuple):
@@ -189,36 +195,32 @@ def exercise_mutation(name: str) -> dict:
     restored_test = None
     b_hash = None
     caught = False
-    try:
-        atomic_bytes(SOURCE, mutant, original_mode)
-        b_hash = sha256(SOURCE.read_bytes())
+    with tempfile.TemporaryDirectory(prefix="spacecraft-source-mutation-") as directory:
+        isolated = Path(directory) / "certify.py"
+        atomic_bytes(isolated, original, original_mode)
+        atomic_bytes(isolated, mutant, original_mode)
+        b_hash = sha256(isolated.read_bytes())
         test_record = run(
             (
-                str(PYTHON),
-                "-B",
-                "-m",
-                "unittest",
-                "spacecraft_burn_cert/tests/test_certifier.py",
-                "-v",
+                str(PYTHON), "-B", "-m", "unittest",
+                "spacecraft_burn_cert/tests/test_certifier.py", "-v",
             ),
             timeout=45,
+            extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
-        caught = test_record["returncode"] != 0
-    finally:
-        atomic_bytes(SOURCE, original, original_mode)
+        caught = completed_mutant_failure(test_record["returncode"])
+        atomic_bytes(isolated, original, original_mode)
         restored_test = run(
             (
-                str(PYTHON),
-                "-B",
-                "-m",
-                "unittest",
+                str(PYTHON), "-B", "-m", "unittest",
                 "spacecraft_burn_cert.tests.test_certifier.CertifierContractTests.test_baseline_contract_integrates_mass_and_converts_thrust_to_km",
                 "-v",
             ),
             timeout=30,
+            extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
-    a_after = sha256(SOURCE.read_bytes())
-    restored = a_after == a_before and SOURCE.read_bytes() == original
+        a_after = sha256(isolated.read_bytes())
+        restored = a_after == a_before and isolated.read_bytes() == original
     return {
         "mutation": name,
         "bug": mutation["bug"],
@@ -228,7 +230,8 @@ def exercise_mutation(name: str) -> dict:
         "a_after_sha256": a_after,
         "restored": restored,
         "restored_contract_test_passed": restored_test["returncode"] == 0,
-        "mutant_tests_failed": test_record["returncode"] != 0,
+        "mutant_tests_failed": completed_mutant_failure(test_record["returncode"]),
+        "mutant_tests_timed_out": test_record["returncode"] == 124,
         "mutant_test_output_sha256": test_record["output_sha256"],
         "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
         "caught": caught,

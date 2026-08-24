@@ -42,7 +42,7 @@
     "deterministic_checks": 144,
     "status": "PASS"
   },
-  "baseline_receipt_sha256": "d79186313d87fcda1493545147dcf412da7b44de03dcae441a6f92688a4c4b20",
+  "baseline_receipt_sha256": "6b3ffd1d994729b759e0bdf6264e3ec3ddf544efe378b23f718cadbbfd940a64",
   "corner_diagnostics": {
     "certified_lower_margin_km": "42.55875651181649",
     "classification": "deterministic corner samples; diagnostic only, not proof",
@@ -61,12 +61,12 @@
     "status": "PASS"
   },
   "formal_checker_binding": {
-    "checker_sha256": "98ed431fb07789d6ca2b6f70e5eb551aef465cd757331f14e727be724376a533",
+    "checker_sha256": "23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26",
     "epoch": "v1.7.4",
     "model_id": "jackal-spacecraft-finite-burn-ode-v2",
     "nonce": "spacecraft-burn-v2-publication-20260824",
-    "proof_identity_digest_sha256": "6d3d45a11570108c00a29caa4e4dcce1af8dd1137d0214673a6eca976fec2461",
-    "proof_identity_file_sha256": "3d3ea0904b571ddc11aaae94e4291dca7bb0f5e93e156a34be06fc7f46fc5071",
+    "proof_identity_digest_sha256": "e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60",
+    "proof_identity_file_sha256": "3e74b9903a78e93e6829070237986d072de23d539a13494b00cabdaa2dacdb0f",
     "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
     "result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.4",
     "theorem": "spacecraft_burn_certified_safe",

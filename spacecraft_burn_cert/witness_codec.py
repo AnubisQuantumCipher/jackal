@@ -207,11 +207,15 @@ def decode_witness(encoded: bytes) -> BurnWitness:
     _refuse(len(encoded) > MAX_WITNESS_BYTES, "witness-too-large")
     _refuse(not encoded.endswith(b"\n"), "missing-final-newline")
     _refuse(b"\r" in encoded, "noncanonical-line-ending")
+    _refuse(
+        any(byte < 0x20 and byte != 0x0A for byte in encoded),
+        "noncanonical-control-character",
+    )
     try:
         text = encoded.decode("ascii")
     except UnicodeDecodeError as exc:
         raise WitnessRefusal("non-ascii") from exc
-    lines = text.splitlines()
+    lines = text.split("\n")[:-1]
     _refuse(not lines or lines[0] != MAGIC.decode("ascii").rstrip("\n"), "witness-magic")
     _refuse(len(lines) < 3, "missing-terminal")
     config = lines[1].split(" ")

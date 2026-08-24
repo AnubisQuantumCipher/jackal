@@ -57,6 +57,8 @@ class WitnessCodecTests(unittest.TestCase):
         encoded = codec.encode_witness(minimal_witness())
         with self.assertRaisesRegex(codec.WitnessRefusal, "noncanonical-line-ending"):
             codec.decode_witness(encoded.replace(b"\n", b"\r\n"))
+        with self.assertRaisesRegex(codec.WitnessRefusal, "noncanonical-control-character"):
+            codec.decode_witness(encoded.replace(b"tube", b"tu\x0cbe", 1))
         mutant = encoded.replace(b"config 80 1 32 ", b"config 80 2 64 ", 1)
         with self.assertRaisesRegex(codec.WitnessRefusal, "step-rational-not-reduced"):
             codec.decode_witness(mutant)

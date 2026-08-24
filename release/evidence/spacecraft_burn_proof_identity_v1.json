@@ -1,6 +1,6 @@
 {
   "build_attestation": {
-    "attestation_digest_sha256": "260386aa117e32afb406b9c9e7dde5be540f2d42cfda0fc3f21a6dd305cbef71",
+    "attestation_digest_sha256": "383c6bf25808c24a76f680ceb8fc86126fdc5f3899d9d318ed6f040866f93e41",
     "authentication": {
       "authenticated": false,
       "scheme": "none",
@@ -12,9 +12,9 @@
       "jackal_spacecraft_burn_check"
     ],
     "checker": {
-      "bytes": 137814416,
+      "bytes": 137816512,
       "path": "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check",
-      "sha256": "98ed431fb07789d6ca2b6f70e5eb551aef465cd757331f14e727be724376a533",
+      "sha256": "23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26",
       "target": "jackal_spacecraft_burn_check"
     },
     "claim_boundary": "This is reproducibility/build-provenance evidence, not a proof of compiler, linker, operating-system, hardware, or supply-chain correctness.",
@@ -29,7 +29,7 @@
     "inputs": {
       "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
       "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
-      "source_closure_sha256": "ca45508aac83e208d32791026e3b839a2da99d49fba96c23aa7f6188f2d8facb",
+      "source_closure_sha256": "28ebe2e91b9e0c79e9b7439920d4972035bc17a3f7607fc662ae63f4ac0bab17",
       "toolchain_configuration": [
         {
           "path": "proofs/lean/lakefile.toml",
@@ -49,9 +49,9 @@
     "working_directory": "proofs/lean"
   },
   "checker": {
-    "bytes": 137814416,
+    "bytes": 137816512,
     "path": "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check",
-    "sha256": "98ed431fb07789d6ca2b6f70e5eb551aef465cd757331f14e727be724376a533",
+    "sha256": "23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26",
     "target": "jackal_spacecraft_burn_check"
   },
   "fragment": {
@@ -77,7 +77,7 @@
     "path": "release/tools/spacecraft_burn_proof_identity.py",
     "sha256": "7890b8e2de4bf032eb2019479bc4fb1e5d944e14690d6f54a05a3e026c9fd42d"
   },
-  "identity_digest_sha256": "6d3d45a11570108c00a29caa4e4dcce1af8dd1137d0214673a6eca976fec2461",
+  "identity_digest_sha256": "e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {
@@ -200,7 +200,7 @@
   },
   "schema": "jackal-spacecraft-burn-proof-identity-v1",
   "source_closure": {
-    "aggregate_sha256": "ca45508aac83e208d32791026e3b839a2da99d49fba96c23aa7f6188f2d8facb",
+    "aggregate_sha256": "28ebe2e91b9e0c79e9b7439920d4972035bc17a3f7607fc662ae63f4ac0bab17",
     "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
     "external_imports": [
       "Mathlib",
@@ -330,14 +330,14 @@
         "sha256": "a28430ef4651515b569a89dd7c6a4318d3b057c3527caa7f2bfdf0358f42811e"
       },
       {
-        "bytes": 8388,
+        "bytes": 9147,
         "imports": [
           "JackalIv.CertCodec",
           "JackalIv.Spacecraft.Types"
         ],
         "module": "JackalIv.Spacecraft.CertCodec",
         "path": "proofs/lean/JackalIv/Spacecraft/CertCodec.lean",
-        "sha256": "c52f2a22488c514f59adbcc34f977d94a8972ddcc43149a2ad6df9ef3fd86dbf"
+        "sha256": "d48192a6c7dc30b629972e4791e8064fb7c17b776c23299cff5429f30ae63a95"
       },
       {
         "bytes": 869,

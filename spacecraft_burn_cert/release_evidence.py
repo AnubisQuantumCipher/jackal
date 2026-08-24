@@ -21,6 +21,7 @@ JSON_NAMES = (
 )
 MANIFEST = "baseline_witness_v2.manifest.json"
 SUMS = "SHA256SUMS"
+ALLOWED_EXTRA = {"legacy-v1", "baseline_witness_v2.cert"}
 
 
 def sha256(data: bytes) -> str:
@@ -79,6 +80,11 @@ def install_or_check(staging: Path, check: bool) -> None:
                 mismatches.append(name)
         else:
             atomic_write(destination, expected)
+    if check and EVIDENCE.is_dir():
+        allowed = set(files) | ALLOWED_EXTRA
+        for entry in sorted(EVIDENCE.iterdir()):
+            if entry.name not in allowed:
+                mismatches.append(f"unexpected:{entry.name}")
     if mismatches:
         raise RuntimeError("evidence reproduction mismatch: " + ", ".join(mismatches))
 

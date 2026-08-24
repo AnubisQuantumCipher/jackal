@@ -4,6 +4,7 @@ import importlib.util
 import hashlib
 import json
 import math
+import os
 import unittest
 from decimal import Decimal, localcontext
 from fractions import Fraction
@@ -11,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CERTIFIER = ROOT / "certify.py"
+CERTIFIER = Path(os.environ.get("SPACECRAFT_CERTIFIER_PATH", ROOT / "certify.py"))
 
 
 def load_certifier(testcase: unittest.TestCase):

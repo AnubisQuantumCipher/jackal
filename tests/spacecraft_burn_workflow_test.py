@@ -20,6 +20,7 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
             "spacecraft_burn_cert/validate.py", "spacecraft_burn_cert/mutation_aba.py",
             "baseline_witness_v2.second.cert", "cmp -s",
             "spacecraft_burn_release_gate.py", "upload-artifact@",
+            "macos-14",
         ):
             self.assertIn(required, source)
         for action in re.findall(r"uses:\s*([^\s#]+)", source):

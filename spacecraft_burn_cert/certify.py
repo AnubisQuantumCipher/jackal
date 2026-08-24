@@ -773,7 +773,7 @@ def certify() -> tuple[dict, witness_codec.BurnWitness]:
             "overall": "rigorously interval-bounded, not formal-bounded",
         },
         "non_claims": [
-            "JACKAL v1.7.3 does not formally certify this nonlinear ODE propagation.",
+            "The non-authoritative producer alone does not certify nonlinear ODE propagation.",
             "The exact dyadic lower endpoint is a certified lower bound, not the exact mathematical infimum.",
             "No Monte Carlo or nominal trajectory supports the universal verdict.",
         ],

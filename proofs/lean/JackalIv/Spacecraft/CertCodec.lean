@@ -10,6 +10,8 @@ def maxWitnessBytes : Nat := 64 * 1024 * 1024
 def maxBranches : Nat := 1024
 def maxStepsPerBranch : Nat := 1000000
 def maxTubeRecords : Nat := 200000
+def maxWitnessRecords : Nat := maxTubeRecords + maxBranches + 3
+def maxWitnessRecordChars : Nat := 4096
 
 private def refuse (reason : String) : Except String α := .error reason
 
@@ -155,10 +157,23 @@ private def parseTerminal (cfg : Config) (lines : List (List Char)) : Except Str
   | [] => refuse "missing-terminal"
   | _ => refuse "trailing-record"
 
+private def checkRecordEnvelope : List Char → Nat → Nat → Except String Unit
+  | [], lineChars, _ =>
+      if lineChars = 0 then pure () else refuse "missing-final-newline"
+  | c :: tail, lineChars, records =>
+      if c = '\n' then
+        if maxWitnessRecordChars < lineChars then refuse "record-too-large"
+        else if maxWitnessRecords < records + 1 then refuse "record-count-limit"
+        else checkRecordEnvelope tail 0 (records + 1)
+      else if c.toNat < 32 ∨ 126 < c.toNat then refuse "noncanonical-control-character"
+      else if maxWitnessRecordChars ≤ lineChars then refuse "record-too-large"
+      else checkRecordEnvelope tail (lineChars + 1) records
+
 def parseBurnWitness (s : String) : Except String BurnWitness := do
   if maxWitnessBytes < s.toUTF8.size then refuse "witness-too-large" else pure ()
-  if s.toList.any (fun c => c = '\r') then refuse "noncanonical-line-ending" else pure ()
-  if s.toList.any (fun c => 127 < c.toNat) then refuse "non-ascii" else pure ()
+  let chars := s.toList
+  if chars.any (fun c => c = '\r') then refuse "noncanonical-line-ending" else pure ()
+  checkRecordEnvelope chars 0 0
   match (s.splitOn "\n").map String.toList with
   | magic :: configLine :: rest =>
       if magic ≠ "jackal-spacecraft-burn-cert v2".toList then refuse "witness-magic" else do

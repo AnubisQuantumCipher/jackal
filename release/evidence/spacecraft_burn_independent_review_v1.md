@@ -238,22 +238,28 @@ candidate:
 Reviewed clean committed branch head:
 `1b8d33e263b6283d784c266172aa05ff7f0834e5`.
 
-CodeRabbit raised one issue: the same request-digest mismatch claim. The
-suggested 64-character value is exactly the value already present in the
-workflow, request bytes, Lean binding, receipt, and packager, so the finding is
-invalid. No valid release-blocking findings remain. This pass also reviewed the
-platform-bound hosted campaign and mechanically derived 57-file audit-count
-fixes added after Pass 11.
+CodeRabbit raised one issue: the workflow request digest was only 60
+characters and omitted the `c9` pair present in the 64-character request,
+Lean, receipt, and packager binding. Hosted checker execution independently
+confirmed `REJECT request-digest`. The finding is valid and is resolved in the
+next candidate with a test derived from the actual request bytes. This pass
+also reviewed the platform-bound hosted campaign and mechanically derived
+57-file audit-count fixes added after Pass 11.
+
+## Pass 13 status
+
+The clean-worktree review of the corrected 64-character workflow binding is
+pending. Machine-readable clearance is reopened and release packaging is
+fail-closed until that review completes.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 61 | fixed with tests; final push pending |
-| invalid | 10 | request digest independently matched |
+| resolved | 71 | fixed with tests; digest repetitions reclassified valid |
+| invalid | 0 | none |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
-| unresolved release-blocking | 0 | Pass 12 complete |
+| unresolved release-blocking | 1 | Pass 13 retry pending |
 
-Pass 12 is the completed independent-review clearance for the release
-candidate. Merge and publication remain separately conditional on green hosted
-checks and downloaded release-asset readback.
+No merge or publication may proceed until Pass 13 records zero unresolved
+release-blocking findings and machine-readable clearance returns to complete.

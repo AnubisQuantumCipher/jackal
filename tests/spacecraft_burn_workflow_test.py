@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 import unittest
 from pathlib import Path
 
@@ -30,6 +31,10 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
     def test_full_hosted_campaign_is_bounded_and_complete(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         source = executable_workflow_surface(source)
+        request_digest = hashlib.sha256(
+            (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
+        ).hexdigest()
+        self.assertIn(f"REQUEST_DIGEST: {request_digest}", source)
         for required in (
             "timeout-minutes:", "jackal_spacecraft_burn_check",
             "spacecraft_burn_proof_identity.py", "lean_admission_audit.py",

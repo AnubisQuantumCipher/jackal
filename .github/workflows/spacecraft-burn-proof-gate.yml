@@ -18,7 +18,7 @@ jobs:
     env:
       MODEL_ID: jackal-spacecraft-finite-burn-ode-v2
       RELEASE_EPOCH: v1.7.4
-      REQUEST_DIGEST: 03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bd1ba6df3e7
+      REQUEST_DIGEST: 03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7
       PUBLICATION_NONCE: spacecraft-burn-v2-publication-20260824
     steps:
       - name: Check out exact revision

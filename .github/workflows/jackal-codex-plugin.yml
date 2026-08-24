@@ -32,7 +32,6 @@ jobs:
 
       - name: Verify canonical capability and documentation contracts
         run: |
-          /opt/homebrew/bin/python3 -B tools/capability_inventory.py --check
           /opt/homebrew/bin/python3 -B tools/capability_drift_gate.py
           /opt/homebrew/bin/python3 -B -m unittest \
             tests.capability_inventory_test \

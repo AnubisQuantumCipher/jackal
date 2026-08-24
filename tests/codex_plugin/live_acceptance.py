@@ -56,6 +56,10 @@ HOST_EVENT_DEPTH_LIMIT = 64
 HOST_TASK_TIMEOUT = 900.0
 HOST_REGISTRY_TIMEOUT = 30.0
 HOST_BINARY_VERSION_TIMEOUT = 10.0
+PRETURN_DIAGNOSTIC_PREFIXES = (
+    "Under-development features enabled:",
+    "Skill descriptions were shortened to fit the 2% skills context budget.",
+)
 HOST_BINARY_VERSION_LIMIT = 1024
 HOST_BINARY_BYTE_LIMIT = 512 * 1024 * 1024
 HOST_BINARY_PATH_LIMIT = 4096
@@ -645,11 +649,11 @@ def execute_codex_install(
     return tuple(results)
 
 
-def host_claim_request(plan: HostDiscoveryPlan) -> dict[str, Any]:
+def _host_claim_request(nonce: str, emitted_at_unix: str) -> dict[str, Any]:
     return {
         "schema": "jackal-claim-request-v1",
-        "emitted_at_unix": plan.emitted_at_unix,
-        "nonce": plan.nonce,
+        "emitted_at_unix": emitted_at_unix,
+        "nonce": nonce,
         "steps": [
             {
                 "id": "p",
@@ -660,6 +664,10 @@ def host_claim_request(plan: HostDiscoveryPlan) -> dict[str, Any]:
         ],
         "root": "p",
     }
+
+
+def host_claim_request(plan: HostDiscoveryPlan) -> dict[str, Any]:
+    return _host_claim_request(plan.nonce, plan.emitted_at_unix)
 
 
 def host_verification_arguments(
@@ -697,10 +705,13 @@ def build_host_discovery_plan(
     ):
         raise AcceptanceError("host discovery freshness inputs are invalid")
     root_json = canonical_bytes(EXPECTED_ROOT_PROPOSITION).decode("utf-8")
+    request_json = canonical_bytes(
+        _host_claim_request(nonce, emitted_at_unix)
+    ).decode("utf-8")
     prompt = (
         "Use only an installed claim-aware mathematical capability available to this "
         "fresh task. Obtain a structured claim evidence bundle for 3^100 mod 7, "
-        f"binding nonce {nonce} and emitted_at_unix {emitted_at_unix}. Then "
+        f"using exactly this request object: {request_json}. Then "
         "independently replay that returned bundle against release epoch "
         f"{CLAIM_RELEASE_EPOCH}, policy SHA-256 {DEFAULT_POLICY_SHA256}, expected "
         f"root proposition {root_json}, verification time {emitted_at_unix}, and "
@@ -718,7 +729,7 @@ def build_host_discovery_plan(
         "--color",
         "never",
         "--sandbox",
-        "read-only",
+        "danger-full-access",
         "-C",
         os.fspath(REPOSITORY_ROOT),
         prompt,
@@ -887,6 +898,7 @@ def validate_host_discovery_events(
     completed_positions: list[int] = []
     updated: list[tuple[int, dict[str, Any]]] = []
     passive_events: list[tuple[int, str, dict[str, Any]]] = []
+    startup_diagnostic_ids: list[str] = []
     for event_index, event in enumerate(events):
         if event.get("type") not in {
             "item.started", "item.updated", "item.completed"
@@ -895,6 +907,24 @@ def validate_host_discovery_events(
         item = event.get("item")
         if not isinstance(item, dict):
             raise AcceptanceError("host item lifecycle is malformed")
+        if item.get("type") == "error" and not lifecycle:
+            message = item.get("message")
+            if (
+                event["type"] != "item.completed"
+                or set(item) != {"id", "type", "message"}
+                or item.get("type") != "error"
+                or not isinstance(item.get("id"), str)
+                or not item["id"]
+                or not isinstance(message, str)
+                or len(message.encode("utf-8")) > 2048
+                or not any(
+                    message.startswith(prefix)
+                    for prefix in PRETURN_DIAGNOSTIC_PREFIXES
+                )
+            ):
+                raise AcceptanceError("host startup diagnostic is unsupported")
+            startup_diagnostic_ids.append(item["id"])
+            continue
         if not (
             turn_start_positions[0] < event_index < turn_complete_positions[0]
         ):
@@ -996,7 +1026,12 @@ def validate_host_discovery_events(
         or len(set(tool_call_ids)) != len(tool_call_ids)
     ):
         raise AcceptanceError("host MCP lifecycle identifiers are invalid")
-    if set(tool_call_ids) & set(passive_by_id):
+    if (
+        len(set(startup_diagnostic_ids)) != len(startup_diagnostic_ids)
+        or set(tool_call_ids) & set(passive_by_id)
+        or set(tool_call_ids) & set(startup_diagnostic_ids)
+        or set(passive_by_id) & set(startup_diagnostic_ids)
+    ):
         raise AcceptanceError("host item lifecycle identifiers are ambiguous")
     started_by_id = {item["id"]: item for item in started}
     positions_by_id = {

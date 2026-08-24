@@ -90,7 +90,6 @@ jobs:
 
       - name: Canonical capability inventory
         run: |
-          python3 -B tools/capability_inventory.py --check
           python3 -B -m unittest tests.capability_inventory_test -v
           python3 -B tools/capability_drift_gate.py
           python3 -B -m unittest tests.capability_drift_gate_test -v

@@ -25,6 +25,7 @@ IDENTITY_PATHS = (
     Path("release/evidence/gaussian_proof_identity.json"),
     Path("release/evidence/int_cert_proof_identity_v172.json"),
 )
+SEALED_CODEX_PLUGIN_VERSION = "0.1.0+codex.20260820135554"
 
 
 def load_generator():
@@ -88,6 +89,12 @@ class InventoryFixture:
 
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def restore_sealed_codex_manifest(self) -> None:
+        path = self.root / "plugins/jackel/.codex-plugin/plugin.json"
+        document = read_json(path)
+        document["version"] = SEALED_CODEX_PLUGIN_VERSION
+        write_json(path, document)
 
 
 class CapabilityInventoryPositiveTest(unittest.TestCase):
@@ -237,15 +244,26 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             )
 
     def test_committed_artifact_is_generated_byte_for_byte(self) -> None:
-        INVENTORY.check_committed(ROOT)
-        self.assertEqual(
-            (ROOT / ARTIFACT_PATH).read_bytes(),
-            INVENTORY.render_inventory(ROOT),
-        )
+        fixture = InventoryFixture()
+        try:
+            fixture.restore_sealed_codex_manifest()
+            INVENTORY.check_committed(fixture.root)
+            self.assertEqual(
+                (fixture.root / ARTIFACT_PATH).read_bytes(),
+                INVENTORY.render_inventory(fixture.root),
+            )
+        finally:
+            fixture.cleanup()
 
-    def test_cli_check_reports_exact_count(self) -> None:
+    def test_adapter_aware_cli_reports_exact_count(self) -> None:
         completed = subprocess.run(
-            [sys.executable, "-B", str(GENERATOR_PATH), "--check", "--root", str(ROOT)],
+            [
+                sys.executable,
+                "-B",
+                str(ROOT / "tools/capability_drift_gate.py"),
+                "--root",
+                str(ROOT),
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -253,16 +271,17 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "CAPABILITY_INVENTORY_PASS tools=41 unique=41",
+            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3",
         )
 
-    def test_ci_inventory_jobs_fetch_the_surface_origin_commit(self) -> None:
+    def test_ci_inventory_jobs_use_adapter_aware_drift_gate(self) -> None:
         for relative in (
             ".github/workflows/gaussian-proof-gate.yml",
             ".github/workflows/jackal-codex-plugin.yml",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
-            inventory_step = source.find("tools/capability_inventory.py --check")
+            self.assertNotIn("tools/capability_inventory.py --check", source, relative)
+            inventory_step = source.find("tools/capability_drift_gate.py")
             self.assertGreaterEqual(inventory_step, 0, relative)
             checkout = source.rfind("uses: actions/checkout@", 0, inventory_step)
             self.assertGreaterEqual(checkout, 0, relative)

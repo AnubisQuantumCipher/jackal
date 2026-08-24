@@ -119,6 +119,21 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
             DRIFT.render_codex_plugin_identity(ROOT),
         )
 
+    def test_codex_cachebuster_can_advance_without_rewriting_kernel_inventory(self) -> None:
+        fixture = DriftFixture()
+        try:
+            manifest_path = fixture.root / "plugins/jackel/.codex-plugin/plugin.json"
+            manifest = read_json(manifest_path)
+            manifest["version"] = "0.1.0+codex.20260824120000"
+            write_json(manifest_path, manifest)
+            identity_path = fixture.root / "plugins/jackel/PLUGIN_IDENTITY.sha256"
+            identity_path.write_bytes(DRIFT.render_codex_plugin_identity(fixture.root))
+
+            result = DRIFT.verify_surface(fixture.root)
+            self.assertEqual(result["package_epoch"], "v1.7.3")
+        finally:
+            fixture.cleanup()
+
     def test_cli_reports_bound_counts_and_package_epoch(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-B", str(DRIFT_PATH), "--root", str(ROOT)],
@@ -155,6 +170,20 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
         finally:
             fixture.cleanup()
 
+    def test_refuses_codex_plugin_base_version_change(self) -> None:
+        fixture = DriftFixture()
+        try:
+            path = fixture.root / "plugins/jackel/.codex-plugin/plugin.json"
+            document = read_json(path)
+            document["version"] = "0.1.1+codex.20260824120000"
+            write_json(path, document)
+            identity = fixture.root / "plugins/jackel/PLUGIN_IDENTITY.sha256"
+            identity.write_bytes(DRIFT.render_codex_plugin_identity(fixture.root))
+            with self.assertRaisesRegex(DRIFT.DriftError, "plugin-version"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
     def test_refuses_unknown_skill_tool(self) -> None:
         fixture = DriftFixture()
         try:
@@ -184,6 +213,35 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
             )
             provisioner.write_text(source, encoding="utf-8")
             with self.assertRaisesRegex(DRIFT.DriftError, "package-pin-mismatch"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
+    def test_refuses_unpublished_provisioner_state_for_released_inventory(self) -> None:
+        fixture = DriftFixture()
+        try:
+            provisioner = fixture.root / "plugins/jackel/scripts/provision_runtime.py"
+            source = self.replace_once(
+                provisioner.read_text(encoding="utf-8"),
+                'RELEASE_STATE = "published"',
+                'RELEASE_STATE = "candidate"',
+            )
+            provisioner.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(DRIFT.DriftError, "package-pin-mismatch"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
+    def test_refuses_candidate_skill_wording_for_published_runtime(self) -> None:
+        fixture = DriftFixture()
+        try:
+            skill = fixture.root / "plugins/jackel/skills/jackel/SKILL.md"
+            skill.write_text(
+                skill.read_text(encoding="utf-8")
+                + "\nUse the candidate runtime until it is published.\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(DRIFT.DriftError, "current-release-state"):
                 DRIFT.verify_surface(fixture.root)
         finally:
             fixture.cleanup()

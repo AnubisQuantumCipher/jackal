@@ -1,0 +1,34 @@
+name = "jackal-iv"
+defaultTargets = ["JackalIv"]
+
+# §490 v1.5.0: `runs_of_check` (CertSound.lean) grew to 38 constructors; the
+# per-alternative elaboration of its fuel induction exceeds the default
+# 200000-heartbeat budget in a nested context that in-file `set_option`
+# does not reach on this toolchain.  This is a compile-time resource limit
+# only — the kernel independently checks every proof; no trust surface moves.
+[leanOptions]
+maxHeartbeats = 3200000
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "v4.32.0"
+
+[[lean_lib]]
+name = "JackalIv"
+
+[[lean_exe]]
+name = "jackal_parse_dump"
+root = "JackalIv.ParseDumpMain"
+
+[[lean_exe]]
+name = "jackal_cert_check"
+root = "JackalIv.CertCheckMain"
+
+[[lean_exe]]
+name = "jackal_gaussian_check"
+root = "JackalIv.GaussianCertMain"
+
+[[lean_exe]]
+name = "jackal_int_cert_check"
+root = "JackalIv.IntCertMain"

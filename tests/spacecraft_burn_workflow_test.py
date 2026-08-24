@@ -35,6 +35,15 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
         source = GAUSSIAN.read_text(encoding="utf-8")
         self.assertIn("jackal_spacecraft_burn_check", source)
         self.assertIn("spacecraft_burn_proof_identity.py check --proof-only", source)
+        self.assertIn("release/compat/v173_lakefile.toml", source)
+        self.assertLess(
+            source.index("range_proof_identity.py check --lane int-cert"),
+            source.index('cp "$RUNNER_TEMP/v174-lakefile.toml" proofs/lean/lakefile.toml'),
+        )
+        self.assertLess(
+            source.index('cp "$RUNNER_TEMP/v174-lakefile.toml" proofs/lean/lakefile.toml'),
+            source.index("spacecraft_burn_proof_identity.py check --proof-only"),
+        )
 
 
 if __name__ == "__main__":

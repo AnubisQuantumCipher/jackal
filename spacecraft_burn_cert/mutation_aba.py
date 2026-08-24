@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "certify.py"
 VERIFIER = ROOT / "verify_receipt.py"
 BASELINE = ROOT / "evidence" / "baseline_receipt.json"
-PYTHON = Path("/opt/homebrew/bin/python3")
+PYTHON = Path(sys.executable).resolve()
 
 
 MUTATIONS = {

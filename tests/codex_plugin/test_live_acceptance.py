@@ -873,22 +873,70 @@ class HostDiscoveryAcceptanceTests(unittest.TestCase):
             )
             self.assertNotEqual(changed.sha256, identity.sha256)
 
-    def test_host_prompt_is_nonce_bound_neutral_and_command_is_fresh_read_only(self):
+    def test_host_prompt_is_protocol_bound_and_command_allows_private_runtime(self):
         plan = self.plan()
         lowered = plan.prompt.lower()
-        for forbidden in ("jackal", "jackel", "mcp", "tool"):
+        for forbidden in (
+            "jackel", "mcp", "tool", "jackal_claim", "jackal_verify_bundle"
+        ):
             self.assertNotIn(forbidden, lowered)
         self.assertIn(plan.nonce, plan.prompt)
         self.assertIn(plan.emitted_at_unix, plan.prompt)
+        self.assertIn(
+            live.canonical_bytes(live.host_claim_request(plan)).decode("utf-8"),
+            plan.prompt,
+        )
         self.assertEqual(plan.command[0], "/absolute/codex")
         self.assertEqual(
             plan.command[1:6],
             ("--ask-for-approval", "never", "exec", "--ephemeral", "--json"),
         )
         self.assertEqual(plan.command.count("--ask-for-approval"), 1)
-        self.assertIn("read-only", plan.command)
+        self.assertIn("danger-full-access", plan.command)
+        self.assertNotIn("read-only", plan.command)
+        self.assertNotIn("--dangerously-bypass-approvals-and-sandbox", plan.command)
         self.assertNotIn("resume", plan.command)
         self.assertEqual(plan.command[-1], plan.prompt)
+
+    def test_host_event_stream_accepts_known_preturn_diagnostics_only(self):
+        plan = self.plan()
+        events = [json.loads(line) for line in self.event_bytes(plan).splitlines()]
+        events.insert(1, {
+            "type": "item.completed",
+            "item": {
+                "id": "startup-warning",
+                "type": "error",
+                "message": (
+                    "Skill descriptions were shortened to fit the 2% skills "
+                    "context budget."
+                ),
+            },
+        })
+        events.insert(3, {
+            "type": "item.completed",
+            "item": {
+                "id": "skills-warning",
+                "type": "error",
+                "message": (
+                    "Skill descriptions were shortened to fit the 2% skills "
+                    "context budget."
+                ),
+            },
+        })
+        raw = b"".join(
+            json.dumps(event, separators=(",", ":")).encode() + b"\n"
+            for event in events
+        )
+        report = live.validate_host_discovery_events(raw, plan)
+        self.assertEqual(report["tool_call_ids"], ["claim-id", "verify-id"])
+
+        events[3]["item"]["message"] = "MCP startup failed"
+        unknown = b"".join(
+            json.dumps(event, separators=(",", ":")).encode() + b"\n"
+            for event in events
+        )
+        with self.assertRaisesRegex(live.AcceptanceError, "startup diagnostic"):
+            live.validate_host_discovery_events(unknown, plan)
 
     def test_host_event_stream_requires_real_bound_mcp_lifecycle(self):
         plan = self.plan()

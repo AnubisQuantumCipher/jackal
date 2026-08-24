@@ -41,6 +41,7 @@ CODEX_PLUGIN_IDENTITY_FILES = (
 )
 CODEX_PLUGIN_ROOT = Path("plugins/jackel")
 CODEX_PLUGIN_IDENTITY_PATH = CODEX_PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
+SEALED_CODEX_PLUGIN_VERSION = "0.1.0+codex.20260820135554"
 
 CURRENT_SURFACE_BEGIN = "<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->"
 CURRENT_SURFACE_END = "<!-- JACKAL_CURRENT_SURFACE_V1_END -->"
@@ -218,6 +219,7 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
         "EPOCH",
         "ASSET",
         "URL",
+        "RELEASE_STATE",
         "PACKAGE_SIZE",
         "PACKAGE_SHA256",
         "SHA256SUMS_SHA256",
@@ -234,6 +236,7 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
             "https://github.com/AnubisQuantumCipher/jackal/releases/download/"
             f"{version}/{package.get('basename')}"
         ),
+        "RELEASE_STATE": "published",
         "PACKAGE_SIZE": package.get("bytes"),
         "PACKAGE_SHA256": package.get("sha256"),
         "SHA256SUMS_SHA256": package.get("sha256sums_root"),
@@ -275,9 +278,17 @@ def _verify_codex_adapter(root: Path, expected_count: int) -> int:
 
 
 def _verify_plugin_metadata(
-    root: Path, expected_count: int, status_vocabulary: set[str]
+    root: Path,
+    expected_count: int,
+    status_vocabulary: set[str],
+    sealed_manifest_sha256: str,
 ) -> str:
     manifest = _load_json(root / PLUGIN_MANIFEST_PATH)
+    version = manifest.get("version")
+    if not isinstance(version, str) or re.fullmatch(
+        r"0\.1\.0\+codex\.\d{14}", version, re.ASCII
+    ) is None:
+        refuse("plugin-version", "Codex plugin must retain the 0.1.0 timestamped line")
     interface = manifest.get("interface")
     if not isinstance(interface, dict):
         refuse("plugin-metadata", "plugin interface is not an object")
@@ -304,7 +315,45 @@ def _verify_plugin_metadata(
     )
     if missing_statuses:
         refuse("status-vocabulary", f"plugin metadata omits {missing_statuses}")
+    sealed_manifest = dict(manifest)
+    sealed_manifest["version"] = SEALED_CODEX_PLUGIN_VERSION
+    sealed_bytes = (
+        json.dumps(sealed_manifest, indent=2, ensure_ascii=False) + "\n"
+    ).encode("utf-8")
+    if hashlib.sha256(sealed_bytes).hexdigest() != sealed_manifest_sha256:
+        refuse(
+            "plugin-metadata",
+            "Codex plugin differs from the sealed runtime manifest beyond its cachebuster",
+        )
     return description
+
+
+def _verify_inventory_artifact(
+    root: Path, inventory_module: object, committed: dict[str, Any]
+) -> None:
+    artifact_path = root / INVENTORY_PATH
+    actual = artifact_path.read_bytes()
+    canonical = inventory_module.canonical_bytes(committed) + b"\n"
+    if actual != canonical:
+        refuse("inventory-artifact-drift", "committed inventory is not canonical")
+    try:
+        generated = inventory_module.build_inventory(root)
+    except Exception as error:
+        refuse("inventory-artifact-drift", str(error))
+
+    def input_row(document: dict[str, Any]) -> dict[str, Any]:
+        rows = document.get("inputs")
+        matches = [
+            row for row in rows if isinstance(row, dict)
+            and row.get("path") == PLUGIN_MANIFEST_PATH.as_posix()
+        ] if isinstance(rows, list) else []
+        if len(matches) != 1:
+            refuse("inventory-artifact-drift", "Codex manifest input row is not singular")
+        return matches[0]
+
+    input_row(generated)["sha256"] = input_row(committed).get("sha256")
+    if generated != committed:
+        refuse("inventory-artifact-drift", "generated kernel inventory differs from committed bytes")
 
 
 def _verify_status_assignments(texts: list[tuple[Path, str]], allowed: set[str]) -> None:
@@ -374,9 +423,30 @@ def verify_surface(root: Path | str) -> dict[str, object]:
     package = _verify_package_pin(root_path, str(release["version"]))
     codex_count = _verify_codex_adapter(root_path, expected_count)
     blocks = _verify_current_surfaces(root_path, expected_count)
-    description = _verify_plugin_metadata(root_path, expected_count, status_vocabulary)
+    inventory_inputs = inventory_document.get("inputs")
+    sealed_manifest_rows = [
+        row for row in inventory_inputs if isinstance(row, dict)
+        and row.get("path") == PLUGIN_MANIFEST_PATH.as_posix()
+    ] if isinstance(inventory_inputs, list) else []
+    if len(sealed_manifest_rows) != 1 or not isinstance(
+        sealed_manifest_rows[0].get("sha256"), str
+    ):
+        refuse("inventory-contract", "sealed Codex plugin manifest input is absent")
+    description = _verify_plugin_metadata(
+        root_path,
+        expected_count,
+        status_vocabulary,
+        sealed_manifest_rows[0]["sha256"],
+    )
 
     skill_text = _read_text(root_path / SKILL_PATH)
+    if package["RELEASE_STATE"] == "published" and re.search(
+        r"\bcandidate\b", skill_text, re.IGNORECASE
+    ):
+        refuse(
+            "current-release-state",
+            f"{SKILL_PATH} describes the published runtime as a candidate",
+        )
     unknown_skill_names = sorted(skill_tool_names(skill_text) - known_names)
     if unknown_skill_names:
         refuse("unknown-skill-tool", f"Codex skill references {unknown_skill_names}")
@@ -387,10 +457,7 @@ def verify_surface(root: Path | str) -> dict[str, object]:
     )
 
     inventory_module = _load_inventory_module(root_path)
-    try:
-        inventory_module.check_committed(root_path)
-    except Exception as error:
-        refuse("inventory-artifact-drift", str(error))
+    _verify_inventory_artifact(root_path, inventory_module, inventory_document)
     check_codex_plugin_identity(root_path)
 
     return {

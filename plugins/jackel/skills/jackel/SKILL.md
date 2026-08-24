@@ -40,6 +40,16 @@ and preserve the exact assurance boundary returned by the runtime.
   `jackal_anubis_check_program` only when the caller supplies the approved
   compiler and a new output root. None executes the compiled artifact.
 
+For an exact claim step, use JACKAL CLI command spelling and ordered string
+tokens, for example:
+
+```json
+{"id": "p", "op": "exact", "command": "mod-pow", "args": ["3", "100", "7"]}
+```
+
+Do not invent backend identifier spellings such as `mod_pow` or replace the
+ordered string tokens with a named-argument object.
+
 Verification expectations are authorization, not data discovery. Expected
 bundle and receipt values must come from the caller or separately trusted source, not evidence under review.
 Never copy an `expected_*` value from the bundle or receipt being verified. A
@@ -123,9 +133,9 @@ checker verdicts, or residual non-claims.
 
 ## macOS runtime
 
-This plugin supports Apple Silicon macOS only and uses the pinned v1.7.3
-candidate macOS-arm64 runtime. Until that candidate is published, provision it
-from the separately verified local tarball path.
+This plugin supports Apple Silicon macOS only and uses the published, pinned
+v1.7.3 macOS-arm64 runtime. Provision from the fixed release asset by default,
+or supply the separately verified release tarball for offline installation.
 Do not bypass the Darwin/arm64 host guard or substitute another platform build.
 
 Python >=3.10 at `/opt/homebrew/bin/python3` is the supported fixed-path

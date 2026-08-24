@@ -37,3 +37,5 @@ import JackalIv.IntCertFixtures
 import JackalIv.Spacecraft.Types
 import JackalIv.Spacecraft.CertCodec
 import JackalIv.Spacecraft.CodecFixtures
+import JackalIv.Spacecraft.Interval
+import JackalIv.Spacecraft.IntervalFixtures

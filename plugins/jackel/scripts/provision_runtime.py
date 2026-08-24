@@ -64,10 +64,10 @@ RELEASE_PINS: dict[str, dict[str, object] | None] = {
         # upstream asset — install with `provision --tarball <path>`.
         "asset": "jackal-v1.7.3-linux-aarch64.tar.gz",
         "url": None,
-        "package_size": 199147947,
-        "package_sha256": "17f917cac0866dbbf71bbdf1505a0efe479eb7604e807a1713acb96f6bb29989",
-        "extracted_size": 765433623,
-        "sha256sums_sha256": "ff40b2f37fa5d449e0f07ed604d5779d14f495aeb8707199b2e19ae67cb70972",
+        "package_size": 204082823,
+        "package_sha256": "0b239bc7a96d75537706ab1aebbc271150c663048f49711107ffe1b93f7d743d",
+        "extracted_size": 778795307,
+        "sha256sums_sha256": "bbbb7aa97368232580caa7914b00b577bc2601c41f38d4cd78b9a34178563671",
         "package_directory": "jackal-v1.7.3-linux-aarch64",
     },
     # Gate declared for the planned bare-metal Linux x86_64 (iMac Pro). No pin

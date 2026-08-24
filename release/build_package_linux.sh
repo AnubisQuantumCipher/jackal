@@ -359,6 +359,19 @@ APPROVED_Z3_SHA256="b6fcd93b2ccec9aa848ac148c4d9b4270577ad046601f211784586eb9f01
 /bin/cp "$Z3DIR/jackal_z3_v4154" "$PKG/jackal_z3_v4154"
 /bin/chmod 0755 "$PKG/jackal_z3_v4154"
 
+# Omarchy edition: ship the architecture-qualified approved CHECK compiler
+# (native Linux aarch64 anubis, double-built from public source). Verified
+# against the manifest-pinned identity.
+CCDIR="${JACKAL_CC_DIR:?set JACKAL_CC_DIR to the approved native check compiler}"
+require_regular "$CCDIR/jackal_anubis_check_v1"
+APPROVED_CC_SHA256="7cdafb305f3b8df53e66e037433803d5154b4f5872758d9b15f7eeedc9670398"
+[ "$(sha256 "$CCDIR/jackal_anubis_check_v1")" = "$APPROVED_CC_SHA256" ] || {
+  echo "PACKAGE_V173_REFUSED reason=approved-check-compiler-identity observed=$(sha256 "$CCDIR/jackal_anubis_check_v1")" >&2
+  exit 4
+}
+/bin/cp "$CCDIR/jackal_anubis_check_v1" "$PKG/jackal_anubis_check_v1"
+/bin/chmod 0755 "$PKG/jackal_anubis_check_v1"
+
 for relative in \
   tests/release_validate.py \
   tools/gaussian_certificate.py tools/gaussian_release.py \
@@ -737,6 +750,7 @@ domain_pack_verifier tools/domain_pack_verify.py $(sha256 "$PKG/tools/domain_pac
 domain_pack_test_exists_checker tools/test_exists_verify.py $(sha256 "$PKG/tools/test_exists_verify.py")
 domain_pack_decision_checker tools/decision_verify.py $(sha256 "$PKG/tools/decision_verify.py")
 anubis_program_verifier tools/anubis_program_verify.py $(sha256 "$PKG/tools/anubis_program_verify.py")
+approved_check_compiler_linux_aarch64 jackal_anubis_check_v1 $(sha256 "$PKG/jackal_anubis_check_v1")
 anubis_program_policy program/inventory_safe_v1.json $(sha256 "$PKG/program/inventory_safe_v1.json")
 approved_z3_linux_aarch64 jackal_z3_v4154 $(sha256 "$PKG/jackal_z3_v4154")
 EOF

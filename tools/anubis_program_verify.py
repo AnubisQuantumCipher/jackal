@@ -127,6 +127,25 @@ SUPPORTED_PROFILE = "inventory-safe-v1"
 APPROVED_CHECK_COMPILER_SHA256 = (
     "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6"
 )
+# Architecture-qualified CHECK-compiler anchor (architect sign-off 2026-08-24).
+# A NEW clean-source Linux aarch64 anubis, independently double-built byte-identical
+# from public anubis-lang (commit e34d0c8) -- NOT the historical macOS 0d6a8f89 and
+# NOT the guest's ambient bytes. The Darwin declaration above stays exact in the
+# FROZEN inventory-safe-v1 policy body; only the runtime selection below is host-aware.
+APPROVED_CHECK_COMPILER_LINUX_AARCH64_SHA256 = (
+    "7cdafb305f3b8df53e66e037433803d5154b4f5872758d9b15f7eeedc9670398"
+)
+
+
+def _approved_check_compiler_sha256_for_host() -> str:
+    """The approved check-compiler digest for THIS host, or refuse. Never a
+    PATH-only, version-only, or 'any anubis on this machine' rule."""
+    system, machine = platform.system(), platform.machine()
+    if system == "Darwin":
+        return APPROVED_CHECK_COMPILER_SHA256
+    if system == "Linux" and machine == "aarch64":
+        return APPROVED_CHECK_COMPILER_LINUX_AARCH64_SHA256
+    raise Refusal("check-compiler-unsupported-host", f"{system}/{machine}")
 APPROVED_Z3_PATH = Path("/opt/homebrew/bin/z3")
 APPROVED_Z3_SHA256 = "ae6c8df33db9c9ae9a80b6044e77cd66529a141d8b25f0620f1e89b409594f48"
 
@@ -1330,8 +1349,20 @@ def check_program(args: argparse.Namespace) -> dict[str, Any]:
         raise Refusal("verification-time-invalid")
     if sha_file(source) != expected_source:
         raise Refusal("source-pin-mismatch")
-    if expected_compiler != APPROVED_CHECK_COMPILER_SHA256:
+    if expected_compiler != _approved_check_compiler_sha256_for_host():
         raise Refusal("compiler-not-approved", expected_compiler)
+    # no symlink at the compiler boundary; safe owner/mode. Exact bytes + TOCTOU
+    # are then enforced by pinned_executable_snapshot against expected_compiler.
+    if compiler.is_symlink():
+        raise Refusal("compiler-symlink")
+    try:
+        _compiler_info = compiler.resolve(strict=True).stat()
+    except OSError:
+        raise Refusal("compiler-unavailable") from None
+    if _compiler_info.st_uid != os.getuid():
+        raise Refusal("compiler-owner")
+    if _compiler_info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise Refusal("compiler-mode")
     out_root = Path(args.out_root)
     if out_root.exists() or out_root.is_symlink():
         raise Refusal("output-exists", str(out_root))

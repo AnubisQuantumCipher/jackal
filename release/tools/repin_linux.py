@@ -144,6 +144,12 @@ def build_manifest() -> str:
         parts = z3marker.read_text().split()
         if len(parts) >= 2 and len(parts[1]) == 64:
             out.append(f"approved-z3-{tag} jackal_z3_v4154 {parts[1]}")
+    # Omarchy edition: append the architecture-qualified approved CHECK-compiler row
+    ccmarker = ROOT / EVIDENCE_DIR / f"approved_check_compiler.{tag}"
+    if ccmarker.is_file():
+        parts = ccmarker.read_text().split()
+        if len(parts) >= 2 and len(parts[1]) == 64:
+            out.append(f"approved-check-compiler-{tag} jackal_anubis_check_v1 {parts[1]}")
     missing = set(BINARY_ROWS) - seen_binary
     if missing:
         sys.exit(f"REPIN_LINUX_REFUSED detail=manifest lacked binary rows: {sorted(missing)}")

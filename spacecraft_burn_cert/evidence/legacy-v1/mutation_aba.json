@@ -1,0 +1,267 @@
+{
+  "baseline_source_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+  "baseline_verifier_after": {
+    "reasons": [],
+    "replay": {
+      "domain_lower_bounds": {
+        "mass_exact": "1382062217417427315736792485/1208925819614629174706176",
+        "radius_squared_exact": "53912371654328477687089108767263/1208925819614629174706176",
+        "speed_squared_exact": "72158111333449500373422077/1208925819614629174706176"
+      },
+      "exact_lower_bound": "51450379597827184853505075/1208925819614629174706176",
+      "formula_only_exact_lower_bound": "4684830994590880152455811/1208925819614629174706176",
+      "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe"
+    },
+    "status": "ACCEPT",
+    "symbolic_identities": {
+      "angular_momentum_lagrange_identity": true,
+      "apoapsis_plus_expansion": true,
+      "eccentricity_vector_reduction": true,
+      "energy_definition_substitution": true
+    }
+  },
+  "baseline_verifier_before": {
+    "reasons": [],
+    "replay": {
+      "domain_lower_bounds": {
+        "mass_exact": "1382062217417427315736792485/1208925819614629174706176",
+        "radius_squared_exact": "53912371654328477687089108767263/1208925819614629174706176",
+        "speed_squared_exact": "72158111333449500373422077/1208925819614629174706176"
+      },
+      "exact_lower_bound": "51450379597827184853505075/1208925819614629174706176",
+      "formula_only_exact_lower_bound": "4684830994590880152455811/1208925819614629174706176",
+      "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe"
+    },
+    "status": "ACCEPT",
+    "symbolic_identities": {
+      "angular_momentum_lagrange_identity": true,
+      "apoapsis_plus_expansion": true,
+      "eccentricity_vector_reduction": true,
+      "energy_definition_substitution": true
+    }
+  },
+  "final_source_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+  "mutations": [
+    {
+      "a_after_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "a_before_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "b_sha256": "796b5e382b88da3f95bf1a07b38a81a1231ae09c326d86a0c7612350a2223d79",
+      "bug": "uses m/s^2 thrust acceleration in a km/s^2 state model",
+      "candidate_summary": null,
+      "caught": true,
+      "expected_reason": "unit-scale-mismatch",
+      "mutant_test_output_sha256": "79adc4f42b69e98a151c911bc06e28cd68795727142fabae0c1f67d0178a811b",
+      "mutant_tests_failed": true,
+      "mutation": "meters_as_kilometers",
+      "producer_output_excerpt": "Traceback (most recent call last):\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 659, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 646, in main\n    receipt = certify()\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 526, in certify\n    post = postprocess(tube)\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 362, in postprocess\n    raise CertificationError(\"cutoff energy enclosure is not elliptic\")\nCertificationError: cutoff energy enclosure is not elliptic\n",
+      "producer_returncode": 1,
+      "restored": true,
+      "restored_contract_test_passed": true,
+      "verifier": {
+        "reasons": [
+          "source-hash-mismatch",
+          "unit-scale-mismatch"
+        ],
+        "status": "REFUSED",
+        "symbolic_identities": {
+          "angular_momentum_lagrange_identity": true,
+          "apoapsis_plus_expansion": true,
+          "eccentricity_vector_reduction": true,
+          "energy_definition_substitution": true
+        }
+      }
+    },
+    {
+      "a_after_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "a_before_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "b_sha256": "b3b6c50da9b6824e159b374a463ee82b94c362f608bd5089bd158e89c3706cc3",
+      "bug": "freezes mass and sets propellant mass flow to zero",
+      "candidate_summary": {
+        "model_contract": {
+          "apoapsis_eccentricity_sign": 1,
+          "decision_mode": "exact_lower_bound",
+          "energy_denominator": 2,
+          "integrate_mass": false,
+          "propagate_full_box": true,
+          "thrust_acceleration_scale": "0.001"
+        },
+        "reported_lower_exact": "14991612173878748829432871/604462909807314587353088",
+        "verdict": "PROVED SAFE"
+      },
+      "caught": true,
+      "expected_reason": "mass-integration-mismatch",
+      "mutant_test_output_sha256": "79e36056e8f4de25e91685d2316693c608fc11096090a844dfde89fe868717c0",
+      "mutant_tests_failed": true,
+      "mutation": "frozen_mass",
+      "producer_output_excerpt": "PROVED SAFE margin_lo=24.8015418822929005872372700527 receipt=/private/var/folders/bg/pt9l6y1j47q642kp3z5blrmh0000gn/T/spacecraft-mutation-d7f6cs66/candidate.json\n",
+      "producer_returncode": 0,
+      "restored": true,
+      "restored_contract_test_passed": true,
+      "verifier": {
+        "reasons": [
+          "mass-integration-mismatch",
+          "model-contract-mismatch"
+        ],
+        "status": "REFUSED",
+        "symbolic_identities": {
+          "angular_momentum_lagrange_identity": true,
+          "apoapsis_plus_expansion": true,
+          "eccentricity_vector_reduction": true,
+          "energy_definition_substitution": true
+        }
+      }
+    },
+    {
+      "a_after_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "a_before_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "b_sha256": "c6ead5915363319d95f2599c7bf7018538e3e17984fe1bf5748e942afcdafd1c",
+      "bug": "uses a(1-e) instead of a(1+e)",
+      "candidate_summary": {
+        "model_contract": {
+          "apoapsis_eccentricity_sign": -1,
+          "decision_mode": "exact_lower_bound",
+          "energy_denominator": 2,
+          "integrate_mass": true,
+          "propagate_full_box": true,
+          "thrust_acceleration_scale": "0.001"
+        },
+        "reported_lower_exact": "-425231724526014275417090047/604462909807314587353088",
+        "verdict": "PROVED UNSAFE"
+      },
+      "caught": true,
+      "expected_reason": "apoapsis-plus-mismatch",
+      "mutant_test_output_sha256": "3a606e29661f05939192b118d7105e38d0b472ff8092ad7e73e7d8a2a8ca0f11",
+      "mutant_tests_failed": true,
+      "mutation": "periapsis_instead_of_apoapsis",
+      "producer_output_excerpt": "PROVED UNSAFE margin_lo=-703.4868767408176203128522969143 receipt=/private/var/folders/bg/pt9l6y1j47q642kp3z5blrmh0000gn/T/spacecraft-mutation-isvncuqy/candidate.json\n",
+      "producer_returncode": 0,
+      "restored": true,
+      "restored_contract_test_passed": true,
+      "verifier": {
+        "reasons": [
+          "apoapsis-plus-mismatch",
+          "model-contract-mismatch"
+        ],
+        "status": "REFUSED",
+        "symbolic_identities": {
+          "angular_momentum_lagrange_identity": true,
+          "apoapsis_plus_expansion": true,
+          "eccentricity_vector_reduction": true,
+          "energy_definition_substitution": true
+        }
+      }
+    },
+    {
+      "a_after_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "a_before_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "b_sha256": "884ccab3eadd571aff7f9a42d3eb40e88a496bcd0dfe77fadad00fede0dd353e",
+      "bug": "uses v^2 instead of v^2/2 in specific orbital energy",
+      "candidate_summary": null,
+      "caught": true,
+      "expected_reason": "energy-half-mismatch",
+      "mutant_test_output_sha256": "213360789e2cf8b5740b71e78b22bea3c7de34b3049671840b8c1bff146d1af5",
+      "mutant_tests_failed": true,
+      "mutation": "double_kinetic_energy",
+      "producer_output_excerpt": "Traceback (most recent call last):\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 659, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 646, in main\n    receipt = certify()\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 526, in certify\n    post = postprocess(tube)\n  File \"/Users/sicarii/Desktop/Projects/jackal-calc/spacecraft_burn_cert/certify.py\", line 362, in postprocess\n    raise CertificationError(\"cutoff energy enclosure is not elliptic\")\nCertificationError: cutoff energy enclosure is not elliptic\n",
+      "producer_returncode": 1,
+      "restored": true,
+      "restored_contract_test_passed": true,
+      "verifier": {
+        "reasons": [
+          "energy-half-mismatch",
+          "source-hash-mismatch"
+        ],
+        "status": "REFUSED",
+        "symbolic_identities": {
+          "angular_momentum_lagrange_identity": true,
+          "apoapsis_plus_expansion": true,
+          "eccentricity_vector_reduction": true,
+          "energy_definition_substitution": true
+        }
+      }
+    },
+    {
+      "a_after_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "a_before_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "b_sha256": "dd31f33b8c2dab171cbde6ae3a070b0219d271dec89020ffa9104598ee72080c",
+      "bug": "uses the center of each uncertainty interval",
+      "candidate_summary": {
+        "model_contract": {
+          "apoapsis_eccentricity_sign": 1,
+          "decision_mode": "exact_lower_bound",
+          "energy_denominator": 2,
+          "integrate_mass": true,
+          "propagate_full_box": false,
+          "thrust_acceleration_scale": "0.001"
+        },
+        "reported_lower_exact": "15291518244264478392131935/302231454903657293676544",
+        "verdict": "PROVED SAFE"
+      },
+      "caught": true,
+      "expected_reason": "full-box-coverage-mismatch",
+      "mutant_test_output_sha256": "5795c0c39ec5efdb8725e51887350356335a5550573faa7081df8d32ffdd68a5",
+      "mutant_tests_failed": true,
+      "mutation": "center_only",
+      "producer_output_excerpt": "PROVED SAFE margin_lo=50.5953897126259580245751208683 receipt=/private/var/folders/bg/pt9l6y1j47q642kp3z5blrmh0000gn/T/spacecraft-mutation-n4gyoiob/candidate.json\n",
+      "producer_returncode": 0,
+      "restored": true,
+      "restored_contract_test_passed": true,
+      "verifier": {
+        "reasons": [
+          "full-box-coverage-mismatch",
+          "model-contract-mismatch"
+        ],
+        "status": "REFUSED",
+        "symbolic_identities": {
+          "angular_momentum_lagrange_identity": true,
+          "apoapsis_plus_expansion": true,
+          "eccentricity_vector_reduction": true,
+          "energy_definition_substitution": true
+        }
+      }
+    },
+    {
+      "a_after_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "a_before_sha256": "9f342c68e0dbed7de9c27d56a585711f48fe40e3f7727f0ce0248f3ac8823fa8",
+      "b_sha256": "6694801105fc8521ff72fa79932d9ccc2535eb3f5e68cc43296c841451573898",
+      "bug": "ceil-rounds a lower bound before reporting and deciding",
+      "candidate_summary": {
+        "model_contract": {
+          "apoapsis_eccentricity_sign": 1,
+          "decision_mode": "ceil_display",
+          "energy_denominator": 2,
+          "integrate_mass": true,
+          "propagate_full_box": true,
+          "thrust_acceleration_scale": "0.001"
+        },
+        "reported_lower_exact": "42558757/1000000",
+        "verdict": "PROVED SAFE"
+      },
+      "caught": true,
+      "expected_reason": "decision-rounding-mismatch",
+      "mutant_test_output_sha256": "b222ee02bce19c0a0f4058c88a85c79b6684e17859ba6db39fcee2a53ff12788",
+      "mutant_tests_failed": true,
+      "mutation": "round_margin_upward",
+      "producer_output_excerpt": "PROVED SAFE margin_lo=42.5587570000000000000000000000 receipt=/private/var/folders/bg/pt9l6y1j47q642kp3z5blrmh0000gn/T/spacecraft-mutation-msrrj1r4/candidate.json\n",
+      "producer_returncode": 0,
+      "restored": true,
+      "restored_contract_test_passed": true,
+      "verifier": {
+        "reasons": [
+          "decision-rounding-mismatch",
+          "model-contract-mismatch",
+          "reported-lower-bound-mismatch"
+        ],
+        "status": "REFUSED",
+        "symbolic_identities": {
+          "angular_momentum_lagrange_identity": true,
+          "apoapsis_plus_expansion": true,
+          "eccentricity_vector_reduction": true,
+          "energy_definition_substitution": true
+        }
+      }
+    }
+  ],
+  "schema": "spacecraft-finite-burn-mutation-aba-v1",
+  "status": "PASS"
+}

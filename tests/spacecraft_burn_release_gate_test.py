@@ -1,0 +1,151 @@
+from __future__ import annotations
+
+import importlib.util
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+GATE_PATH = ROOT / "tools" / "spacecraft_burn_release_gate.py"
+
+
+def load_gate():
+    spec = importlib.util.spec_from_file_location("spacecraft_burn_release_gate", GATE_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load release gate")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class SpacecraftBurnReleaseGateTests(unittest.TestCase):
+    def test_current_repository_claim_surfaces_pass(self):
+        self.assertEqual(load_gate().scan(ROOT)["status"], "PASS")
+
+    def test_each_forbidden_phrase_is_detected_in_every_publication_class(self):
+        gate = load_gate()
+        for target in gate.TARGETS:
+            for phrase in ("PROVED SAFE", "PROVED UNSAFE", "formally proved"):
+                with self.subTest(target=str(target), phrase=phrase), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    for relative in gate.TARGETS:
+                        destination = root / relative
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        destination.write_text("publication surface\n")
+                    (root / target).write_text(phrase + "\n")
+                    result = gate.scan(root)
+                    self.assertEqual(result["status"], "FAIL")
+                    self.assertTrue(any(item["file"] == str(target) for item in result["findings"]))
+
+    def test_certified_safe_requires_exact_adjacent_qualifier(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("CERTIFIED SAFE\n")
+            self.assertEqual(gate.scan(root)["findings"][0]["reason"], "unqualified-certified-safe")
+
+    def test_exact_qualifier_may_wrap_without_becoming_unqualified(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            wrapped = gate.QUALIFIED_VERDICT.replace(" model,", "\nmodel,")
+            self.assertNotEqual(wrapped, gate.QUALIFIED_VERDICT)
+            (root / gate.TARGETS[0]).write_text(wrapped + "\n")
+            self.assertEqual(gate.scan(root)["status"], "PASS")
+
+    def test_exact_qualifier_may_end_inside_markdown_emphasis(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("**" + gate.QUALIFIED_VERDICT + "**\n")
+            self.assertEqual(gate.scan(root)["status"], "PASS")
+
+    def test_qualified_verdict_rejects_appended_assurance_clause(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            text = gate.QUALIFIED_VERDICT + " and the physical spacecraft is safe.\n"
+            (root / gate.TARGETS[0]).write_text(text)
+            result = gate.scan(root)
+            self.assertEqual(result["status"], "FAIL")
+            self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
+    def test_certified_safe_detection_is_case_insensitive(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("certified safe\n")
+            self.assertEqual(gate.scan(root)["status"], "FAIL")
+
+    def test_inline_markdown_cannot_hide_unqualified_assurance(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("CERTIFIED **SAFE** for flight.\n")
+            result = gate.scan(root)
+            self.assertEqual(result["status"], "FAIL")
+            self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
+    def test_links_and_html_cannot_hide_unqualified_assurance(self):
+        gate = load_gate()
+        for claim in (
+            "[CERTIFIED](https://example.invalid) SAFE for flight.\n",
+            "<strong>CERTIFIED</strong> <em>SAFE</em> for flight.\n",
+        ):
+            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative in gate.TARGETS:
+                    destination = root / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_text("publication surface\n")
+                (root / gate.TARGETS[0]).write_text(claim)
+                result = gate.scan(root)
+                self.assertEqual(result["status"], "FAIL")
+                self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
+    def test_comments_entities_and_markdown_escapes_cannot_hide_assurance(self):
+        gate = load_gate()
+        for claim in (
+            "<!-- CERTIFIED SAFE for flight. -->\n",
+            "CERTIFIED&#32;SAFE for flight.\n",
+            r"CERTIFIED\ SAFE for flight." + "\n",
+        ):
+            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for relative in gate.TARGETS:
+                    destination = root / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_text("publication surface\n")
+                (root / gate.TARGETS[0]).write_text(claim)
+                result = gate.scan(root)
+                self.assertEqual(result["status"], "FAIL")
+                self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
+
+if __name__ == "__main__":
+    unittest.main()

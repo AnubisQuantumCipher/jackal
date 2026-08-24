@@ -20,6 +20,21 @@ tag, GitHub release, package receipt, and downloadable asset must bind the
 same exact release bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
+## Spacecraft finite-burn certificate
+
+The v1.7.4 release candidate adds a repository/release formal certificate for
+the spacecraft finite-burn case. Until independent review, completion audit,
+hosted gates, and release-byte readback finish, the candidate verdict is
+**CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions**. It is not yet a
+published release verdict. The Python producer is candidate-only; the
+pinned Lean checker and outer verifier bind the 35.9 MB witness, theorem, proof
+identity, request, model, epoch, nonce, and receipt. See
+[`spacecraft_burn_cert/REPORT.md`](spacecraft_burn_cert/REPORT.md) for the exact
+assurance boundary and physical-model non-claims.
+
+This lane does not add an MCP command. The ordered agent catalog remains 41
+tools; use the repo-local CLI or published release assets for this certificate.
+
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
 buttons. It treats a serious calculation as a bounded scientific claim: value, units,
 uncertainty, method, assumptions, sensitivity, residual, non-claims, and a reproducible

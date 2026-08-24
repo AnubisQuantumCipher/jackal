@@ -1,5 +1,5 @@
 {
-  "audit_digest_sha256": "5e33809e2d8f73d8b554313bc9ea71a8b8d3c657810f0b37d4db3dd945578f29",
+  "audit_digest_sha256": "b0097b6453050c7ad7fd42a12c4119dd9b7a060555ece6935bcaaf67b5af96ea",
   "audit_result": {
     "logical_admission_count": 0,
     "repository_axiom_declaration_count": 0,
@@ -200,7 +200,7 @@
   ],
   "schema": "jackal-lean-admission-audit-v1",
   "source_inventory": {
-    "aggregate_sha256": "8cacb3fe30d3cf9ae10e9c939d7d7a56efb90f41ddfbdab578dbacd6253aa32c",
+    "aggregate_sha256": "035745f04c955b0356636ba2573dae5eea9163ea72150992e1bc0d6e7b70452b",
     "construct_policy": {
       "allowed_exact_source_lines": [
         {
@@ -242,15 +242,15 @@
       ],
       "forbidden_findings": [],
       "noncomputable_classification": "Lean noncomputable declarations are counted but are not logical admissions or executable-code substitutions.",
-      "noncomputable_occurrences": 37,
+      "noncomputable_occurrences": 53,
       "scan_scope": "comments and string bodies removed; executable Lean tokens scanned"
     },
-    "file_count": 42,
+    "file_count": 57,
     "files": [
       {
-        "bytes": 1035,
+        "bytes": 1576,
         "path": "proofs/lean/JackalIv.lean",
-        "sha256": "fffba0936e102b0cb6dfc5d7521e242f818d3c8bc0530ea8073dba79b5229c8b"
+        "sha256": "0e4c91bc2bedb892d432dee765a1a3d8215e40e1629a98347b09ee8114f574c2"
       },
       {
         "bytes": 11165,
@@ -436,6 +436,81 @@
         "bytes": 8639,
         "path": "proofs/lean/JackalIv/Solve.lean",
         "sha256": "c6421cb46b54571ffec8c5177fa915dfe57a746be47f20d80e990a44a6166d90"
+      },
+      {
+        "bytes": 3236,
+        "path": "proofs/lean/JackalIv/Spacecraft/CertCheck.lean",
+        "sha256": "a28430ef4651515b569a89dd7c6a4318d3b057c3527caa7f2bfdf0358f42811e"
+      },
+      {
+        "bytes": 9147,
+        "path": "proofs/lean/JackalIv/Spacecraft/CertCodec.lean",
+        "sha256": "d48192a6c7dc30b629972e4791e8064fb7c17b776c23299cff5429f30ae63a95"
+      },
+      {
+        "bytes": 875,
+        "path": "proofs/lean/JackalIv/Spacecraft/CertFixtures.lean",
+        "sha256": "e624aa401fa727cd74ab81ef944b5b70b58a83e9d5153dfb8a615b2f9f0ae8c1"
+      },
+      {
+        "bytes": 869,
+        "path": "proofs/lean/JackalIv/Spacecraft/CertMain.lean",
+        "sha256": "0a46f9c3580180d761cab078a5a756e9971534d1833b53348afa623c1f88937b"
+      },
+      {
+        "bytes": 11063,
+        "path": "proofs/lean/JackalIv/Spacecraft/CertSound.lean",
+        "sha256": "c79b9dd0e289e1f2611d5048ffd9bf7551a418b95a04c9b17c444661c2892783"
+      },
+      {
+        "bytes": 1109,
+        "path": "proofs/lean/JackalIv/Spacecraft/CodecFixtures.lean",
+        "sha256": "cea65ff307fdc5e89099b275a8cf2e59cbea2f10570ca6b168aa28e3043fa3f9"
+      },
+      {
+        "bytes": 22042,
+        "path": "proofs/lean/JackalIv/Spacecraft/Interval.lean",
+        "sha256": "9abc6888dc330d819ac0bbf2d286d76d6f2ed4101a8a43d8f599e462b25bb773"
+      },
+      {
+        "bytes": 1883,
+        "path": "proofs/lean/JackalIv/Spacecraft/IntervalFixtures.lean",
+        "sha256": "be5ce8928d0ac65d99ec9f092f65dc114b81cbbf5db2fa67afbe078c936a126e"
+      },
+      {
+        "bytes": 19137,
+        "path": "proofs/lean/JackalIv/Spacecraft/Orbit.lean",
+        "sha256": "3002164c00786d927166bbfb2993dbd28a40bfc9bd6c389c3f6208ef89de5c6e"
+      },
+      {
+        "bytes": 1766,
+        "path": "proofs/lean/JackalIv/Spacecraft/OrbitFixtures.lean",
+        "sha256": "1316b49238f25421e30b7fc60293d5f726b5165470fff7cedcd0ac5b31e2ef37"
+      },
+      {
+        "bytes": 38408,
+        "path": "proofs/lean/JackalIv/Spacecraft/Picard.lean",
+        "sha256": "d1a4fc5aa48ef0e82398bdfcdcf854488985663e82e5307978632fd7754d0470"
+      },
+      {
+        "bytes": 3484,
+        "path": "proofs/lean/JackalIv/Spacecraft/PicardFixtures.lean",
+        "sha256": "6e62c849303b322311855feade896d4dc3ccd26a2be1375c35788a34b4665c12"
+      },
+      {
+        "bytes": 708,
+        "path": "proofs/lean/JackalIv/Spacecraft/Types.lean",
+        "sha256": "5d3b6b4fa81160f2a9ac48495a39242f7b1100a8abdffcfdd712417e863a5232"
+      },
+      {
+        "bytes": 14315,
+        "path": "proofs/lean/JackalIv/Spacecraft/VectorField.lean",
+        "sha256": "085998b458d7ec6f7106700048861a76c88e1e9f9ae6edde9e7c274e14043760"
+      },
+      {
+        "bytes": 1915,
+        "path": "proofs/lean/JackalIv/Spacecraft/VectorFieldFixtures.lean",
+        "sha256": "369aa497b8e8792456448abaf756458930842cf19445b19e94110217b13f94fb"
       },
       {
         "bytes": 17044,
@@ -751,9 +826,9 @@
   "toolchain": {
     "configuration_files": [
       {
-        "bytes": 901,
+        "bytes": 991,
         "path": "proofs/lean/lakefile.toml",
-        "sha256": "21eef36ea0d9a665622b171dcf1f96460aa250ef214314d766112e01dadf1eaf"
+        "sha256": "48b4a93ddda8ea85bda3fe65ac2f94dc43d6629641cdaf7bead228ec26d90bfe"
       },
       {
         "bytes": 3127,

@@ -1,0 +1,32 @@
+{
+  "binding": {
+    "checker_sha256": "e2ab71210eb60db12b616962410a1de22582698d1a575e1888565bc7d34fc4a3",
+    "epoch": "v1.7.4",
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "nonce": "spacecraft-burn-v2-publication-20260824",
+    "proof_identity_digest_sha256": "bab091fbd1c9db40cb087f7032b0d30f67f2d1e31a003cf790a6adb972d21f47",
+    "proof_identity_file_sha256": "ce8d7bc20f084a6ee52abc6375d667c072da42a1cd5f96ede8cce3e373e258c7",
+    "receipt_sha256": "77ce2f1fd9864d75992b1c6c36764e74a01bede384c4158dce53ea775e372df0",
+    "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+    "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
+  },
+  "reasons": [],
+  "replay": {
+    "domain_lower_bounds": {
+      "mass_exact": "1382062217417427315736792485/1208925819614629174706176",
+      "radius_squared_exact": "53912371654328477687089108767263/1208925819614629174706176",
+      "speed_squared_exact": "72158111333449500373422077/1208925819614629174706176"
+    },
+    "exact_lower_bound": "51450379597827184853505075/1208925819614629174706176",
+    "formula_only_exact_lower_bound": "4684830994590880152455811/1208925819614629174706176",
+    "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe"
+  },
+  "status": "ACCEPT",
+  "symbolic_identities": {
+    "angular_momentum_lagrange_identity": true,
+    "apoapsis_plus_expansion": true,
+    "eccentricity_energy_momentum_identity": true,
+    "eccentricity_vector_reduction": true,
+    "vis_viva_cleared_denominator_identity": true
+  }
+}

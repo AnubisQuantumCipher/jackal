@@ -23,14 +23,18 @@ jobs:
           lake-package-directory: proofs/lean
           auto-config: false
           build: true
-          build-args: jackal_gaussian_check jackal_cert_check jackal_int_cert_check
+          build-args: jackal_gaussian_check jackal_cert_check jackal_int_cert_check jackal_spacecraft_burn_check
           test: false
 
       - name: Verify proof identities and exact theorem axiom sets
         run: |
+          cp proofs/lean/lakefile.toml "$RUNNER_TEMP/v174-lakefile.toml"
+          cp release/compat/v173_lakefile.toml proofs/lean/lakefile.toml
           python3 release/tools/gaussian_proof_identity.py check --lane gaussian --proof-only
           python3 release/tools/range_proof_identity.py check --lane range --proof-only
           python3 release/tools/range_proof_identity.py check --lane int-cert --proof-only
+          cp "$RUNNER_TEMP/v174-lakefile.toml" proofs/lean/lakefile.toml
+          python3 release/tools/spacecraft_burn_proof_identity.py check --proof-only
 
       - name: Reject repository-wide Lean admissions and trust bypasses
         run: |

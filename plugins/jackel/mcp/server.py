@@ -1537,7 +1537,7 @@ def build_production_server(
             runtime,
             timeout=provisioner.SELFTEST_TIMEOUT,
             output_limit=provisioner.SELFTEST_OUTPUT_LIMIT,
-            expected_tree_sha256=provisioner.SHA256SUMS_SHA256,
+            expected_tree_sha256=provisioner.effective_release_pins()["sha256sums_sha256"],
         )
     except Exception as error:
         raise StartupError("pinned runtime validation refused") from error
@@ -1548,7 +1548,7 @@ def build_production_server(
             runtime,
             timeout=provisioner.SELFTEST_TIMEOUT,
             output_limit=provisioner.SELFTEST_OUTPUT_LIMIT,
-            expected_tree_sha256=provisioner.SHA256SUMS_SHA256,
+            expected_tree_sha256=provisioner.effective_release_pins()["sha256sums_sha256"],
         )
         snapshot_value = getattr(snapshot_owner, "root", None)
         snapshot = _canonical_absolute_directory(

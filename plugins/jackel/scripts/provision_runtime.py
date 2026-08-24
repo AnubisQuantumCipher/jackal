@@ -168,11 +168,13 @@ def effective_release_pins(system: str | None = None, machine: str | None = None
             "epoch": EPOCH, "asset": ASSET,
             "package_size": PACKAGE_SIZE, "package_sha256": PACKAGE_SHA256,
             "package_directory": PACKAGE_DIRECTORY,
+            "sha256sums_sha256": SHA256SUMS_SHA256,
         }
     return {
         "epoch": EPOCH, "asset": pin["asset"],
         "package_size": pin["package_size"], "package_sha256": pin["package_sha256"],
         "package_directory": pin["package_directory"],
+        "sha256sums_sha256": pin["sha256sums_sha256"],
     }
 
 

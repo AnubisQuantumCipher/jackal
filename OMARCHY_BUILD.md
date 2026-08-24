@@ -67,7 +67,19 @@ program-evidence anchor), `cargo`/`rustc` (stable), `elan` (Lean), `python3`.
     gaussian_check    1f21c6b2…   int_cert_check      f2e26f50…   v170 archival  d515cdc2…
     approved Z3 4.15.4 b6fcd93b…  inventory-safe-v1 policy (frozen) 1b94350a…
 
-## Pending trust-surface sign-offs (do NOT self-authorize)
-    - jackal_anubis_check_program: needs an architect-designated Linux aarch64 anubis
-      CHECK COMPILER (version+sha256), double-built. See ~/omarchy-jackal-completion/
-      evidence/I_check_compiler_finding.json.
+## Trust-surface sign-offs
+    - jackal_anubis_check_program: RESOLVED 2026-08-24 — architect (khephri.labs@proton.me)
+      designated the clean-source Linux/aarch64 anubis CHECK COMPILER sha256
+      7cdafb30… (double-built byte-identical, from anubis-lang commit 6aa6fd92,
+      recipe §1). Scope: Linux/aarch64 only; macOS 0d6a8f89 not reused;
+      inventory-safe-v1 policy body byte-frozen (1b94350a). Verifier anchor is
+      host-aware (Darwin=0d6a8f89 preserved). Independently re-verified 2026-08-24
+      (verified-program-evidence, 4 proofs, receipt 81d6477e…). Records:
+      release/evidence/anubis_program_dogfood_linux_aarch64_v1.json and
+      ~/omarchy-jackal-completion/evidence/compiler/SIGNOFF_linux_aarch64.json;
+      finding ~/omarchy-jackal-completion/evidence/I_check_compiler_finding.json
+      = RESOLVED_ARCHITECT_SIGNED_OFF.
+    - Note: the overall product verdict stays _V111_PENDING — gated on the FUTURE
+      sealed 49-tool package (AWAITING_SEALED_V111_PACKAGE), NOT on this
+      check-compiler round, which is independently resolved. Linux x86_64
+      execution remains gate-declared/unobserved (separate item).

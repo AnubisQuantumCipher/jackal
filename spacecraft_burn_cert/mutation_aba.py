@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -159,6 +160,13 @@ def completed_mutant_failure(returncode: int) -> bool:
     return returncode not in (0, 124)
 
 
+def normalized_mutant_test_output(output: str, isolated_source: Path) -> str:
+    """Remove nondeterministic diagnostics before binding mutant-test output."""
+    normalized = output.replace(str(isolated_source), "<MUTANT_CERTIFIER>")
+    normalized = normalized.replace(str(isolated_source.resolve()), "<MUTANT_CERTIFIER>")
+    return re.sub(r"(?m)^(Ran \d+ tests? in )\d+(?:\.\d+)?s$", r"\1<TIME>s", normalized)
+
+
 def witness_mutation_caught(returncode: int, parsed: dict | None) -> bool:
     return (
         completed_mutant_failure(returncode)
@@ -243,7 +251,9 @@ def exercise_mutation(name: str) -> dict:
         "restored_contract_test_passed": restored_test["returncode"] == 0,
         "mutant_tests_failed": completed_mutant_failure(test_record["returncode"]),
         "mutant_tests_timed_out": test_record["returncode"] == 124,
-        "mutant_test_output_sha256": test_record["output_sha256"],
+        "mutant_test_output_sha256": sha256(
+            normalized_mutant_test_output(test_record["output"], isolated).encode("utf-8")
+        ),
         "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
         "caught": caught,
     }

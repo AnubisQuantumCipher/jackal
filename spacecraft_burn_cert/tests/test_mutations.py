@@ -24,6 +24,23 @@ def load_harness(testcase: unittest.TestCase):
 
 
 class MutationHarnessTests(unittest.TestCase):
+    def test_mutant_test_output_hash_ignores_temp_paths_and_elapsed_time(self):
+        harness = load_harness(self)
+        first = (
+            "Traceback: /private/tmp/spacecraft-source-mutation-a1/certify.py\n"
+            "Ran 9 tests in 0.123s\n"
+        )
+        second = (
+            "Traceback: /private/tmp/spacecraft-source-mutation-b2/certify.py\n"
+            "Ran 9 tests in 1.987s\n"
+        )
+        first_path = Path("/private/tmp/spacecraft-source-mutation-a1/certify.py")
+        second_path = Path("/private/tmp/spacecraft-source-mutation-b2/certify.py")
+        self.assertEqual(
+            harness.normalized_mutant_test_output(first, first_path),
+            harness.normalized_mutant_test_output(second, second_path),
+        )
+
     def test_witness_timeout_cannot_pass_the_integrated_mutation_path(self):
         harness = load_harness(self)
         interval = witness_codec.Interval(0, 10)

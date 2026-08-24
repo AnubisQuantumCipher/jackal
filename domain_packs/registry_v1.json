@@ -8,7 +8,7 @@
   "pack_spec_path": "domain_packs/PACK_SPEC.md",
   "pack_spec_sha256": "2d76022dc2375fa3a235f05890c8b3a36ac77b008ecc5d58fb658deb253a947a",
   "pack_verifier_path": "tools/domain_pack_verify.py",
-  "pack_verifier_sha256": "22984f511208af2d7a318f1a43306d95a4b0f61876d8b44f34f39a2ded6d573d",
+  "pack_verifier_sha256": "53553ba75d7f233e79fba68597642e7a01d60dec340246147c95a2e8e3ecb08b",
   "inference_registry_path": "release/claim/inference_registry_v1.json",
   "inference_registry_sha256": "c70b33d5aee8071b5125e6a5f8ffe5226fc22a137d920c17d9b3463968be13f0",
   "packs": [
@@ -54,5 +54,5 @@
       ]
     }
   ],
-  "registry_digest_sha256": "9f96f53795746b75f6e9d505e49f6f2578407d224f5e22fdad8a03e8a738fed8"
+  "registry_digest_sha256": "b4fba2533f43490c3e81a925e84bf8eef223a5e6017d8fddb06d76c9f19e893d"
 }

@@ -63,10 +63,10 @@ RELEASE_PINS: dict[str, dict[str, object] | None] = {
         # upstream asset — install with `provision --tarball <path>`.
         "asset": "jackal-v1.7.3-linux-aarch64.tar.gz",
         "url": None,
-        "package_size": 177404638,
-        "package_sha256": "d4618d6e153ff1a94ca7a064995e346c10874fe0e2b1afafdb19ef7b2cdb2720",
-        "extracted_size": 686413084,
-        "sha256sums_sha256": "d33dd68643c55db7014a48296371bdfadd748d5218b6a859899b2c578ad26256",
+        "package_size": 177404787,
+        "package_sha256": "15803b7ed348fe035ef66308d4239ae546732ea50b6e2ca0843e34027a589c3c",
+        "extracted_size": 686413270,
+        "sha256sums_sha256": "fcfcd14ae5b6235eefc2afc80d6e38c67f9bccadaeaef41291edfd271e30d902",
         "package_directory": "jackal-v1.7.3-linux-aarch64",
     },
 }

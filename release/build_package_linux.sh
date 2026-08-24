@@ -1171,34 +1171,26 @@ for label, relative in manifest_bound_files.items():
 print("STAGED_IDENTITY_VALIDATION_PASS")
 PY
 
-# The domain-pack protocol-v1 verifier host-gates to its supported platforms.
-# On a host whose verifier is not yet admitted, this release-QA smoke is skipped
-# for a local build (JACKAL_LOCAL_BUILD=1); the domain-pack RUNTIME tools then
-# fail closed at call time exactly as the verifier dictates. Identity, proof,
-# compat, lean-audit, plugin-identity and formal-lane smokes below still run.
-if [ "${JACKAL_LOCAL_BUILD:-0}" = "1" ]; then
-  echo "STAGED_DOMAIN_PACK_SKIPPED reason=local-build host-verifier-not-admitted"
-else
+# Domain-pack protocol-v1 QA. The verifier admits this host, so it runs
+# unconditionally as part of the staged release validation.
 PACK_VALIDATION=$(python3 -I -S -B "$PKG/tools/domain_pack_verify.py" \
-    --root "$PKG" 2>&1) || {
-    echo "PACKAGE_V173_REFUSED reason=staged-domain-pack detail=$PACK_VALIDATION" >&2
-    exit 4
-  }
-  /usr/bin/printf '%s' "$PACK_VALIDATION" | python3 -I -S -B -c '
-  import json
-  import sys
-  
-  try:
-      report = json.load(sys.stdin)
-  except (json.JSONDecodeError, UnicodeError):
-      raise SystemExit(1)
-  raise SystemExit(0 if isinstance(report, dict) and report.get("status") == "accepted" else 1)
-  ' || {
-    echo "PACKAGE_V173_REFUSED reason=staged-domain-pack-status detail=$PACK_VALIDATION" >&2
-    exit 4
-  }
-fi
+  --root "$PKG" 2>&1) || {
+  echo "PACKAGE_V173_REFUSED reason=staged-domain-pack detail=$PACK_VALIDATION" >&2
+  exit 4
+}
+/usr/bin/printf '%s' "$PACK_VALIDATION" | python3 -I -S -B -c '
+import json
+import sys
 
+try:
+    report = json.load(sys.stdin)
+except (json.JSONDecodeError, UnicodeError):
+    raise SystemExit(1)
+raise SystemExit(0 if isinstance(report, dict) and report.get("status") == "accepted" else 1)
+' || {
+  echo "PACKAGE_V173_REFUSED reason=staged-domain-pack-status detail=$PACK_VALIDATION" >&2
+  exit 4
+}
 PLUGIN_SELFTEST=$("$PKG/plugin/hermes/jackal_hermes" selftest 2>&1) || {
   echo "PACKAGE_V173_REFUSED reason=staged-plugin-selftest detail=$PLUGIN_SELFTEST" >&2
   exit 4

@@ -49,6 +49,18 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             (root / gate.TARGETS[0]).write_text("CERTIFIED SAFE\n")
             self.assertEqual(gate.scan(root)["findings"][0]["reason"], "unqualified-certified-safe")
 
+    def test_exact_qualifier_may_wrap_without_becoming_unqualified(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            wrapped = gate.QUALIFIED_VERDICT.replace(" model,", "\nmodel,")
+            (root / gate.TARGETS[0]).write_text(wrapped + "\n")
+            self.assertEqual(gate.scan(root)["status"], "PASS")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -256,10 +256,17 @@ def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
     formal_margin = receipt_interval(receipt["formal_decisive_margin"])
     if formal_margin[0] <= 0 or formal_margin[0] > formal_margin[1]:
         raise RuntimeError("formal decisive margin is not strictly positive")
+    step = Fraction(receipt["method"]["step_exact"])
+    if step <= 0:
+        raise RuntimeError("receipt declares a non-positive integration step")
+    tube_steps = Fraction("121.5") / step
+    post_steps = Fraction(3) / step
+    if tube_steps.denominator != 1 or post_steps.denominator != 1:
+        raise RuntimeError("receipt step does not exactly partition burn bounds")
     actual_tubes = receipt["method"]["tube_count"]
-    expected_tubes = receipt["method"]["branch_count"] * int(Fraction("121.5") / Fraction(1, 32))
+    expected_tubes = receipt["method"]["branch_count"] * tube_steps.numerator
     actual_posts = receipt["method"]["postprocess_count"]
-    expected_posts = receipt["method"]["branch_count"] * int(Fraction(3) / Fraction(1, 32))
+    expected_posts = receipt["method"]["branch_count"] * post_steps.numerator
     reconciliation = {
         "status": "PASS" if (actual_tubes, actual_posts) == (expected_tubes, expected_posts) else "FAIL",
         "tube_count": actual_tubes,

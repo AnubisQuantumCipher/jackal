@@ -63,7 +63,7 @@ jobs:
             --proof-identity "$RUNNER_TEMP/spacecraft-v2/proof_identity.json" \
             --request-digest "$REQUEST_DIGEST" --model-id "$MODEL_ID" \
             --epoch "$RELEASE_EPOCH" --nonce "$PUBLICATION_NONCE"
-          echo "RECEIPT_SHA=$(sha256sum "$RUNNER_TEMP/spacecraft-v2/baseline_receipt_v2.json" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "RECEIPT_SHA=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$RUNNER_TEMP/spacecraft-v2/baseline_receipt_v2.json")" >> "$GITHUB_ENV"
 
       - name: Independently replay checker, interval chain, and validations
         run: |

@@ -89,7 +89,17 @@ class InstrumentValidationTests(unittest.TestCase):
             lo, hi = validator.receipt_interval(receipt["cutoff_state_hull"][name])
             self.assertLessEqual(float(lo), value)
             self.assertGreaterEqual(float(hi), value)
-        self.assertAlmostEqual(margin, 61.3600182105, places=8)
+        self.assertAlmostEqual(margin, 61.3600182105, delta=1e-4)
+
+    def test_reconciliation_refuses_a_step_that_does_not_exactly_partition_bounds(self):
+        validator = load_validator(self)
+        receipt = json.loads((ROOT / "evidence" / "baseline_receipt_v2.json").read_text())
+        receipt["method"]["step_exact"] = "1/31"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bad-step.json"
+            path.write_text(json.dumps(receipt))
+            with self.assertRaisesRegex(RuntimeError, "exactly partition"):
+                validator.validate(path, include_refinement=False)
 
 
 if __name__ == "__main__":

@@ -23,7 +23,9 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
             "macos-14",
         ):
             self.assertIn(required, source)
-        for action in re.findall(r"uses:\s*([^\s#]+)", source):
+        actions = re.findall(r"uses:\s*([^\s#]+)", source)
+        self.assertTrue(actions, "action SHA checks must not be vacuous")
+        for action in actions:
             self.assertRegex(action, r"@[0-9a-f]{40}$")
         self.assertIn("if: always()", source)
 

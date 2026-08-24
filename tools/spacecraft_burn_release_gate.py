@@ -14,6 +14,7 @@ QUALIFIED_VERDICT = (
     "CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, "
     "and machine-checked interval-certificate assumptions"
 )
+QUALIFIED_PATTERN = re.compile(r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split())))
 TARGETS = (
     Path("README.md"),
     Path("spacecraft_burn_cert/README.md"),
@@ -41,10 +42,13 @@ def scan(root: Path) -> dict:
                     "file": str(relative), "line": text.count("\n", 0, match.start()) + 1,
                     "reason": reason,
                 })
-        stripped = text.replace(QUALIFIED_VERDICT, "")
+        stripped = QUALIFIED_PATTERN.sub(
+            lambda match: "".join("\n" if char == "\n" else " " for char in match.group(0)),
+            text,
+        )
         for match in re.finditer(r"CERTIFIED\s+SAFE", stripped):
             findings.append({
-                "file": str(relative), "line": stripped.count("\n", 0, match.start()) + 1,
+                "file": str(relative), "line": text.count("\n", 0, match.start()) + 1,
                 "reason": "unqualified-certified-safe",
             })
     return {

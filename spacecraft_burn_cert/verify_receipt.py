@@ -655,6 +655,17 @@ def verify_receipt(
     expected_epoch: str | None = None,
     nonce: str | None = None,
 ) -> dict:
+    caller_paths = (
+        (witness_path, "witness-unreadable"),
+        (checker_path, "checker-unreadable"),
+        (proof_identity_path, "proof-identity-invalid"),
+    )
+    symlink_reasons = [
+        reason for value, reason in caller_paths
+        if value is not None and Path(value).is_symlink()
+    ]
+    if symlink_reasons:
+        return {"status": "REFUSED", "reasons": sorted(set(symlink_reasons))}
     receipt_path = Path(receipt_path).resolve()
     source_path = Path(source_path).resolve()
     reasons: list[str] = []
@@ -671,6 +682,13 @@ def verify_receipt(
         return {"status": "REFUSED", "reasons": ["invalid-receipt-schema"]}
     if candidate.get("formal_checker_status") != "ACCEPT":
         return {"status": "REFUSED", "reasons": ["formal-checker-not-bound"]}
+    for field, reason in (
+        ("method", "invalid-method-section"),
+        ("cutoff_state_hull", "invalid-cutoff-state-hull"),
+        ("orbital_hulls", "invalid-orbital-hulls"),
+    ):
+        if not isinstance(candidate.get(field), dict):
+            return {"status": "REFUSED", "reasons": [reason]}
 
     formal_reasons = verify_formal_binding(
         candidate,
@@ -730,7 +748,7 @@ def verify_receipt(
         return {"status": "REFUSED", "reasons": sorted(set(reasons)), "symbolic_identities": identities}
 
     expected = replay()
-    method = candidate.get("method", {})
+    method = candidate["method"]
     for field_name in (
         "trace_sha256",
         "branch_count",
@@ -746,13 +764,13 @@ def verify_receipt(
         reasons.append("replay-domain-mismatch")
 
     cutoff_names = ("x", "y", "vx", "vy", "mass")
-    cutoff = candidate.get("cutoff_state_hull", {})
+    cutoff = candidate["cutoff_state_hull"]
     for name, value in zip(cutoff_names, expected["cutoff"]):
         if not isinstance(cutoff.get(name), dict):
             reasons.append(f"missing-interval:cutoff.{name}")
         else:
             compare_interval(cutoff[name], value, reasons, f"cutoff.{name}")
-    orbit = candidate.get("orbital_hulls", {})
+    orbit = candidate["orbital_hulls"]
     for name, value in expected["post"].items():
         if not isinstance(orbit.get(name), dict):
             reasons.append(f"missing-interval:orbital.{name}")

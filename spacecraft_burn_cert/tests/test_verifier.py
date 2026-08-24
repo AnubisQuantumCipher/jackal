@@ -70,6 +70,38 @@ class IndependentVerifierTests(unittest.TestCase):
         self.assertEqual(result["status"], "REFUSED")
         self.assertEqual(result["reasons"], ["formal-checker-not-bound"])
 
+    def test_malformed_replay_sections_refuse_without_traceback(self):
+        verifier = load_verifier(self)
+        reasons = {
+            "method": "invalid-method-section",
+            "cutoff_state_hull": "invalid-cutoff-state-hull",
+            "orbital_hulls": "invalid-orbital-hulls",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            for field, reason in reasons.items():
+                with self.subTest(field=field):
+                    payload = {
+                        "schema": "spacecraft-finite-burn-formal-receipt-v2",
+                        "formal_checker_status": "ACCEPT",
+                        "method": {}, "cutoff_state_hull": {}, "orbital_hulls": {},
+                    }
+                    payload[field] = []
+                    path = Path(directory) / f"{field}.json"
+                    path.write_text(json.dumps(payload))
+                    result = verifier.verify_receipt(path, CERTIFIER)
+                    self.assertEqual(result, {"status": "REFUSED", "reasons": [reason]})
+
+    def test_caller_supplied_symlink_is_refused_before_resolution(self):
+        verifier = load_verifier(self)
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target.cert"
+            target.write_text("witness\n")
+            link = Path(directory) / "link.cert"
+            link.symlink_to(target)
+            result = verifier.verify_receipt(BASELINE, CERTIFIER, witness_path=link)
+            self.assertEqual(result, {"status": "REFUSED", "reasons": ["witness-unreadable"]})
+
+    @unittest.skipUnless(CHECKER.is_file(), "Lean checker binary is not built")
     def test_formal_binding_mutations_refuse_with_stable_reasons(self):
         verifier = load_verifier(self)
         self.assertTrue(PROOF_IDENTITY.is_file())

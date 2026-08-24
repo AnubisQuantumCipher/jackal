@@ -21,6 +21,16 @@ def load_packager():
 
 
 class SpacecraftReleasePackageTests(unittest.TestCase):
+    def test_generated_claim_gate_rejects_unqualified_assurance(self):
+        package = load_packager()
+        with self.assertRaisesRegex(RuntimeError, "unqualified assurance"):
+            package.assert_model_conditional_claims(b"CERTIFIED SAFE for the spacecraft.\n")
+
+    def test_source_closure_rejects_paths_outside_lean_tree(self):
+        package = load_packager()
+        with self.assertRaisesRegex(RuntimeError, "invalid source path"):
+            package.source_closure({"source_closure": {"files": [{"path": "release/x.lean"}]}})
+
     def test_deterministic_archive_has_normalized_metadata_and_modes(self):
         package = load_packager()
         entries = {"z/file": (b"z", 0o644), "a/checker": (b"x", 0o755)}

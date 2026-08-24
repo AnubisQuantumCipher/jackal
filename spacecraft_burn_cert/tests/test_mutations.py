@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -24,6 +25,18 @@ def load_harness(testcase: unittest.TestCase):
 
 
 class MutationHarnessTests(unittest.TestCase):
+    def test_timeout_byte_output_is_preserved_as_text_evidence(self):
+        harness = load_harness(self)
+        timeout = subprocess.TimeoutExpired(
+            ["probe"], 1, output=b"partial stdout\n", stderr=b"partial stderr\n"
+        )
+        with mock.patch.object(harness.subprocess, "run", side_effect=timeout):
+            record = harness.run(("probe",), timeout=1)
+        self.assertEqual(record["returncode"], 124)
+        self.assertEqual(record["output"], "partial stdout\npartial stderr\n")
+        self.assertEqual(record["output_excerpt"], record["output"])
+        self.assertEqual(len(record["output_sha256"]), 64)
+
     def test_mutant_test_output_hash_ignores_temp_paths_and_elapsed_time(self):
         harness = load_harness(self)
         first = (

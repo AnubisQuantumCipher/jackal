@@ -140,7 +140,14 @@ def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | 
             "output_excerpt": output[-3000:],
         }
     except subprocess.TimeoutExpired as error:
-        output = (error.stdout or "") + (error.stderr or "")
+        def timeout_text(value: str | bytes | None) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            return value
+
+        output = timeout_text(error.stdout) + timeout_text(error.stderr)
         return {
             "returncode": 124,
             "output_sha256": sha256(output.encode("utf-8")),

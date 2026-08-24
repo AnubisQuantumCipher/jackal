@@ -276,19 +276,30 @@ candidate:
 The regenerated independent-verification and mutation evidence accepts with
 the new residual identity names and exact checker-output contract.
 
-## Pass 14 status
+## Pass 14
 
-The clean-worktree review of the Pass-13 verifier fixes is pending. The
+Reviewed clean committed branch head:
+`9d299899b3293b643bfc805f0e10cf4effc9ffb6`.
+
+CodeRabbit raised one issue. It was confirmed and resolved in the next
+candidate: the mutation harness now normalizes byte-valued timeout stdout and
+stderr to UTF-8 replacement-decoded text before hashing and recording complete
+failure evidence. Timeout remains a refusal and can never count as a caught
+mutation. A regression covers byte-valued partial stdout and stderr.
+
+## Pass 15 status
+
+The clean-worktree review of the Pass-14 timeout-evidence fix is pending. The
 machine-readable clearance remains pending and packaging remains fail-closed.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 74 | fixed with tests; digest repetitions reclassified valid |
+| resolved | 75 | fixed with tests; digest repetitions reclassified valid |
 | invalid | 0 | none |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
-| unresolved release-blocking | 0 known | Pass 14 retry pending |
+| unresolved release-blocking | 0 known | Pass 15 retry pending |
 
-No merge or publication may proceed until Pass 14 records zero unresolved
+No merge or publication may proceed until Pass 15 records zero unresolved
 release-blocking findings and machine-readable clearance returns to complete.

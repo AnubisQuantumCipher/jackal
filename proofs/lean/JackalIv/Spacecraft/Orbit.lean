@@ -171,8 +171,10 @@ theorem sqrt_ok_data {bits : Nat} {a out : DInterval}
   split at h
   · contradiction
   · rename_i hn
-    cases h
-    exact ⟨le_of_not_gt hn, rfl⟩
+    split at h
+    · contradiction
+    · cases h
+      exact ⟨le_of_not_gt hn, rfl⟩
 
 theorem div_ok_data {bits : Nat} {a b out : DInterval}
     (h : div bits a b = .ok out) :

@@ -46,6 +46,8 @@ example : Mem 2 (Real.sqrt 2)
     (by norm_num [i]) (by norm_num)
     (by norm_num [Mem, lower, upper, scale, i])
 
+#guard sqrt 2 (i 2 1) = .error "sqrt-invalid-interval"
+
 #print axioms add_sound
 #print axioms mul_sound
 #print axioms div_sound

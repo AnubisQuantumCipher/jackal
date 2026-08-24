@@ -26,6 +26,15 @@ CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check"
 IDENTITY = ROOT / "release/evidence" / PROOF_NAME
 REVIEW = ROOT / "release/evidence" / REVIEW_NAME
 EVIDENCE = ROOT / "spacecraft_burn_cert/evidence"
+QUALIFIED_VERDICT = (
+    "CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, "
+    "and machine-checked interval-certificate assumptions"
+)
+QUALIFIED_PATTERN = re.compile(
+    r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split()))
+    + r"(?=[.!?](?:\s|$)|\s*$)",
+    re.IGNORECASE,
+)
 
 
 def sha256(data: bytes) -> str:
@@ -68,7 +77,13 @@ def source_closure(identity: dict) -> list[Path]:
     result = []
     for row in rows:
         path = row.get("path") if isinstance(row, dict) else None
-        if not isinstance(path, str) or path.startswith("/") or ".." in Path(path).parts:
+        parts = Path(path).parts if isinstance(path, str) else ()
+        if (
+            not isinstance(path, str)
+            or path.startswith("/")
+            or ".." in parts
+            or parts[:2] != ("proofs", "lean")
+        ):
             raise RuntimeError("proof identity contains invalid source path")
         result.append(ROOT / path)
     return result
@@ -101,6 +116,13 @@ This theorem is conditional on the encoded ODE model and supplied bounds. It doe
     return text.encode("utf-8")
 
 
+def assert_model_conditional_claims(data: bytes) -> None:
+    text = data.decode("utf-8")
+    stripped = QUALIFIED_PATTERN.sub("", text)
+    if re.search(r"CERTIFIED\s+SAFE", stripped, re.IGNORECASE):
+        raise RuntimeError("generated verification contains unqualified assurance")
+
+
 def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise RuntimeError("merge commit must be 40 lowercase hex characters")
@@ -110,6 +132,7 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
     receipt = json.loads(receipt_bytes)
     identity_bytes = IDENTITY.read_bytes()
     identity = json.loads(identity_bytes)
+    checker_bytes = CHECKER.read_bytes()
     binding = receipt["formal_checker"]
     request_bytes = (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
     expected_binding = {
@@ -123,7 +146,7 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         raise RuntimeError("receipt release binding is invalid")
     if sha256(witness_bytes) != receipt["witness"]["sha256"]:
         raise RuntimeError("witness digest does not match receipt")
-    if sha256(CHECKER.read_bytes()) != binding["checker_sha256"]:
+    if sha256(checker_bytes) != binding["checker_sha256"]:
         raise RuntimeError("checker digest does not match receipt")
     if sha256(identity_bytes) != binding["proof_identity_file_sha256"]:
         raise RuntimeError("proof identity file digest does not match receipt")
@@ -132,7 +155,7 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
 
     prefix = f"jackal-spacecraft-burn-{VERSION}-verifier-macos-arm64"
     entries: dict[str, tuple[bytes, int]] = {
-        f"{prefix}/bin/jackal_spacecraft_burn_check": (CHECKER.read_bytes(), 0o755),
+        f"{prefix}/bin/jackal_spacecraft_burn_check": (checker_bytes, 0o755),
         f"{prefix}/verifier/verify_receipt.py": ((ROOT / "spacecraft_burn_cert/verify_receipt.py").read_bytes(), 0o644),
         f"{prefix}/verifier/witness_codec.py": ((ROOT / "spacecraft_burn_cert/witness_codec.py").read_bytes(), 0o644),
         f"{prefix}/evidence/{PROOF_NAME}": (identity_bytes, 0o644),
@@ -156,10 +179,12 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         "request_v2.json": request_bytes,
         ARCHIVE_NAME: archive_bytes,
     }
-    assets["VERIFICATION.md"] = verification_text(
+    verification = verification_text(
         commit, sha256(receipt_bytes), sha256(witness_bytes), sha256(identity_bytes),
         identity["identity_digest_sha256"], binding,
     )
+    assert_model_conditional_claims(verification)
+    assets["VERIFICATION.md"] = verification
     for name, data in assets.items():
         atomic_write(output / name, data)
     sums = "".join(f"{sha256(assets[name])}  {name}\n" for name in sorted(assets)).encode("ascii")

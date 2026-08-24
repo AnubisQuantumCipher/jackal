@@ -115,18 +115,40 @@ The request-digest warning repeated the exact already-present value and is
 invalid. The legacy-v1 mutation request again targets deliberately immutable,
 quarantined historical bytes and remains `residual-non-claim`.
 
-## Pass 6 status
+## Pass 6
 
-The final clean-worktree retry is pending on the post-Pass-5 fix commit.
+Reviewed detached commit: `fce64c2f59e6879f3a47d68d9399779e6c6c141f`
+
+CodeRabbit raised 7 issues. Four were confirmed and resolved in the next
+candidate:
+
+- applied model-conditional claim validation to generated verification text;
+- rejected inverted intervals in the Lean square-root decision before
+  evaluation and added a kernel-checked fixture;
+- rejected proof-closure paths outside `proofs/lean`; and
+- read the checker executable once for both digest validation and packaging.
+
+The request-digest warning again conflicts with the exact current value and is
+invalid. The two legacy-v1 findings again target deliberately immutable,
+quarantined historical bytes and remain `residual-non-claim`.
+
+The square-root hardening changed the checker and proof closure. The candidate
+therefore regenerated the proof identity, checker binding, receipt, verifier,
+validation, mutation evidence, and manifests rather than carrying old hashes
+forward.
+
+## Pass 7 status
+
+The final clean-worktree retry is pending on the post-Pass-6 fix commit.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 40 | fixed with tests; final push pending |
-| invalid | 4 | request digest independently matched |
+| resolved | 44 | fixed with tests; final push pending |
+| invalid | 5 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
 | unresolved release-blocking | 0 known | final independent retry pending |
 
 No publication or merge may use this record as a final clearance until the
-Pass 6 section records a completed review result.
+Pass 7 section records a completed review result.

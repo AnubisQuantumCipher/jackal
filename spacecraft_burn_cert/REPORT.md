@@ -58,10 +58,10 @@ single-line acceptance result.
 | Artifact | SHA-256 |
 |---|---|
 | Full witness release asset | `27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c` |
-| Baseline receipt | `00fd8b1e951c6816761921b36b5ecadf3abd3db1b42d729778ef8f012ce70689` |
-| Lean checker executable | `23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26` |
-| Proof identity file | `3e74b9903a78e93e6829070237986d072de23d539a13494b00cabdaa2dacdb0f` |
-| Proof identity internal digest | `e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60` |
+| Baseline receipt | `2baa9d05d3c0ac0bc6043704109618b139e41043a682d8b686a3f16a18cb9589` |
+| Lean checker executable | `e2ab71210eb60db12b616962410a1de22582698d1a575e1888565bc7d34fc4a3` |
+| Proof identity file | `1e1a701f10011083f1d6278dea71307ee5e979b33a26a7ec323c16ba1cee6e69` |
+| Proof identity internal digest | `d1d5266e2a2794cdba1fe3744b1c11fb5b45322fe05fff2c44963a2fbb669fab` |
 | Request | `03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7` |
 
 Model ID is `jackal-spacecraft-finite-burn-ode-v2`; release epoch is `v1.7.4`;

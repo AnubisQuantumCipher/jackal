@@ -1,6 +1,6 @@
 {
   "build_attestation": {
-    "attestation_digest_sha256": "383c6bf25808c24a76f680ceb8fc86126fdc5f3899d9d318ed6f040866f93e41",
+    "attestation_digest_sha256": "ae6d1a396f05adb40a221dcc2a5ddb71169afc347b89a1c47cb8e57c8cb2d8fa",
     "authentication": {
       "authenticated": false,
       "scheme": "none",
@@ -12,9 +12,9 @@
       "jackal_spacecraft_burn_check"
     ],
     "checker": {
-      "bytes": 137816512,
+      "bytes": 137816656,
       "path": "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check",
-      "sha256": "23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26",
+      "sha256": "e2ab71210eb60db12b616962410a1de22582698d1a575e1888565bc7d34fc4a3",
       "target": "jackal_spacecraft_burn_check"
     },
     "claim_boundary": "This is reproducibility/build-provenance evidence, not a proof of compiler, linker, operating-system, hardware, or supply-chain correctness.",
@@ -29,7 +29,7 @@
     "inputs": {
       "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
       "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
-      "source_closure_sha256": "28ebe2e91b9e0c79e9b7439920d4972035bc17a3f7607fc662ae63f4ac0bab17",
+      "source_closure_sha256": "c30eb8398a824c3abdcfcd3ff5f4efb1a19d8e968bbd9f90266abee1d5d34057",
       "toolchain_configuration": [
         {
           "path": "proofs/lean/lakefile.toml",
@@ -49,9 +49,9 @@
     "working_directory": "proofs/lean"
   },
   "checker": {
-    "bytes": 137816512,
+    "bytes": 137816656,
     "path": "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check",
-    "sha256": "23bdea9a9e16f1d9175d96e81655b7fa8c72c6dbc940f3771803dae46b059a26",
+    "sha256": "e2ab71210eb60db12b616962410a1de22582698d1a575e1888565bc7d34fc4a3",
     "target": "jackal_spacecraft_burn_check"
   },
   "fragment": {
@@ -77,7 +77,7 @@
     "path": "release/tools/spacecraft_burn_proof_identity.py",
     "sha256": "7890b8e2de4bf032eb2019479bc4fb1e5d944e14690d6f54a05a3e026c9fd42d"
   },
-  "identity_digest_sha256": "e189a6bd3d3be6e7d752d40051deeb06313284e9486c0e53efd76c504ce9ab60",
+  "identity_digest_sha256": "d1d5266e2a2794cdba1fe3744b1c11fb5b45322fe05fff2c44963a2fbb669fab",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {
@@ -200,7 +200,7 @@
   },
   "schema": "jackal-spacecraft-burn-proof-identity-v1",
   "source_closure": {
-    "aggregate_sha256": "28ebe2e91b9e0c79e9b7439920d4972035bc17a3f7607fc662ae63f4ac0bab17",
+    "aggregate_sha256": "c30eb8398a824c3abdcfcd3ff5f4efb1a19d8e968bbd9f90266abee1d5d34057",
     "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
     "external_imports": [
       "Mathlib",
@@ -358,7 +358,7 @@
         "sha256": "c79b9dd0e289e1f2611d5048ffd9bf7551a418b95a04c9b17c444661c2892783"
       },
       {
-        "bytes": 21984,
+        "bytes": 22042,
         "imports": [
           "Mathlib.Data.Rat.Floor",
           "Mathlib.Data.Int.Sqrt",
@@ -368,16 +368,16 @@
         ],
         "module": "JackalIv.Spacecraft.Interval",
         "path": "proofs/lean/JackalIv/Spacecraft/Interval.lean",
-        "sha256": "8d17b5b33d7b1702d910f0f52b7833eb9845fe4c89956710eb41cc4394c30720"
+        "sha256": "9abc6888dc330d819ac0bbf2d286d76d6f2ed4101a8a43d8f599e462b25bb773"
       },
       {
-        "bytes": 19096,
+        "bytes": 19137,
         "imports": [
           "JackalIv.Spacecraft.Picard"
         ],
         "module": "JackalIv.Spacecraft.Orbit",
         "path": "proofs/lean/JackalIv/Spacecraft/Orbit.lean",
-        "sha256": "9cb5dfe23806d6b1ffd70710b5ed4d78ff79dc534d3b1d11018d38e06cfb809a"
+        "sha256": "3002164c00786d927166bbfb2993dbd28a40bfc9bd6c389c3f6208ef89de5c6e"
       },
       {
         "bytes": 38408,

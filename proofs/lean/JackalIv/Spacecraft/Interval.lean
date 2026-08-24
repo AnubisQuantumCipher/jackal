@@ -80,6 +80,7 @@ def sqrtUnchecked (bits : Nat) (a : DInterval) : DInterval :=
 
 def sqrt (bits : Nat) (a : DInterval) : Except String DInterval :=
   if a.lo < 0 then .error "sqrt-negative-interval"
+  else if a.hi < a.lo then .error "sqrt-invalid-interval"
   else .ok (sqrtUnchecked bits a)
 
 def hull (a b : DInterval) : DInterval := ⟨min a.lo b.lo, max a.hi b.hi⟩

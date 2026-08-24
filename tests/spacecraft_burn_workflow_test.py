@@ -18,7 +18,8 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
             "spacecraft_burn_proof_identity.py", "lean_admission_audit.py",
             "spacecraft_burn_cert/certify.py", "spacecraft_burn_cert/verify_receipt.py",
             "spacecraft_burn_cert/validate.py", "spacecraft_burn_cert/mutation_aba.py",
-            "baseline_witness_v2.second.cert", "cmp -s",
+            "spacecraft_burn_cert/release_evidence.py",
+            "run-a", "run-b", "cmp -s",
             "spacecraft_burn_release_gate.py", "upload-artifact@",
             "macos-14",
         ):

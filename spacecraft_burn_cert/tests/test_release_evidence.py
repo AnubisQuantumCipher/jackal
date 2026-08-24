@@ -40,13 +40,12 @@ class ReleaseEvidenceTests(unittest.TestCase):
             (staging / "baseline_receipt_v2.json").write_bytes(module.canonical_json(receipt))
             for name in module.JSON_NAMES[1:]:
                 (staging / name).write_text("{}\n")
-            module.EVIDENCE = evidence
-            module.install_or_check(staging, check=False)
+            module.install_or_check(staging, check=False, evidence_dir=evidence)
             (evidence / "legacy-v1").mkdir()
-            module.install_or_check(staging, check=True)
+            module.install_or_check(staging, check=True, evidence_dir=evidence)
             (evidence / "baseline_receipt.json").write_text("stale\n")
             with self.assertRaisesRegex(RuntimeError, "unexpected:baseline_receipt.json"):
-                module.install_or_check(staging, check=True)
+                module.install_or_check(staging, check=True, evidence_dir=evidence)
 
     def test_manifest_binds_untracked_witness_and_receipt(self):
         module = self.load_module()

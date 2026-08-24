@@ -72,13 +72,13 @@ never regenerated. All current evidence uses new v2 filenames.
 - Modify: `spacecraft_burn_cert/README.md`
 - Test: `spacecraft_burn_cert/tests/test_claim_vocabulary.py`
 
-- [ ] **Step 1: Copy the supplied package without changing its source bytes**
+- [x] **Step 1: Copy the supplied package without changing its source bytes**
 
 Use `cp -pR` from the attached review directory and leave its evidence in the
 supplied v1 layout for the initial failing test. Record pre-copy and post-copy
 SHA-256 values and require exact equality.
 
-- [ ] **Step 2: Write the failing legacy-quarantine test**
+- [x] **Step 2: Write the failing legacy-quarantine test**
 
 ```python
 def test_v1_evidence_is_quarantined_and_not_current():
@@ -89,7 +89,7 @@ def test_v1_evidence_is_quarantined_and_not_current():
     assert json.loads((legacy / "baseline_receipt.json").read_text())["verdict"] == "PROVED SAFE"
 ```
 
-- [ ] **Step 3: Run the test and verify the expected failure**
+- [x] **Step 3: Run the test and verify the expected failure**
 
 Run:
 
@@ -99,18 +99,18 @@ Run:
 
 Expected: failure because the evidence has not yet been quarantined.
 
-- [ ] **Step 4: Quarantine evidence and generate the legacy manifest mechanically**
+- [x] **Step 4: Quarantine evidence and generate the legacy manifest mechanically**
 
 Move the five supplied JSON evidence files and `SHA256SUMS` under
 `evidence/legacy-v1/`. Use a small checked helper inside the test module to
 sort relative paths and derive SHA-256 rows from bytes. The committed manifest
 must reproduce exactly; no digest is typed by hand.
 
-- [ ] **Step 5: Run the supplied 13-test baseline and quarantine test**
+- [x] **Step 5: Run the supplied 13-test baseline and quarantine test**
 
 Expected: 14 tests pass with no v2 assurance claim yet.
 
-- [ ] **Step 6: Commit the immutable import**
+- [x] **Step 6: Commit the immutable import**
 
 ```sh
 git add spacecraft_burn_cert/README.md spacecraft_burn_cert/REPORT.md \
@@ -136,7 +136,7 @@ git commit -m "test(spacecraft): import and quarantine v1 evidence"
 - Modify: `spacecraft_burn_cert/tests/test_certifier.py`
 - Modify: `spacecraft_burn_cert/tests/test_verifier.py`
 
-- [ ] **Step 1: Write failing vocabulary tests**
+- [x] **Step 1: Write failing vocabulary tests**
 
 ```python
 SAFE = "CERTIFIED SAFE"
@@ -157,12 +157,12 @@ def test_unsafe_label_is_not_implemented_in_v2():
     self.assertEqual(result["verdict"], "INDETERMINATE")
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: `classify_margin` is missing and the old code returns
 `PROVED SAFE`/`PROVED UNSAFE`.
 
-- [ ] **Step 3: Implement the v2 vocabulary**
+- [x] **Step 3: Implement the v2 vocabulary**
 
 ```python
 SCHEMA_V2 = "spacecraft-finite-burn-formal-receipt-v2"
@@ -182,18 +182,18 @@ def classify_margin(margin: DInterval) -> dict[str, str]:
 The producer must also record `producer_assurance = "candidate-only"` and
 `formal_checker_status = "NOT_EXECUTED"`; it cannot set `formal-bounded`.
 
-- [ ] **Step 4: Make the verifier refuse v1**
+- [x] **Step 4: Make the verifier refuse v1**
 
 Add an early exact-schema check returning
 `legacy-unproved-verdict-schema` for v1 and `receipt-schema-mismatch` for every
 other unsupported schema.
 
-- [ ] **Step 5: Run vocabulary, certifier, and verifier tests**
+- [x] **Step 5: Run vocabulary, certifier, and verifier tests**
 
 Expected: all pass; a source scan outside `evidence/legacy-v1/` finds no old
 verdict token.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add spacecraft_burn_cert/certify.py spacecraft_burn_cert/verify_receipt.py \
@@ -211,7 +211,7 @@ git commit -m "fix(spacecraft): make safety verdict model conditional"
 - Create: `spacecraft_burn_cert/tests/test_witness_codec.py`
 - Modify: `spacecraft_burn_cert/certify.py`
 
-- [ ] **Step 1: Write failing canonical-codec tests**
+- [x] **Step 1: Write failing canonical-codec tests**
 
 Cover exact header magic `jackal-spacecraft-burn-cert v2`, ASCII-only tokens,
 canonical signed decimal integers, fixed five-component boxes, exact field
@@ -229,18 +229,18 @@ def test_duplicate_terminal_record_refuses(self):
         codec.decode_witness(encoded + encoded.splitlines(keepends=True)[-1])
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: import failure for missing `witness_codec.py`.
 
-- [ ] **Step 3: Implement one canonical line grammar**
+- [x] **Step 3: Implement one canonical line grammar**
 
 Use length-prefixed ASCII records rather than JSON. Define frozen dataclasses
 `Interval`, `Box`, `StepWitness`, `BranchWitness`, and `BurnWitness`. Decode
 with explicit aggregate limits before allocation. Reject
 `+0`, `-0`, leading zeros, non-ASCII, blank records, and unknown tags.
 
-- [ ] **Step 4: Emit every accepted Picard witness**
+- [x] **Step 4: Emit every accepted Picard witness**
 
 Change `certify()` to return `(receipt, BurnWitness)`. Record every branch's
 initial sub-box and thrust interval and every step's non-derivable Picard tube.
@@ -249,12 +249,12 @@ cutoff membership, and post-processing intervals. Reconcile exactly:
 `branches = 32`, `steps_per_branch = 3888`, `steps = 124416`, and cutoff cells
 `= 3072`.
 
-- [ ] **Step 5: Verify determinism and complete coverage**
+- [x] **Step 5: Verify determinism and complete coverage**
 
 Generate twice in separate temporary directories and require `cmp` success.
 Delete one step and verify decode or semantic validation refuses.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add spacecraft_burn_cert/witness_codec.py \
@@ -270,13 +270,13 @@ git commit -m "feat(spacecraft): emit canonical complete Picard witnesses"
 - Create: `proofs/lean/JackalIv/Spacecraft/CodecFixtures.lean`
 - Modify: `proofs/lean/JackalIv.lean`
 
-- [ ] **Step 1: Add failing Lean codec fixtures**
+- [x] **Step 1: Add failing Lean codec fixtures**
 
 Define `minimalBytes`, `duplicateTerminalBytes`, `noncanonicalIntegerBytes`,
 and `trailingBytes`, then assert with `example` that only `minimalBytes`
 parses. Importing the missing modules must fail.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -286,7 +286,7 @@ cd proofs/lean && lake env lean JackalIv/Spacecraft/CodecFixtures.lean
 
 Expected: missing-module failure.
 
-- [ ] **Step 3: Define exact types**
+- [x] **Step 3: Define exact types**
 
 ```lean
 namespace JackalIv.Spacecraft
@@ -309,19 +309,19 @@ structure BurnWitness where
 end JackalIv.Spacecraft
 ```
 
-- [ ] **Step 4: Implement the proved parser**
+- [x] **Step 4: Implement the proved parser**
 
 Follow the existing `CertCodec.lean` pattern: total `Except String`, no
 `unsafe`, no `native_decide`, no `@[implemented_by]`, and no alternate release
 parser. Enforce all Python codec ceilings and canonicality in the same
 definition used by the executable checker.
 
-- [ ] **Step 5: Verify GREEN and admission scan**
+- [x] **Step 5: Verify GREEN and admission scan**
 
 Run the fixture file, `lake build`, and `tools/lean_admission_audit.py
 --source-check`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add proofs/lean/JackalIv/Spacecraft/Types.lean \
@@ -336,25 +336,25 @@ git commit -m "feat(proof): define spacecraft witness codec"
 - Create: `proofs/lean/JackalIv/Spacecraft/Interval.lean`
 - Create: `proofs/lean/JackalIv/Spacecraft/IntervalFixtures.lean`
 
-- [ ] **Step 1: Write failing containment fixtures**
+- [x] **Step 1: Write failing containment fixtures**
 
 Exercise negative and positive endpoints for add, negation, subtraction,
 multiplication, division with sign-separated denominator, square, hull,
 intersection, and integer square root. Add a deliberate inward-rounded fixture
 that must be rejected.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: missing definitions such as `mem_add` and `sqrt_contains`.
 
-- [ ] **Step 3: Implement executable operations over scaled integers**
+- [x] **Step 3: Implement executable operations over scaled integers**
 
 Use `scale : Int := 2 ^ scaleBits`; define floor/ceiling division explicitly.
 Every operation returns `Except Refusal DInterval` when its domain check can
 fail. Keep executable arithmetic over `Int`; use casts to `ℚ` and `ℝ` only in
 soundness statements.
 
-- [ ] **Step 4: Prove the operator lemmas**
+- [x] **Step 4: Prove the operator lemmas**
 
 The exported theorem set must include:
 
@@ -371,11 +371,11 @@ theorem hull_sound_right : x ∈ᵢ b → x ∈ᵢ hull a b
 Each theorem is proved from integer inequalities; none is a checker
 hypothesis.
 
-- [ ] **Step 5: Run fixtures, build, and `#print axioms`**
+- [x] **Step 5: Run fixtures, build, and `#print axioms`**
 
 Expected theorem dependencies are limited to standard Lean foundations.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add proofs/lean/JackalIv/Spacecraft/Interval.lean \
@@ -389,36 +389,36 @@ git commit -m "proof(spacecraft): verify dyadic interval arithmetic"
 - Create: `proofs/lean/JackalIv/Spacecraft/VectorField.lean`
 - Create: `proofs/lean/JackalIv/Spacecraft/VectorFieldFixtures.lean`
 
-- [ ] **Step 1: Write failing domain and unit fixtures**
+- [x] **Step 1: Write failing domain and unit fixtures**
 
 Assert the exact constants, thrust N-to-km conversion `1/1000`, mass loss
 `-T/(Isp*g0)`, five state coordinates, and refusal whenever `r²`, `v²`, or
 mass can contain zero. A meters-as-kilometers mutation must not satisfy the
 request matcher.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: missing `burnField`, `modelMatches`, and `fieldEnclosed`.
 
-- [ ] **Step 3: Define the real model and interval extension**
+- [x] **Step 3: Define the real model and interval extension**
 
 Use `Fin 5 → ℝ` for the state and a time-independent field during each branch.
 Define the exact ODE formula from the supplied constants and a separate
 executable interval extension. Prove `fieldEnclosed` from Task 5 operator
 lemmas.
 
-- [ ] **Step 4: Prove continuity and local Lipschitz obligations**
+- [x] **Step 4: Prove continuity and local Lipschitz obligations**
 
 On every accepted tube with positive `r²`, `v²`, and mass lower bounds, prove
 the vector field is `ContDiffOn ℝ 1` and derive the `LipschitzOnWith` and norm
 bounds required by `ODE.IsPicardLindelof`.
 
-- [ ] **Step 5: Run fixtures, build, and axiom audit**
+- [x] **Step 5: Run fixtures, build, and axiom audit**
 
 Import `Mathlib.Analysis.ODE.ExistUnique` directly so the exact upstream
 existence theorem is in the source closure.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add proofs/lean/JackalIv/Spacecraft/VectorField.lean \
@@ -765,22 +765,22 @@ git commit -m "docs(spacecraft): publish model-conditional assurance boundary"
 - Modify: `.github/workflows/gaussian-proof-gate.yml`
 - Create: `release/evidence/spacecraft_burn_independent_review_v1.md`
 
-- [ ] **Step 1: Write failing workflow-mechanics tests**
+- [x] **Step 1: Write failing workflow-mechanics tests**
 
 Assert the workflow builds the exact checker target, runs identity and axiom
 gates, executes full witness generation/checking, runs mutation controls,
 checks evidence reproduction, and runs the claim-surface gate.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: workflow file is absent.
 
-- [ ] **Step 3: Add the bounded hosted workflow**
+- [x] **Step 3: Add the bounded hosted workflow**
 
 Use pinned action SHAs and explicit timeouts. Upload evidence logs only; do
 not modify committed evidence in CI.
 
-- [ ] **Step 4: Run an isolated independent review**
+- [x] **Step 4: Run an isolated independent review**
 
 The reviewer receives the approved design, exact candidate commit, proof
 closure, checker, witness, tests, and claim surfaces. The report records each
@@ -788,7 +788,7 @@ finding as `resolved`, `release-blocking`, or `residual-non-claim`, with exact
 file/line evidence and commands. Internal review must not be called external
 peer review.
 
-- [ ] **Step 5: Fix every release-blocking finding with new tests first**
+- [x] **Step 5: Fix every release-blocking finding with new tests first**
 
 Each fix is a new commit; do not amend a pushed review checkpoint.
 

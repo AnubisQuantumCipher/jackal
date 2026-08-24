@@ -70,19 +70,20 @@ def atomic_write(path: Path, data: bytes) -> None:
     os.replace(temporary, path)
 
 
-def install_or_check(staging: Path, check: bool) -> None:
+def install_or_check(staging: Path, check: bool, evidence_dir: Path | None = None) -> None:
+    destination_root = EVIDENCE if evidence_dir is None else evidence_dir.resolve()
     files = expected_files(staging.resolve())
     mismatches = []
     for name, expected in files.items():
-        destination = EVIDENCE / name
+        destination = destination_root / name
         if check:
             if not destination.is_file() or destination.read_bytes() != expected:
                 mismatches.append(name)
         else:
             atomic_write(destination, expected)
-    if check and EVIDENCE.is_dir():
+    if check and destination_root.is_dir():
         allowed = set(files) | ALLOWED_EXTRA
-        for entry in sorted(EVIDENCE.iterdir()):
+        for entry in sorted(destination_root.iterdir()):
             if entry.name not in allowed:
                 mismatches.append(f"unexpected:{entry.name}")
     if mismatches:
@@ -92,9 +93,10 @@ def install_or_check(staging: Path, check: bool) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--staging-dir", type=Path, required=True)
+    parser.add_argument("--evidence-dir", type=Path)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
-    install_or_check(args.staging_dir, args.check)
+    install_or_check(args.staging_dir, args.check, args.evidence_dir)
     print("SPACECRAFT_EVIDENCE_REPRODUCED" if args.check else "SPACECRAFT_EVIDENCE_INSTALLED")
     return 0
 

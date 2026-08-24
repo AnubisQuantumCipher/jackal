@@ -1,0 +1,22 @@
+{
+  "branch_count": 32,
+  "byte_size": 35939138,
+  "cutoff_cell_count": 3072,
+  "formal_checker": {
+    "checker_sha256": "98ed431fb07789d6ca2b6f70e5eb551aef465cd757331f14e727be724376a533",
+    "epoch": "v1.7.4",
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "nonce": "spacecraft-burn-v2-publication-20260824",
+    "proof_identity_digest_sha256": "6d3d45a11570108c00a29caa4e4dcce1af8dd1137d0214673a6eca976fec2461",
+    "proof_identity_file_sha256": "3d3ea0904b571ddc11aaae94e4291dca7bb0f5e93e156a34be06fc7f46fc5071",
+    "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+    "result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.4",
+    "theorem": "spacecraft_burn_certified_safe",
+    "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
+  },
+  "receipt_sha256": "d79186313d87fcda1493545147dcf412da7b44de03dcae441a6f92688a4c4b20",
+  "release_asset": "baseline_witness_v2.cert",
+  "schema": "spacecraft-finite-burn-witness-manifest-v2",
+  "sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c",
+  "tube_count": 124416
+}

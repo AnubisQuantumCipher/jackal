@@ -675,37 +675,37 @@ git commit -m "feat(spacecraft): bind formal checker receipts"
 - Create: `spacecraft_burn_cert/evidence/mutation_aba_v2.json`
 - Create: `spacecraft_burn_cert/evidence/SHA256SUMS`
 
-- [ ] **Step 1: Write failing full-campaign tests**
+- [x] **Step 1: Write failing full-campaign tests**
 
 Require true-answer controls to pass 100%, per-case wrong answers to pass 0%,
 all six original mutations plus witness corruption and chain/coverage mutations
 to refuse, exact source A-B-A restoration, and baseline acceptance before and
 after the campaign.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: current validation still expects old verdicts and lacks formal
 checker evidence.
 
-- [ ] **Step 3: Route every decisive result through the Lean checker**
+- [x] **Step 3: Route every decisive result through the Lean checker**
 
 Nominal RK4 and corner samples remain diagnostics. Step-size variants remain
 rigorous interval cross-checks unless each has its own accepted formal witness.
 
-- [ ] **Step 4: Generate all evidence into a temporary directory**
+- [x] **Step 4: Generate all evidence into a temporary directory**
 
 Run producer, checker, outer verifier, validation, and mutations. Only after
 every command exits zero, atomically replace the new v2 evidence files and
 derive `SHA256SUMS` from bytes. Keep the full witness in the release staging
 directory; commit only its canonical digest/size/count manifest.
 
-- [ ] **Step 5: Reproduce every committed artifact in `--check` mode**
+- [x] **Step 5: Reproduce every committed artifact in `--check` mode**
 
 Run generation twice and require exact byte equality, including the complete
 124,416-step witness. The release asset, not Git history, carries that full
 witness; readback must compare it byte-for-byte.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Stage each named source, test, and v2 evidence file explicitly and commit with
 exact test totals, checker digest, proof-identity digests, witness digest, and

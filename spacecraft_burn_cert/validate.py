@@ -29,6 +29,30 @@ def receipt_interval(payload: dict) -> tuple[Fraction, Fraction]:
     return Fraction(payload["lo_exact"]), Fraction(payload["hi_exact"])
 
 
+def answer_controls() -> dict:
+    """Check a small exact oracle corpus and reject one wrong answer per case."""
+    cases = (
+        ("thrust-scale", Fraction(2000, 1200 * 1000), Fraction(1, 600)),
+        ("mass-flow", Fraction(2000, 450) / Fraction("9.80665"), Fraction(800000, 1765197)),
+        ("kinetic-half", Fraction(8) ** 2 / 2, Fraction(32)),
+        ("apoapsis-plus", Fraction(7000) * (1 + Fraction(1, 10)), Fraction(7700)),
+    )
+    records = []
+    for name, observed, expected in cases:
+        true_pass = observed == expected
+        wrong_pass = observed == expected + 1
+        records.append({"case": name, "true_answer_passed": true_pass, "wrong_answer_passed": wrong_pass})
+    true_passes = sum(record["true_answer_passed"] for record in records)
+    wrong_passes = sum(record["wrong_answer_passed"] for record in records)
+    return {
+        "status": "PASS" if true_passes == len(records) and wrong_passes == 0 else "FAIL",
+        "case_count": len(records),
+        "true_answer_pass_rate": f"{true_passes}/{len(records)}",
+        "wrong_answer_pass_rate": f"{wrong_passes}/{len(records)}",
+        "cases": records,
+    }
+
+
 def analytic_mass_reachable() -> tuple[Fraction, Fraction]:
     denominator = Fraction(450) * Fraction("9.80665")
     lower = Fraction("1198.5") - Fraction(2005) * Fraction("121.5") / denominator
@@ -145,7 +169,7 @@ def corner_diagnostics(receipt: dict, step: Fraction = Fraction(1, 32)) -> dict:
         name: tuple(map(float, receipt_interval(receipt["cutoff_state_hull"][name])))
         for name in ("x", "y", "vx", "vy", "mass")
     }
-    certified_lower = float(Fraction(receipt["decisive_margin"]["reported_lower_exact"]))
+    certified_lower = float(Fraction(receipt["formal_decisive_margin"]["lo_exact"]))
     minimum_margin = math.inf
     minimum_inputs = None
     containment_failures = []
@@ -184,7 +208,9 @@ def step_refinement(receipt: dict) -> dict:
     original_step = certifier.STEP
     records = []
     try:
-        for step_size in (Fraction(1, 16), Fraction(1, 64)):
+        # 1/48 is a strict refinement of the 1/32 baseline while remaining
+        # inside the formal codec's 200,000-tube bound (1/64 would not).
+        for step_size in (Fraction(1, 16), Fraction(1, 48)):
             certifier.STEP = step_size
             result, _witness = certifier.certify()
             records.append(
@@ -225,6 +251,11 @@ def step_refinement(receipt: dict) -> dict:
 
 def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
     receipt = json.loads(baseline_path.read_text(encoding="utf-8"))
+    if receipt.get("formal_checker_status") != "ACCEPT":
+        raise RuntimeError("baseline is not bound to an accepted formal checker execution")
+    formal_margin = receipt_interval(receipt["formal_decisive_margin"])
+    if formal_margin[0] <= 0 or formal_margin[0] > formal_margin[1]:
+        raise RuntimeError("formal decisive margin is not strictly positive")
     actual_tubes = receipt["method"]["tube_count"]
     expected_tubes = receipt["method"]["branch_count"] * int(Fraction("121.5") / Fraction(1, 32))
     actual_posts = receipt["method"]["postprocess_count"]
@@ -253,10 +284,14 @@ def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
 
     nominal_state, nominal_margin = nominal_rk4()
     result = {
-        "schema": "spacecraft-finite-burn-instrument-validation-v1",
+        "schema": "spacecraft-finite-burn-instrument-validation-v2",
         "baseline_receipt_sha256": hashlib.sha256(baseline_path.read_bytes()).hexdigest(),
+        "formal_checker_status": receipt["formal_checker_status"],
+        "formal_checker_binding": receipt["formal_checker"],
+        "formal_decisive_margin": receipt["formal_decisive_margin"],
         "reconciliation": reconciliation,
         "arithmetic_corpus": arithmetic_corpus(),
+        "answer_controls": answer_controls(),
         "analytic_mass": mass_check,
         "nominal_diagnostic": {
             "classification": "numerically estimated diagnostic only",
@@ -286,7 +321,7 @@ def write_atomic(path: Path, payload: dict) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--baseline", type=Path, default=ROOT / "evidence" / "baseline_receipt.json")
+    parser.add_argument("--baseline", type=Path, default=ROOT / "evidence" / "baseline_receipt_v2.json")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--skip-refinement", action="store_true")
     args = parser.parse_args(argv)

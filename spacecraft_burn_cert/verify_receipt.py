@@ -16,6 +16,7 @@ import hashlib
 import itertools
 import json
 import math
+import os
 import subprocess
 from fractions import Fraction
 from pathlib import Path
@@ -654,8 +655,8 @@ def verify_receipt(
     expected_epoch: str | None = None,
     nonce: str | None = None,
 ) -> dict:
-    receipt_path = Path(receipt_path)
-    source_path = Path(source_path)
+    receipt_path = Path(receipt_path).resolve()
+    source_path = Path(source_path).resolve()
     reasons: list[str] = []
     try:
         candidate = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -674,9 +675,9 @@ def verify_receipt(
     formal_reasons = verify_formal_binding(
         candidate,
         receipt_path,
-        witness_path=None if witness_path is None else Path(witness_path),
-        checker_path=None if checker_path is None else Path(checker_path),
-        proof_identity_path=None if proof_identity_path is None else Path(proof_identity_path),
+        witness_path=None if witness_path is None else Path(witness_path).resolve(),
+        checker_path=None if checker_path is None else Path(checker_path).resolve(),
+        proof_identity_path=None if proof_identity_path is None else Path(proof_identity_path).resolve(),
         expected_receipt_sha256=expected_receipt_sha256,
         expected_proof_file_sha256=expected_proof_file_sha256,
         expected_proof_identity_sha256=expected_proof_identity_sha256,
@@ -774,6 +775,17 @@ def verify_receipt(
     return {
         "status": "ACCEPT" if not reasons else "REFUSED",
         "reasons": sorted(set(reasons)),
+        "binding": {
+            "receipt_sha256": sha256_file(receipt_path),
+            "witness_sha256": sha256_file(Path(witness_path).resolve()),
+            "checker_sha256": sha256_file(Path(checker_path).resolve()),
+            "proof_identity_file_sha256": sha256_file(Path(proof_identity_path).resolve()),
+            "proof_identity_digest_sha256": expected_proof_identity_sha256,
+            "request_digest": expected_request_digest,
+            "model_id": expected_model_id,
+            "epoch": expected_epoch,
+            "nonce": nonce,
+        },
         "symbolic_identities": identities,
         "replay": {
             "trace_sha256": expected["trace_sha256"],
@@ -798,6 +810,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--expected-model-id", required=True)
     parser.add_argument("--expected-epoch", required=True)
     parser.add_argument("--nonce", required=True)
+    parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     result = verify_receipt(
         args.receipt, args.source,
@@ -812,7 +825,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         expected_epoch=args.expected_epoch,
         nonce=args.nonce,
     )
-    print(json.dumps(result, sort_keys=True, indent=2))
+    rendered = json.dumps(result, sort_keys=True, indent=2) + "\n"
+    if args.output:
+        destination = args.output.resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(f".{destination.name}.tmp-{os.getpid()}")
+        with temporary.open("xb") as stream:
+            stream.write(rendered.encode("utf-8"))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+        print(f"INDEPENDENT_VERIFICATION_{result['status']} output={destination}")
+    else:
+        print(rendered, end="")
     return 0 if result["status"] == "ACCEPT" else 2
 
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import unittest
+from unittest import mock
+import tempfile
 from fractions import Fraction
 from pathlib import Path
 
@@ -24,6 +26,51 @@ def load_validator(testcase: unittest.TestCase):
 
 
 class InstrumentValidationTests(unittest.TestCase):
+    def test_true_answer_controls_pass_and_wrong_answers_never_pass(self):
+        result = load_validator(self).answer_controls()
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["true_answer_pass_rate"], f"{result['case_count']}/{result['case_count']}")
+        self.assertEqual(result["wrong_answer_pass_rate"], f"0/{result['case_count']}")
+
+    def test_validation_refuses_unbound_candidate_receipt(self):
+        validator = load_validator(self)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "candidate.json"
+            path.write_text(json.dumps({"formal_checker_status": "NOT_EXECUTED"}))
+            with self.assertRaisesRegex(RuntimeError, "not bound"):
+                validator.validate(path, include_refinement=False)
+
+    def test_publication_binding_uses_checker_margin_as_decisive(self):
+        certifier_path = ROOT / "certify.py"
+        spec = importlib.util.spec_from_file_location("binding_certifier", certifier_path)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        certifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(certifier)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            witness = base / "witness.cert"
+            checker = base / "checker"
+            identity = base / "identity.json"
+            witness.write_bytes(b"witness")
+            checker.write_bytes(b"checker")
+            identity.write_text(json.dumps({"identity_digest_sha256": "a" * 64}))
+            receipt = {"evidence_classification": {}, "non_claims": []}
+            line = (
+                "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
+                "margin_lo=5 margin_hi=9 model=model-v2 epoch=v1.7.4\n"
+            )
+            completed = mock.Mock(returncode=0, stdout=line, stderr="")
+            with mock.patch.object(certifier.subprocess, "run", return_value=completed) as run_checker:
+                certifier.bind_formal_checker(
+                    receipt, witness, checker, identity, "b" * 64,
+                    "model-v2", "v1.7.4", "nonce-v1",
+                )
+            self.assertEqual(receipt["formal_checker_status"], "ACCEPT")
+            self.assertEqual(receipt["formal_decisive_margin"]["lo_scaled_integer"], "5")
+            self.assertEqual(receipt["evidence_classification"]["overall"], "formal-bounded")
+            run_checker.assert_called_once()
+
     def test_analytic_mass_reachable_set_is_inside_certified_hull(self):
         validator = load_validator(self)
         receipt = json.loads(BASELINE.read_text())

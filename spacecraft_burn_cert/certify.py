@@ -25,6 +25,8 @@ import itertools
 import json
 import math
 import os
+import re
+import subprocess
 from decimal import Decimal, localcontext
 from fractions import Fraction
 from pathlib import Path
@@ -53,6 +55,12 @@ VERDICT_INDETERMINATE = "INDETERMINATE"
 MODEL_QUALIFIER = (
     "under the stated finite-burn ODE model, supplied input bounds, "
     "and machine-checked interval-certificate assumptions"
+)
+FORMAL_THEOREM = "spacecraft_burn_certified_safe"
+FORMAL_RESULT_RE = re.compile(
+    r"^ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
+    r"margin_lo=(-?[0-9]+) margin_hi=(-?[0-9]+) "
+    r"model=([^ ]+) epoch=([^ ]+)$"
 )
 
 
@@ -449,6 +457,87 @@ def producer_status() -> dict[str, str]:
     }
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def bind_formal_checker(
+    receipt: dict,
+    witness_path: Path,
+    checker_path: Path,
+    proof_identity_path: Path,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+    nonce: str,
+) -> None:
+    """Bind an accepted exact checker execution to a publication receipt."""
+    if any(path.is_symlink() or not path.is_file() for path in (
+        witness_path, checker_path, proof_identity_path
+    )):
+        raise CertificationError("formal binding inputs must be regular non-symlink files")
+    try:
+        identity = json.loads(proof_identity_path.read_text(encoding="utf-8"))
+        identity_digest = identity["identity_digest_sha256"]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise CertificationError("invalid proof identity") from error
+    completed = subprocess.run(
+        [str(checker_path), str(witness_path), request_digest, model_id, epoch],
+        cwd=checker_path.parent,
+        env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    if completed.returncode != 0 or completed.stderr:
+        raise CertificationError("formal checker refused or emitted stderr")
+    result_line = completed.stdout.removesuffix("\n")
+    if "\n" in result_line or "\r" in result_line:
+        raise CertificationError("formal checker output is not one canonical line")
+    match = FORMAL_RESULT_RE.fullmatch(result_line)
+    if match is None or match.group(3) != model_id or match.group(4) != epoch:
+        raise CertificationError("formal checker output does not match requested binding")
+    margin_lo, margin_hi = int(match.group(1)), int(match.group(2))
+    if margin_lo <= 0 or margin_lo > margin_hi:
+        raise CertificationError("formal checker returned a non-positive or invalid margin")
+    receipt["formal_checker_status"] = "ACCEPT"
+    receipt["formal_checker"] = {
+        "checker_sha256": sha256_file(checker_path),
+        "proof_identity_file_sha256": sha256_file(proof_identity_path),
+        "proof_identity_digest_sha256": identity_digest,
+        "witness_sha256": sha256_file(witness_path),
+        "request_digest": request_digest,
+        "model_id": model_id,
+        "epoch": epoch,
+        "nonce": nonce,
+        "theorem": FORMAL_THEOREM,
+        "result_line": result_line,
+    }
+    receipt["formal_decisive_margin"] = {
+        "scale_bits": SCALE_BITS,
+        "lo_scaled_integer": str(margin_lo),
+        "hi_scaled_integer": str(margin_hi),
+        "lo_exact": fraction_text(Fraction(margin_lo, SCALE)),
+        "hi_exact": fraction_text(Fraction(margin_hi, SCALE)),
+        "lo_decimal": decimal_text(Fraction(margin_lo, SCALE)),
+        "hi_decimal": decimal_text(Fraction(margin_hi, SCALE)),
+    }
+    receipt["evidence_classification"].update({
+        "ode_reachable_set": "formal-bounded by the pinned Lean certificate checker",
+        "orbital_algebra": "formal-bounded by the pinned Lean certificate checker",
+        "overall": "formal-bounded",
+    })
+    receipt["non_claims"] = [
+        "The theorem is conditional on the stated finite-burn ODE model and supplied input bounds.",
+        "The Lean kernel, compiler, runtime, checker executable, and declared axioms remain trusted components.",
+        "The formal lower endpoint is a certified lower bound, not the exact mathematical infimum.",
+        "No Monte Carlo or nominal trajectory supports the universal verdict.",
+    ]
+
+
 def partition(lo: Fraction, hi: Fraction, count: int) -> tuple[DInterval, ...]:
     width = (hi - lo) / count
     return tuple(
@@ -727,11 +816,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
     parser.add_argument("--witness", type=Path)
+    parser.add_argument("--checker", type=Path)
+    parser.add_argument("--proof-identity", type=Path)
+    parser.add_argument("--request-digest")
+    parser.add_argument("--model-id")
+    parser.add_argument("--epoch")
+    parser.add_argument("--nonce")
     args = parser.parse_args(argv)
+    formal_values = (
+        args.checker, args.proof_identity, args.request_digest,
+        args.model_id, args.epoch, args.nonce,
+    )
+    if any(value is not None for value in formal_values) and (
+        any(value is None for value in formal_values)
+        or args.witness is None
+        or args.output is None
+    ):
+        parser.error("formal publication requires output, witness, and every formal binding argument")
     receipt, witness = certify()
     encoded_witness = witness_codec.encode_witness(witness)
     if args.witness:
         write_bytes_atomic(args.witness, encoded_witness)
+    if args.checker is not None:
+        bind_formal_checker(
+            receipt, args.witness.resolve(), args.checker.resolve(),
+            args.proof_identity.resolve(), args.request_digest, args.model_id,
+            args.epoch, args.nonce,
+        )
     if args.output:
         write_json_atomic(args.output, receipt)
         print(format_summary(receipt, args.output.resolve()))

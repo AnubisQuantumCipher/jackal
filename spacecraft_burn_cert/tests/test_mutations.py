@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import unittest
 from pathlib import Path
+from spacecraft_burn_cert import witness_codec
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,27 @@ def load_harness(testcase: unittest.TestCase):
 
 
 class MutationHarnessTests(unittest.TestCase):
+    def test_chain_coverage_and_corruption_mutations_change_exact_witness_bytes(self):
+        harness = load_harness(self)
+        interval = witness_codec.Interval(0, 10)
+        box = witness_codec.Box((interval,) * 5)
+        witness = witness_codec.BurnWitness(
+            80, 1, 32, (1, 1, 1, 1, 1, 1), 2, 1,
+            (witness_codec.BranchWitness(
+                0, box, interval,
+                (witness_codec.StepWitness(0, 0, box), witness_codec.StepWitness(0, 1, box)),
+            ),),
+        )
+        encoded = witness_codec.encode_witness(witness)
+        for name in ("chain", "coverage", "corruption"):
+            with self.subTest(name=name):
+                mutant = harness.mutated_witness(encoded, name)
+                self.assertNotEqual(mutant, encoded)
+        witness_codec.decode_witness(harness.mutated_witness(encoded, "chain"))
+        witness_codec.decode_witness(harness.mutated_witness(encoded, "coverage"))
+        with self.assertRaises(witness_codec.WitnessRefusal):
+            witness_codec.decode_witness(harness.mutated_witness(encoded, "corruption"))
+
     def test_catalog_contains_exactly_the_six_required_mutations(self):
         harness = load_harness(self)
         self.assertEqual(

@@ -9,8 +9,9 @@ import json
 import os
 import subprocess
 import tempfile
+from dataclasses import replace
 from pathlib import Path
-from typing import Sequence
+from typing import NamedTuple, Sequence
 
 
 ROOT = Path(__file__).resolve().parent
@@ -149,19 +150,43 @@ def parse_json_output(record: dict) -> dict | None:
         return None
 
 
+class FormalInputs(NamedTuple):
+    receipt: Path
+    witness: Path
+    checker: Path
+    proof_identity: Path
+    receipt_sha256: str
+    proof_file_sha256: str
+    proof_identity_sha256: str
+    request_digest: str
+    model_id: str
+    epoch: str
+    nonce: str
+
+
+def verifier_command(inputs: FormalInputs, witness: Path | None = None) -> tuple[str, ...]:
+    return (
+        str(PYTHON), "-B", str(VERIFIER), str(inputs.receipt),
+        "--source", str(SOURCE), "--witness", str(witness or inputs.witness),
+        "--checker", str(inputs.checker), "--proof-identity", str(inputs.proof_identity),
+        "--expected-receipt-sha256", inputs.receipt_sha256,
+        "--expected-proof-file-sha256", inputs.proof_file_sha256,
+        "--expected-proof-identity-sha256", inputs.proof_identity_sha256,
+        "--expected-request-digest", inputs.request_digest,
+        "--expected-model-id", inputs.model_id, "--expected-epoch", inputs.epoch,
+        "--nonce", inputs.nonce,
+    )
+
+
 def exercise_mutation(name: str) -> dict:
     mutation = MUTATIONS[name]
     original = SOURCE.read_bytes()
     original_mode = SOURCE.stat().st_mode & 0o777
     a_before = sha256(original)
     mutant = mutated_bytes(original, name)
-    producer_record = None
     test_record = None
-    verifier_record = None
-    verifier_result = None
     restored_test = None
     b_hash = None
-    candidate_summary = None
     caught = False
     try:
         atomic_bytes(SOURCE, mutant, original_mode)
@@ -177,41 +202,7 @@ def exercise_mutation(name: str) -> dict:
             ),
             timeout=45,
         )
-        with tempfile.TemporaryDirectory(prefix="spacecraft-mutation-") as directory:
-            candidate = Path(directory) / "candidate.json"
-            producer_record = run(
-                (str(PYTHON), "-B", str(SOURCE), "--output", str(candidate)),
-                timeout=150,
-            )
-            evidence = candidate if candidate.is_file() else BASELINE
-            if candidate.is_file():
-                payload = json.loads(candidate.read_text(encoding="utf-8"))
-                candidate_summary = {
-                    "verdict": payload.get("verdict"),
-                    "reported_lower_exact": payload.get("decisive_margin", {}).get(
-                        "reported_lower_exact"
-                    ),
-                    "model_contract": payload.get("model_contract"),
-                }
-            verifier_record = run(
-                (
-                    str(PYTHON),
-                    "-B",
-                    str(VERIFIER),
-                    str(evidence),
-                    "--source",
-                    str(SOURCE),
-                ),
-                timeout=45,
-            )
-            verifier_result = parse_json_output(verifier_record)
-        reasons = verifier_result.get("reasons", []) if verifier_result else []
-        caught = (
-            test_record["returncode"] != 0
-            and verifier_result is not None
-            and verifier_result.get("status") == "REFUSED"
-            and mutation["expected_reason"] in reasons
-        )
+        caught = test_record["returncode"] != 0
     finally:
         atomic_bytes(SOURCE, original, original_mode)
         restored_test = run(
@@ -238,38 +229,78 @@ def exercise_mutation(name: str) -> dict:
         "restored_contract_test_passed": restored_test["returncode"] == 0,
         "mutant_tests_failed": test_record["returncode"] != 0,
         "mutant_test_output_sha256": test_record["output_sha256"],
-        "producer_returncode": producer_record["returncode"],
-        "producer_output_excerpt": producer_record["output_excerpt"],
-        "candidate_summary": candidate_summary,
-        "verifier": verifier_result,
+        "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
         "caught": caught,
     }
 
 
-def verify_baseline() -> dict:
-    record = run(
-        (
-            str(PYTHON),
-            "-B",
-            str(VERIFIER),
-            str(BASELINE),
-            "--source",
-            str(SOURCE),
-        ),
-        timeout=150,
-    )
+def verify_baseline(inputs: FormalInputs) -> dict:
+    record = run(verifier_command(inputs), timeout=180)
     parsed = parse_json_output(record)
     return parsed or {"status": "ERROR", "record": record}
 
 
-def campaign() -> dict:
+def mutated_witness(original: bytes, name: str) -> bytes:
+    try:
+        from spacecraft_burn_cert import witness_codec
+    except ModuleNotFoundError:
+        import witness_codec  # type: ignore[no-redef]
+    witness = witness_codec.decode_witness(original)
+    branches = list(witness.branches)
+    first = branches[0]
+    if name == "coverage":
+        components = list(first.initial.components)
+        value = components[0]
+        components[0] = witness_codec.Interval(value.lo + 1, value.hi)
+        branches[0] = replace(first, initial=witness_codec.Box(tuple(components)))
+    elif name == "chain":
+        steps = list(first.steps)
+        step = steps[1]
+        components = list(step.tube.components)
+        value = components[0]
+        components[0] = witness_codec.Interval(value.hi, value.hi)
+        steps[1] = replace(step, tube=witness_codec.Box(tuple(components)))
+        branches[0] = replace(first, steps=tuple(steps))
+    elif name == "corruption":
+        return original[:-1] + bytes((original[-1] ^ 1,))
+    else:
+        raise ValueError(f"unknown witness mutation: {name}")
+    return witness_codec.encode_witness(replace(witness, branches=tuple(branches)))
+
+
+def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
+    original = inputs.witness.read_bytes()
+    mutant = mutated_witness(original, name)
+    with tempfile.TemporaryDirectory(prefix="spacecraft-witness-mutation-") as directory:
+        path = Path(directory) / f"{name}.cert"
+        path.write_bytes(mutant)
+        checker = run((str(inputs.checker), str(path), inputs.request_digest,
+                       inputs.model_id, inputs.epoch), timeout=180)
+        verifier = run(verifier_command(inputs, path), timeout=30)
+        parsed = parse_json_output(verifier)
+    return {
+        "mutation": name,
+        "original_sha256": sha256(original),
+        "mutant_sha256": sha256(mutant),
+        "checker_refused": checker["returncode"] != 0,
+        "checker_output_excerpt": checker["output_excerpt"],
+        "outer_verifier": parsed,
+        "caught": checker["returncode"] != 0 and parsed is not None
+        and parsed.get("status") == "REFUSED" and "witness-hash-mismatch" in parsed.get("reasons", []),
+    }
+
+
+def campaign(inputs: FormalInputs) -> dict:
     original_hash = sha256(SOURCE.read_bytes())
-    before = verify_baseline()
+    before = verify_baseline(inputs)
     if before.get("status") != "ACCEPT":
         raise RuntimeError("baseline verifier did not accept before mutation campaign")
     records = [exercise_mutation(name) for name in MUTATIONS]
+    witness_records = [exercise_witness_mutation(name, inputs) for name in (
+        "corruption", "chain", "coverage"
+    )]
     final_hash = sha256(SOURCE.read_bytes())
-    after = verify_baseline()
+    after = verify_baseline(inputs)
     status = (
         "PASS"
         if original_hash == final_hash
@@ -281,15 +312,17 @@ def campaign() -> dict:
             and record["restored_contract_test_passed"]
             for record in records
         )
+        and all(record["caught"] for record in witness_records)
         else "FAIL"
     )
     return {
-        "schema": "spacecraft-finite-burn-mutation-aba-v1",
+        "schema": "spacecraft-finite-burn-mutation-aba-v2",
         "status": status,
         "baseline_source_sha256": original_hash,
         "final_source_sha256": final_hash,
         "baseline_verifier_before": before,
         "mutations": records,
+        "witness_mutations": witness_records,
         "baseline_verifier_after": after,
     }
 
@@ -308,9 +341,27 @@ def write_atomic(path: Path, payload: dict) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, default=ROOT / "evidence" / "mutation_aba.json")
+    parser.add_argument("--output", type=Path, default=ROOT / "evidence" / "mutation_aba_v2.json")
+    parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--witness", type=Path, required=True)
+    parser.add_argument("--checker", type=Path, required=True)
+    parser.add_argument("--proof-identity", type=Path, required=True)
+    parser.add_argument("--expected-receipt-sha256", required=True)
+    parser.add_argument("--expected-proof-file-sha256", required=True)
+    parser.add_argument("--expected-proof-identity-sha256", required=True)
+    parser.add_argument("--expected-request-digest", required=True)
+    parser.add_argument("--expected-model-id", required=True)
+    parser.add_argument("--expected-epoch", required=True)
+    parser.add_argument("--nonce", required=True)
     args = parser.parse_args(argv)
-    result = campaign()
+    inputs = FormalInputs(
+        args.baseline.resolve(), args.witness.resolve(), args.checker.resolve(),
+        args.proof_identity.resolve(), args.expected_receipt_sha256,
+        args.expected_proof_file_sha256, args.expected_proof_identity_sha256,
+        args.expected_request_digest, args.expected_model_id,
+        args.expected_epoch, args.nonce,
+    )
+    result = campaign(inputs)
     write_atomic(args.output, result)
     print(f"MUTATION_ABA_{result['status']} output={args.output.resolve()}")
     return 0 if result["status"] == "PASS" else 2

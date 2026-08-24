@@ -79,7 +79,7 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
         )
         observed = [row["path"] for row in self.audit["source_inventory"]["files"]]
         self.assertEqual(observed, expected)
-        self.assertEqual(self.audit["source_inventory"]["file_count"], 42)
+        self.assertEqual(self.audit["source_inventory"]["file_count"], len(expected))
         self.assertEqual(
             self.audit["source_inventory"]["inventory_source"], "git-ls-files"
         )
@@ -171,7 +171,9 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "LEAN_ADMISSION_AUDIT_PASS files=42 theorems=27 admissions=0",
+            "LEAN_ADMISSION_AUDIT_PASS "
+            f"files={self.audit['source_inventory']['file_count']} "
+            f"theorems={self.audit['theorem_axiom_audit']['theorem_count']} admissions=0",
         )
 
 

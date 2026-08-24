@@ -233,20 +233,27 @@ candidate:
 - required machine-readable completed independent-review clearance before the
   packager can create release-named assets.
 
-## Pass 12 status
+## Pass 12
 
-The clean-worktree review of the Pass-11 fixes is pending. The machine-readable
-clearance remains `pending`, so release asset creation is fail-closed.
+Reviewed clean committed branch head:
+`1b8d33e263b6283d784c266172aa05ff7f0834e5`.
+
+CodeRabbit raised one issue: the same request-digest mismatch claim. The
+suggested 64-character value is exactly the value already present in the
+workflow, request bytes, Lean binding, receipt, and packager, so the finding is
+invalid. No valid release-blocking findings remain. This pass also reviewed the
+platform-bound hosted campaign and mechanically derived 57-file audit-count
+fixes added after Pass 11.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
 | resolved | 61 | fixed with tests; final push pending |
-| invalid | 9 | request digest independently matched |
+| invalid | 10 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
-| unresolved release-blocking | 0 known | final independent retry pending |
+| unresolved release-blocking | 0 | Pass 12 complete |
 
-No publication or merge may use this record as a final clearance until the
-Pass 12 section records a completed review result and the machine-readable
-clearance is transitioned to complete.
+Pass 12 is the completed independent-review clearance for the release
+candidate. Merge and publication remain separately conditional on green hosted
+checks and downloaded release-asset readback.

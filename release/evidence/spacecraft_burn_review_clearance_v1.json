@@ -1,6 +1,6 @@
 {
-  "completed_pass": null,
+  "completed_pass": 12,
   "schema": "jackal-spacecraft-independent-review-clearance-v1",
-  "status": "pending",
-  "unresolved_release_blocking": null
+  "status": "complete",
+  "unresolved_release_blocking": 0
 }

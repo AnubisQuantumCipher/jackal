@@ -27,8 +27,9 @@
     "symbolic_identities": {
       "angular_momentum_lagrange_identity": true,
       "apoapsis_plus_expansion": true,
+      "eccentricity_energy_momentum_identity": true,
       "eccentricity_vector_reduction": true,
-      "vis_viva_cleared_denominator_expansion": true
+      "vis_viva_cleared_denominator_identity": true
     }
   },
   "baseline_verifier_before": {
@@ -58,8 +59,9 @@
     "symbolic_identities": {
       "angular_momentum_lagrange_identity": true,
       "apoapsis_plus_expansion": true,
+      "eccentricity_energy_momentum_identity": true,
       "eccentricity_vector_reduction": true,
-      "vis_viva_cleared_denominator_expansion": true
+      "vis_viva_cleared_denominator_identity": true
     }
   },
   "final_source_sha256": "c871d943a9c9ff12b12f4688d72278270c544a4a3d5ed9e8284257140157db3b",

@@ -17,6 +17,7 @@ import itertools
 import json
 import math
 import os
+import re
 import subprocess
 import tempfile
 from fractions import Fraction
@@ -406,19 +407,41 @@ def verify_symbolic_identities() -> dict[str, bool]:
     relation = poly_sub(poly_sub(poly_mul(velocity, radius2), radial2), h2)
     factored = poly_mul(poly_sub(velocity, two_q), relation)
 
-    variables3 = 4
-    speed2, radius, axis3, mu = (poly_var(i, variables3) for i in range(variables3))
-    two = poly_const(2, variables3)
-    cleared_vis_viva = poly_add(
-        poly_sub(
-            poly_mul(poly_mul(axis3, radius), speed2),
-            poly_mul(poly_mul(two, axis3), mu),
-        ),
-        poly_mul(mu, radius),
+    variables3 = 7
+    radius, speed2, energy, axis3, eccentricity2, h_squared, mu = (
+        poly_var(i, variables3) for i in range(variables3)
     )
-    factored_vis_viva = poly_add(
-        poly_mul(axis3, poly_sub(poly_mul(radius, speed2), poly_mul(two, mu))),
-        poly_mul(mu, radius),
+    two = poly_const(2, variables3)
+    radius_speed_minus_gravity = poly_sub(
+        poly_mul(radius, speed2), poly_mul(two, mu)
+    )
+    energy_residual = poly_sub(
+        poly_mul(poly_mul(two, radius), energy), radius_speed_minus_gravity
+    )
+    axis_residual = poly_add(
+        poly_mul(poly_mul(two, energy), axis3), mu
+    )
+    vis_viva_residual = poly_add(
+        poly_mul(axis3, radius_speed_minus_gravity), poly_mul(mu, radius)
+    )
+    vis_viva_from_definitions = poly_sub(
+        poly_mul(radius, axis_residual), poly_mul(axis3, energy_residual)
+    )
+    mu_squared = poly_pow(mu, 2)
+    eccentricity_residual = poly_sub(
+        poly_sub(poly_mul(mu_squared, eccentricity2), mu_squared),
+        poly_mul(poly_mul(two, energy), h_squared),
+    )
+    eccentricity_energy_momentum_residual = poly_sub(
+        poly_sub(
+            poly_mul(poly_mul(radius, mu_squared), eccentricity2),
+            poly_mul(radius, mu_squared),
+        ),
+        poly_mul(h_squared, radius_speed_minus_gravity),
+    )
+    eccentricity_from_definitions = poly_add(
+        poly_mul(radius, eccentricity_residual),
+        poly_mul(h_squared, energy_residual),
     )
 
     variables4 = 2
@@ -428,8 +451,11 @@ def verify_symbolic_identities() -> dict[str, bool]:
     return {
         "angular_momentum_lagrange_identity": not lagrange,
         "eccentricity_vector_reduction": not poly_sub(poly_sub(raw, target), factored),
-        "vis_viva_cleared_denominator_expansion": not poly_sub(
-            cleared_vis_viva, factored_vis_viva
+        "vis_viva_cleared_denominator_identity": not poly_sub(
+            vis_viva_residual, vis_viva_from_definitions
+        ),
+        "eccentricity_energy_momentum_identity": not poly_sub(
+            eccentricity_energy_momentum_residual, eccentricity_from_definitions
         ),
         "apoapsis_plus_expansion": not poly_sub(apo, apo_expanded),
     }
@@ -482,6 +508,21 @@ MODEL_QUALIFIER = (
     "under the stated finite-burn ODE model, supplied input bounds, "
     "and machine-checked interval-certificate assumptions"
 )
+
+
+def checker_acceptance_line(line: str, model_id: str, epoch: str) -> bool:
+    match = re.fullmatch(
+        r"ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
+        r"margin_lo=([0-9]+) margin_hi=([0-9]+) model="
+        + re.escape(model_id)
+        + r" epoch="
+        + re.escape(epoch),
+        line,
+    )
+    if match is None:
+        return False
+    margin_lo, margin_hi = map(int, match.groups())
+    return 0 < margin_lo <= margin_hi
 
 
 def sha256_file(path: Path) -> str:
@@ -652,7 +693,9 @@ def verify_formal_binding(
     if candidate.get("verdict_qualifier") != MODEL_QUALIFIER:
         reasons.append("verdict-qualifier-mismatch")
     result_line = binding.get("result_line")
-    if not isinstance(result_line, str) or "\n" in result_line or "\r" in result_line:
+    if not isinstance(result_line, str) or not checker_acceptance_line(
+        result_line, expected_model_id, expected_epoch
+    ):
         reasons.append("checker-result-line-invalid")
     if reasons:
         return sorted(set(reasons)), {}

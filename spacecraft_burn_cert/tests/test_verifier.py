@@ -98,8 +98,26 @@ class IndependentVerifierTests(unittest.TestCase):
         results = verifier.verify_symbolic_identities()
         self.assertTrue(results)
         self.assertTrue(all(results.values()))
-        self.assertIn("vis_viva_cleared_denominator_expansion", results)
+        self.assertIn("vis_viva_cleared_denominator_identity", results)
+        self.assertIn("eccentricity_energy_momentum_identity", results)
+        self.assertNotIn("vis_viva_cleared_denominator_expansion", results)
         self.assertNotIn("energy_definition_substitution", results)
+
+    def test_checker_acceptance_line_requires_exact_contract(self):
+        verifier = load_verifier(self)
+        accepted = (
+            "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
+            "margin_lo=1 margin_hi=2 model=" + MODEL_ID + " epoch=" + EPOCH
+        )
+        self.assertTrue(verifier.checker_acceptance_line(accepted, MODEL_ID, EPOCH))
+        for rejected in (
+            "REJECT request-digest",
+            accepted.replace("margin_lo=1", "margin_lo=0"),
+            accepted.replace("model=" + MODEL_ID, "model=wrong"),
+            accepted + " appended",
+        ):
+            with self.subTest(rejected=rejected):
+                self.assertFalse(verifier.checker_acceptance_line(rejected, MODEL_ID, EPOCH))
 
     def test_legacy_v1_receipt_is_never_promoted(self):
         verifier = load_verifier(self)

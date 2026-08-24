@@ -25,7 +25,8 @@
   "symbolic_identities": {
     "angular_momentum_lagrange_identity": true,
     "apoapsis_plus_expansion": true,
+    "eccentricity_energy_momentum_identity": true,
     "eccentricity_vector_reduction": true,
-    "vis_viva_cleared_denominator_expansion": true
+    "vis_viva_cleared_denominator_identity": true
   }
 }

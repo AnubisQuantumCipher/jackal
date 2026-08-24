@@ -246,20 +246,49 @@ next candidate with a test derived from the actual request bytes. This pass
 also reviewed the platform-bound hosted campaign and mechanically derived
 57-file audit-count fixes added after Pass 11.
 
-## Pass 13 status
+### Digest-disposition correction
 
-The clean-worktree review of the corrected 64-character workflow binding is
-pending. Machine-readable clearance is reopened and release packaging is
-fail-closed until that review completes.
+The Pass 1 through Pass 10 paragraphs that label the repeated workflow
+request-digest finding `invalid` are superseded by Pass 12 and this section.
+The workflow value was 60 characters, not 64, and hosted checker execution
+returned `REJECT request-digest`. All ten repeated findings are therefore
+reclassified as valid and resolved by the mechanically checked 64-character
+workflow binding in the Pass-12 fix candidate.
+
+## Pass 13
+
+Reviewed clean committed branch head:
+`f7193b247c64757b0cd2da1ed02dc1240c285b55`.
+
+CodeRabbit raised 3 issues. All three were confirmed and resolved in the next
+candidate:
+
+- added this explicit correction so the earlier digest narratives cannot be
+  mistaken for the superseding disposition;
+- replaced tautological vis-viva/apoapsis expansion comparisons with residual
+  identities linking energy, semimajor axis, eccentricity squared, angular
+  momentum, radius, speed squared, and gravitational parameter; and
+- independently required the exact positive checker acceptance-line grammar,
+  positive ordered margins, bound model, and bound epoch before comparing the
+  checker output with the receipt line. A request-digest rejection cannot match
+  that grammar.
+
+The regenerated independent-verification and mutation evidence accepts with
+the new residual identity names and exact checker-output contract.
+
+## Pass 14 status
+
+The clean-worktree review of the Pass-13 verifier fixes is pending. The
+machine-readable clearance remains pending and packaging remains fail-closed.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 71 | fixed with tests; digest repetitions reclassified valid |
+| resolved | 74 | fixed with tests; digest repetitions reclassified valid |
 | invalid | 0 | none |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
-| unresolved release-blocking | 1 | Pass 13 retry pending |
+| unresolved release-blocking | 0 known | Pass 14 retry pending |
 
-No merge or publication may proceed until Pass 13 records zero unresolved
+No merge or publication may proceed until Pass 14 records zero unresolved
 release-blocking findings and machine-readable clearance returns to complete.

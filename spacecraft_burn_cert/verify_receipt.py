@@ -405,15 +405,19 @@ def verify_symbolic_identities() -> dict[str, bool]:
     relation = poly_sub(poly_sub(poly_mul(velocity, radius2), radial2), h2)
     factored = poly_mul(poly_sub(velocity, two_q), relation)
 
-    variables3 = 3
-    energy, speed2, potential = (poly_var(i, variables3) for i in range(variables3))
-    energy_definition = poly_sub(
-        poly_mul(poly_const(2, variables3), energy),
-        poly_sub(speed2, poly_mul(poly_const(2, variables3), potential)),
+    variables3 = 4
+    speed2, radius, axis3, mu = (poly_var(i, variables3) for i in range(variables3))
+    two = poly_const(2, variables3)
+    cleared_vis_viva = poly_add(
+        poly_sub(
+            poly_mul(poly_mul(axis3, radius), speed2),
+            poly_mul(poly_mul(two, axis3), mu),
+        ),
+        poly_mul(mu, radius),
     )
-    energy_substitution = poly_sub(
-        poly_sub(speed2, poly_mul(poly_const(2, variables3), potential)),
-        poly_mul(poly_const(2, variables3), energy),
+    factored_vis_viva = poly_add(
+        poly_mul(axis3, poly_sub(poly_mul(radius, speed2), poly_mul(two, mu))),
+        poly_mul(mu, radius),
     )
 
     variables4 = 2
@@ -423,7 +427,9 @@ def verify_symbolic_identities() -> dict[str, bool]:
     return {
         "angular_momentum_lagrange_identity": not lagrange,
         "eccentricity_vector_reduction": not poly_sub(poly_sub(raw, target), factored),
-        "energy_definition_substitution": not poly_add(energy_definition, energy_substitution),
+        "vis_viva_cleared_denominator_expansion": not poly_sub(
+            cleared_vis_viva, factored_vis_viva
+        ),
         "apoapsis_plus_expansion": not poly_sub(apo, apo_expanded),
     }
 

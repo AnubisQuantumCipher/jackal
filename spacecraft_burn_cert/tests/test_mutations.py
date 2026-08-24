@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from spacecraft_burn_cert import witness_codec
 
@@ -23,11 +24,51 @@ def load_harness(testcase: unittest.TestCase):
 
 
 class MutationHarnessTests(unittest.TestCase):
+    def test_witness_timeout_cannot_pass_the_integrated_mutation_path(self):
+        harness = load_harness(self)
+        interval = witness_codec.Interval(0, 10)
+        box = witness_codec.Box((interval,) * 5)
+        witness = witness_codec.BurnWitness(
+            80, 1, 32, (1, 1, 1, 1, 1, 1), 2, 1,
+            (witness_codec.BranchWitness(0, box, interval, (
+                witness_codec.StepWitness(0, 0, box),
+                witness_codec.StepWitness(0, 1, box),
+            )),),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            witness_path = root / "witness.cert"
+            witness_path.write_bytes(witness_codec.encode_witness(witness))
+            inputs = harness.FormalInputs(
+                root / "receipt.json", witness_path, root / "checker",
+                root / "identity.json", "a" * 64, "b" * 64, "c" * 64,
+                "d" * 64, "model", "epoch", "nonce",
+            )
+            timed_out = {"returncode": 124, "output": "", "output_sha256": "0", "output_excerpt": ""}
+            refused = {
+                "returncode": 2,
+                "output": '{"status":"REFUSED","reasons":["witness-hash-mismatch"]}',
+                "output_sha256": "1", "output_excerpt": "",
+            }
+            with mock.patch.object(harness, "run", side_effect=(timed_out, refused)):
+                result = harness.exercise_witness_mutation("corruption", inputs)
+            self.assertTrue(result["checker_timed_out"])
+            self.assertFalse(result["checker_refused"])
+            self.assertFalse(result["caught"])
+
     def test_timeout_is_not_counted_as_a_caught_mutation(self):
         harness = load_harness(self)
         self.assertTrue(harness.completed_mutant_failure(1))
         self.assertFalse(harness.completed_mutant_failure(0))
         self.assertFalse(harness.completed_mutant_failure(124))
+        refused = {"status": "REFUSED", "reasons": ["witness-hash-mismatch"]}
+        self.assertTrue(harness.witness_mutation_caught(1, refused))
+        self.assertFalse(harness.witness_mutation_caught(124, refused))
+
+    def test_json_parser_uses_complete_output_not_reporting_excerpt(self):
+        harness = load_harness(self)
+        record = {"output": '{"status":"ACCEPT"}', "output_excerpt": 'CEPT"}'}
+        self.assertEqual(harness.parse_json_output(record), {"status": "ACCEPT"})
 
     def test_chain_coverage_and_corruption_mutations_change_exact_witness_bytes(self):
         harness = load_harness(self)

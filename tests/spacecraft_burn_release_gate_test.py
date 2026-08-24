@@ -61,6 +61,17 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             (root / gate.TARGETS[0]).write_text(wrapped + "\n")
             self.assertEqual(gate.scan(root)["status"], "PASS")
 
+    def test_certified_safe_detection_is_case_insensitive(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("certified safe\n")
+            self.assertEqual(gate.scan(root)["status"], "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()

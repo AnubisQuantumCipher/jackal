@@ -6,8 +6,9 @@ Repository: `https://github.com/AnubisQuantumCipher/jackal`
 
 Design base: `4789adc949d47fd1d1e00eaa9532dd5ca0dbff70`
 
-Source review package:
-`/Users/sicarii/Desktop/Inbox/JACKAL-Spacecraft-Burn-Certification-Review`
+Source review package: imported under
+`spacecraft_burn_cert/evidence/legacy-v1/`; its `MANIFEST.sha256` has SHA-256
+`d1be8f5ebdf51e913030e39499b8844dc32ad022a346b0729efac88d2bdb88f5`.
 
 ## Objective
 

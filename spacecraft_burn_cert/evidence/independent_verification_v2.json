@@ -26,6 +26,6 @@
     "angular_momentum_lagrange_identity": true,
     "apoapsis_plus_expansion": true,
     "eccentricity_vector_reduction": true,
-    "energy_definition_substitution": true
+    "vis_viva_cleared_denominator_expansion": true
   }
 }

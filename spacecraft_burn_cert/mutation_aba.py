@@ -135,6 +135,7 @@ def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | 
         return {
             "returncode": completed.returncode,
             "output_sha256": sha256(output.encode("utf-8")),
+            "output": output,
             "output_excerpt": output[-3000:],
         }
     except subprocess.TimeoutExpired as error:
@@ -142,19 +143,29 @@ def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | 
         return {
             "returncode": 124,
             "output_sha256": sha256(output.encode("utf-8")),
+            "output": output,
             "output_excerpt": output[-3000:],
         }
 
 
 def parse_json_output(record: dict) -> dict | None:
     try:
-        return json.loads(record["output_excerpt"])
+        return json.loads(record["output"])
     except (json.JSONDecodeError, TypeError):
         return None
 
 
 def completed_mutant_failure(returncode: int) -> bool:
     return returncode not in (0, 124)
+
+
+def witness_mutation_caught(returncode: int, parsed: dict | None) -> bool:
+    return (
+        completed_mutant_failure(returncode)
+        and parsed is not None
+        and parsed.get("status") == "REFUSED"
+        and "witness-hash-mismatch" in parsed.get("reasons", [])
+    )
 
 
 class FormalInputs(NamedTuple):
@@ -282,15 +293,16 @@ def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
                        inputs.model_id, inputs.epoch), timeout=180)
         verifier = run(verifier_command(inputs, path), timeout=30)
         parsed = parse_json_output(verifier)
+    checker_refused = completed_mutant_failure(checker["returncode"])
     return {
         "mutation": name,
         "original_sha256": sha256(original),
         "mutant_sha256": sha256(mutant),
-        "checker_refused": checker["returncode"] != 0,
+        "checker_refused": checker_refused,
+        "checker_timed_out": checker["returncode"] == 124,
         "checker_output_excerpt": checker["output_excerpt"],
         "outer_verifier": parsed,
-        "caught": checker["returncode"] != 0 and parsed is not None
-        and parsed.get("status") == "REFUSED" and "witness-hash-mismatch" in parsed.get("reasons", []),
+        "caught": witness_mutation_caught(checker["returncode"], parsed),
     }
 
 

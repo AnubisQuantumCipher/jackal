@@ -45,6 +45,8 @@ class IndependentVerifierTests(unittest.TestCase):
         results = verifier.verify_symbolic_identities()
         self.assertTrue(results)
         self.assertTrue(all(results.values()))
+        self.assertIn("vis_viva_cleared_denominator_expansion", results)
+        self.assertNotIn("energy_definition_substitution", results)
 
     def test_legacy_v1_receipt_is_never_promoted(self):
         verifier = load_verifier(self)

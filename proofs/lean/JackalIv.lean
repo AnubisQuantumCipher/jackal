@@ -34,3 +34,6 @@ import JackalIv.IntCertMeasure
 import JackalIv.IntCertSound
 import JackalIv.IntCertCodec
 import JackalIv.IntCertFixtures
+import JackalIv.Spacecraft.Types
+import JackalIv.Spacecraft.CertCodec
+import JackalIv.Spacecraft.CodecFixtures

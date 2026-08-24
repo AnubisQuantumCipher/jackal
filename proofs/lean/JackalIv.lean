@@ -45,3 +45,6 @@ import JackalIv.Spacecraft.Picard
 import JackalIv.Spacecraft.PicardFixtures
 import JackalIv.Spacecraft.Orbit
 import JackalIv.Spacecraft.OrbitFixtures
+import JackalIv.Spacecraft.CertCheck
+import JackalIv.Spacecraft.CertSound
+import JackalIv.Spacecraft.CertFixtures

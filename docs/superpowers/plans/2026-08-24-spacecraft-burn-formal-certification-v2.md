@@ -553,7 +553,7 @@ git commit -m "proof(spacecraft): verify cutoff and orbital safety"
 - Modify: `proofs/lean/lakefile.toml`
 - Modify: `proofs/lean/JackalIv.lean`
 
-- [ ] **Step 1: Write failing checker acceptance/refusal tests**
+- [x] **Step 1: Write failing checker acceptance/refusal tests**
 
 The release CLI accepts exactly:
 
@@ -565,17 +565,17 @@ Success output is one canonical line beginning
 `ACCEPT theorem=spacecraft_burn_certified_safe`; every other path writes one
 bounded `REJECT <reason>` line to stderr and exits nonzero.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: missing lake target and executable.
 
-- [ ] **Step 3: Implement `checkBurnCert` and the CLI**
+- [x] **Step 3: Implement `checkBurnCert` and the CLI**
 
 The checker must use the exact proved parser and decisions. It may not call
 Python, use an alternate parser, use `native_decide`, or use an
 `@[implemented_by]` release path.
 
-- [ ] **Step 4: Prove the central theorem**
+- [x] **Step 4: Prove the central theorem**
 
 ```lean
 theorem spacecraft_burn_certified_safe
@@ -586,7 +586,7 @@ theorem spacecraft_burn_certified_safe
 `ModelConditionalSafe` must include existence and universal safety of all
 admissible classical solutions, not only checker bookkeeping.
 
-- [ ] **Step 5: Build the exact executable and print axioms**
+- [x] **Step 5: Build the exact executable and print axioms**
 
 ```sh
 cd proofs/lean
@@ -597,7 +597,7 @@ lake env lean JackalIv/Spacecraft/CertSound.lean
 The source file ends with `#print axioms` for the central theorem and all
 load-bearing subtheorems.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add proofs/lean/JackalIv/Spacecraft/CertCheck.lean \

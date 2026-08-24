@@ -108,6 +108,38 @@ def burnFieldIvCore (bits : Nat) (box : Box) (thrust : DInterval) : Box :=
     else if i = 3 then ay
     else dm
 
+structure BurnFieldValues where
+  dx : DInterval
+  dy : DInterval
+  dvx : DInterval
+  dvy : DInterval
+  dm : DInterval
+
+def burnFieldValues (bits : Nat) (box : Box) (thrust : DInterval) :
+    BurnFieldValues :=
+  let r2 := radiusSqIv bits box
+  let speed2 := speedSqIv bits box
+  let radius := sqrtUnchecked bits r2
+  let speed := sqrtUnchecked bits speed2
+  let thrustAccel := mul bits (divUnchecked bits thrust (box 4)) (thrustScaleIv bits)
+  let gravityDenom := mul bits r2 radius
+  let ax := add
+    (divUnchecked bits (mul bits (neg (muIv bits)) (box 0)) gravityDenom)
+    (divUnchecked bits (mul bits thrustAccel (box 2)) speed)
+  let ay := add
+    (divUnchecked bits (mul bits (neg (muIv bits)) (box 1)) gravityDenom)
+    (divUnchecked bits (mul bits thrustAccel (box 3)) speed)
+  let dm := divUnchecked bits (neg thrust) (ispG0Iv bits)
+  ⟨box 2, box 3, ax, ay, dm⟩
+
+def BurnFieldValues.toBox (values : BurnFieldValues) : Box := ![
+  values.dx, values.dy, values.dvx, values.dvy, values.dm]
+
+theorem burnFieldValues_toBox (bits : Nat) (box : Box) (thrust : DInterval) :
+    (burnFieldValues bits box thrust).toBox = burnFieldIvCore bits box thrust := by
+  funext i
+  fin_cases i <;> rfl
+
 def burnFieldIv (bits : Nat) (box : Box) (thrust : DInterval) :
     Except String Box :=
   let r2 := radiusSqIv bits box
@@ -118,7 +150,8 @@ def burnFieldIv (bits : Nat) (box : Box) (thrust : DInterval) :
   let ispG0 := ispG0Iv bits
   if 0 < r2.lo ∧ 0 < v2.lo ∧ 0 < (box 4).lo ∧ 0 < radius.lo ∧
       0 < speed.lo ∧ 0 < gravity.lo ∧ 0 < ispG0.lo then
-    .ok (burnFieldIvCore bits box thrust)
+    let values := burnFieldValues bits box thrust
+    .ok values.toBox
   else .error "vector-field-domain"
 
 theorem burnFieldIv_ok_iff {bits : Nat} {box : Box} {thrust : DInterval}
@@ -131,11 +164,12 @@ theorem burnFieldIv_ok_iff {bits : Nat} {box : Box} {thrust : DInterval}
     · rename_i hd
       cases h
       exact ⟨⟨hd.1, hd.2.1, hd.2.2.1, hd.2.2.2.1, hd.2.2.2.2.1,
-        hd.2.2.2.2.2.1, hd.2.2.2.2.2.2⟩, rfl⟩
+        hd.2.2.2.2.2.1, hd.2.2.2.2.2.2⟩, burnFieldValues_toBox _ _ _⟩
     · contradiction
   · rintro ⟨hd, rfl⟩
     simp [burnFieldIv, hd.radiusSqLo, hd.speedSqLo, hd.massLo,
-      hd.radiusLo, hd.speedLo, hd.gravityDenomLo, hd.ispG0Lo]
+      hd.radiusLo, hd.speedLo, hd.gravityDenomLo, hd.ispG0Lo,
+      burnFieldValues_toBox]
 
 theorem fieldEnclosed {bits : Nat} {box : Box} {thrustIv : DInterval}
     {thrust : ℝ} {state : State}

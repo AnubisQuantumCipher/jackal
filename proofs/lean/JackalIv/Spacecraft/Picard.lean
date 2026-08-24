@@ -25,6 +25,34 @@ def scaleBox (bits : Nat) (scalar : DInterval) (box : Box) : Box :=
 
 def hullBox (left right : Box) : Box := fun i => hull (left i) (right i)
 
+structure BoxValues where
+  x0 : DInterval
+  x1 : DInterval
+  x2 : DInterval
+  x3 : DInterval
+  x4 : DInterval
+
+/-- A strict capture boundary.  Keeping this helper opaque to the code
+generator prevents endpoint expressions from being floated back into the
+returned `Fin 5 → DInterval` closure. -/
+@[noinline] def captureBox (box : Box) : BoxValues :=
+  ⟨box 0, box 1, box 2, box 3, box 4⟩
+
+def BoxValues.toBox (values : BoxValues) : Box := ![
+  values.x0, values.x1, values.x2, values.x3, values.x4]
+
+/-- Force all five coordinates now.  This is extensionally identical to the
+input box, but prevents a long checked trajectory from retaining a chain of
+lazy endpoint closures whose evaluation cost would grow quadratically. -/
+def materializeBox (box : Box) : Box := (captureBox box).toBox
+
+theorem captureBox_toBox_eq (box : Box) : (captureBox box).toBox = box := by
+  funext i
+  fin_cases i <;> rfl
+
+theorem materializeBox_eq (box : Box) : materializeBox box = box :=
+  captureBox_toBox_eq box
+
 def openTubeSet (bits : Nat) (box : Box) : Set State :=
   Set.univ.pi fun i => Set.Ioo (lower bits (box i)) (upper bits (box i))
 
@@ -50,7 +78,9 @@ def picardMap (bits : Nat) (h : ℚ) (initial tube : Box)
 def endpointBox (bits : Nat) (h : ℚ) (initial tube : Box)
     (thrust : DInterval) : Except String Box := do
   let field ← burnFieldIv bits tube thrust
-  pure (addBox initial (scaleBox bits (pointRat bits h) field))
+  let values := captureBox
+    (addBox initial (scaleBox bits (pointRat bits h) field))
+  pure values.toBox
 
 def existenceBox (bits : Nat) (initial : Box) : Box := fun i =>
   ⟨(initial i).lo - 4 * scale bits, (initial i).lo + 4 * scale bits⟩
@@ -633,7 +663,7 @@ theorem endpointBox_sound {bits : Nat} {h : ℚ} {initial tube : Box}
   have hf := fieldEnclosed hd hs ht
   have hscaled := scaleBox_sound (pointRat_sound bits h) hf
   have hsum := addBox_sound hi hscaled
-  exact hsum
+  simpa only [captureBox_toBox_eq] using hsum
 
 theorem checkStep_endpoint {bits : Nat} {h : ℚ} {initial tube endpoint : Box}
     {thrustIv : DInterval}
@@ -713,7 +743,7 @@ theorem picard_endpoint_encloses {bits : Nat} {h : ℚ}
       hvecInt).symm
   simp only [ODE.picard_apply, Pi.add_apply]
   rw [hproj]
-  exact hsum i
+  simpa only [captureBox_toBox_eq, Pi.add_apply] using hsum i
 
 /-- A physically continuous finite-step burn: each local classical solution
 starts at the exact endpoint of the preceding local solution.  The witness

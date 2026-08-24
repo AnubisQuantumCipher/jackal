@@ -24,6 +24,24 @@ def load_packager():
 
 
 class SpacecraftReleasePackageTests(unittest.TestCase):
+    def test_request_must_match_fixed_lean_checker_digest(self):
+        package = load_packager()
+        mutated = b'{"mutated":true}\n'
+        mutually_edited_binding = {"request_digest": hashlib.sha256(mutated).hexdigest()}
+        with self.assertRaisesRegex(RuntimeError, "fixed Lean checker digest"):
+            package.validate_request_binding(mutated, mutually_edited_binding)
+
+    def test_release_assets_require_completed_machine_readable_review(self):
+        package = load_packager()
+        pending = {
+            "schema": "jackal-spacecraft-independent-review-clearance-v1",
+            "status": "pending",
+            "completed_pass": None,
+            "unresolved_release_blocking": None,
+        }
+        with self.assertRaisesRegex(RuntimeError, "independent review clearance incomplete"):
+            package.validate_review_clearance(pending)
+
     def test_staged_auxiliary_evidence_must_match_committed_digests(self):
         package = load_packager()
         names = package.AUXILIARY_EVIDENCE_NAMES

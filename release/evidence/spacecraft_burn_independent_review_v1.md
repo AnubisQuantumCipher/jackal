@@ -219,18 +219,34 @@ value and is invalid. The two legacy-v1 findings target deliberately immutable,
 quarantined historical evidence and remain `residual-non-claim`; altering those
 bytes would destroy their recorded historical identity.
 
-## Pass 11 status
+## Pass 11
 
-The final clean-worktree retry is pending on the post-Pass-10 fix commit.
+Reviewed clean committed branch head:
+`6c2b452dc6edbdab6c993d7164e49fa5f866948e`.
+
+CodeRabbit raised 2 issues. Both were confirmed and resolved in the next
+candidate:
+
+- bound the packaged request to the fixed digest accepted by the Lean checker,
+  so mutually editing request bytes and receipt metadata cannot redefine the
+  proof statement; and
+- required machine-readable completed independent-review clearance before the
+  packager can create release-named assets.
+
+## Pass 12 status
+
+The clean-worktree review of the Pass-11 fixes is pending. The machine-readable
+clearance remains `pending`, so release asset creation is fail-closed.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 59 | fixed with tests; final push pending |
+| resolved | 61 | fixed with tests; final push pending |
 | invalid | 9 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
 | unresolved release-blocking | 0 known | final independent retry pending |
 
 No publication or merge may use this record as a final clearance until the
-Pass 11 section records a completed review result.
+Pass 12 section records a completed review result and the machine-readable
+clearance is transitioned to complete.

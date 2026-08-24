@@ -25,7 +25,9 @@ REVIEW_NAME = "spacecraft_burn_independent_review_v1.md"
 CHECKER = ROOT / "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check"
 IDENTITY = ROOT / "release/evidence" / PROOF_NAME
 REVIEW = ROOT / "release/evidence" / REVIEW_NAME
+REVIEW_CLEARANCE = ROOT / "release/evidence/spacecraft_burn_review_clearance_v1.json"
 EVIDENCE = ROOT / "spacecraft_burn_cert/evidence"
+SPACECRAFT_REQUEST_DIGEST = "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7"
 AUXILIARY_EVIDENCE_NAMES = (
     "independent_verification_v2.json",
     "instrument_validation_v2.json",
@@ -76,6 +78,30 @@ def validate_witness_digests(witness_bytes: bytes, receipt: dict) -> str:
     if digest != receipt["formal_checker"]["witness_sha256"]:
         raise RuntimeError("checker-bound witness digest does not match packaged witness")
     return digest
+
+
+def validate_request_binding(request_bytes: bytes, binding: dict) -> None:
+    observed = sha256(request_bytes)
+    if observed != SPACECRAFT_REQUEST_DIGEST:
+        raise RuntimeError("request bytes do not match fixed Lean checker digest")
+    if binding.get("request_digest") != SPACECRAFT_REQUEST_DIGEST:
+        raise RuntimeError("receipt request digest does not match fixed Lean checker digest")
+
+
+def validate_review_clearance(clearance: dict) -> None:
+    expected_keys = {
+        "schema", "status", "completed_pass", "unresolved_release_blocking",
+    }
+    if (
+        not isinstance(clearance, dict)
+        or set(clearance) != expected_keys
+        or clearance.get("schema") != "jackal-spacecraft-independent-review-clearance-v1"
+        or clearance.get("status") != "complete"
+        or not isinstance(clearance.get("completed_pass"), int)
+        or clearance["completed_pass"] < 1
+        or clearance.get("unresolved_release_blocking") != 0
+    ):
+        raise RuntimeError("independent review clearance incomplete")
 
 
 def atomic_write(path: Path, data: bytes, mode: int = 0o644) -> None:
@@ -173,6 +199,11 @@ def assert_model_conditional_claims(data: bytes) -> None:
 def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise RuntimeError("merge commit must be 40 lowercase hex characters")
+    try:
+        clearance = json.loads(REVIEW_CLEARANCE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("independent review clearance incomplete") from error
+    validate_review_clearance(clearance)
     output.mkdir(parents=True, exist_ok=False)
     receipt_bytes = (staging / RECEIPT_NAME).read_bytes()
     witness_bytes = (staging / WITNESS_NAME).read_bytes()
@@ -182,8 +213,9 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
     checker_bytes = CHECKER.read_bytes()
     binding = receipt["formal_checker"]
     request_bytes = (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
+    validate_request_binding(request_bytes, binding)
     expected_binding = {
-        "request_digest": sha256(request_bytes),
+        "request_digest": SPACECRAFT_REQUEST_DIGEST,
         "model_id": "jackal-spacecraft-finite-burn-ode-v2",
         "epoch": VERSION,
     }

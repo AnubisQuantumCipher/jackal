@@ -47,14 +47,15 @@ trusted implementation base. Documentation alone cannot close that gap.
 The v2 lane uses proof-carrying computation:
 
 1. Python partitions the uncertainty box and emits a complete deterministic
-   witness stream containing the interval state, Picard tube, endpoint,
-   cutoff coverage record, and orbital post-processing witnesses.
+   witness stream containing the exact request/partition header, each branch
+   input box, and the non-derivable Picard tube box for every ODE step.
 2. A strict codec parses the stream with bounded sizes, canonical integers,
    canonical ordering, exact dimensions, and no ignored or duplicate fields.
-3. A Lean checker recomputes every interval operation needed for acceptance,
-   checks every Picard inclusion and endpoint enclosure, checks step-to-step
-   chaining and cutoff coverage, checks the orbital identities and interval
-   compositions, and checks that the decisive lower endpoint is positive.
+3. A Lean checker derives every initial state after the branch root, endpoint,
+   denominator-domain bound, cutoff membership, and orbital result. It checks
+   every Picard inclusion and endpoint enclosure, step-to-step chaining and
+   cutoff coverage, orbital identity and interval composition, and the
+   decisive positive lower endpoint.
 4. A Lean soundness theorem connects checker acceptance to the model-level
    conditional safety proposition.
 5. An outer verifier binds the request, witness, checker executable, theorem,
@@ -137,12 +138,14 @@ The witness format is canonical, versioned, and bounded. It records:
 - exact initial, thrust, mass, and cutoff-time bounds;
 - step size and partition definition;
 - every branch identifier and its exact input sub-box;
-- every step's initial box, Picard tube, endpoint box, and inclusion data;
-- positive denominator-domain witnesses;
-- exact cutoff-time coverage membership;
-- orbital interval witnesses and both eccentricity routes;
-- the decisive global lower endpoint; and
+- every step's Picard tube box;
 - an exact terminal count reconciliation.
+
+Initial states after each branch root, endpoints, denominator bounds, cutoff
+membership, orbital intervals, and the decisive lower endpoint are deliberately
+absent from the witness because the checker can derive them. Recording those
+values would duplicate trusted-looking producer output and inflate the full
+124,416-step artifact past GitHub's tracked-file limit.
 
 The checker rejects missing, extra, duplicate, out-of-order, oversized,
 noncanonical, dimensionally invalid, or discontinuous records. Hashes are
@@ -233,7 +236,10 @@ what they establish:
    diagnostics retained at their weaker epistemic classes.
 
 The full 124,416-tube baseline must be checked by the release executable.
-Small fixtures alone cannot support the published result.
+Small fixtures alone cannot support the published result. The full canonical
+witness is a checksum-governed GitHub release asset rather than a tracked Git
+blob. Git tracks a canonical manifest binding its SHA-256, byte size, record
+counts, model/request identity, and generator/checker identities.
 
 ## Independent Review
 

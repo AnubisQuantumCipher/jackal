@@ -25,7 +25,7 @@ spacecraft_burn_cert/
   mutation_aba.py                   exact A-B-A adversarial campaign
   evidence/
     legacy-v1/                      immutable supplied v1 evidence and manifest
-    baseline_witness_v2.txt         complete formal witness
+    baseline_witness_v2.manifest.json tracked digest/size/count binding
     baseline_receipt_v2.json        model-conditional receipt
     independent_verification_v2.json
     instrument_validation_v2.json
@@ -236,15 +236,16 @@ Expected: import failure for missing `witness_codec.py`.
 - [ ] **Step 3: Implement one canonical line grammar**
 
 Use length-prefixed ASCII records rather than JSON. Define frozen dataclasses
-`Interval`, `Box`, `StepWitness`, `BranchWitness`, `OrbitWitness`, and
-`BurnWitness`. Decode with explicit aggregate limits before allocation. Reject
+`Interval`, `Box`, `StepWitness`, `BranchWitness`, and `BurnWitness`. Decode
+with explicit aggregate limits before allocation. Reject
 `+0`, `-0`, leading zeros, non-ASCII, blank records, and unknown tags.
 
 - [ ] **Step 4: Emit every accepted Picard witness**
 
 Change `certify()` to return `(receipt, BurnWitness)`. Record every branch's
-initial sub-box and every step's initial, tube, endpoint, denominator lower
-bounds, cutoff membership, and post-processing intervals. Reconcile exactly:
+initial sub-box and thrust interval and every step's non-derivable Picard tube.
+The checker derives endpoints, chained initial boxes, denominator bounds,
+cutoff membership, and post-processing intervals. Reconcile exactly:
 `branches = 32`, `steps_per_branch = 3888`, `steps = 124416`, and cutoff cells
 `= 3072`.
 
@@ -295,9 +296,7 @@ abbrev Box := Fin 5 → DInterval
 
 structure StepWitness where
   branch step : Nat
-  initial tube endpoint : Box
-  r2Lo v2Lo massLo : Int
-  cutoff : Bool
+  tube : Box
   deriving DecidableEq, Repr
 
 structure BurnWitness where
@@ -436,8 +435,9 @@ git commit -m "proof(spacecraft): verify burn vector-field domain"
 - [ ] **Step 1: Write failing one-step and broken-chain fixtures**
 
 Create one accepted constant-field step, one tube whose mapping touches the
-outer boundary, one incorrect endpoint, and two individually valid steps with
-a broken chain. Only the first may check.
+outer boundary, one tube producing an incorrect derived endpoint, and two
+individually valid steps whose derived chain is broken by the second tube.
+Only the first may check.
 
 - [ ] **Step 2: Verify RED**
 
@@ -668,7 +668,7 @@ git commit -m "feat(spacecraft): bind formal checker receipts"
 - Modify: `spacecraft_burn_cert/mutation_aba.py`
 - Modify: `spacecraft_burn_cert/tests/test_validation.py`
 - Modify: `spacecraft_burn_cert/tests/test_mutations.py`
-- Create: `spacecraft_burn_cert/evidence/baseline_witness_v2.txt`
+- Create: `spacecraft_burn_cert/evidence/baseline_witness_v2.manifest.json`
 - Create: `spacecraft_burn_cert/evidence/baseline_receipt_v2.json`
 - Create: `spacecraft_burn_cert/evidence/independent_verification_v2.json`
 - Create: `spacecraft_burn_cert/evidence/instrument_validation_v2.json`
@@ -696,12 +696,14 @@ rigorous interval cross-checks unless each has its own accepted formal witness.
 
 Run producer, checker, outer verifier, validation, and mutations. Only after
 every command exits zero, atomically replace the new v2 evidence files and
-derive `SHA256SUMS` from bytes.
+derive `SHA256SUMS` from bytes. Keep the full witness in the release staging
+directory; commit only its canonical digest/size/count manifest.
 
 - [ ] **Step 5: Reproduce every committed artifact in `--check` mode**
 
 Run generation twice and require exact byte equality, including the complete
-124,416-step witness.
+124,416-step witness. The release asset, not Git history, carries that full
+witness; readback must compare it byte-for-byte.
 
 - [ ] **Step 6: Commit**
 

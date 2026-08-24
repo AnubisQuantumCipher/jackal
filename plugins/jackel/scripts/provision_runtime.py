@@ -43,6 +43,7 @@ PACKAGE_DIRECTORY = "jackal-v1.7.3-macos-arm64"
 SUPPORTED_HOSTS = {
     ("Darwin", "arm64"): "macos-arm64",
     ("Linux", "aarch64"): "linux-aarch64",
+    ("Linux", "x86_64"): "linux-x86_64",
 }
 
 # ``None`` means "this host is supported by the installer but no release asset
@@ -69,6 +70,10 @@ RELEASE_PINS: dict[str, dict[str, object] | None] = {
         "sha256sums_sha256": "0492872b881d2ea1d84a4b14c4332fc74dccdeb78cc60ff317b05e27ac50c744",
         "package_directory": "jackal-v1.7.3-linux-aarch64",
     },
+    # Gate declared for the planned bare-metal Linux x86_64 (iMac Pro). No pin
+    # and no function claimed until a native package is built and OBSERVED on
+    # x86_64 hardware or an explicitly authorized x86_64 substrate.
+    "linux-x86_64": None,
 }
 MAX_ARCHIVE_MEMBERS = 8192
 MAX_RUNTIME_RECORDS = MAX_ARCHIVE_MEMBERS

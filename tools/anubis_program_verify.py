@@ -19,6 +19,7 @@ import contextlib
 import hashlib
 import json
 import os
+import platform
 import re
 import subprocess
 import stat
@@ -128,6 +129,43 @@ APPROVED_CHECK_COMPILER_SHA256 = (
 )
 APPROVED_Z3_PATH = Path("/opt/homebrew/bin/z3")
 APPROVED_Z3_SHA256 = "ae6c8df33db9c9ae9a80b6044e77cd66529a141d8b25f0620f1e89b409594f48"
+
+# Architecture-qualified trust anchor extension (architect sign-off 2026-08-23):
+# Linux aarch64 admits an independently double-built, byte-reproducible Z3 4.15.4
+# (NOT the guest's system 4.16.0). The Darwin anchor above is preserved exactly.
+APPROVED_Z3_LINUX_AARCH64_SHA256 = "b6fcd93b2ccec9aa848ac148c4d9b4270577ad046601f211784586eb9f0135c4"
+APPROVED_Z3_SEMVER = "4.15.4"
+
+
+def _approved_z3_for_host() -> tuple[Path, str]:
+    """Return (path, expected_sha256) of the approved Z3 for THIS host, or refuse.
+
+    Never consults caller PATH. Darwin keeps its exact pinned anchor. Linux
+    aarch64 resolves the package-shipped Z3 (sibling of this verifier) or a
+    dev marker naming an absolute path; both are pinned to the exact
+    double-build digest. No other host is admitted.
+    """
+    system, machine = platform.system(), platform.machine()
+    if system == "Darwin":
+        return APPROVED_Z3_PATH, APPROVED_Z3_SHA256
+    if system == "Linux" and machine == "aarch64":
+        here = Path(__file__).resolve().parent
+        # package ships the Z3 at the package root; the verifier is at
+        # <root>/tools/ (or, in a flat layout, at <root>/). Check both.
+        for shipped in (here / "jackal_z3_v4154", here.parent / "jackal_z3_v4154"):
+            if shipped.is_file():
+                return shipped, APPROVED_Z3_LINUX_AARCH64_SHA256
+        # dev/repo marker: <root>/release/evidence/approved_z3.<host> names an abspath
+        for marker in (
+            here.parent / "release" / "evidence" / "approved_z3.linux-aarch64",
+            here / "evidence" / "approved_z3.linux-aarch64",
+        ):
+            if marker.is_file():
+                parts = marker.read_text().split()
+                if parts:
+                    return Path(parts[0]), APPROVED_Z3_LINUX_AARCH64_SHA256
+        raise Refusal("z3-unavailable")
+    raise Refusal("z3-unsupported-host", f"{system}/{machine}")
 PROGRAM_POLICY_CANDIDATES = (
     Path(__file__).resolve().parents[1]
     / "release/program/inventory_safe_v1.json",
@@ -654,15 +692,34 @@ def verify_rup(
 
 
 def verify_smt_unsat(path: Path) -> None:
+    approved_path, approved_sha = _approved_z3_for_host()
+    # no symlink at the target boundary (ancestor symlinks are rejected by
+    # resolve(strict=True) diverging from the pre-resolution path component)
+    if approved_path.is_symlink():
+        raise Refusal("z3-symlink")
     try:
-        z3_path = APPROVED_Z3_PATH.resolve(strict=True)
+        z3_path = approved_path.resolve(strict=True)
     except OSError:
         raise Refusal("z3-unavailable") from None
-    if not z3_path.is_file():
+    if z3_path.is_symlink() or not z3_path.is_file():
         raise Refusal("z3-unavailable")
+    info = z3_path.stat()
+    if info.st_uid != os.getuid():
+        raise Refusal("z3-owner")
+    if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise Refusal("z3-mode")
     before = sha_file(z3_path)
-    if before != APPROVED_Z3_SHA256:
+    if before != approved_sha:
         raise Refusal("z3-identity-mismatch")
+    # exact semantic version gate
+    try:
+        ver = subprocess.run([str(z3_path), "--version"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Refusal("z3-replay-failed", str(exc)) from None
+    if APPROVED_Z3_SEMVER not in ver.stdout:
+        raise Refusal("z3-version-mismatch", ver.stdout.strip()[:60])
+    if sha_file(z3_path) != before:
+        raise Refusal("z3-toctou")
     try:
         completed = subprocess.run(
             [str(z3_path), "-smt2", str(path)],
@@ -672,6 +729,7 @@ def verify_smt_unsat(path: Path) -> None:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Refusal("z3-replay-failed", str(exc)) from None
+    # single-snapshot identity: bytes must be unchanged across the whole check
     if sha_file(z3_path) != before:
         raise Refusal("z3-toctou")
     lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]

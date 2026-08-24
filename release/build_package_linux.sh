@@ -346,6 +346,19 @@ require_regular "$ARCHIVAL_DIR/formal_coverage_inventory_v170.json"
 /bin/chmod 0755 "$PKG/jackal_cert_check_v170"
 /bin/cp "$ARCHIVAL_DIR/formal_coverage_inventory_v170.json" "$PKG/evidence/formal_coverage_inventory_v170.json"
 
+# Omarchy edition: ship the architecture-qualified approved Z3 4.15.4 (native
+# double-built ELF) as a package member the program-evidence verifier resolves
+# as its sibling. Verified against the manifest-pinned identity.
+Z3DIR="${JACKAL_Z3_DIR:?set JACKAL_Z3_DIR to the approved native Z3 4.15.4}"
+require_regular "$Z3DIR/jackal_z3_v4154"
+APPROVED_Z3_SHA256="b6fcd93b2ccec9aa848ac148c4d9b4270577ad046601f211784586eb9f0135c4"
+[ "$(sha256 "$Z3DIR/jackal_z3_v4154")" = "$APPROVED_Z3_SHA256" ] || {
+  echo "PACKAGE_V173_REFUSED reason=approved-z3-identity observed=$(sha256 "$Z3DIR/jackal_z3_v4154")" >&2
+  exit 4
+}
+/bin/cp "$Z3DIR/jackal_z3_v4154" "$PKG/jackal_z3_v4154"
+/bin/chmod 0755 "$PKG/jackal_z3_v4154"
+
 for relative in \
   tests/release_validate.py \
   tools/gaussian_certificate.py tools/gaussian_release.py \
@@ -725,6 +738,7 @@ domain_pack_test_exists_checker tools/test_exists_verify.py $(sha256 "$PKG/tools
 domain_pack_decision_checker tools/decision_verify.py $(sha256 "$PKG/tools/decision_verify.py")
 anubis_program_verifier tools/anubis_program_verify.py $(sha256 "$PKG/tools/anubis_program_verify.py")
 anubis_program_policy program/inventory_safe_v1.json $(sha256 "$PKG/program/inventory_safe_v1.json")
+approved_z3_linux_aarch64 jackal_z3_v4154 $(sha256 "$PKG/jackal_z3_v4154")
 EOF
 
 cat > "$PKG/NON-CLAIMS.txt" <<'EOF'

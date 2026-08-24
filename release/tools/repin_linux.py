@@ -138,6 +138,12 @@ def build_manifest() -> str:
             out.append(f"{label} {name} {archival_sha}")
         else:
             out.append(line)
+    # Omarchy edition: append the architecture-qualified approved Z3 anchor row
+    z3marker = ROOT / EVIDENCE_DIR / f"approved_z3.{tag}"
+    if z3marker.is_file():
+        parts = z3marker.read_text().split()
+        if len(parts) >= 2 and len(parts[1]) == 64:
+            out.append(f"approved-z3-{tag} jackal_z3_v4154 {parts[1]}")
     missing = set(BINARY_ROWS) - seen_binary
     if missing:
         sys.exit(f"REPIN_LINUX_REFUSED detail=manifest lacked binary rows: {sorted(missing)}")

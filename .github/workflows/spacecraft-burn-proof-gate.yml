@@ -10,11 +10,10 @@ permissions:
 
 jobs:
   full-certificate-campaign:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-14]
-    runs-on: ${{ matrix.os }}
+    # The published checker identity and verifier archive are macOS/arm64.
+    # Ubuntu independently builds/audits the Lean source closure in
+    # gaussian-proof-gate.yml, but does not claim executable-byte parity.
+    runs-on: macos-14
     timeout-minutes: 45
     env:
       MODEL_ID: jackal-spacecraft-finite-burn-ode-v2
@@ -126,7 +125,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: spacecraft-burn-evidence-${{ matrix.os }}-${{ github.sha }}
+          name: spacecraft-burn-evidence-macos-14-${{ github.sha }}
           path: |
             ${{ runner.temp }}/spacecraft-v2/**/*.json
           if-no-files-found: error

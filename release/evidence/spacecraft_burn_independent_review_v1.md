@@ -137,18 +137,36 @@ therefore regenerated the proof identity, checker binding, receipt, verifier,
 validation, mutation evidence, and manifests rather than carrying old hashes
 forward.
 
-## Pass 7 status
+## Pass 7
 
-The final clean-worktree retry is pending on the post-Pass-6 fix commit.
+Reviewed detached commit: `5bc9cc19ba7d682530c4fcf896d07751d4ab6880`
+
+CodeRabbit raised 5 issues. Three were confirmed and resolved in the next
+candidate:
+
+- normalized inline Markdown before static and generated assurance scanning;
+- verified every packaged proof-closure file against its identity byte count
+  and SHA-256 before archiving; and
+- rejected caller attempts to override the fixed spacecraft proof lane.
+
+The request-digest warning is the same invalid mismatch claim. The legacy-v1
+path finding again targets immutable quarantined evidence and remains
+`residual-non-claim`. Because the lane wrapper is part of the generator
+identity, the proof identity and all receipt-dependent evidence were
+regenerated; the checker and witness bytes remained unchanged.
+
+## Pass 8 status
+
+The final clean-worktree retry is pending on the post-Pass-7 fix commit.
 
 ## Current disposition
 
 | Class | Count | Status |
 |---|---:|---|
-| resolved | 44 | fixed with tests; final push pending |
-| invalid | 5 | request digest independently matched |
+| resolved | 47 | fixed with tests; final push pending |
+| invalid | 6 | request digest independently matched |
 | residual-non-claim | 2 | immutable legacy-v1 historical text only |
 | unresolved release-blocking | 0 known | final independent retry pending |
 
 No publication or merge may use this record as a final clearance until the
-Pass 7 section records a completed review result.
+Pass 8 section records a completed review result.

@@ -4,6 +4,7 @@ import importlib.util
 import tarfile
 import unittest
 from io import BytesIO
+import json
 from pathlib import Path
 
 
@@ -25,11 +26,20 @@ class SpacecraftReleasePackageTests(unittest.TestCase):
         package = load_packager()
         with self.assertRaisesRegex(RuntimeError, "unqualified assurance"):
             package.assert_model_conditional_claims(b"CERTIFIED SAFE for the spacecraft.\n")
+        with self.assertRaisesRegex(RuntimeError, "unqualified assurance"):
+            package.assert_model_conditional_claims(b"CERTIFIED **SAFE** for the spacecraft.\n")
 
     def test_source_closure_rejects_paths_outside_lean_tree(self):
         package = load_packager()
         with self.assertRaisesRegex(RuntimeError, "invalid source path"):
             package.source_closure({"source_closure": {"files": [{"path": "release/x.lean"}]}})
+
+    def test_source_closure_rejects_bytes_not_bound_by_identity(self):
+        package = load_packager()
+        identity = json.loads(package.IDENTITY.read_text())
+        identity["source_closure"]["files"][0]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(RuntimeError, "source binding mismatch"):
+            package.source_closure(identity)
 
     def test_deterministic_archive_has_normalized_metadata_and_modes(self):
         package = load_packager()

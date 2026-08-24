@@ -70,7 +70,7 @@ def deterministic_tar_gz(entries: dict[str, tuple[bytes, int]]) -> bytes:
     return buffer.getvalue()
 
 
-def source_closure(identity: dict) -> list[Path]:
+def source_closure(identity: dict) -> list[tuple[Path, bytes]]:
     rows = identity.get("source_closure", {}).get("files")
     if not isinstance(rows, list):
         raise RuntimeError("proof identity lacks source closure")
@@ -85,7 +85,17 @@ def source_closure(identity: dict) -> list[Path]:
             or parts[:2] != ("proofs", "lean")
         ):
             raise RuntimeError("proof identity contains invalid source path")
-        result.append(ROOT / path)
+        expected_bytes = row.get("bytes") if isinstance(row, dict) else None
+        expected_sha = row.get("sha256") if isinstance(row, dict) else None
+        if not isinstance(expected_bytes, int) or expected_bytes < 0 or not re.fullmatch(
+            r"[0-9a-f]{64}", expected_sha if isinstance(expected_sha, str) else ""
+        ):
+            raise RuntimeError("proof identity contains invalid source binding")
+        source_path = ROOT / path
+        data = source_path.read_bytes()
+        if len(data) != expected_bytes or sha256(data) != expected_sha:
+            raise RuntimeError("proof identity source binding mismatch")
+        result.append((source_path, data))
     return result
 
 
@@ -117,7 +127,7 @@ This theorem is conditional on the encoded ODE model and supplied bounds. It doe
 
 
 def assert_model_conditional_claims(data: bytes) -> None:
-    text = data.decode("utf-8")
+    text = re.sub(r"[*_`]", "", data.decode("utf-8"))
     stripped = QUALIFIED_PATTERN.sub("", text)
     if re.search(r"CERTIFIED\s+SAFE", stripped, re.IGNORECASE):
         raise RuntimeError("generated verification contains unqualified assurance")
@@ -163,9 +173,9 @@ def build(staging: Path, output: Path, commit: str) -> dict[str, str]:
         f"{prefix}/proofs/lean-toolchain": ((ROOT / "proofs/lean/lean-toolchain").read_bytes(), 0o644),
         f"{prefix}/proofs/lakefile.toml": ((ROOT / "proofs/lean/lakefile.toml").read_bytes(), 0o644),
     }
-    for path in source_closure(identity):
+    for path, source_bytes in source_closure(identity):
         relative = path.relative_to(ROOT / "proofs/lean")
-        entries[f"{prefix}/proofs/{relative.as_posix()}"] = (path.read_bytes(), 0o644)
+        entries[f"{prefix}/proofs/{relative.as_posix()}"] = (source_bytes, 0o644)
     archive_bytes = deterministic_tar_gz(entries)
 
     assets = {

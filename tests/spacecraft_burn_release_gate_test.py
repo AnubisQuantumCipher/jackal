@@ -98,6 +98,19 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             (root / gate.TARGETS[0]).write_text("certified safe\n")
             self.assertEqual(gate.scan(root)["status"], "FAIL")
 
+    def test_inline_markdown_cannot_hide_unqualified_assurance(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in gate.TARGETS:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text("publication surface\n")
+            (root / gate.TARGETS[0]).write_text("CERTIFIED **SAFE** for flight.\n")
+            result = gate.scan(root)
+            self.assertEqual(result["status"], "FAIL")
+            self.assertEqual(result["findings"][0]["reason"], "unqualified-certified-safe")
+
 
 if __name__ == "__main__":
     unittest.main()

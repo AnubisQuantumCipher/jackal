@@ -61,6 +61,9 @@ def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] not in {"generate", "check"}:
         print("usage: spacecraft_burn_proof_identity.py {generate|check} [options]", file=sys.stderr)
         return 2
+    if any(argument == "--lane" or argument.startswith("--lane=") for argument in sys.argv[2:]):
+        print("--lane is fixed to spacecraft-burn by this wrapper", file=sys.stderr)
+        return 2
     sys.argv[2:2] = ["--lane", "spacecraft-burn"]
     return engine.main()
 

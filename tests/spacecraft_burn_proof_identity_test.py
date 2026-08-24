@@ -39,6 +39,11 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("identity self-digest mismatch", result.stderr)
 
+    def test_wrapper_rejects_lane_override(self) -> None:
+        result = self.run_gate("check", "--lane=gaussian")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("fixed to spacecraft-burn", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

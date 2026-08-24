@@ -75,9 +75,9 @@
   },
   "generator": {
     "path": "release/tools/spacecraft_burn_proof_identity.py",
-    "sha256": "7890b8e2de4bf032eb2019479bc4fb1e5d944e14690d6f54a05a3e026c9fd42d"
+    "sha256": "83a98c771a38bc63850831dfd91afdb0a950fe69af30c8eea4e13008ffc90383"
   },
-  "identity_digest_sha256": "d1d5266e2a2794cdba1fe3744b1c11fb5b45322fe05fff2c44963a2fbb669fab",
+  "identity_digest_sha256": "bab091fbd1c9db40cb087f7032b0d30f67f2d1e31a003cf790a6adb972d21f47",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {

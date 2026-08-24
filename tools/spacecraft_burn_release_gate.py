@@ -40,19 +40,20 @@ def scan(root: Path) -> dict:
             findings.append({"file": str(relative), "reason": "missing-publication-surface"})
             continue
         text = path.read_text(encoding="utf-8")
+        normalized = re.sub(r"[*_`]", "", text)
         for reason, pattern in FORBIDDEN.items():
-            for match in pattern.finditer(text):
+            for match in pattern.finditer(normalized):
                 findings.append({
-                    "file": str(relative), "line": text.count("\n", 0, match.start()) + 1,
+                    "file": str(relative), "line": normalized.count("\n", 0, match.start()) + 1,
                     "reason": reason,
                 })
         stripped = QUALIFIED_PATTERN.sub(
             lambda match: "".join("\n" if char == "\n" else " " for char in match.group(0)),
-            text,
+            normalized,
         )
         for match in re.finditer(r"CERTIFIED\s+SAFE", stripped, re.IGNORECASE):
             findings.append({
-                "file": str(relative), "line": text.count("\n", 0, match.start()) + 1,
+                "file": str(relative), "line": normalized.count("\n", 0, match.start()) + 1,
                 "reason": "unqualified-certified-safe",
             })
     return {

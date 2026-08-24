@@ -74,9 +74,9 @@ never regenerated. All current evidence uses new v2 filenames.
 
 - [ ] **Step 1: Copy the supplied package without changing its source bytes**
 
-Use `cp -pR` from the attached review directory, then move the five supplied
-JSON evidence files and `SHA256SUMS` under `evidence/legacy-v1/`. Record the
-pre-copy and post-copy SHA-256 values and require exact equality.
+Use `cp -pR` from the attached review directory and leave its evidence in the
+supplied v1 layout for the initial failing test. Record pre-copy and post-copy
+SHA-256 values and require exact equality.
 
 - [ ] **Step 2: Write the failing legacy-quarantine test**
 
@@ -99,11 +99,12 @@ Run:
 
 Expected: failure because the evidence has not yet been quarantined.
 
-- [ ] **Step 4: Generate the legacy manifest mechanically**
+- [ ] **Step 4: Quarantine evidence and generate the legacy manifest mechanically**
 
-Use a small checked helper inside the test module to sort relative paths and
-derive SHA-256 rows from bytes. The committed manifest must reproduce exactly;
-no digest is typed by hand.
+Move the five supplied JSON evidence files and `SHA256SUMS` under
+`evidence/legacy-v1/`. Use a small checked helper inside the test module to
+sort relative paths and derive SHA-256 rows from bytes. The committed manifest
+must reproduce exactly; no digest is typed by hand.
 
 - [ ] **Step 5: Run the supplied 13-test baseline and quarantine test**
 

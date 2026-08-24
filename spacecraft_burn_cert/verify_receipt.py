@@ -16,6 +16,7 @@ import hashlib
 import itertools
 import json
 import math
+import subprocess
 from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -469,7 +470,190 @@ def compare_interval(candidate: dict, expected: Interval, reasons: list[str], la
         reasons.append(f"interval-mismatch:{label}")
 
 
-def verify_receipt(receipt_path: Path | str, source_path: Path | str) -> dict:
+MODEL_QUALIFIER = (
+    "under the stated finite-burn ODE model, supplied input bounds, "
+    "and machine-checked interval-certificate assumptions"
+)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
+
+
+def verify_identity_file(
+    path: Path, expected_file_digest: str, expected_internal_digest: str,
+    checker_digest: str, request_digest: str, model_id: str, epoch: str,
+    reasons: list[str],
+) -> None:
+    try:
+        raw = path.read_bytes()
+        document = json.loads(raw)
+    except (OSError, json.JSONDecodeError):
+        reasons.append("proof-identity-invalid")
+        return
+    if sha256_file(path) != expected_file_digest:
+        reasons.append("proof-identity-file-hash-mismatch")
+    if not isinstance(document, dict):
+        reasons.append("proof-identity-invalid")
+        return
+    recorded_internal = document.get("identity_digest_sha256")
+    body = {key: value for key, value in document.items() if key != "identity_digest_sha256"}
+    actual_internal = hashlib.sha256(canonical_json_bytes(body)).hexdigest()
+    if recorded_internal != actual_internal or recorded_internal != expected_internal_digest:
+        reasons.append("proof-identity-internal-digest-mismatch")
+    checker = document.get("checker")
+    if not isinstance(checker, dict) or checker.get("sha256") != checker_digest:
+        reasons.append("proof-identity-checker-mismatch")
+    fragment = document.get("fragment")
+    expected_fragment = {
+        "soundness_theorem": "JackalIv.Spacecraft.spacecraft_burn_certified_safe",
+        "request_digest": request_digest,
+        "model_id": model_id,
+        "release_epoch": epoch,
+    }
+    if not isinstance(fragment, dict) or any(
+        fragment.get(key) != value for key, value in expected_fragment.items()
+    ):
+        reasons.append("proof-identity-fragment-mismatch")
+
+
+def verify_formal_binding(
+    candidate: dict,
+    receipt_path: Path,
+    *,
+    witness_path: Path | None,
+    checker_path: Path | None,
+    proof_identity_path: Path | None,
+    expected_receipt_sha256: str | None,
+    expected_proof_file_sha256: str | None,
+    expected_proof_identity_sha256: str | None,
+    expected_request_digest: str | None,
+    expected_model_id: str | None,
+    expected_epoch: str | None,
+    nonce: str | None,
+) -> list[str]:
+    pins = (
+        witness_path, checker_path, proof_identity_path, expected_receipt_sha256,
+        expected_proof_file_sha256, expected_proof_identity_sha256,
+        expected_request_digest, expected_model_id, expected_epoch, nonce,
+    )
+    if any(value is None for value in pins):
+        return ["caller-pins-required"]
+    assert witness_path is not None and checker_path is not None
+    assert proof_identity_path is not None and expected_receipt_sha256 is not None
+    assert expected_proof_file_sha256 is not None
+    assert expected_proof_identity_sha256 is not None
+    assert expected_request_digest is not None and expected_model_id is not None
+    assert expected_epoch is not None and nonce is not None
+
+    reasons: list[str] = []
+    for path, reason in (
+        (witness_path, "witness-unreadable"),
+        (checker_path, "checker-unreadable"),
+        (proof_identity_path, "proof-identity-invalid"),
+    ):
+        if not path.is_file() or path.is_symlink():
+            reasons.append(reason)
+    if reasons:
+        return reasons
+    if sha256_file(receipt_path) != expected_receipt_sha256:
+        reasons.append("receipt-hash-mismatch")
+    witness_digest = sha256_file(witness_path)
+    checker_digest = sha256_file(checker_path)
+    verify_identity_file(
+        proof_identity_path, expected_proof_file_sha256,
+        expected_proof_identity_sha256, checker_digest, expected_request_digest,
+        expected_model_id, expected_epoch, reasons,
+    )
+
+    binding = candidate.get("formal_checker")
+    if not isinstance(binding, dict):
+        reasons.append("formal-checker-binding-invalid")
+        return sorted(set(reasons))
+    expected_fields = {
+        "checker_sha256": checker_digest,
+        "proof_identity_file_sha256": expected_proof_file_sha256,
+        "proof_identity_digest_sha256": expected_proof_identity_sha256,
+        "witness_sha256": witness_digest,
+        "request_digest": expected_request_digest,
+        "model_id": expected_model_id,
+        "epoch": expected_epoch,
+        "nonce": nonce,
+        "theorem": "spacecraft_burn_certified_safe",
+    }
+    reason_by_field = {
+        "checker_sha256": "checker-hash-mismatch",
+        "proof_identity_file_sha256": "proof-identity-file-hash-mismatch",
+        "proof_identity_digest_sha256": "proof-identity-internal-digest-mismatch",
+        "witness_sha256": "witness-hash-mismatch",
+        "request_digest": "request-digest-mismatch",
+        "model_id": "model-id-mismatch",
+        "epoch": "release-epoch-mismatch",
+        "nonce": "nonce-mismatch",
+        "theorem": "theorem-name-mismatch",
+    }
+    for field, expected in expected_fields.items():
+        if binding.get(field) != expected:
+            reasons.append(reason_by_field[field])
+    if candidate.get("verdict_qualifier") != MODEL_QUALIFIER:
+        reasons.append("verdict-qualifier-mismatch")
+    result_line = binding.get("result_line")
+    if not isinstance(result_line, str) or "\n" in result_line or "\r" in result_line:
+        reasons.append("checker-result-line-invalid")
+    if reasons:
+        return sorted(set(reasons))
+
+    environment = {
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/usr/bin:/bin",
+    }
+    try:
+        completed = subprocess.run(
+            [str(checker_path), str(witness_path), expected_request_digest,
+             expected_model_id, expected_epoch],
+            cwd=checker_path.parent,
+            env=environment,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=180,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ["checker-execution-failed"]
+    if completed.returncode != 0:
+        reasons.append("checker-refused")
+    if completed.stderr:
+        reasons.append("checker-stderr")
+    if completed.stdout != result_line + "\n":
+        reasons.append("checker-result-mismatch")
+    return sorted(set(reasons))
+
+
+def verify_receipt(
+    receipt_path: Path | str,
+    source_path: Path | str,
+    *,
+    witness_path: Path | str | None = None,
+    checker_path: Path | str | None = None,
+    proof_identity_path: Path | str | None = None,
+    expected_receipt_sha256: str | None = None,
+    expected_proof_file_sha256: str | None = None,
+    expected_proof_identity_sha256: str | None = None,
+    expected_request_digest: str | None = None,
+    expected_model_id: str | None = None,
+    expected_epoch: str | None = None,
+    nonce: str | None = None,
+) -> dict:
     receipt_path = Path(receipt_path)
     source_path = Path(source_path)
     reasons: list[str] = []
@@ -486,6 +670,23 @@ def verify_receipt(receipt_path: Path | str, source_path: Path | str) -> dict:
         return {"status": "REFUSED", "reasons": ["invalid-receipt-schema"]}
     if candidate.get("formal_checker_status") != "ACCEPT":
         return {"status": "REFUSED", "reasons": ["formal-checker-not-bound"]}
+
+    formal_reasons = verify_formal_binding(
+        candidate,
+        receipt_path,
+        witness_path=None if witness_path is None else Path(witness_path),
+        checker_path=None if checker_path is None else Path(checker_path),
+        proof_identity_path=None if proof_identity_path is None else Path(proof_identity_path),
+        expected_receipt_sha256=expected_receipt_sha256,
+        expected_proof_file_sha256=expected_proof_file_sha256,
+        expected_proof_identity_sha256=expected_proof_identity_sha256,
+        expected_request_digest=expected_request_digest,
+        expected_model_id=expected_model_id,
+        expected_epoch=expected_epoch,
+        nonce=nonce,
+    )
+    if formal_reasons:
+        return {"status": "REFUSED", "reasons": formal_reasons}
 
     try:
         literals = source_literals(source_path)
@@ -587,8 +788,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("receipt", type=Path)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--witness", type=Path, required=True)
+    parser.add_argument("--checker", type=Path, required=True)
+    parser.add_argument("--proof-identity", type=Path, required=True)
+    parser.add_argument("--expected-receipt-sha256", required=True)
+    parser.add_argument("--expected-proof-file-sha256", required=True)
+    parser.add_argument("--expected-proof-identity-sha256", required=True)
+    parser.add_argument("--expected-request-digest", required=True)
+    parser.add_argument("--expected-model-id", required=True)
+    parser.add_argument("--expected-epoch", required=True)
+    parser.add_argument("--nonce", required=True)
     args = parser.parse_args(argv)
-    result = verify_receipt(args.receipt, args.source)
+    result = verify_receipt(
+        args.receipt, args.source,
+        witness_path=args.witness,
+        checker_path=args.checker,
+        proof_identity_path=args.proof_identity,
+        expected_receipt_sha256=args.expected_receipt_sha256,
+        expected_proof_file_sha256=args.expected_proof_file_sha256,
+        expected_proof_identity_sha256=args.expected_proof_identity_sha256,
+        expected_request_digest=args.expected_request_digest,
+        expected_model_id=args.expected_model_id,
+        expected_epoch=args.expected_epoch,
+        nonce=args.nonce,
+    )
     print(json.dumps(result, sort_keys=True, indent=2))
     return 0 if result["status"] == "ACCEPT" else 2
 

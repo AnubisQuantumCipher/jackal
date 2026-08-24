@@ -616,17 +616,17 @@ git commit -m "feat(proof): add spacecraft burn release checker"
 - Modify: `spacecraft_burn_cert/verify_receipt.py`
 - Modify: `spacecraft_burn_cert/tests/test_verifier.py`
 
-- [ ] **Step 1: Write failing identity and outer-verifier tests**
+- [x] **Step 1: Write failing identity and outer-verifier tests**
 
 Mutate checker bytes, one Lean dependency, theorem name, witness bytes,
 request digest, model ID, epoch, qualifier, result line, and receipt digest.
 Every mutation must refuse with a distinct stable reason.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: missing proof-identity lane and absent caller pins.
 
-- [ ] **Step 3: Add the proof-identity lane**
+- [x] **Step 3: Add the proof-identity lane**
 
 Reuse the existing proof-identity engine with root module
 `JackalIv.Spacecraft.CertMain`, executable
@@ -635,7 +635,7 @@ Reuse the existing proof-identity engine with root module
 `JackalIv.Spacecraft.spacecraft_burn_certified_safe`. List every load-bearing
 theorem and require no unlisted local trust construct.
 
-- [ ] **Step 4: Make the outer verifier authoritative**
+- [x] **Step 4: Make the outer verifier authoritative**
 
 Require explicit caller arguments for witness, source, checker, proof identity,
 expected proof file digest, expected internal identity digest, expected request
@@ -643,14 +643,14 @@ digest, model ID, epoch, and nonce. Recompute every file digest, invoke the
 checker once with a sanitized environment, require its exact output, and
 compare the receipt to checker-authoritative fields.
 
-- [ ] **Step 5: Generate identity mechanically and check reproduction**
+- [x] **Step 5: Generate identity mechanically and check reproduction**
 
 ```sh
 python3 release/tools/spacecraft_burn_proof_identity.py generate
 python3 release/tools/spacecraft_burn_proof_identity.py check
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add release/tools/spacecraft_burn_proof_identity.py \

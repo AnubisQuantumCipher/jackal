@@ -721,35 +721,35 @@ decisive lower-bound receipt digest.
 - Create: `tools/spacecraft_burn_release_gate.py`
 - Create: `tests/spacecraft_burn_release_gate_test.py`
 
-- [ ] **Step 1: Write the failing claim-surface gate tests**
+- [x] **Step 1: Write the failing claim-surface gate tests**
 
 The scanner excludes only `spacecraft_burn_cert/evidence/legacy-v1/` and its
 explicit legacy manifest. Inject each forbidden phrase into a temporary copy
 of every publication class and verify the gate detects it.
 
-- [ ] **Step 2: Verify RED against the current imported prose**
+- [x] **Step 2: Verify RED against the current imported prose**
 
 Expected: current report and README contain forbidden unqualified language.
 
-- [ ] **Step 3: Rewrite current prose to the exact v2 contract**
+- [x] **Step 3: Rewrite current prose to the exact v2 contract**
 
 Put the model qualifier adjacent to every positive verdict. Add a table that
 separates formal theorem, executable checker, artifact binding, independent
 review, model assumptions, and real-world non-claims.
 
-- [ ] **Step 4: Update the JACKEL routing skill**
+- [x] **Step 4: Update the JACKEL routing skill**
 
 Document the new lane only if its command is actually exposed through the
 41-tool surface. If no tool is added in this release, document the repo-local
 CLI without claiming plugin reachability. Any tool addition requires a
 separate mechanically derived capability-inventory update and cachebuster.
 
-- [ ] **Step 5: Run the claim gate and plugin validation**
+- [x] **Step 5: Run the claim gate and plugin validation**
 
 Expected: forbidden current-surface count zero, plugin validator pass, skill
 validator pass, capability drift pass at its mechanically derived count.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add spacecraft_burn_cert/README.md spacecraft_burn_cert/REPORT.md README.md \

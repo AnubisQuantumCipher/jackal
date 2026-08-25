@@ -2355,7 +2355,23 @@ def build(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    runtime = validate_publication_startup()
+    try:
+        runtime = validate_publication_startup()
+    except RuntimeError as error:
+        allowed = {
+            (
+                "publication requires /usr/bin/python3 -I -B "
+                "release/tools/package_spacecraft_v175.py"
+            ),
+            "publication Python runtime does not match proof identity",
+        }
+        message = (
+            str(error)
+            if str(error) in allowed
+            else "publication startup validation failed"
+        )
+        print(message, file=sys.stderr)
+        return 2
     parser = argparse.ArgumentParser(
         epilog=(
             "Publication invocation: /usr/bin/python3 -I -B "

@@ -5,7 +5,7 @@ import importlib.util
 import json
 import os
 import copy
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import subprocess
 import sys
 import tarfile
@@ -43,6 +43,7 @@ def hosted_nonpublication_platform(environment: object) -> bool:
         type(environment) is dict
         and environment.get("GITHUB_ACTIONS") == "true"
         and environment.get("RUNNER_OS") == "macOS"
+        and environment.get("RUNNER_ENVIRONMENT") == "github-hosted"
     )
 
 
@@ -74,14 +75,15 @@ def assert_packager_platform_outcome(
             )
         return
 
+    testcase.assertEqual(result.returncode, 2)
     testcase.assertTrue(
         hosted_nonpublication_platform(environment),
         f"ordinary/local packager failed: {result.stderr}",
     )
     testcase.assertEqual(result.stdout, "")
     testcase.assertEqual(
-        result.stderr.strip(),
-        "publication Python runtime does not match proof identity",
+        result.stderr,
+        "publication Python runtime does not match proof identity\n",
     )
     testcase.assertIsNone(runtime)
     if output_path is not None:
@@ -410,8 +412,13 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
                 text=True,
                 capture_output=True,
             )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("/usr/bin/python3 -I -B", result.stderr)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(
+            result.stderr,
+            "publication requires /usr/bin/python3 -I -B "
+            "release/tools/package_spacecraft_v175.py\n",
+        )
 
     def test_validator_command_preserves_private_sibling_import_path(self):
         package = load_packager()
@@ -474,8 +481,12 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             text=True,
             capture_output=True,
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("proof identity", result.stderr)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(
+            result.stderr,
+            "publication Python runtime does not match proof identity\n",
+        )
 
     def test_publication_runtime_binds_live_git_client(self):
         package = load_packager()
@@ -492,9 +503,9 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             except RuntimeError as error:
                 result = subprocess.CompletedProcess(
                     args=("validate_publication_runtime",),
-                    returncode=1,
+                    returncode=2,
                     stdout="",
-                    stderr=str(error),
+                    stderr=str(error) + "\n",
                 )
                 assert_packager_platform_outcome(
                     self,
@@ -525,10 +536,50 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "proof identity"):
                 package.validate_publication_runtime(identity)
 
+    def test_main_bounds_publication_startup_runtime_refusal(self):
+        package = load_packager()
+        cases = (
+            (
+                "publication Python runtime does not match proof identity",
+                "publication Python runtime does not match proof identity\n",
+            ),
+            (
+                "publication requires /usr/bin/python3 -I -B "
+                "release/tools/package_spacecraft_v175.py",
+                "publication requires /usr/bin/python3 -I -B "
+                "release/tools/package_spacecraft_v175.py\n",
+            ),
+            (
+                "unexpected startup detail",
+                "publication startup validation failed\n",
+            ),
+        )
+        for error, expected in cases:
+            with self.subTest(error=error):
+                stdout = StringIO()
+                stderr = StringIO()
+                with (
+                    mock.patch.object(
+                        package,
+                        "validate_publication_startup",
+                        side_effect=RuntimeError(error),
+                    ),
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                ):
+                    status = package.main([])
+                self.assertEqual(status, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual(stderr.getvalue(), expected)
+
     def test_hosted_nonpublication_platform_detection_is_exact(self):
         cases = (
             (
-                {"GITHUB_ACTIONS": "true", "RUNNER_OS": "macOS"},
+                {
+                    "GITHUB_ACTIONS": "true",
+                    "RUNNER_OS": "macOS",
+                    "RUNNER_ENVIRONMENT": "github-hosted",
+                },
                 True,
             ),
             (
@@ -548,11 +599,91 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
                     expected,
                 )
 
+    def test_hosted_classifier_requires_github_hosted_runner(self):
+        github_hosted = {
+            "GITHUB_ACTIONS": "true",
+            "RUNNER_OS": "macOS",
+            "RUNNER_ENVIRONMENT": "github-hosted",
+        }
+        two_token_spoof = {
+            "GITHUB_ACTIONS": "true",
+            "RUNNER_OS": "macOS",
+        }
+        self.assertTrue(hosted_nonpublication_platform(github_hosted))
+        self.assertFalse(hosted_nonpublication_platform(two_token_spoof))
+        self.assertFalse(hosted_nonpublication_platform({
+            **github_hosted,
+            "RUNNER_ENVIRONMENT": "self-hosted",
+        }))
+
+    def test_hosted_refusal_requires_exact_code_line_and_no_output(self):
+        environment = {
+            "GITHUB_ACTIONS": "true",
+            "RUNNER_OS": "macOS",
+            "RUNNER_ENVIRONMENT": "github-hosted",
+        }
+        refusal = "publication Python runtime does not match proof identity\n"
+
+        def completed(returncode=2, stdout="", stderr=refusal):
+            return subprocess.CompletedProcess(
+                args=("packager",),
+                returncode=returncode,
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        with tempfile.TemporaryDirectory(
+            prefix="exact-hosted-refusal-"
+        ) as directory:
+            output = Path(directory) / "assets"
+            assert_packager_platform_outcome(
+                self,
+                environment=environment,
+                result=completed(),
+                output_path=output,
+                runtime=None,
+                expected_git=None,
+            )
+            invalid = (
+                ("exit-one", completed(returncode=1)),
+                ("alternate-nonzero", completed(returncode=3)),
+                ("signal", completed(returncode=-9)),
+                ("leading-space", completed(stderr=" " + refusal)),
+                ("trailing-space", completed(stderr=refusal.rstrip("\n") + " \n")),
+                ("blank-line", completed(stderr=refusal + "\n")),
+                (
+                    "traceback",
+                    completed(stderr="Traceback (most recent call last):\n" + refusal),
+                ),
+                ("stdout", completed(stdout="unexpected output\n")),
+            )
+            for label, result in invalid:
+                with self.subTest(label=label), self.assertRaises(AssertionError):
+                    assert_packager_platform_outcome(
+                        self,
+                        environment=environment,
+                        result=result,
+                        output_path=output,
+                        runtime=None,
+                        expected_git=None,
+                    )
+            output.mkdir()
+            with self.assertRaises(AssertionError):
+                assert_packager_platform_outcome(
+                    self,
+                    environment=environment,
+                    result=completed(),
+                    output_path=output,
+                    runtime=None,
+                    expected_git=None,
+                )
+
     def test_platform_conditional_packager_outcomes_remain_fail_closed(self):
         refusal = "publication Python runtime does not match proof identity"
         hosted_environment = {
             "GITHUB_ACTIONS": "true",
             "RUNNER_OS": "macOS",
+            "RUNNER_ENVIRONMENT": "github-hosted",
         }
         local_environment = {}
         expected_git = {
@@ -570,7 +701,7 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             hosted_output = root / "hosted-assets"
             hosted_result = subprocess.CompletedProcess(
                 args=("packager",),
-                returncode=1,
+                returncode=2,
                 stdout="",
                 stderr=refusal + "\n",
             )

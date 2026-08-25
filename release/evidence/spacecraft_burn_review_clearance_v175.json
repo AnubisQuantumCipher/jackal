@@ -1,0 +1,10 @@
+{
+  "completed_pass": 18,
+  "invalid_findings": 1,
+  "review_sha256": "0616bbec7352c1fcf3da3e00ce9336cba4c14ce78254d155b06920bf19b58f31",
+  "resolved_findings": 9,
+  "reviewed_commit": "04fd09e1921d94df944697b06a6eef58e4b21b16",
+  "schema": "jackal-spacecraft-independent-review-clearance-v175",
+  "status": "complete",
+  "unresolved_release_blocking": 0
+}

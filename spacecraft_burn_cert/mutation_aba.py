@@ -8,10 +8,13 @@ import hashlib
 import json
 import os
 import re
+import selectors
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Iterable, NamedTuple, Sequence
@@ -22,6 +25,11 @@ SOURCE = ROOT / "certify.py"
 VERIFIER = ROOT / "verify_receipt.py"
 BASELINE = ROOT / "evidence" / "baseline_receipt.json"
 PYTHON = Path(sys.executable).resolve()
+MAX_SUBPROCESS_OUTPUT_CHARS = 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+MAX_WITNESS_BYTES = 64 * 1024 * 1024
 
 
 MUTATIONS = {
@@ -95,6 +103,39 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def read_regular_snapshot(path: Path, maximum_bytes: int, label: str) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
+            raise RuntimeError(f"{label} is not a bounded regular file")
+        payload = bytearray()
+        while len(payload) <= maximum_bytes:
+            block = os.read(
+                descriptor, min(1024 * 1024, maximum_bytes + 1 - len(payload))
+            )
+            if not block:
+                break
+            payload.extend(block)
+        after = os.fstat(descriptor)
+        stable = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if (
+            len(payload) > maximum_bytes
+            or len(payload) != before.st_size
+            or any(getattr(before, field) != getattr(after, field) for field in stable)
+        ):
+            raise RuntimeError(f"{label} changed during bounded read")
+        return bytes(payload)
+    except OSError as error:
+        raise RuntimeError(f"{label} is unreadable") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
 def atomic_bytes(path: Path, data: bytes, mode: int) -> None:
     temporary = path.with_name(f".{path.name}.mutation-{os.getpid()}")
     try:
@@ -124,23 +165,112 @@ def mutated_bytes(original: bytes, name: str) -> bytes:
 
 
 def hash_only_cycle(name: str, source: Path = SOURCE) -> dict:
-    original = source.read_bytes()
+    original = read_regular_snapshot(source, MAX_SOURCE_BYTES, "mutation source")
     mode = source.stat().st_mode & 0o777
     a_before = sha256(original)
     b_data = mutated_bytes(original, name)
     try:
         atomic_bytes(source, b_data, mode)
-        b_hash = sha256(source.read_bytes())
+        b_hash = sha256(read_regular_snapshot(source, MAX_SOURCE_BYTES, "mutation source"))
     finally:
         atomic_bytes(source, original, mode)
-    a_after = sha256(source.read_bytes())
+    restored_bytes = read_regular_snapshot(source, MAX_SOURCE_BYTES, "mutation source")
+    a_after = sha256(restored_bytes)
     return {
         "mutation": name,
         "a_before_sha256": a_before,
         "b_sha256": b_hash,
         "a_after_sha256": a_after,
-        "restored": a_before == a_after and source.read_bytes() == original,
+        "restored": a_before == a_after and restored_bytes == original,
     }
+
+
+def _kill_process_group(process: subprocess.Popen) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def run_bounded_process(
+    command: Sequence[str],
+    *,
+    environment: dict[str, str],
+    timeout: int,
+) -> tuple[int, bytes, bool]:
+    process = subprocess.Popen(
+        list(command),
+        cwd=ROOT.parent,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=False,
+        start_new_session=True,
+    )
+    assert process.stdout is not None
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+    output = bytearray()
+    deadline = time.monotonic() + timeout
+    failure: str | None = None
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+                break
+            events = selector.select(remaining)
+            if not events:
+                failure = "timeout"
+                break
+            for key, _mask in events:
+                chunk = os.read(
+                    key.fd,
+                    min(
+                        64 * 1024,
+                        MAX_SUBPROCESS_OUTPUT_CHARS + 1 - len(output),
+                    ),
+                )
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                output.extend(chunk)
+                if len(output) > MAX_SUBPROCESS_OUTPUT_CHARS:
+                    failure = "limit"
+                    break
+            if failure is not None:
+                break
+        if failure is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+            else:
+                try:
+                    returncode = process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    failure = "timeout"
+    except BaseException:
+        _kill_process_group(process)
+        raise
+    finally:
+        selector.close()
+        process.stdout.close()
+    if failure is not None:
+        _kill_process_group(process)
+        return (
+            125 if failure == "limit" else 124,
+            bytes(output[:MAX_SUBPROCESS_OUTPUT_CHARS]),
+            failure == "limit",
+        )
+    return returncode, bytes(output), False
 
 
 def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | None = None) -> dict:
@@ -156,51 +286,78 @@ def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | 
         if set(extra_env) != {"SPACECRAFT_CERTIFIER_PATH"}:
             raise ValueError("unsupported mutation subprocess environment")
         environment.update(extra_env)
-    try:
-        completed = subprocess.run(
-            list(command),
-            cwd=ROOT.parent,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout,
-            check=False,
-            text=True,
-        )
-        output = completed.stdout
-        return {
-            "returncode": completed.returncode,
-            "output_sha256": sha256(output.encode("utf-8")),
-            "output": output,
-            "output_excerpt": output[-3000:],
-        }
-    except subprocess.TimeoutExpired as error:
-        def timeout_text(value: str | bytes | None) -> str:
-            if value is None:
-                return ""
-            if isinstance(value, bytes):
-                return value.decode("utf-8", errors="replace")
-            return value
-
-        output = timeout_text(error.stdout) + timeout_text(error.stderr)
-        return {
-            "returncode": 124,
-            "output_sha256": sha256(output.encode("utf-8")),
-            "output": output,
-            "output_excerpt": output[-3000:],
-        }
+    returncode, output_bytes, output_limited = run_bounded_process(
+        command, environment=environment, timeout=timeout
+    )
+    output = output_bytes.decode("utf-8", errors="replace")
+    return {
+        "returncode": returncode,
+        "output_sha256": sha256(output_bytes),
+        "output": output,
+        "output_excerpt": output[-3000:],
+        "output_limited": output_limited,
+    }
 
 
 def parse_json_output(record: dict) -> dict | None:
-    try:
-        return json.loads(record["output"])
-    except (json.JSONDecodeError, TypeError):
+    output = record.get("output") if type(record) is dict else None
+    if type(output) is not str or len(output) > MAX_SUBPROCESS_OUTPUT_CHARS:
         return None
+
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def reject_number(_value: str) -> None:
+        raise ValueError("fractional or non-finite JSON number")
+
+    def bounded_integer(value: str) -> int:
+        digits = value[1:] if value.startswith("-") else value
+        if len(digits) > MAX_JSON_INTEGER_DIGITS:
+            raise ValueError("JSON integer exceeds the mutation digit limit")
+        return int(value)
+
+    try:
+        document = json.loads(
+            output,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=reject_number,
+            parse_float=reject_number,
+            parse_int=bounded_integer,
+        )
+    except (json.JSONDecodeError, OverflowError, RecursionError, TypeError, ValueError):
+        return None
+    pending = [(document, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                return None
+            if any(
+                any("\ud800" <= character <= "\udfff" for character in key)
+                for key in value
+            ):
+                return None
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                return None
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and any(
+            "\ud800" <= character <= "\udfff" for character in value
+        ):
+            return None
+        elif type(value) is float:
+            return None
+    return document if type(document) is dict else None
 
 
 def completed_mutant_failure(returncode: int) -> bool:
-    return returncode not in (0, 124)
+    return returncode not in (0, 124, 125)
 
 
 def mutant_failure_caught(returncode: int, output: str, expected_reason: str) -> bool:
@@ -228,12 +385,17 @@ def normalized_mutant_test_output(output: str, isolated_source: Path) -> str:
     return re.sub(r"(?m)^(Ran \d+ tests? in )\d+(?:\.\d+)?s$", r"\1<TIME>s", normalized)
 
 
-def witness_mutation_caught(returncode: int, parsed: dict | None) -> bool:
+def witness_mutation_caught(
+    checker_returncode: int,
+    outer_verifier_returncode: int,
+    parsed: dict | None,
+) -> bool:
     return (
-        completed_mutant_failure(returncode)
+        checker_returncode == 1
+        and outer_verifier_returncode == 2
         and parsed is not None
         and parsed.get("status") == "REFUSED"
-        and "witness-hash-mismatch" in parsed.get("reasons", [])
+        and parsed.get("reasons") == ["witness-hash-mismatch"]
     )
 
 
@@ -282,9 +444,9 @@ def certifier_test_command(selector: str = "") -> tuple[str, ...]:
 
 def exercise_mutation(name: str) -> dict:
     mutation = MUTATIONS[name]
-    original = SOURCE.read_bytes()
+    original = read_regular_snapshot(SOURCE, MAX_SOURCE_BYTES, "producer source")
     codec_source = SOURCE.with_name("witness_codec.py")
-    codec_bytes = codec_source.read_bytes()
+    codec_bytes = read_regular_snapshot(codec_source, MAX_SOURCE_BYTES, "witness codec")
     original_mode = SOURCE.stat().st_mode & 0o777
     codec_mode = codec_source.stat().st_mode & 0o777
     a_before = sha256(original)
@@ -299,7 +461,7 @@ def exercise_mutation(name: str) -> dict:
         atomic_bytes(isolated, original, original_mode)
         atomic_bytes(isolated_codec, codec_bytes, codec_mode)
         atomic_bytes(isolated, mutant, original_mode)
-        b_hash = sha256(isolated.read_bytes())
+        b_hash = sha256(read_regular_snapshot(isolated, MAX_SOURCE_BYTES, "mutant source"))
         test_record = run(
             certifier_test_command(),
             timeout=45,
@@ -318,8 +480,11 @@ def exercise_mutation(name: str) -> dict:
             timeout=30,
             extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
-        a_after = sha256(isolated.read_bytes())
-        restored = a_after == a_before and isolated.read_bytes() == original
+        restored_bytes = read_regular_snapshot(
+            isolated, MAX_SOURCE_BYTES, "restored source"
+        )
+        a_after = sha256(restored_bytes)
+        restored = a_after == a_before and restored_bytes == original
     return {
         "mutation": name,
         "bug": mutation["bug"],
@@ -329,8 +494,10 @@ def exercise_mutation(name: str) -> dict:
         "a_after_sha256": a_after,
         "restored": restored,
         "restored_contract_test_passed": restored_test["returncode"] == 0,
+        "restored_contract_test_output_limited": restored_test["output_limited"],
         "mutant_tests_failed": completed_mutant_failure(test_record["returncode"]),
         "mutant_tests_timed_out": test_record["returncode"] == 124,
+        "mutant_tests_output_limited": test_record["output_limited"],
         "reason_observed": reason_observed,
         "mutant_test_output_sha256": sha256(
             normalized_mutant_test_output(test_record["output"], isolated).encode("utf-8")
@@ -340,10 +507,24 @@ def exercise_mutation(name: str) -> dict:
     }
 
 
-def verify_baseline(inputs: FormalInputs) -> dict:
+def verify_baseline(inputs: FormalInputs) -> tuple[dict, dict]:
     record = run(verifier_command(inputs), timeout=180)
     parsed = parse_json_output(record)
-    return parsed or {"status": "ERROR", "record": record}
+    process = {
+        "returncode": record["returncode"],
+        "timed_out": record["returncode"] == 124,
+        "output_sha256": record["output_sha256"],
+        "output_limited": record["output_limited"],
+        "contract_valid": (
+            record["returncode"] == 0
+            and record["output_limited"] is False
+            and parsed is not None
+            and parsed.get("status") == "ACCEPT"
+        ),
+    }
+    if parsed is None:
+        return {"status": "ERROR"}, process
+    return parsed, process
 
 
 def mutated_witness(original: bytes, name: str) -> bytes:
@@ -375,7 +556,7 @@ def mutated_witness(original: bytes, name: str) -> bytes:
 
 
 def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
-    original = inputs.witness.read_bytes()
+    original = read_regular_snapshot(inputs.witness, MAX_WITNESS_BYTES, "formal witness")
     mutant = mutated_witness(original, name)
     with tempfile.TemporaryDirectory(prefix="spacecraft-witness-mutation-") as directory:
         path = Path(directory) / f"{name}.cert"
@@ -384,35 +565,53 @@ def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
                        inputs.model_id, inputs.epoch), timeout=180)
         verifier = run(verifier_command(inputs, path), timeout=30)
         parsed = parse_json_output(verifier)
-    checker_refused = completed_mutant_failure(checker["returncode"])
+    checker_refused = checker["returncode"] == 1
     return {
         "mutation": name,
         "original_sha256": sha256(original),
         "mutant_sha256": sha256(mutant),
         "checker_refused": checker_refused,
+        "checker_returncode": checker["returncode"],
         "checker_timed_out": checker["returncode"] == 124,
+        "checker_output_sha256": checker["output_sha256"],
+        "checker_output_limited": checker["output_limited"],
         "checker_output_excerpt": checker["output_excerpt"],
         "outer_verifier": parsed,
-        "caught": witness_mutation_caught(checker["returncode"], parsed),
+        "outer_verifier_returncode": verifier["returncode"],
+        "outer_verifier_timed_out": verifier["returncode"] == 124,
+        "outer_verifier_output_sha256": verifier["output_sha256"],
+        "outer_verifier_output_limited": verifier["output_limited"],
+        "caught": witness_mutation_caught(
+            checker["returncode"], verifier["returncode"], parsed
+        ),
     }
 
 
 def campaign(inputs: FormalInputs) -> dict:
-    original_hash = sha256(SOURCE.read_bytes())
-    before = verify_baseline(inputs)
-    if before.get("status") != "ACCEPT":
+    original_hash = sha256(
+        read_regular_snapshot(SOURCE, MAX_SOURCE_BYTES, "producer source")
+    )
+    before, before_process = verify_baseline(inputs)
+    if (
+        before.get("status") != "ACCEPT"
+        or before_process.get("contract_valid") is not True
+    ):
         raise RuntimeError("baseline verifier did not accept before mutation campaign")
     records = [exercise_mutation(name) for name in MUTATIONS]
     witness_records = [exercise_witness_mutation(name, inputs) for name in (
         "corruption", "chain", "coverage"
     )]
-    final_hash = sha256(SOURCE.read_bytes())
-    after = verify_baseline(inputs)
+    final_hash = sha256(
+        read_regular_snapshot(SOURCE, MAX_SOURCE_BYTES, "producer source")
+    )
+    after, after_process = verify_baseline(inputs)
     status = (
         "PASS"
         if original_hash == final_hash
         and before.get("status") == "ACCEPT"
+        and before_process.get("contract_valid") is True
         and after.get("status") == "ACCEPT"
+        and after_process.get("contract_valid") is True
         and all(
             record["caught"]
             and record["restored"]
@@ -428,9 +627,11 @@ def campaign(inputs: FormalInputs) -> dict:
         "baseline_source_sha256": original_hash,
         "final_source_sha256": final_hash,
         "baseline_verifier_before": before,
+        "baseline_verifier_before_process": before_process,
         "mutations": records,
         "witness_mutations": witness_records,
         "baseline_verifier_after": after,
+        "baseline_verifier_after_process": after_process,
     }
 
 
@@ -490,7 +691,9 @@ def write_atomic(
     target = prepare_output_path(path, inputs)
     target.parent.mkdir(parents=True, exist_ok=True)
     target = prepare_output_path(target, inputs)
-    data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    data = (
+        json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    ).encode("utf-8")
     descriptor: int | None = None
     temporary: Path | None = None
     try:

@@ -50,6 +50,8 @@ JSON_TARGETS = (
 )
 TARGETS = TEXT_TARGETS + JSON_TARGETS
 MAX_PUBLICATION_SURFACE_BYTES = 4 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
 ASSURANCE_SEPARATOR = r"(?:[\W_])+"
 FORBIDDEN = {
     "proved-safe": re.compile(
@@ -425,6 +427,56 @@ def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
     return result
 
 
+def reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def reject_fractional_json(_value: str) -> None:
+    raise ValueError("fractional JSON numbers are not admitted")
+
+
+def parse_bounded_json_integer(value: str) -> int:
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > MAX_JSON_INTEGER_DIGITS:
+        raise ValueError("JSON integer exceeds the claim-gate digit limit")
+    return int(value)
+
+
+def contains_unicode_surrogate(value: str) -> bool:
+    return any("\ud800" <= character <= "\udfff" for character in value)
+
+
+def strict_json_bytes(raw: bytes) -> object:
+    try:
+        document = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=reject_nonfinite_json,
+            parse_float=reject_fractional_json,
+            parse_int=parse_bounded_json_integer,
+        )
+    except (OverflowError, RecursionError) as error:
+        raise ValueError("JSON nesting exceeds the claim-gate limit") from error
+    pending = [(document, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("JSON nesting exceeds the claim-gate limit")
+            if any(contains_unicode_surrogate(key) for key in value):
+                raise ValueError("JSON strings must not contain Unicode surrogates")
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("JSON nesting exceeds the claim-gate limit")
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and contains_unicode_surrogate(value):
+            raise ValueError("JSON strings must not contain Unicode surrogates")
+        elif type(value) is float:
+            raise ValueError("fractional JSON numbers are not admitted")
+    return document
+
+
 def read_surface_descriptor(descriptor: int) -> bytes:
     before = os.fstat(descriptor)
     if not stat.S_ISREG(before.st_mode):
@@ -580,10 +632,7 @@ def scan_instrument_validation(path: Path) -> dict:
     relative = INSTRUMENT_VALIDATION_PATH
     findings = []
     try:
-        payload = json.loads(
-            read_surface_path(path).decode("utf-8"),
-            object_pairs_hook=reject_duplicate_keys,
-        )
+        payload = strict_json_bytes(read_surface_path(path))
     except DuplicateJsonKey:
         findings.append({"file": str(relative), "reason": "duplicate-json-key"})
     except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
@@ -627,11 +676,8 @@ def scan(root: Path) -> dict:
                 findings.extend(string_findings(text, relative, "$"))
             for relative in JSON_TARGETS:
                 try:
-                    payload = json.loads(
-                        read_relative_surface(root_descriptor, relative).decode(
-                            "utf-8"
-                        ),
-                        object_pairs_hook=reject_duplicate_keys,
+                    payload = strict_json_bytes(
+                        read_relative_surface(root_descriptor, relative)
                     )
                 except FileNotFoundError:
                     findings.append({

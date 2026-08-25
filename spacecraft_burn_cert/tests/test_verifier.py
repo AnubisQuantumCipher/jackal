@@ -370,9 +370,9 @@ class IndependentVerifierTests(unittest.TestCase):
             observed["checker"] = checker_snapshot.read_bytes()
             observed["witness"] = witness_snapshot.read_bytes()
             observed["private"] = checker_snapshot.parent == witness_snapshot.parent
-            return subprocess.CompletedProcess(command, 0, "ACCEPT\n", "")
+            return subprocess.CompletedProcess(command, 0, b"ACCEPT\n", b"")
 
-        with mock.patch.object(verifier.subprocess, "run", side_effect=fake_run):
+        with mock.patch.object(verifier, "run_bounded_process", side_effect=fake_run):
             completed = verifier.run_checker_snapshot(
                 checker_bytes, witness_bytes, "request", "model", "epoch", 10
             )
@@ -382,6 +382,26 @@ class IndependentVerifierTests(unittest.TestCase):
             "witness": witness_bytes,
             "private": True,
         })
+
+    def test_checker_capture_is_hard_bounded_and_ascii_only(self):
+        verifier = load_verifier(self)
+        malformed = (
+            (
+                b"#!/bin/sh\n/usr/bin/printf '\\377'\n",
+                "checker-output-not-ascii",
+            ),
+            (
+                b"#!/bin/sh\n/usr/bin/head -c 8192 /dev/zero\n",
+                "checker-output-limit",
+            ),
+        )
+        for checker, reason in malformed:
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                verifier.CheckerExecutionError, reason
+            ):
+                verifier.run_checker_snapshot(
+                    checker, b"witness", "request", "model", "epoch", 10
+                )
 
     def test_identity_digest_uses_the_already_parsed_bytes(self):
         verifier = load_verifier(self)
@@ -829,9 +849,83 @@ class IndependentVerifierTests(unittest.TestCase):
 
     def test_strict_json_rejects_duplicate_keys_and_nonfinite_numbers(self):
         verifier = load_verifier(self)
-        for raw in (b'{"a":1,"a":2}', b'{"a":NaN}', b'{"a":Infinity}'):
+        for raw in (
+            b'{"a":1,"a":2}',
+            b'{"a":NaN}',
+            b'{"a":Infinity}',
+            b"1.0",
+            b"1e309",
+            b"-1e309",
+            b"9" * (verifier.MAX_JSON_INTEGER_DIGITS + 1),
+            b'{"x":"\\ud800"}',
+            b'{"\\udfff":0}',
+            b'{"x":[{"y":"\\ud800"}]}',
+        ):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 verifier.strict_json_bytes(raw)
+
+    def test_strict_json_rejects_excessive_nesting(self):
+        verifier = load_verifier(self)
+        admitted_depth = verifier.MAX_JSON_NESTING_DEPTH
+        admitted = b"[" * admitted_depth + b"0" + b"]" * admitted_depth
+        self.assertIsInstance(verifier.strict_json_bytes(admitted), list)
+        for depth in (verifier.MAX_JSON_NESTING_DEPTH + 1, 5000):
+            raw = b"[" * depth + b"0" + b"]" * depth
+            with self.subTest(depth=depth), self.assertRaises(ValueError):
+                verifier.strict_json_bytes(raw)
+
+    def test_malformed_receipt_request_and_identity_refuse_without_traceback(self):
+        verifier = load_verifier(self)
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b'{"x":"\\ud800"}',
+            b"1e309",
+            b"9" * (verifier.MAX_JSON_INTEGER_DIGITS + 1),
+        )
+        for index, raw in enumerate(malformed):
+            with self.subTest(index=index), tempfile.TemporaryDirectory(
+                prefix="malformed-json-refusal-"
+            ) as directory:
+                temporary = Path(directory)
+                receipt_path = temporary / "receipt.json"
+                request_path = temporary / "request.json"
+                identity_path = temporary / "identity.json"
+                for path in (receipt_path, request_path, identity_path):
+                    path.write_bytes(raw)
+
+                receipt_result = verifier.verify_receipt(
+                    receipt_path,
+                    CERTIFIER,
+                    request_path=ROOT / "request_v2.json",
+                )
+                request_result = verifier.verify_receipt(
+                    ROOT / "evidence/baseline_receipt_v2.json",
+                    CERTIFIER,
+                    request_path=request_path,
+                    expected_request_digest=hashlib.sha256(raw).hexdigest(),
+                )
+                identity_reasons: list[str] = []
+                identity_result = verifier.verify_identity_file(
+                    identity_path,
+                    hashlib.sha256(raw).hexdigest(),
+                    "0" * 64,
+                    "0" * 64,
+                    "0" * 64,
+                    MODEL_ID,
+                    EPOCH,
+                    identity_reasons,
+                )
+
+                self.assertEqual(
+                    receipt_result,
+                    {"status": "REFUSED", "reasons": ["invalid-receipt-json"]},
+                )
+                self.assertEqual(
+                    request_result,
+                    {"status": "REFUSED", "reasons": ["request-file-invalid"]},
+                )
+                self.assertIsNone(identity_result)
+                self.assertEqual(identity_reasons, ["proof-identity-invalid"])
 
     def test_interval_receipt_requires_exact_directed_decimal_representations(self):
         verifier = load_verifier(self)
@@ -856,6 +950,38 @@ class IndependentVerifierTests(unittest.TestCase):
                 verifier.parse_receipt_interval(mutated, observed, "fixture")
             )
             self.assertEqual(observed, ["invalid-interval:fixture"])
+
+        oversized = {
+            **document,
+            "lo_scaled_integer": "9" * (verifier.MAX_EXACT_INTEGER_DIGITS + 1),
+        }
+        observed = []
+        self.assertIsNone(
+            verifier.parse_receipt_interval(oversized, observed, "fixture")
+        )
+        self.assertEqual(observed, ["invalid-interval:fixture"])
+
+    def test_checker_result_line_integer_tokens_are_explicitly_bounded(self):
+        verifier = load_verifier(self)
+        prefix = (
+            "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
+        )
+        valid = (
+            prefix
+            + f"margin_lo=1 margin_hi=2 model={MODEL_ID} epoch={EPOCH}"
+        )
+        self.assertEqual(
+            verifier.checker_acceptance_margin(valid, MODEL_ID, EPOCH), (1, 2)
+        )
+        oversized = "9" * (verifier.MAX_EXACT_INTEGER_DIGITS + 1)
+        invalid = (
+            prefix
+            + f"margin_lo={oversized} margin_hi={oversized} "
+            + f"model={MODEL_ID} epoch={EPOCH}"
+        )
+        self.assertIsNone(
+            verifier.checker_acceptance_margin(invalid, MODEL_ID, EPOCH)
+        )
 
     def test_expected_receipt_document_is_type_and_shape_exact_at_every_leaf(self):
         verifier = load_verifier(self)

@@ -18,9 +18,12 @@ import json
 import math
 import os
 import re
+import selectors
+import signal
 import stat
 import subprocess
 import tempfile
+import time
 from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -34,6 +37,10 @@ MAX_REQUEST_BYTES = 1024 * 1024
 MAX_WITNESS_BYTES = 64 * 1024 * 1024
 MAX_CHECKER_BYTES = 512 * 1024 * 1024
 MAX_IDENTITY_BYTES = 16 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
+MAX_EXACT_INTEGER_DIGITS = 128
+MAX_CHECKER_OUTPUT_BYTES = 4096
 PINNED_TOOLCHAIN_CONFIGURATIONS = [
     {
         "path": "proofs/lean/lakefile.toml",
@@ -214,6 +221,10 @@ class DuplicateJsonKey(ValueError):
     pass
 
 
+class CheckerExecutionError(RuntimeError):
+    pass
+
+
 def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
     result = {}
     for key, value in pairs:
@@ -227,12 +238,60 @@ def reject_nonfinite_json(value: str) -> None:
     raise ValueError(f"non-finite JSON number: {value}")
 
 
+def reject_fractional_json(_value: str) -> None:
+    raise ValueError("fractional JSON numbers are not admitted")
+
+
+def parse_bounded_json_integer(value: str) -> int:
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > MAX_JSON_INTEGER_DIGITS:
+        raise ValueError("JSON integer exceeds the verifier digit limit")
+    return int(value)
+
+
+def contains_unicode_surrogate(value: str) -> bool:
+    return any("\ud800" <= character <= "\udfff" for character in value)
+
+
+def parse_canonical_integer_text(value: object) -> int:
+    if type(value) is not str:
+        raise ValueError("exact integer is not text")
+    match = re.fullmatch(r"-?(?:0|[1-9][0-9]*)", value)
+    digits = value[1:] if value.startswith("-") else value
+    if match is None or len(digits) > MAX_EXACT_INTEGER_DIGITS or value == "-0":
+        raise ValueError("exact integer is not bounded canonical text")
+    return int(value)
+
+
 def strict_json_bytes(raw: bytes) -> object:
-    return json.loads(
-        raw.decode("utf-8"),
-        object_pairs_hook=reject_duplicate_keys,
-        parse_constant=reject_nonfinite_json,
-    )
+    try:
+        document = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=reject_nonfinite_json,
+            parse_float=reject_fractional_json,
+            parse_int=parse_bounded_json_integer,
+        )
+    except (OverflowError, RecursionError) as error:
+        raise ValueError("JSON nesting exceeds the verifier limit") from error
+    pending = [(document, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("JSON nesting exceeds the verifier limit")
+            if any(contains_unicode_surrogate(key) for key in value):
+                raise ValueError("JSON strings must not contain Unicode surrogates")
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("JSON nesting exceeds the verifier limit")
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and contains_unicode_surrogate(value):
+            raise ValueError("JSON strings must not contain Unicode surrogates")
+        elif type(value) is float:
+            raise ValueError("fractional JSON numbers are not admitted")
+    return document
 
 
 def first_difference(expected: object, actual: object, path: str = "$") -> str | None:
@@ -792,12 +851,8 @@ def parse_receipt_interval(payload: dict, reasons: list[str], label: str) -> Int
             raise ValueError
         if not all(type(payload[key]) is str for key in INTERVAL_KEYS):
             raise ValueError
-        if re.fullmatch(r"-?(?:0|[1-9][0-9]*)", payload["lo_scaled_integer"]) is None:
-            raise ValueError
-        if re.fullmatch(r"-?(?:0|[1-9][0-9]*)", payload["hi_scaled_integer"]) is None:
-            raise ValueError
-        lo = int(payload["lo_scaled_integer"])
-        hi = int(payload["hi_scaled_integer"])
+        lo = parse_canonical_integer_text(payload["lo_scaled_integer"])
+        hi = parse_canonical_integer_text(payload["hi_scaled_integer"])
         if lo > hi:
             raise ValueError
         expected = interval_document((lo, hi))
@@ -912,7 +967,8 @@ def checker_acceptance_margin(
 ) -> tuple[int, int] | None:
     match = re.fullmatch(
         r"ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
-        r"margin_lo=([0-9]+) margin_hi=([0-9]+) model="
+        rf"margin_lo=([1-9][0-9]{{0,{MAX_EXACT_INTEGER_DIGITS - 1}}}) "
+        rf"margin_hi=([1-9][0-9]{{0,{MAX_EXACT_INTEGER_DIGITS - 1}}}) model="
         + re.escape(model_id)
         + r" epoch="
         + re.escape(epoch),
@@ -2281,6 +2337,102 @@ def verify_identity_file(
     return file_digest
 
 
+def _kill_process_group(process: subprocess.Popen) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def run_bounded_process(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+    maximum_output_bytes: int,
+) -> subprocess.CompletedProcess[bytes]:
+    try:
+        process = subprocess.Popen(
+            list(command),
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            start_new_session=True,
+        )
+    except OSError as error:
+        raise CheckerExecutionError("checker-launch-failed") from error
+    assert process.stdout is not None and process.stderr is not None
+    streams = {"stdout": bytearray(), "stderr": bytearray()}
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ, "stdout")
+    selector.register(process.stderr, selectors.EVENT_READ, "stderr")
+    deadline = time.monotonic() + timeout
+    failure: str | None = None
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+                break
+            events = selector.select(remaining)
+            if not events:
+                failure = "timeout"
+                break
+            for key, _mask in events:
+                admitted = sum(len(buffer) for buffer in streams.values())
+                chunk = os.read(
+                    key.fd,
+                    min(64 * 1024, maximum_output_bytes + 1 - admitted),
+                )
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                streams[key.data].extend(chunk)
+                if sum(len(buffer) for buffer in streams.values()) > maximum_output_bytes:
+                    failure = "limit"
+                    break
+            if failure is not None:
+                break
+        if failure is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+            else:
+                try:
+                    returncode = process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    failure = "timeout"
+    except BaseException:
+        _kill_process_group(process)
+        raise
+    finally:
+        selector.close()
+        process.stdout.close()
+        process.stderr.close()
+    if failure is not None:
+        _kill_process_group(process)
+        raise CheckerExecutionError(
+            "checker-output-limit" if failure == "limit" else "checker-timeout"
+        )
+    return subprocess.CompletedProcess(
+        process.args,
+        returncode,
+        bytes(streams["stdout"]),
+        bytes(streams["stderr"]),
+    )
+
+
 def run_checker_snapshot(
     checker_bytes: bytes,
     witness_bytes: bytes,
@@ -2298,15 +2450,20 @@ def run_checker_snapshot(
         write_output_atomic(witness, witness_bytes)
         checker.chmod(0o700)
         witness.chmod(0o600)
-        return subprocess.run(
+        completed = run_bounded_process(
             [str(checker), str(witness), request_digest, model_id, epoch],
             cwd=private,
             env=environment,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=timeout,
-            check=False,
+            maximum_output_bytes=MAX_CHECKER_OUTPUT_BYTES,
+        )
+        try:
+            stdout = completed.stdout.decode("ascii")
+            stderr = completed.stderr.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise CheckerExecutionError("checker-output-not-ascii") from error
+        return subprocess.CompletedProcess(
+            completed.args, completed.returncode, stdout, stderr
         )
 
 
@@ -2343,8 +2500,11 @@ def verify_formal_binding(
 
     reasons: list[str] = []
     try:
-        receipt_bytes = receipt_path.read_bytes() if receipt_bytes is None else receipt_bytes
-    except OSError:
+        if receipt_bytes is None:
+            receipt_bytes = read_regular_snapshot(receipt_path, MAX_RECEIPT_BYTES)
+        elif type(receipt_bytes) is not bytes or len(receipt_bytes) > MAX_RECEIPT_BYTES:
+            raise ValueError("receipt bytes are invalid")
+    except (OSError, ValueError):
         return ["receipt-unreadable"], {}
     receipt_digest = hashlib.sha256(receipt_bytes).hexdigest()
     if receipt_digest != expected_receipt_sha256:
@@ -2416,7 +2576,7 @@ def verify_formal_binding(
             checker_bytes, witness_bytes, expected_request_digest,
             expected_model_id, expected_epoch, 180,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired, CheckerExecutionError):
         return ["checker-execution-failed"], {}
     if completed.returncode != 0:
         reasons.append("checker-refused")

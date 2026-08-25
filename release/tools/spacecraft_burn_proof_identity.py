@@ -13,6 +13,7 @@ if __name__ == "__main__" and not sys.flags.isolated:
     raise SystemExit(2)
 
 import hashlib
+import json
 import os
 import pwd
 from pathlib import Path
@@ -93,6 +94,7 @@ _collect_engine_source_closure = engine.collect_source_closure
 _collect_engine_toolchain = engine.collect_toolchain
 _run_engine_axiom_audit = engine.run_axiom_audit
 _collect_engine_checker = engine.collect_checker
+_verify_engine_identity_envelope = engine.verify_identity_envelope
 _engine_run = engine.run
 LIVE_REPO_ROOT = engine.REPO_ROOT
 LIVE_LEAN_DIR = engine.LEAN_DIR
@@ -110,6 +112,102 @@ _PRIVATE_TOOLCHAIN_ROOT: Path | None = None
 _PRIVATE_TOOLCHAIN_TREE: dict[str, Any] | None = None
 _PRIVATE_LOCAL_SOURCE_TREE: dict[str, Any] | None = None
 _OBSERVED_TOOLCHAIN_BINARIES: dict[str, dict[str, Any]] = {}
+MAX_JSON_BYTES = 16 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
+_STRICT_JSON_LAST_SNAPSHOT: tuple[Path, bytes] | None = None
+
+
+def strict_json_load(path: Path) -> Any:
+    global _STRICT_JSON_LAST_SNAPSHOT
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def reject_number(_value: str) -> None:
+        raise ValueError("fractional or non-finite JSON number")
+
+    def bounded_integer(value: str) -> int:
+        digits = value[1:] if value.startswith("-") else value
+        if len(digits) > MAX_JSON_INTEGER_DIGITS:
+            raise ValueError("JSON integer exceeds the proof-identity digit limit")
+        return int(value)
+
+    try:
+        raw = bounded_source_snapshot(path, MAX_JSON_BYTES)
+        document = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=reject_duplicates,
+            parse_constant=reject_number,
+            parse_float=reject_number,
+            parse_int=bounded_integer,
+        )
+    except (
+        OSError,
+        RuntimeError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        OverflowError,
+        RecursionError,
+        ValueError,
+    ) as error:
+        raise engine.GateError(f"cannot parse bounded identity JSON {path}") from error
+    pending = [(document, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise engine.GateError(f"identity JSON nesting exceeds the limit: {path}")
+            if any(
+                any("\ud800" <= character <= "\udfff" for character in key)
+                for key in value
+            ):
+                raise engine.GateError(f"identity JSON contains Unicode surrogates: {path}")
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise engine.GateError(f"identity JSON nesting exceeds the limit: {path}")
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and any(
+            "\ud800" <= character <= "\udfff" for character in value
+        ):
+            raise engine.GateError(f"identity JSON contains Unicode surrogates: {path}")
+        elif type(value) is float:
+            raise engine.GateError(f"identity JSON contains fractional numbers: {path}")
+    _STRICT_JSON_LAST_SNAPSHOT = (Path(os.path.abspath(path)), raw)
+    return document
+
+
+def verify_identity_envelope(path: Path, record: Any) -> dict[str, Any]:
+    global _STRICT_JSON_LAST_SNAPSHOT
+    lexical = Path(os.path.abspath(path))
+    snapshot = _STRICT_JSON_LAST_SNAPSHOT
+    _STRICT_JSON_LAST_SNAPSHOT = None
+    if snapshot is None or snapshot[0] != lexical:
+        raise engine.GateError("identity envelope is not bound to its parsed snapshot")
+    with tempfile.TemporaryDirectory(prefix="spacecraft-identity-envelope-") as directory:
+        private_path = Path(directory) / "identity.json"
+        descriptor = os.open(
+            private_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+            0o400,
+        )
+        try:
+            view = memoryview(snapshot[1])
+            offset = 0
+            while offset < len(view):
+                written = os.write(descriptor, view[offset:])
+                if written <= 0:
+                    raise engine.GateError("identity snapshot write failed")
+                offset += written
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        return _verify_engine_identity_envelope(private_path, record)
 TRUSTED_GIT = Path("/usr/bin/git")
 TRUSTED_SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
 PRIVATE_LAKE_BOOKKEEPING = (
@@ -1048,7 +1146,7 @@ def validate_spacecraft_package_checkouts(packages: list[dict[str, Any]]) -> Non
 
 
 def locked_packages() -> list[dict[str, Any]]:
-    manifest = engine.strict_json_load(engine.LEAN_DIR / "lake-manifest.json")
+    manifest = strict_json_load(engine.LEAN_DIR / "lake-manifest.json")
     if not isinstance(manifest, dict):
         raise engine.GateError("lake-manifest.json root is not an object")
     return engine.normalized_packages(manifest)
@@ -1702,6 +1800,8 @@ def main() -> int:
     engine.run = run_isolated
     engine.build_checker = build_spacecraft_checker
     engine.command_generate = command_generate_private
+    engine.strict_json_load = strict_json_load
+    engine.verify_identity_envelope = verify_identity_envelope
     engine.validate_package_checkouts = validate_spacecraft_package_checkouts
     engine.FORBIDDEN_LOCAL_CONSTRUCTS = {
         **engine.FORBIDDEN_LOCAL_CONSTRUCTS,

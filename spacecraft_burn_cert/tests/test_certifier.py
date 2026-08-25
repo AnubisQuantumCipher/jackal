@@ -66,8 +66,8 @@ class CertifierContractTests(unittest.TestCase):
                     "ACCEPT theorem=spacecraft_burn_certified_safe "
                     "status=formal-bounded margin_lo=5 margin_hi=9 "
                     "model=model-v2 epoch=v1.7.5\n"
-                ),
-                "",
+                ).encode("ascii"),
+                b"",
             )
             with (
                 mock.patch.object(
@@ -75,7 +75,7 @@ class CertifierContractTests(unittest.TestCase):
                     "validate_proof_identity_for_binding",
                     return_value="a" * 64,
                 ),
-                mock.patch.object(c.subprocess, "run", return_value=accepted),
+                mock.patch.object(c, "run_bounded_process", return_value=accepted),
             ):
                 c.bind_formal_checker(
                     receipt,
@@ -248,9 +248,9 @@ class CertifierContractTests(unittest.TestCase):
                 "witness": witness.read_bytes(),
                 "private": checker.parent == witness.parent == kwargs["cwd"],
             })
-            return subprocess.CompletedProcess(command, 0, "ACCEPT\n", "")
+            return subprocess.CompletedProcess(command, 0, b"ACCEPT\n", b"")
 
-        with mock.patch.object(c.subprocess, "run", side_effect=fake_run):
+        with mock.patch.object(c, "run_bounded_process", side_effect=fake_run):
             completed = c.run_formal_checker_snapshot(
                 checker_bytes, witness_bytes, "request", "model", "epoch"
             )
@@ -338,6 +338,125 @@ class CertifierContractTests(unittest.TestCase):
                     identity["fragment"]["request_digest"],
                     identity["fragment"]["model_id"],
                     identity["fragment"]["release_epoch"],
+                )
+
+    def test_strict_proof_identity_json_bounds_are_explicit(self):
+        c = load_certifier(self)
+        admitted_depth = c.MAX_JSON_NESTING_DEPTH
+        admitted = b"[" * admitted_depth + b"0" + b"]" * admitted_depth
+        self.assertIsInstance(c.strict_identity_json_bytes(admitted), list)
+        malformed = (
+            b"[" * (admitted_depth + 1) + b"0" + b"]" * (admitted_depth + 1),
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b"1.0",
+            b"1e309",
+            b"-1e309",
+            b"9" * (c.MAX_JSON_INTEGER_DIGITS + 1),
+            b'-' + b"9" * (c.MAX_JSON_INTEGER_DIGITS + 1),
+            b'{"x":"\\ud800"}',
+            b'{"\\udfff":0}',
+        )
+        for raw in malformed:
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                c.strict_identity_json_bytes(raw)
+
+    def test_malformed_proof_identity_refuses_without_traceback(self):
+        c = load_certifier(self)
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b"1e309",
+            b"9" * (c.MAX_JSON_INTEGER_DIGITS + 1),
+            b'{"x":"\\ud800"}',
+        )
+        for raw in malformed:
+            with self.subTest(raw=raw), self.assertRaisesRegex(
+                c.CertificationError, "invalid proof identity"
+            ):
+                c.validate_proof_identity_for_binding(
+                    {}, raw, "0" * 64, "1" * 64, "model-v2", "v1.7.5"
+                )
+
+        cyclic: dict[str, object] = {}
+        cyclic["cycle"] = cyclic
+        with self.assertRaisesRegex(c.CertificationError, "invalid proof identity"):
+            c.validate_proof_identity_for_binding(
+                cyclic, b"{}", "0" * 64, "1" * 64, "model-v2", "v1.7.5"
+            )
+
+    def test_formal_binding_refuses_malformed_identity_before_checker_execution(self):
+        c = load_certifier(self)
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b"1e309",
+            b"9" * (c.MAX_JSON_INTEGER_DIGITS + 1),
+            b'{"x":"\\ud800"}',
+        )
+        for raw in malformed:
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory(
+                prefix="malformed-certifier-identity-"
+            ) as directory:
+                root = Path(directory)
+                identity = root / "identity.json"
+                checker = root / "checker"
+                witness = root / "witness.cert"
+                identity.write_bytes(raw)
+                checker.write_bytes(b"checker")
+                witness.write_bytes(b"witness")
+                with (
+                    mock.patch.object(
+                        c,
+                        "run_formal_checker_snapshot",
+                        side_effect=AssertionError("checker must not execute"),
+                    ),
+                    self.assertRaisesRegex(
+                        c.CertificationError, "invalid proof identity"
+                    ),
+                ):
+                    c.bind_formal_checker(
+                        {},
+                        witness,
+                        checker,
+                        identity,
+                        "0" * 64,
+                        "model-v2",
+                        "v1.7.5",
+                        "nonce-v1",
+                    )
+
+    def test_formal_margin_tokens_and_private_descriptor_are_bounded(self):
+        c = load_certifier(self)
+        oversized = "9" * (c.MAX_EXACT_INTEGER_DIGITS + 1)
+        line = (
+            "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
+            f"margin_lo={oversized} margin_hi={oversized} "
+            "model=model-v2 epoch=v1.7.5"
+        )
+        self.assertIsNone(c.FORMAL_RESULT_RE.fullmatch(line))
+        with mock.patch.dict(
+            c.os.environ,
+            {c.PRIVATE_SOURCE_FD_ENV: "9" * 21},
+            clear=True,
+        ), self.assertRaisesRegex(c.CertificationError, "descriptor is invalid"):
+            c.private_source_snapshot_digest()
+
+    def test_checker_output_is_bounded_ascii_before_binding(self):
+        c = load_certifier(self)
+        malformed = (
+            (
+                b"#!/bin/sh\n/usr/bin/printf '\\377'\n",
+                "not ASCII",
+            ),
+            (
+                b"#!/bin/sh\n/usr/bin/head -c 8192 /dev/zero\n",
+                "exceeds the byte limit",
+            ),
+        )
+        for checker, reason in malformed:
+            with self.subTest(reason=reason), self.assertRaisesRegex(
+                c.CertificationError, reason
+            ):
+                c.run_formal_checker_snapshot(
+                    checker, b"witness", "0" * 64, "model-v2", "v1.7.5"
                 )
 
     def test_receipt_records_positive_ode_denominator_domains(self):

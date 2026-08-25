@@ -75,6 +75,46 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("fixed to spacecraft-burn", result.stderr)
 
+    def test_identity_engine_json_loader_is_bounded_and_strict(self) -> None:
+        wrapper = self.load_wrapper()
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b'{"x":0,"x":1}',
+            b'{"x":NaN}',
+            b'{"x":1.5}',
+            b'{"x":"\\ud800"}',
+            b'{"x":' + b"9" * (wrapper.MAX_JSON_INTEGER_DIGITS + 1) + b"}",
+        )
+        for index, raw in enumerate(malformed):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "identity.json"
+                path.write_bytes(raw)
+                with self.assertRaises(wrapper.engine.GateError):
+                    wrapper.strict_json_load(path)
+
+    def test_identity_envelope_uses_the_exact_parsed_snapshot(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "identity.json"
+            original = b'{"snapshot":"original"}\n'
+            path.write_bytes(original)
+            document = wrapper.strict_json_load(path)
+            path.write_bytes(b'{"snapshot":"replacement"}\n')
+            observed = {}
+
+            def verify(snapshot_path, record):
+                observed["bytes"] = snapshot_path.read_bytes()
+                observed["record"] = record
+                return record
+
+            with mock.patch.object(
+                wrapper, "_verify_engine_identity_envelope", side_effect=verify
+            ):
+                self.assertEqual(
+                    wrapper.verify_identity_envelope(path, document), document
+                )
+            self.assertEqual(observed, {"bytes": original, "record": document})
+
     def test_generator_rejects_multiline_import_and_all_hidden_runtime_constructs(self) -> None:
         wrapper = self.load_wrapper()
         with self.assertRaises(wrapper.engine.GateError):

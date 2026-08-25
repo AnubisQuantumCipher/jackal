@@ -189,6 +189,8 @@ MAX_TRACKED_INPUT_BYTES = 64 * 1024 * 1024
 MAX_STAGED_JSON_BYTES = 64 * 1024 * 1024
 MAX_STAGED_WITNESS_BYTES = 512 * 1024 * 1024
 MAX_CHECKER_BYTES = 512 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
 
 
 class DuplicateJsonKey(ValueError):
@@ -202,6 +204,45 @@ def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
             raise DuplicateJsonKey(key)
         result[key] = value
     return result
+
+
+def reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def reject_fractional_json(_value: str) -> None:
+    raise ValueError("fractional JSON numbers are not admitted")
+
+
+def parse_bounded_json_integer(value: str) -> int:
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > MAX_JSON_INTEGER_DIGITS:
+        raise ValueError("JSON integer exceeds the package digit limit")
+    return int(value)
+
+
+def contains_unicode_surrogate(value: str) -> bool:
+    return any("\ud800" <= character <= "\udfff" for character in value)
+
+
+def require_bounded_json_tree(document: object) -> None:
+    pending = [(document, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("JSON nesting exceeds the package limit")
+            if any(contains_unicode_surrogate(key) for key in value):
+                raise ValueError("JSON strings must not contain Unicode surrogates")
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("JSON nesting exceeds the package limit")
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and contains_unicode_surrogate(value):
+            raise ValueError("JSON strings must not contain Unicode surrogates")
+        elif type(value) is float:
+            raise ValueError("fractional JSON numbers are not admitted")
 
 
 def sha256(data: bytes) -> str:
@@ -794,7 +835,8 @@ def validate_formal_receipt(receipt: dict, claim_validator) -> None:
     result_line = binding.get("result_line") if isinstance(binding, dict) else None
     match = re.fullmatch(
         r"ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
-        r"margin_lo=([1-9][0-9]*) margin_hi=([1-9][0-9]*) "
+        rf"margin_lo=([1-9][0-9]{{0,{MAX_JSON_INTEGER_DIGITS - 1}}}) "
+        rf"margin_hi=([1-9][0-9]{{0,{MAX_JSON_INTEGER_DIGITS - 1}}}) "
         rf"model={re.escape(MODEL_ID)} epoch={re.escape(CERTIFICATE_EPOCH)}",
         result_line if isinstance(result_line, str) else "",
     )
@@ -820,13 +862,9 @@ def validate_committed_baseline(
         raise RuntimeError("committed baseline receipt digest mismatch")
     if expected_digests.get(WITNESS_MANIFEST_NAME) != sha256(manifest_bytes):
         raise RuntimeError("committed witness manifest digest mismatch")
-    try:
-        manifest = json.loads(
-            manifest_bytes.decode("utf-8"),
-            object_pairs_hook=reject_duplicate_keys,
-        )
-    except (UnicodeDecodeError, json.JSONDecodeError, DuplicateJsonKey) as error:
-        raise RuntimeError("committed witness manifest is invalid") from error
+    manifest = strict_json_document(
+        manifest_bytes, "committed witness manifest"
+    )
     witness_digest = sha256(witness_bytes)
     if (
         not isinstance(manifest, dict)
@@ -1003,12 +1041,22 @@ def strict_json_document(raw: bytes, label: str) -> dict:
         document = json.loads(
             raw.decode("utf-8"),
             object_pairs_hook=reject_duplicate_keys,
+            parse_constant=reject_nonfinite_json,
+            parse_float=reject_fractional_json,
+            parse_int=parse_bounded_json_integer,
         )
     except (
         UnicodeDecodeError,
         json.JSONDecodeError,
         DuplicateJsonKey,
+        OverflowError,
+        RecursionError,
+        ValueError,
     ) as error:
+        raise RuntimeError(f"{label} is invalid JSON") from error
+    try:
+        require_bounded_json_tree(document)
+    except ValueError as error:
         raise RuntimeError(f"{label} is invalid JSON") from error
     if not isinstance(document, dict):
         raise RuntimeError(f"{label} is invalid JSON")
@@ -1625,12 +1673,9 @@ JSON_LOGICAL_PATHS = {
 
 def assert_release_claims(name: str, data: bytes, claim_validator) -> None:
     if name in JSON_LOGICAL_PATHS:
-        try:
-            payload = json.loads(
-                data.decode("utf-8"), object_pairs_hook=reject_duplicate_keys
-            )
-        except (UnicodeDecodeError, json.JSONDecodeError, DuplicateJsonKey) as error:
-            raise RuntimeError(f"release claim surface is invalid JSON: {name}") from error
+        payload = strict_json_document(
+            data, f"release claim surface is invalid JSON: {name}"
+        )
         findings = claim_validator.document_findings(
             payload, JSON_LOGICAL_PATHS[name]
         )
@@ -1725,9 +1770,11 @@ def validate_auxiliary_documents(
         "baseline_source_sha256",
         "final_source_sha256",
         "baseline_verifier_before",
+        "baseline_verifier_before_process",
         "mutations",
         "witness_mutations",
         "baseline_verifier_after",
+        "baseline_verifier_after_process",
     }
     source_records = mutation.get("mutations")
     witness_records = mutation.get("witness_mutations")
@@ -1744,6 +1791,36 @@ def validate_auxiliary_documents(
     ):
         raise RuntimeError("auxiliary evidence mutation ABA result is invalid or unbound")
 
+    process_keys = {
+        "returncode",
+        "timed_out",
+        "output_sha256",
+        "output_limited",
+        "contract_valid",
+    }
+    expected_baseline_output_sha256 = sha256(
+        (json.dumps(expected_independent, sort_keys=True, indent=2) + "\n").encode(
+            "utf-8"
+        )
+    )
+    for field in (
+        "baseline_verifier_before_process",
+        "baseline_verifier_after_process",
+    ):
+        process = mutation.get(field)
+        if (
+            not isinstance(process, dict)
+            or set(process) != process_keys
+            or type(process.get("returncode")) is not int
+            or process.get("returncode") != 0
+            or process.get("timed_out") is not False
+            or process.get("output_limited") is not False
+            or process.get("contract_valid") is not True
+            or type(process.get("output_sha256")) is not str
+            or process["output_sha256"] != expected_baseline_output_sha256
+        ):
+            raise RuntimeError("auxiliary evidence baseline verifier process is invalid")
+
     source_record_keys = {
         "mutation",
         "bug",
@@ -1753,8 +1830,10 @@ def validate_auxiliary_documents(
         "a_after_sha256",
         "restored",
         "restored_contract_test_passed",
+        "restored_contract_test_output_limited",
         "mutant_tests_failed",
         "mutant_tests_timed_out",
+        "mutant_tests_output_limited",
         "reason_observed",
         "mutant_test_output_sha256",
         "detection_boundary",
@@ -1781,8 +1860,10 @@ def validate_auxiliary_documents(
             != expected_mutant.get("expected_reason")
             or record.get("restored") is not True
             or record.get("restored_contract_test_passed") is not True
+            or record.get("restored_contract_test_output_limited") is not False
             or record.get("mutant_tests_failed") is not True
             or record.get("mutant_tests_timed_out") is not False
+            or record.get("mutant_tests_output_limited") is not False
             or record.get("reason_observed") is not True
             or record.get("caught") is not True
             or record.get("detection_boundary")
@@ -1795,9 +1876,16 @@ def validate_auxiliary_documents(
         "original_sha256",
         "mutant_sha256",
         "checker_refused",
+        "checker_returncode",
         "checker_timed_out",
+        "checker_output_sha256",
+        "checker_output_limited",
         "checker_output_excerpt",
         "outer_verifier",
+        "outer_verifier_returncode",
+        "outer_verifier_timed_out",
+        "outer_verifier_output_sha256",
+        "outer_verifier_output_limited",
         "caught",
     }
     if [record.get("mutation") for record in witness_records if isinstance(record, dict)] != list(
@@ -1815,9 +1903,23 @@ def validate_auxiliary_documents(
             or record.get("original_sha256") != bindings["witness_sha256"]
             or record.get("mutant_sha256") == bindings["witness_sha256"]
             or record.get("checker_refused") is not True
+            or type(record.get("checker_returncode")) is not int
+            or record.get("checker_returncode") != 1
             or record.get("checker_timed_out") is not False
+            or record.get("checker_output_limited") is not False
+            or type(record.get("checker_output_sha256")) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", record["checker_output_sha256"])
+            is None
             or record.get("outer_verifier")
             != {"status": "REFUSED", "reasons": ["witness-hash-mismatch"]}
+            or type(record.get("outer_verifier_returncode")) is not int
+            or record.get("outer_verifier_returncode") != 2
+            or record.get("outer_verifier_timed_out") is not False
+            or record.get("outer_verifier_output_limited") is not False
+            or type(record.get("outer_verifier_output_sha256")) is not str
+            or re.fullmatch(
+                r"[0-9a-f]{64}", record["outer_verifier_output_sha256"]
+            ) is None
             or record.get("caught") is not True
         ):
             raise RuntimeError("auxiliary evidence witness mutation record is invalid")

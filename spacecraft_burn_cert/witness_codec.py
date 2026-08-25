@@ -16,6 +16,10 @@ MAX_WITNESS_BYTES = 64 * 1024 * 1024
 MAX_BRANCHES = 1024
 MAX_STEPS_PER_BRANCH = 1_000_000
 MAX_TUBE_RECORDS = 200_000
+MAX_INTEGER_DIGITS = 128
+MAX_INTEGER_MAGNITUDE = 10 ** MAX_INTEGER_DIGITS
+MAX_WITNESS_RECORD_CHARS = 4096
+MAX_WITNESS_RECORDS = MAX_TUBE_RECORDS + MAX_BRANCHES + 3
 
 
 class WitnessRefusal(ValueError):
@@ -28,10 +32,10 @@ class Interval:
     hi: int
 
     def __post_init__(self) -> None:
-        if isinstance(self.lo, bool) or isinstance(self.hi, bool):
+        if type(self.lo) is not int or type(self.hi) is not int:
             raise WitnessRefusal("invalid-integer")
-        if not isinstance(self.lo, int) or not isinstance(self.hi, int):
-            raise WitnessRefusal("invalid-integer")
+        if abs(self.lo) >= MAX_INTEGER_MAGNITUDE or abs(self.hi) >= MAX_INTEGER_MAGNITUDE:
+            raise WitnessRefusal("integer-digit-limit")
         if self.lo > self.hi:
             raise WitnessRefusal("interval-order")
 
@@ -79,10 +83,12 @@ def _refuse(condition: bool, reason: str) -> None:
 
 
 def _validate_nat(value: int, reason: str) -> None:
-    _refuse(isinstance(value, bool) or not isinstance(value, int) or value < 0, reason)
+    _refuse(type(value) is not int or value < 0, reason)
+    _refuse(value >= MAX_INTEGER_MAGNITUDE, "integer-digit-limit")
 
 
 def _validate_witness(witness: BurnWitness) -> tuple[int, int, int]:
+    _refuse(type(witness) is not BurnWitness, "witness-record")
     _validate_nat(witness.scale_bits, "scale-bits")
     _refuse(witness.scale_bits == 0 or witness.scale_bits > 4096, "scale-bits")
     _validate_nat(witness.step_num, "step-rational")
@@ -108,6 +114,7 @@ def _validate_witness(witness: BurnWitness) -> tuple[int, int, int]:
         witness.first_cutoff_step > witness.steps_per_branch,
         "first-cutoff-step",
     )
+    _refuse(type(witness.branches) is not tuple, "branches-record")
     branch_count = prod(witness.partition_counts)
     _refuse(branch_count > MAX_BRANCHES, "branch-count-limit")
     _refuse(len(witness.branches) != branch_count, "branch-count")
@@ -115,12 +122,19 @@ def _validate_witness(witness: BurnWitness) -> tuple[int, int, int]:
     cutoff_count = branch_count * (witness.steps_per_branch - witness.first_cutoff_step)
     _refuse(tube_count > MAX_TUBE_RECORDS, "tube-count-limit")
     for branch_index, branch in enumerate(witness.branches):
-        _refuse(not isinstance(branch, BranchWitness), "branch-record")
+        _refuse(type(branch) is not BranchWitness, "branch-record")
+        _validate_nat(branch.branch, "branch-order")
         _refuse(branch.branch != branch_index, "branch-order")
+        _refuse(type(branch.initial) is not Box, "branch-initial")
+        _refuse(type(branch.thrust) is not Interval, "branch-thrust")
+        _refuse(type(branch.steps) is not tuple, "steps-record")
         _refuse(len(branch.steps) != witness.steps_per_branch, "step-count")
         for step_index, step in enumerate(branch.steps):
-            _refuse(not isinstance(step, StepWitness), "tube-record")
+            _refuse(type(step) is not StepWitness, "tube-record")
+            _validate_nat(step.branch, "step-order")
+            _validate_nat(step.step, "step-order")
             _refuse(step.branch != branch_index or step.step != step_index, "step-order")
+            _refuse(type(step.tube) is not Box, "tube-box")
     return branch_count, tube_count, cutoff_count
 
 
@@ -179,6 +193,8 @@ def _parse_integer(token: str) -> int:
         raise WitnessRefusal("noncanonical-integer")
     if digits[0] == "0":
         raise WitnessRefusal("noncanonical-integer")
+    if len(digits) > MAX_INTEGER_DIGITS:
+        raise WitnessRefusal("integer-digit-limit")
     value = int(token)
     if value == 0:
         raise WitnessRefusal("noncanonical-integer")
@@ -206,6 +222,16 @@ def decode_witness(encoded: bytes) -> BurnWitness:
         raise WitnessRefusal("witness-not-bytes")
     _refuse(len(encoded) > MAX_WITNESS_BYTES, "witness-too-large")
     _refuse(not encoded.endswith(b"\n"), "missing-final-newline")
+    _refuse(encoded.count(b"\n") > MAX_WITNESS_RECORDS, "record-count-limit")
+    record_start = 0
+    while record_start < len(encoded):
+        record_end = encoded.find(b"\n", record_start)
+        _refuse(record_end < 0, "missing-final-newline")
+        _refuse(
+            record_end - record_start > MAX_WITNESS_RECORD_CHARS,
+            "record-length-limit",
+        )
+        record_start = record_end + 1
     _refuse(b"\r" in encoded, "noncanonical-line-ending")
     _refuse(
         any(byte < 0x20 and byte != 0x0A for byte in encoded),

@@ -142,6 +142,67 @@ class ReleaseEvidenceTests(unittest.TestCase):
             self.assertEqual(manifest["receipt_sha256"], module.sha256(module.canonical_json(receipt)))
             self.assertNotIn("baseline_witness_v2.cert", files)
 
+    def test_every_staged_json_uses_the_bounded_strict_parser(self):
+        module = self.load_module()
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b'{"x":0,"x":1}',
+            b'{"x":NaN}',
+            b'{"x":1.5}',
+            b'{"x":"\\ud800"}',
+            b'{"x":' + b"9" * (module.MAX_JSON_INTEGER_DIGITS + 1) + b"}",
+        )
+        for name in module.JSON_NAMES:
+            for index, raw in enumerate(malformed):
+                with self.subTest(name=name, index=index), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    staging = self.make_staging(module, root)
+                    (staging / name).write_bytes(raw)
+                    with self.assertRaisesRegex(RuntimeError, "staged JSON is invalid"):
+                        module.expected_files(staging)
+
+    def test_staged_inputs_must_be_bounded_regular_snapshots(self):
+        module = self.load_module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = self.make_staging(module, root)
+            receipt = staging / "baseline_receipt_v2.json"
+            target = staging / "receipt-target.json"
+            receipt.replace(target)
+            receipt.symlink_to(target)
+            with self.assertRaisesRegex(RuntimeError, "staged input is invalid"):
+                module.expected_files(staging)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = self.make_staging(module, root)
+            alias = root / "staging-alias"
+            alias.symlink_to(staging, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError, "staging root is invalid"):
+                module.expected_files(alias)
+
+    def test_staged_receipt_witness_binding_requires_positive_exact_types(self):
+        module = self.load_module()
+        mutations = {
+            "sha256": 1,
+            "byte_size": 0,
+            "branch_count": -1,
+            "tube_count": 0,
+            "cutoff_cell_count": -1,
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                staging = self.make_staging(module, root)
+                receipt_path = staging / "baseline_receipt_v2.json"
+                receipt = json.loads(receipt_path.read_bytes())
+                receipt["witness"][field] = value
+                receipt_path.write_bytes(module.canonical_json(receipt))
+                with self.assertRaisesRegex(
+                    RuntimeError, "staged receipt witness binding is invalid"
+                ):
+                    module.expected_files(staging)
+
     def test_optional_witness_is_installed_and_checked_when_requested(self):
         module = self.load_module()
         with tempfile.TemporaryDirectory() as directory:

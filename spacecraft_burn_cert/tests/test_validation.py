@@ -100,6 +100,48 @@ class InstrumentValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "not bound"):
                 validator.validate(path, include_refinement=False)
 
+    def test_baseline_parser_and_exact_numbers_are_bounded_and_strict(self):
+        validator = load_validator(self)
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b'{"formal_checker_status":"ACCEPT","formal_checker_status":"ACCEPT"}',
+            b'{"formal_checker_status":"ACCEPT","x":NaN}',
+            b'{"formal_checker_status":"ACCEPT","x":1.5}',
+            b'{"formal_checker_status":"ACCEPT","x":"\\ud800"}',
+            b'{"formal_checker_status":"ACCEPT","x":'
+            + b"9" * (validator.MAX_JSON_INTEGER_DIGITS + 1)
+            + b"}",
+        )
+        for index, raw in enumerate(malformed):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "baseline.json"
+                path.write_bytes(raw)
+                with self.assertRaisesRegex(RuntimeError, "baseline receipt is invalid"):
+                    validator.validate(path, include_refinement=False)
+
+        receipt = json.loads(
+            (ROOT / "evidence" / "baseline_receipt_v2.json").read_text()
+        )
+        receipt["method"]["step_exact"] = (
+            "1/" + "9" * (validator.MAX_EXACT_NUMBER_DIGITS + 1)
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "baseline.json"
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "baseline receipt is invalid"):
+                validator.validate(path, include_refinement=False)
+
+    def test_baseline_input_must_be_a_bounded_regular_snapshot(self):
+        validator = load_validator(self)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target.json"
+            target.write_text("{}", encoding="utf-8")
+            link = root / "baseline.json"
+            link.symlink_to(target)
+            with self.assertRaisesRegex(RuntimeError, "baseline receipt is invalid"):
+                validator.validate(link, include_refinement=False)
+
     def test_publication_binding_uses_checker_margin_as_decisive(self):
         certifier_path = ROOT / "certify.py"
         spec = importlib.util.spec_from_file_location("binding_certifier", certifier_path)
@@ -129,7 +171,9 @@ class InstrumentValidationTests(unittest.TestCase):
                 "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
                 "margin_lo=5 margin_hi=9 model=model-v2 epoch=v1.7.5\n"
             )
-            completed = mock.Mock(returncode=0, stdout=line, stderr="")
+            completed = mock.Mock(
+                returncode=0, stdout=line.encode("ascii"), stderr=b""
+            )
             with (
                 mock.patch.object(
                     certifier,
@@ -137,7 +181,7 @@ class InstrumentValidationTests(unittest.TestCase):
                     return_value="a" * 64,
                 ) as validate_identity,
                 mock.patch.object(
-                    certifier.subprocess, "run", return_value=completed
+                    certifier, "run_bounded_process", return_value=completed
                 ) as run_checker,
             ):
                 certifier.bind_formal_checker(
@@ -178,6 +222,36 @@ class InstrumentValidationTests(unittest.TestCase):
             path = Path(directory) / "bad-step.json"
             path.write_text(json.dumps(receipt))
             with self.assertRaisesRegex(RuntimeError, "exactly partition"):
+                validator.validate(path, include_refinement=False)
+
+    def test_reconciliation_counts_require_positive_bounded_exact_integers(self):
+        validator = load_validator(self)
+        baseline = json.loads(
+            (ROOT / "evidence" / "baseline_receipt_v2.json").read_text()
+        )
+        mutations = (
+            ("branch_count", ""),
+            ("branch_count", False),
+            ("branch_count", []),
+            ("branch_count", -1),
+            ("tube_count", 0),
+            ("postprocess_count", -1),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as directory:
+                receipt = json.loads(json.dumps(baseline))
+                receipt["method"][field] = value
+                path = Path(directory) / "baseline.json"
+                path.write_text(json.dumps(receipt), encoding="utf-8")
+                with self.assertRaisesRegex(RuntimeError, "counts are invalid"):
+                    validator.validate(path, include_refinement=False)
+
+        receipt = json.loads(json.dumps(baseline))
+        receipt["method"]["step_exact"] = "1/1" + "0" * 119
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "baseline.json"
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "model limits"):
                 validator.validate(path, include_refinement=False)
 
     def test_step_refinement_rows_preserve_qualifier_and_assurance(self):

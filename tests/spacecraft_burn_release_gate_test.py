@@ -762,6 +762,40 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             self.assertEqual(result["status"], "FAIL")
             self.assertTrue(any(item["reason"] == "duplicate-json-key" for item in result["findings"]))
 
+    def test_json_entrypoints_refuse_bounded_parser_violations(self):
+        gate = load_gate()
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b'{"x":NaN}',
+            b'{"x":1e309}',
+            b'{"x":"\\ud800"}',
+            b'{"\\udfff":0}',
+            b'{"x":' + b"9" * (gate.MAX_JSON_INTEGER_DIGITS + 1) + b"}",
+        )
+        for raw in malformed:
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                write_clean_surfaces(root, gate)
+                target = root / gate.JSON_TARGETS[0]
+                target.write_bytes(raw)
+                result = gate.scan(root)
+                self.assertEqual(result["status"], "FAIL")
+                self.assertTrue(
+                    any(item["reason"] == "invalid-json" for item in result["findings"])
+                )
+
+                instrument = root / "standalone-instrument.json"
+                instrument.write_bytes(raw)
+                standalone = gate.scan_instrument_validation(instrument)
+                self.assertEqual(standalone["status"], "FAIL")
+                self.assertEqual(
+                    standalone["findings"],
+                    [{
+                        "file": str(gate.INSTRUMENT_VALIDATION_PATH),
+                        "reason": "invalid-json",
+                    }],
+                )
+
     def test_generated_instrument_file_can_be_gated_independently(self):
         gate = load_gate()
         with tempfile.TemporaryDirectory() as directory:

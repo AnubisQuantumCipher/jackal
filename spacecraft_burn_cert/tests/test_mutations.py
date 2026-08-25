@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -92,15 +92,39 @@ class MutationHarnessTests(unittest.TestCase):
 
     def test_timeout_byte_output_is_preserved_as_text_evidence(self):
         harness = load_harness(self)
-        timeout = subprocess.TimeoutExpired(
-            ["probe"], 1, output=b"partial stdout\n", stderr=b"partial stderr\n"
+        record = harness.run(
+            (
+                sys.executable,
+                "-I",
+                "-c",
+                "import os,time; os.write(1,b'partial output\\n'); time.sleep(10)",
+            ),
+            timeout=1,
         )
-        with mock.patch.object(harness.subprocess, "run", side_effect=timeout):
-            record = harness.run(("probe",), timeout=1)
         self.assertEqual(record["returncode"], 124)
-        self.assertEqual(record["output"], "partial stdout\npartial stderr\n")
+        self.assertEqual(record["output"], "partial output\n")
         self.assertEqual(record["output_excerpt"], record["output"])
         self.assertEqual(len(record["output_sha256"]), 64)
+        self.assertFalse(record["output_limited"])
+
+    def test_subprocess_output_is_killed_at_the_hard_capture_limit(self):
+        harness = load_harness(self)
+        record = harness.run(
+            (
+                sys.executable,
+                "-I",
+                "-c",
+                "import os; os.write(1,b'x' * "
+                f"{harness.MAX_SUBPROCESS_OUTPUT_CHARS + 4096})",
+            ),
+            timeout=10,
+        )
+        self.assertEqual(record["returncode"], 125)
+        self.assertTrue(record["output_limited"])
+        self.assertEqual(
+            len(record["output"].encode("utf-8")),
+            harness.MAX_SUBPROCESS_OUTPUT_CHARS,
+        )
 
     def test_mutant_test_output_hash_ignores_temp_paths_and_elapsed_time(self):
         harness = load_harness(self)
@@ -174,6 +198,8 @@ class MutationHarnessTests(unittest.TestCase):
                 "output": '{"status":"REFUSED","reasons":["witness-hash-mismatch"]}',
                 "output_sha256": "1", "output_excerpt": "",
             }
+            timed_out["output_limited"] = False
+            refused["output_limited"] = False
             with mock.patch.object(harness, "run", side_effect=(timed_out, refused)):
                 result = harness.exercise_witness_mutation("corruption", inputs)
             self.assertTrue(result["checker_timed_out"])
@@ -186,8 +212,16 @@ class MutationHarnessTests(unittest.TestCase):
         self.assertFalse(harness.completed_mutant_failure(0))
         self.assertFalse(harness.completed_mutant_failure(124))
         refused = {"status": "REFUSED", "reasons": ["witness-hash-mismatch"]}
-        self.assertTrue(harness.witness_mutation_caught(1, refused))
-        self.assertFalse(harness.witness_mutation_caught(124, refused))
+        self.assertTrue(harness.witness_mutation_caught(1, 2, refused))
+        self.assertFalse(harness.witness_mutation_caught(124, 2, refused))
+        self.assertFalse(harness.witness_mutation_caught(1, 0, refused))
+        self.assertFalse(harness.witness_mutation_caught(1, 124, refused))
+        self.assertFalse(harness.witness_mutation_caught(2, 2, refused))
+        self.assertFalse(
+            harness.witness_mutation_caught(
+                1, 2, {"status": "ACCEPT", "reasons": []}
+            )
+        )
         self.assertTrue(harness.mutant_failure_caught(1, "unit-scale-mismatch", "unit-scale-mismatch"))
         self.assertFalse(harness.mutant_failure_caught(1, "generic failure", "unit-scale-mismatch"))
 
@@ -195,6 +229,49 @@ class MutationHarnessTests(unittest.TestCase):
         harness = load_harness(self)
         record = {"output": '{"status":"ACCEPT"}', "output_excerpt": 'CEPT"}'}
         self.assertEqual(harness.parse_json_output(record), {"status": "ACCEPT"})
+
+    def test_json_parser_refuses_every_unbounded_or_ambiguous_shape(self):
+        harness = load_harness(self)
+        malformed = (
+            "[" * 5000 + "0" + "]" * 5000,
+            '{"x":0,"x":1}',
+            '{"x":NaN}',
+            '{"x":1.5}',
+            '{"x":"\\ud800"}',
+            '{"x":' + "9" * (harness.MAX_JSON_INTEGER_DIGITS + 1) + "}",
+            "[]",
+        )
+        for output in malformed:
+            with self.subTest(output=output[:40]):
+                self.assertIsNone(harness.parse_json_output({"output": output}))
+        self.assertIsNone(harness.parse_json_output({}))
+        self.assertIsNone(
+            harness.parse_json_output(
+                {"output": "x" * (harness.MAX_SUBPROCESS_OUTPUT_CHARS + 1)}
+            )
+        )
+
+    def test_baseline_acceptance_requires_the_exact_cli_exit_contract(self):
+        harness = load_harness(self)
+        accepted = {
+            "returncode": 0,
+            "output": '{"status":"ACCEPT","reasons":[]}',
+            "output_sha256": "a" * 64,
+            "output_excerpt": "",
+            "output_limited": False,
+        }
+        inputs = mock.Mock()
+        with mock.patch.object(harness, "run", return_value=accepted):
+            result, process = harness.verify_baseline(inputs)
+        self.assertEqual(result["status"], "ACCEPT")
+        self.assertTrue(process["contract_valid"])
+
+        for returncode in (1, 2, 124):
+            with self.subTest(returncode=returncode):
+                record = {**accepted, "returncode": returncode}
+                with mock.patch.object(harness, "run", return_value=record):
+                    _result, process = harness.verify_baseline(inputs)
+                self.assertFalse(process["contract_valid"])
 
     def test_chain_coverage_and_corruption_mutations_change_exact_witness_bytes(self):
         harness = load_harness(self)

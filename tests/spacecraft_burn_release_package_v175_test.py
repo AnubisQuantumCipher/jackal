@@ -737,6 +737,35 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
                 load_current_claim_validator(package),
             )
 
+    def test_package_json_entrypoints_share_bounded_strict_parser(self):
+        package = load_packager()
+        malformed = (
+            b"[" * 5000 + b"0" + b"]" * 5000,
+            b'{"x":1,"x":2}',
+            b'{"x":NaN}',
+            b'{"x":1e309}',
+            b'{"x":"\\ud800"}',
+            b'{"\\udfff":0}',
+            b'{"x":' + b"9" * (package.MAX_JSON_INTEGER_DIGITS + 1) + b"}",
+        )
+        claim_validator = load_current_claim_validator(package)
+        for raw in malformed:
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
+                    package.strict_json_document(raw, "fixture")
+                with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
+                    package.assert_release_claims(
+                        "request_v2.json", raw, claim_validator
+                    )
+                expected = {
+                    package.RECEIPT_NAME: hashlib.sha256(b"receipt").hexdigest(),
+                    package.WITNESS_MANIFEST_NAME: hashlib.sha256(raw).hexdigest(),
+                }
+                with self.assertRaisesRegex(RuntimeError, "manifest"):
+                    package.validate_committed_baseline(
+                        b"receipt", b"witness", {}, expected, raw
+                    )
+
     def test_new_review_clearance_binds_a_reviewed_commit(self):
         package = load_packager()
         review_bytes = b"completed independent review\n"
@@ -1269,31 +1298,51 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             (
                 "independent_verification_v2.json",
                 ("binding", "receipt_sha256"),
+                "0" * 64,
             ),
             (
                 "instrument_validation_v2.json",
                 ("baseline_receipt_sha256",),
+                "0" * 64,
             ),
             (
                 "mutation_aba_v2.json",
                 ("baseline_source_sha256",),
+                "0" * 64,
             ),
             (
                 "mutation_aba_v2.json",
                 ("witness_mutations", 0, "original_sha256"),
+                "0" * 64,
             ),
             (
                 "mutation_aba_v2.json",
                 ("mutations", 0, "mutant_test_output_sha256"),
+                "0" * 64,
+            ),
+            (
+                "mutation_aba_v2.json",
+                ("baseline_verifier_before_process", "returncode"),
+                False,
+            ),
+            (
+                "mutation_aba_v2.json",
+                ("baseline_verifier_after_process", "output_sha256"),
+                "0" * 64,
+            ),
+            (
+                "mutation_aba_v2.json",
+                ("witness_mutations", 0, "checker_returncode"),
+                True,
             ),
         )
-        for name, path in mutations:
+        for name, path, replacement in mutations:
             with self.subTest(name=name, path=path):
                 changed = json.loads(json.dumps(documents))
                 target = changed[name]
                 for key in path[:-1]:
                     target = target[key]
-                target[path[-1]] = "0" * 64
+                target[path[-1]] = replacement
                 with self.assertRaisesRegex(RuntimeError, "auxiliary evidence"):
                     package.validate_auxiliary_documents(
                         changed,

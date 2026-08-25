@@ -26,10 +26,13 @@ import json
 import math
 import os
 import re
+import selectors
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -40,6 +43,10 @@ MAX_WITNESS_BYTES = 64 * 1024 * 1024
 MAX_CHECKER_BYTES = 512 * 1024 * 1024
 MAX_IDENTITY_BYTES = 16 * 1024 * 1024
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
+MAX_EXACT_INTEGER_DIGITS = 128
+MAX_CHECKER_OUTPUT_BYTES = 4096
 
 try:
     import witness_codec  # type: ignore[no-redef]
@@ -77,13 +84,27 @@ PICARD_PRODUCER_NONCLAIM = (
 )
 FORMAL_RESULT_RE = re.compile(
     r"^ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
-    r"margin_lo=(-?[0-9]+) margin_hi=(-?[0-9]+) "
+    rf"margin_lo=(-?(?:0|[1-9][0-9]{{0,{MAX_EXACT_INTEGER_DIGITS - 1}}})) "
+    rf"margin_hi=(-?(?:0|[1-9][0-9]{{0,{MAX_EXACT_INTEGER_DIGITS - 1}}})) "
     r"model=([^ ]+) epoch=([^ ]+)$"
 )
 
 
 class CertificationError(RuntimeError):
     pass
+
+
+def parse_canonical_integer_text(value: object, label: str) -> int:
+    if type(value) is not str:
+        raise CertificationError(f"{label} is not canonical integer text")
+    digits = value[1:] if value.startswith("-") else value
+    if (
+        re.fullmatch(r"-?(?:0|[1-9][0-9]*)", value) is None
+        or len(digits) > MAX_EXACT_INTEGER_DIGITS
+        or value == "-0"
+    ):
+        raise CertificationError(f"{label} is not bounded canonical integer text")
+    return int(value)
 
 
 def _floor_scaled(value: Fraction) -> int:
@@ -499,6 +520,67 @@ def _strict_identity_object(pairs: list[tuple[str, object]]) -> dict:
     return result
 
 
+def _reject_nonfinite_identity(value: str) -> None:
+    raise ValueError(f"non-finite proof-identity value: {value}")
+
+
+def _reject_fractional_identity(_value: str) -> None:
+    raise ValueError("fractional proof-identity numbers are not admitted")
+
+
+def _parse_bounded_identity_integer(value: str) -> int:
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > MAX_JSON_INTEGER_DIGITS:
+        raise ValueError("proof-identity integer exceeds the digit limit")
+    return int(value)
+
+
+def _contains_unicode_surrogate(value: str) -> bool:
+    return any("\ud800" <= character <= "\udfff" for character in value)
+
+
+def _require_bounded_json_nesting(document: object) -> None:
+    pending = [(document, 0)]
+    seen_containers: set[int] = set()
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if id(value) in seen_containers:
+                raise ValueError("proof-identity object graph is not a JSON tree")
+            seen_containers.add(id(value))
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("proof-identity JSON nesting exceeds the limit")
+            if any(_contains_unicode_surrogate(key) for key in value):
+                raise ValueError("proof-identity strings contain Unicode surrogates")
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if id(value) in seen_containers:
+                raise ValueError("proof-identity object graph is not a JSON tree")
+            seen_containers.add(id(value))
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                raise ValueError("proof-identity JSON nesting exceeds the limit")
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and _contains_unicode_surrogate(value):
+            raise ValueError("proof-identity strings contain Unicode surrogates")
+        elif type(value) is float:
+            raise ValueError("fractional proof-identity numbers are not admitted")
+
+
+def strict_identity_json_bytes(raw: bytes) -> object:
+    try:
+        document = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_strict_identity_object,
+            parse_constant=_reject_nonfinite_identity,
+            parse_float=_reject_fractional_identity,
+            parse_int=_parse_bounded_identity_integer,
+        )
+    except (OverflowError, RecursionError) as error:
+        raise ValueError("proof-identity JSON nesting exceeds the limit") from error
+    _require_bounded_json_nesting(document)
+    return document
+
+
 def validate_proof_identity_for_binding(
     identity: dict,
     identity_bytes: bytes,
@@ -508,13 +590,8 @@ def validate_proof_identity_for_binding(
     epoch: str,
 ) -> str:
     try:
-        reparsed = json.loads(
-            identity_bytes.decode("utf-8"),
-            object_pairs_hook=_strict_identity_object,
-            parse_constant=lambda value: (_ for _ in ()).throw(
-                ValueError(f"non-finite proof-identity value: {value}")
-            ),
-        )
+        reparsed = strict_identity_json_bytes(identity_bytes)
+        _require_bounded_json_nesting(identity)
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise CertificationError("invalid proof identity") from error
     if type(identity) is not dict or identity != reparsed:
@@ -622,12 +699,13 @@ def bind_formal_checker(
     except CertificationError:
         raise
     try:
-        identity = json.loads(proof_identity_bytes)
+        identity = strict_identity_json_bytes(proof_identity_bytes)
     except (
         UnicodeDecodeError,
         json.JSONDecodeError,
         KeyError,
         TypeError,
+        ValueError,
     ) as error:
         raise CertificationError("invalid proof identity") from error
     checker_digest = hashlib.sha256(checker_bytes).hexdigest()
@@ -663,16 +741,21 @@ def bind_formal_checker(
     match = FORMAL_RESULT_RE.fullmatch(result_line)
     if match is None or match.group(3) != model_id or match.group(4) != epoch:
         raise CertificationError("formal checker output does not match requested binding")
-    margin_lo, margin_hi = int(match.group(1)), int(match.group(2))
+    margin_lo = parse_canonical_integer_text(match.group(1), "checker margin lower")
+    margin_hi = parse_canonical_integer_text(match.group(2), "checker margin upper")
     if margin_lo <= 0 or margin_lo > margin_hi:
         raise CertificationError("formal checker returned a non-positive or invalid margin")
     try:
         replayed_margin = receipt["orbital_hulls"]["margin_intersection"]
         candidate_margin = (
-            int(replayed_margin["lo_scaled_integer"]),
-            int(replayed_margin["hi_scaled_integer"]),
+            parse_canonical_integer_text(
+                replayed_margin["lo_scaled_integer"], "producer margin lower"
+            ),
+            parse_canonical_integer_text(
+                replayed_margin["hi_scaled_integer"], "producer margin upper"
+            ),
         )
-    except (KeyError, TypeError, ValueError) as error:
+    except (KeyError, TypeError, ValueError, CertificationError) as error:
         raise CertificationError("producer margin hull is invalid") from error
     if (margin_lo, margin_hi) != candidate_margin:
         raise CertificationError(
@@ -758,7 +841,9 @@ def _hull_dict(
 
 
 def _source_sha256() -> str:
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    return hashlib.sha256(
+        read_regular_snapshot(Path(__file__), MAX_SOURCE_BYTES, "producer source")
+    ).hexdigest()
 
 
 def write_private_snapshot(path: Path, payload: bytes, mode: int) -> None:
@@ -774,6 +859,107 @@ def write_private_snapshot(path: Path, payload: bytes, mode: int) -> None:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+def _kill_process_group(process: subprocess.Popen) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def run_bounded_process(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: int,
+    maximum_output_bytes: int,
+) -> subprocess.CompletedProcess[bytes]:
+    try:
+        process = subprocess.Popen(
+            list(command),
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            start_new_session=True,
+        )
+    except OSError as error:
+        raise CertificationError("formal checker execution failed") from error
+    assert process.stdout is not None and process.stderr is not None
+    streams = {"stdout": bytearray(), "stderr": bytearray()}
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ, "stdout")
+    selector.register(process.stderr, selectors.EVENT_READ, "stderr")
+    deadline = time.monotonic() + timeout
+    failure: str | None = None
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+                break
+            events = selector.select(remaining)
+            if not events:
+                failure = "timeout"
+                break
+            for key, _mask in events:
+                admitted = sum(len(buffer) for buffer in streams.values())
+                try:
+                    chunk = os.read(
+                        key.fd,
+                        min(64 * 1024, maximum_output_bytes + 1 - admitted),
+                    )
+                except OSError as error:
+                    raise CertificationError(
+                        "formal checker output could not be read"
+                    ) from error
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                streams[key.data].extend(chunk)
+                if sum(len(buffer) for buffer in streams.values()) > maximum_output_bytes:
+                    failure = "limit"
+                    break
+            if failure is not None:
+                break
+        if failure is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+            else:
+                try:
+                    returncode = process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    failure = "timeout"
+    except BaseException:
+        _kill_process_group(process)
+        raise
+    finally:
+        selector.close()
+        process.stdout.close()
+        process.stderr.close()
+    if failure is not None:
+        _kill_process_group(process)
+        if failure == "limit":
+            raise CertificationError("formal checker output exceeds the byte limit")
+        raise CertificationError("formal checker execution timed out")
+    return subprocess.CompletedProcess(
+        process.args,
+        returncode,
+        bytes(streams["stdout"]),
+        bytes(streams["stderr"]),
+    )
 
 
 def run_formal_checker_snapshot(
@@ -792,16 +978,23 @@ def run_formal_checker_snapshot(
         witness = private / "baseline_witness_v2.cert"
         write_private_snapshot(checker, checker_bytes, 0o500)
         write_private_snapshot(witness, witness_bytes, 0o400)
-        return subprocess.run(
-            [str(checker), str(witness), request_digest, model_id, epoch],
+        command = [str(checker), str(witness), request_digest, model_id, epoch]
+        completed = run_bounded_process(
+            command,
             cwd=private,
             env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
             timeout=180,
-            check=False,
+            maximum_output_bytes=MAX_CHECKER_OUTPUT_BYTES,
+        )
+        stdout_bytes = completed.stdout or b""
+        stderr_bytes = completed.stderr or b""
+        try:
+            stdout = stdout_bytes.decode("ascii")
+            stderr = stderr_bytes.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise CertificationError("formal checker output is not ASCII") from error
+        return subprocess.CompletedProcess(
+            completed.args, completed.returncode, stdout, stderr
         )
 
 
@@ -856,7 +1049,7 @@ def private_source_snapshot_digest() -> str | None:
     descriptor_text = os.environ.pop(PRIVATE_SOURCE_FD_ENV, None)
     if descriptor_text is None:
         return None
-    if re.fullmatch(r"[0-9]+", descriptor_text) is None:
+    if re.fullmatch(r"(?:0|[1-9][0-9]{0,19})", descriptor_text) is None:
         raise CertificationError("private producer source descriptor is invalid")
     descriptor = int(descriptor_text)
     if descriptor < 3:

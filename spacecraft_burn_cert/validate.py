@@ -16,6 +16,7 @@ import itertools
 import json
 import math
 import os
+import re
 import stat
 import tempfile
 from fractions import Fraction
@@ -29,10 +30,144 @@ MODEL_QUALIFIER = (
     "under the stated finite-burn ODE model, supplied input bounds, "
     "and machine-checked interval-certificate assumptions"
 )
+MAX_BASELINE_BYTES = 16 * 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
+MAX_EXACT_NUMBER_DIGITS = 128
+MAX_BRANCH_COUNT = 1024
+MAX_TUBE_COUNT = 200_000
+MAX_POSTPROCESS_COUNT = 200_000
+
+
+class DuplicateJsonKey(ValueError):
+    pass
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateJsonKey(key)
+        result[key] = value
+    return result
+
+
+def reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def reject_fractional_json(_value: str) -> None:
+    raise ValueError("fractional JSON numbers are not admitted")
+
+
+def parse_bounded_json_integer(value: str) -> int:
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > MAX_JSON_INTEGER_DIGITS:
+        raise ValueError("JSON integer exceeds the validation digit limit")
+    return int(value)
+
+
+def contains_unicode_surrogate(value: str) -> bool:
+    return any("\ud800" <= character <= "\udfff" for character in value)
+
+
+def strict_json_document(raw: bytes) -> dict:
+    try:
+        document = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=reject_nonfinite_json,
+            parse_float=reject_fractional_json,
+            parse_int=parse_bounded_json_integer,
+        )
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        DuplicateJsonKey,
+        OverflowError,
+        RecursionError,
+        ValueError,
+    ) as error:
+        raise RuntimeError("baseline receipt is invalid") from error
+    pending = [(document, 0)]
+    try:
+        while pending:
+            value, depth = pending.pop()
+            if type(value) is dict:
+                if depth >= MAX_JSON_NESTING_DEPTH:
+                    raise ValueError("JSON nesting exceeds the validation limit")
+                if any(contains_unicode_surrogate(key) for key in value):
+                    raise ValueError("JSON strings contain Unicode surrogates")
+                pending.extend((child, depth + 1) for child in value.values())
+            elif type(value) is list:
+                if depth >= MAX_JSON_NESTING_DEPTH:
+                    raise ValueError("JSON nesting exceeds the validation limit")
+                pending.extend((child, depth + 1) for child in value)
+            elif type(value) is str and contains_unicode_surrogate(value):
+                raise ValueError("JSON strings contain Unicode surrogates")
+            elif type(value) is float:
+                raise ValueError("fractional JSON numbers are not admitted")
+    except ValueError as error:
+        raise RuntimeError("baseline receipt is invalid") from error
+    if type(document) is not dict:
+        raise RuntimeError("baseline receipt is invalid")
+    return document
+
+
+def read_regular_snapshot(path: Path, maximum_bytes: int) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
+            raise ValueError("baseline is not a bounded regular file")
+        payload = bytearray()
+        while len(payload) <= maximum_bytes:
+            block = os.read(
+                descriptor, min(1024 * 1024, maximum_bytes + 1 - len(payload))
+            )
+            if not block:
+                break
+            payload.extend(block)
+        after = os.fstat(descriptor)
+        stable = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if (
+            len(payload) > maximum_bytes
+            or len(payload) != before.st_size
+            or any(getattr(before, field) != getattr(after, field) for field in stable)
+        ):
+            raise ValueError("baseline changed during bounded read")
+        return bytes(payload)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def bounded_fraction_text(value: object) -> Fraction:
+    if type(value) is not str:
+        raise ValueError("exact number is not text")
+    if re.fullmatch(r"-?(?:0|[1-9][0-9]*)(?:/[1-9][0-9]*)?", value) is None:
+        raise ValueError("exact number is not canonical")
+    if sum(character.isdecimal() for character in value) > MAX_EXACT_NUMBER_DIGITS:
+        raise ValueError("exact number exceeds the digit limit")
+    exact = Fraction(value)
+    canonical = (
+        str(exact.numerator)
+        if exact.denominator == 1
+        else f"{exact.numerator}/{exact.denominator}"
+    )
+    if canonical != value:
+        raise ValueError("exact number is not reduced canonical text")
+    return exact
 
 
 def receipt_interval(payload: dict) -> tuple[Fraction, Fraction]:
-    return Fraction(payload["lo_exact"]), Fraction(payload["hi_exact"])
+    return (
+        bounded_fraction_text(payload["lo_exact"]),
+        bounded_fraction_text(payload["hi_exact"]),
+    )
 
 
 def answer_controls() -> dict:
@@ -175,7 +310,9 @@ def corner_diagnostics(receipt: dict, step: Fraction = Fraction(1, 32)) -> dict:
         name: tuple(map(float, receipt_interval(receipt["cutoff_state_hull"][name])))
         for name in ("x", "y", "vx", "vy", "mass")
     }
-    certified_lower = float(Fraction(receipt["formal_decisive_margin"]["lo_exact"]))
+    certified_lower = float(
+        bounded_fraction_text(receipt["formal_decisive_margin"]["lo_exact"])
+    )
     minimum_margin = math.inf
     minimum_inputs = None
     containment_failures = []
@@ -296,25 +433,37 @@ def step_refinement(receipt: dict) -> dict:
     }
 
 
-def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
-    baseline_bytes = baseline_path.read_bytes()
-    receipt = json.loads(baseline_bytes.decode("utf-8"))
+def _validate_baseline(baseline_path: Path, include_refinement: bool = True) -> dict:
+    baseline_bytes = read_regular_snapshot(baseline_path, MAX_BASELINE_BYTES)
+    receipt = strict_json_document(baseline_bytes)
     if receipt.get("formal_checker_status") != "ACCEPT":
         raise RuntimeError("baseline is not bound to an accepted formal checker execution")
     formal_margin = receipt_interval(receipt["formal_decisive_margin"])
     if formal_margin[0] <= 0 or formal_margin[0] > formal_margin[1]:
         raise RuntimeError("formal decisive margin is not strictly positive")
-    step = Fraction(receipt["method"]["step_exact"])
+    step = bounded_fraction_text(receipt["method"]["step_exact"])
     if step <= 0:
         raise RuntimeError("receipt declares a non-positive integration step")
     tube_steps = Fraction("121.5") / step
     post_steps = Fraction(3) / step
     if tube_steps.denominator != 1 or post_steps.denominator != 1:
         raise RuntimeError("receipt step does not exactly partition burn bounds")
+    branch_count = receipt["method"]["branch_count"]
     actual_tubes = receipt["method"]["tube_count"]
-    expected_tubes = receipt["method"]["branch_count"] * tube_steps.numerator
     actual_posts = receipt["method"]["postprocess_count"]
-    expected_posts = receipt["method"]["branch_count"] * post_steps.numerator
+    if (
+        type(branch_count) is not int
+        or not 0 < branch_count <= MAX_BRANCH_COUNT
+        or type(actual_tubes) is not int
+        or not 0 < actual_tubes <= MAX_TUBE_COUNT
+        or type(actual_posts) is not int
+        or not 0 < actual_posts <= MAX_POSTPROCESS_COUNT
+        or tube_steps.numerator > MAX_TUBE_COUNT
+        or post_steps.numerator > MAX_POSTPROCESS_COUNT
+    ):
+        raise RuntimeError("instrument counts are invalid or exceed the model limits")
+    expected_tubes = branch_count * tube_steps.numerator
+    expected_posts = branch_count * post_steps.numerator
     reconciliation = {
         "status": "PASS" if (actual_tubes, actual_posts) == (expected_tubes, expected_posts) else "FAIL",
         "tube_count": actual_tubes,
@@ -360,6 +509,24 @@ def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
         result["step_refinement"] = step_refinement(receipt)
     result["status"] = "PASS"
     return result
+
+
+def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
+    try:
+        return _validate_baseline(baseline_path, include_refinement)
+    except RuntimeError:
+        raise
+    except (
+        AttributeError,
+        IndexError,
+        KeyError,
+        OSError,
+        OverflowError,
+        TypeError,
+        ValueError,
+        ZeroDivisionError,
+    ) as error:
+        raise RuntimeError("baseline receipt is invalid") from error
 
 
 def _lexical_absolute(path: Path | str) -> Path:
@@ -418,7 +585,9 @@ def write_atomic(
     target = prepare_output_path(path, inputs)
     target.parent.mkdir(parents=True, exist_ok=True)
     target = prepare_output_path(target, inputs)
-    data = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    data = (
+        json.dumps(payload, sort_keys=True, indent=2, allow_nan=False) + "\n"
+    ).encode("utf-8")
     descriptor: int | None = None
     temporary: Path | None = None
     try:
@@ -472,7 +641,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         destination = write_atomic(destination, result, (args.baseline,))
         print(f"INSTRUMENT_VALIDATION_{result['status']} output={destination}")
     else:
-        print(json.dumps(result, sort_keys=True, indent=2))
+        print(json.dumps(result, sort_keys=True, indent=2, allow_nan=False))
     return 0
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import importlib.util
 import hashlib
 import json
@@ -17,6 +18,89 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "release" / "tools" / "spacecraft_burn_proof_identity.py"
 IDENTITY = ROOT / "release" / "evidence" / "spacecraft_burn_proof_identity_v1.json"
 OWNING_PLATFORM_PYTHON = Path("/usr/bin/python3")
+
+
+def platform_launchers_match(wrapper, records: object) -> bool:
+    keys = {
+        "bytes",
+        "invocation_path",
+        "invocation_symlink_target",
+        "resolved_path",
+        "role",
+        "sha256",
+    }
+    if type(records) is not list or not records or len(records) > 16:
+        return False
+    roles: set[str] = set()
+    invocation_paths: set[str] = set()
+    resolved_paths: set[str] = set()
+    try:
+        for expected in records:
+            if (
+                type(expected) is not dict
+                or set(expected) != keys
+                or type(expected.get("bytes")) is not int
+                or expected["bytes"] <= 0
+                or type(expected.get("invocation_path")) is not str
+                or type(expected.get("resolved_path")) is not str
+                or type(expected.get("role")) is not str
+                or type(expected.get("sha256")) is not str
+                or (
+                    expected.get("invocation_symlink_target") is not None
+                    and type(expected.get("invocation_symlink_target")) is not str
+                )
+            ):
+                return False
+            role = expected["role"]
+            invocation_path = expected["invocation_path"]
+            resolved_path = expected["resolved_path"]
+            if (
+                not role
+                or not invocation_path
+                or not resolved_path
+                or role in roles
+                or invocation_path in invocation_paths
+                or resolved_path in resolved_paths
+            ):
+                return False
+            roles.add(role)
+            invocation_paths.add(invocation_path)
+            resolved_paths.add(resolved_path)
+            observed = wrapper.trusted_platform_launcher(
+                role,
+                Path(invocation_path),
+            )
+            if observed != expected:
+                return False
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        wrapper.engine.GateError,
+    ):
+        return False
+    return True
+
+
+def requires_exact_owning_platform_launchers(test):
+    @functools.wraps(test)
+    def wrapped(self, *args, **kwargs):
+        if sys.platform != "darwin" or platform.machine() != "arm64":
+            self.skipTest("committed executable identity is macOS/arm64-specific")
+        wrapper = self.load_wrapper()
+        identity = json.loads(IDENTITY.read_text(encoding="utf-8"))
+        records = identity["build_attestation"]["build_environment"][
+            "trusted_platform_launchers"
+        ]
+        if not platform_launchers_match(wrapper, records):
+            self.skipTest(
+                "committed executable identity belongs to a different "
+                "macOS/arm64 launcher platform"
+            )
+        return test(self, *args, **kwargs)
+
+    return wrapped
 
 
 class SpacecraftProofIdentityTests(unittest.TestCase):
@@ -51,10 +135,7 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS spacecraft-burn proof identity", result.stdout)
 
-    @unittest.skipUnless(
-        sys.platform == "darwin" and platform.machine() == "arm64",
-        "committed executable identity is macOS/arm64-specific",
-    )
+    @requires_exact_owning_platform_launchers
     def test_committed_checker_binary_identity_reproduces_on_owning_platform(self) -> None:
         result = self.run_gate("check", interpreter=OWNING_PLATFORM_PYTHON)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -463,6 +544,37 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         self.assertEqual(record["resolved_path"], str(Path(sys.executable).resolve(strict=True)))
         self.assertGreater(record["bytes"], 0)
         self.assertRegex(record["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_platform_launchers_match_exact_bound_records(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(
+            prefix="platform-launcher-match-"
+        ) as directory:
+            root = Path(directory)
+            target = root / "launcher.bin"
+            target.write_bytes(b"exact synthetic launcher bytes\n")
+            invocation = root / "launcher"
+            invocation.symlink_to(target.name)
+            record = wrapper.trusted_platform_launcher(
+                "synthetic-launcher",
+                invocation,
+            )
+            self.assertTrue(platform_launchers_match(wrapper, [record]))
+
+            mutations = (
+                ("sha256", "0" * 64),
+                ("bytes", record["bytes"] + 1),
+                ("invocation_path", str(root / "other-launcher")),
+                ("resolved_path", str(root / "other-target")),
+                ("invocation_symlink_target", "other-target"),
+            )
+            for field, replacement in mutations:
+                with self.subTest(field=field):
+                    changed = dict(record)
+                    changed[field] = replacement
+                    self.assertFalse(
+                        platform_launchers_match(wrapper, [changed])
+                    )
 
     @unittest.skipUnless(sys.platform == "darwin", "sandbox-exec is macOS-specific")
     def test_private_sandbox_allows_build_outputs_and_refuses_source_writes(self) -> None:

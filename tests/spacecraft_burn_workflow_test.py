@@ -21,6 +21,19 @@ def executable_workflow_surface(source: str) -> str:
     return "\n".join(surface)
 
 
+def upload_artifact_step_surface(source: str) -> str:
+    marker = (
+        "      - name: Upload bounded non-publication "
+        "platform-local evidence logs"
+    )
+    if source.count(marker) != 1:
+        raise AssertionError("bounded non-publication upload step is not unique")
+    block = source[source.index(marker):]
+    if re.search(r"(?m)^      - name:", block[len(marker):]) is not None:
+        raise AssertionError("bounded non-publication upload step is not final")
+    return block
+
+
 class SpacecraftBurnWorkflowTests(unittest.TestCase):
     def test_comment_only_workflow_literals_are_not_executable_surface(self):
         source = """name: decoy\njobs:\n  check:\n    # run: jackal_spacecraft_burn_check\n    steps:\n      # - uses: actions/upload-artifact@0123456789012345678901234567890123456789\n      - run: echo harmless\n"""
@@ -31,9 +44,11 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
     def test_full_hosted_campaign_is_bounded_and_complete(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         source = executable_workflow_surface(source)
-        self.assertIn("timeout-minutes: 360", source)
-        self.assertNotIn("timeout-minutes: 60", source)
-        self.assertNotIn("timeout-minutes: 240", source)
+        self.assertRegex(source, r"(?m)^    timeout-minutes: 360$")
+        self.assertNotRegex(
+            source,
+            r"(?m)^    timeout-minutes: (?:60|240)$",
+        )
         self.assertIn("fetch-depth: 0", source)
         request_digest = hashlib.sha256(
             (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
@@ -71,7 +86,12 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
         self.assertTrue(actions, "action SHA checks must not be vacuous")
         for action in actions:
             self.assertRegex(action, r"@[0-9a-f]{40}$")
-        self.assertIn("if: always()", source)
+        upload_step = upload_artifact_step_surface(source)
+        self.assertRegex(upload_step, r"(?m)^        if: always\(\)$")
+        self.assertRegex(
+            upload_step,
+            r"(?m)^        uses: actions/upload-artifact@[0-9a-f]{40}$",
+        )
         self.assertIn(
             "NON-PUBLICATION-platform-local-spacecraft-burn-macos-14-${{ github.sha }}",
             source,
@@ -82,9 +102,16 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
         source = executable_workflow_surface(
             WORKFLOW.read_text(encoding="utf-8")
         )
-        self.assertEqual(source.count("timeout-minutes:"), 1)
-        self.assertIn("timeout-minutes: 360", source)
-        self.assertNotIn("timeout-minutes: 240", source)
+        timeout_rows = re.findall(
+            r"(?m)^    timeout-minutes: [^\n]+$",
+            source,
+        )
+        self.assertEqual(timeout_rows, ["    timeout-minutes: 360"])
+        self.assertRegex(source, r"(?m)^    timeout-minutes: 360$")
+        self.assertNotRegex(
+            source,
+            r"(?m)^    timeout-minutes: (?:60|240)$",
+        )
         for required in (
             "jackal_spacecraft_burn_check",
             "spacecraft_burn_proof_identity.py check --proof-only",
@@ -126,10 +153,20 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
         source = executable_workflow_surface(
             WORKFLOW.read_text(encoding="utf-8")
         )
-        self.assertIn("if: always()", source)
-        self.assertIn("if-no-files-found: warn", source)
-        self.assertNotIn("if-no-files-found: error", source)
-        self.assertIn("actions/upload-artifact@", source)
+        upload_step = upload_artifact_step_surface(source)
+        self.assertRegex(upload_step, r"(?m)^        if: always\(\)$")
+        self.assertRegex(
+            upload_step,
+            r"(?m)^        uses: actions/upload-artifact@[0-9a-f]{40}$",
+        )
+        self.assertRegex(
+            upload_step,
+            r"(?m)^          if-no-files-found: warn$",
+        )
+        self.assertNotRegex(
+            upload_step,
+            r"(?m)^          if-no-files-found: error$",
+        )
 
     def test_primary_formal_workflow_builds_and_audits_spacecraft_lane(self):
         source = GAUSSIAN.read_text(encoding="utf-8")

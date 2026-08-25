@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import hashlib
 import copy
@@ -756,6 +757,68 @@ class IndependentVerifierTests(unittest.TestCase):
             verifier.source_literals(raw, Path("producer.py")),
             {"THRUST_KM_SCALE_TEXT": "0.001", "INTEGRATE_MASS": True},
         )
+
+    def test_source_hash_mismatch_refuses_before_contract_parser_runs(self):
+        verifier = load_verifier(self)
+        receipt = ROOT / "evidence" / "baseline_receipt_v2.json"
+        request = ROOT / "request_v2.json"
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "producer" / "certify.py"
+            source.parent.mkdir()
+            source.write_bytes(
+                b'THRUST_KM_SCALE_TEXT = "wrong source must not be parsed"\n'
+            )
+            with (
+                mock.patch.object(
+                    verifier,
+                    "verify_formal_binding",
+                    return_value=([], {}),
+                ),
+                mock.patch.object(
+                    verifier,
+                    "source_literals",
+                    side_effect=AssertionError(
+                        "source contract parser ran before receipt-bound hash refusal"
+                    ),
+                ) as parser,
+            ):
+                result = verifier.verify_receipt(
+                    receipt,
+                    source,
+                    request_path=request,
+                    expected_request_digest=REQUEST_DIGEST,
+                )
+
+        self.assertEqual(
+            result,
+            {"status": "REFUSED", "reasons": ["source-hash-mismatch"]},
+        )
+        parser.assert_not_called()
+
+    def test_source_contract_extraction_refuses_excessive_literal_graph(self):
+        verifier = load_verifier(self)
+        hostile = (
+            b"THRUST_KM_SCALE_TEXT = ["
+            + (b"0," * 100_000)
+            + b"]\n"
+        )
+        self.assertLess(len(hostile), verifier.MAX_SOURCE_BYTES)
+        with (
+            mock.patch.object(
+                ast,
+                "parse",
+                side_effect=AssertionError("whole-file AST parser reached"),
+            ) as ast_parse,
+            mock.patch.object(
+                ast,
+                "literal_eval",
+                side_effect=AssertionError("literal graph materializer reached"),
+            ) as literal_eval,
+        ):
+            with self.assertRaises(ValueError):
+                verifier.source_literals(hostile, Path("hostile-producer.py"))
+        ast_parse.assert_not_called()
+        literal_eval.assert_not_called()
 
     def test_outer_source_closure_scan_rejects_all_axiom_declaration_forms(self):
         verifier = load_verifier(self)

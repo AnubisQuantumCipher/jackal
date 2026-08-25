@@ -23,13 +23,22 @@ from typing import Iterable, NamedTuple, Sequence
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "certify.py"
 VERIFIER = ROOT / "verify_receipt.py"
-BASELINE = ROOT / "evidence" / "baseline_receipt.json"
+BASELINE = ROOT / "evidence" / "legacy-v1" / "baseline_receipt.json"
 PYTHON = Path(sys.executable).resolve()
 MAX_SUBPROCESS_OUTPUT_CHARS = 1024 * 1024
 MAX_JSON_NESTING_DEPTH = 128
 MAX_JSON_INTEGER_DIGITS = 128
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 MAX_WITNESS_BYTES = 64 * 1024 * 1024
+MAX_RECEIPT_BYTES = 16 * 1024 * 1024
+MAX_REQUEST_BYTES = 1024 * 1024
+MAX_CHECKER_BYTES = 512 * 1024 * 1024
+MAX_IDENTITY_BYTES = 16 * 1024 * 1024
+WITNESS_MUTATION_REFUSALS = {
+    "corruption": "REJECT noncanonical-control-character\n",
+    "chain": "REJECT picard-strict-interior\n",
+    "coverage": "REJECT cutoff-coverage\n",
+}
 
 
 MUTATIONS = {
@@ -134,6 +143,26 @@ def read_regular_snapshot(path: Path, maximum_bytes: int, label: str) -> bytes:
     finally:
         if descriptor is not None:
             os.close(descriptor)
+
+
+def write_private_snapshot(path: Path, data: bytes, mode: int) -> None:
+    descriptor = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+        mode,
+    )
+    try:
+        os.fchmod(descriptor, mode)
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise RuntimeError("short formal-input snapshot write")
+            offset += written
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def atomic_bytes(path: Path, data: bytes, mode: int) -> None:
@@ -299,9 +328,8 @@ def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | 
     }
 
 
-def parse_json_output(record: dict) -> dict | None:
-    output = record.get("output") if type(record) is dict else None
-    if type(output) is not str or len(output) > MAX_SUBPROCESS_OUTPUT_CHARS:
+def parse_json_document(text: str, maximum_chars: int) -> dict | None:
+    if type(text) is not str or len(text) > maximum_chars:
         return None
 
     def reject_duplicates(pairs: list[tuple[str, object]]) -> dict:
@@ -323,7 +351,7 @@ def parse_json_output(record: dict) -> dict | None:
 
     try:
         document = json.loads(
-            output,
+            text,
             object_pairs_hook=reject_duplicates,
             parse_constant=reject_number,
             parse_float=reject_number,
@@ -356,6 +384,26 @@ def parse_json_output(record: dict) -> dict | None:
     return document if type(document) is dict else None
 
 
+def parse_json_output(record: dict) -> dict | None:
+    output = record.get("output") if type(record) is dict else None
+    return parse_json_document(output, MAX_SUBPROCESS_OUTPUT_CHARS)
+
+
+def formal_receipt_source_digest(inputs: FormalInputs) -> str:
+    raw = read_regular_snapshot(
+        inputs.receipt, MAX_RECEIPT_BYTES, "formal receipt"
+    )
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError("formal receipt is not UTF-8 JSON") from error
+    receipt = parse_json_document(text, MAX_RECEIPT_BYTES)
+    digest = receipt.get("source_sha256") if receipt is not None else None
+    if type(digest) is not str or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise RuntimeError("formal receipt source binding is invalid")
+    return digest
+
+
 def completed_mutant_failure(returncode: int) -> bool:
     return returncode not in (0, 124, 125)
 
@@ -364,7 +412,11 @@ def mutant_failure_caught(returncode: int, output: str, expected_reason: str) ->
     return completed_mutant_failure(returncode) and expected_reason in output
 
 
-def normalized_mutant_test_output(output: str, isolated_source: Path) -> str:
+def normalized_mutant_test_output(
+    output: str,
+    isolated_source: Path,
+    repository_root: Path | None = None,
+) -> str:
     """Remove nondeterministic diagnostics before binding mutant-test output."""
     normalized = output
 
@@ -381,17 +433,32 @@ def normalized_mutant_test_output(output: str, isolated_source: Path) -> str:
 
     replace_path(isolated_source, "<MUTANT_CERTIFIER>")
     replace_path(isolated_source.parent, "<MUTANT_DIRECTORY>")
-    replace_path(ROOT.parent, "<REPOSITORY_ROOT>")
-    return re.sub(r"(?m)^(Ran \d+ tests? in )\d+(?:\.\d+)?s$", r"\1<TIME>s", normalized)
+    replace_path(repository_root or ROOT.parent, "<REPOSITORY_ROOT>")
+    return re.sub(
+        r"(?m)^(Ran \d+ tests? in )\d+(?:\.\d+)?s$",
+        r"\1<TIME>s",
+        normalized,
+    )
 
 
 def witness_mutation_caught(
     checker_returncode: int,
     outer_verifier_returncode: int,
     parsed: dict | None,
+    *,
+    name: str | None = None,
+    checker_output: str | None = None,
+    checker_output_limited: bool = False,
 ) -> bool:
+    checker_contract = checker_returncode == 1
+    if name is not None:
+        checker_contract = (
+            checker_contract
+            and checker_output_limited is False
+            and checker_output == WITNESS_MUTATION_REFUSALS.get(name)
+        )
     return (
-        checker_returncode == 1
+        checker_contract
         and outer_verifier_returncode == 2
         and parsed is not None
         and parsed.get("status") == "REFUSED"
@@ -412,11 +479,97 @@ class FormalInputs(NamedTuple):
     model_id: str
     epoch: str
     nonce: str
+    verifier: Path = VERIFIER
+
+
+class SourceMutationInputs(NamedTuple):
+    repository_root: Path
+    source: Path
+    codec: Path
+    test: Path
+    baseline: Path
+
+
+def snapshot_formal_inputs(inputs: FormalInputs, root: Path) -> FormalInputs:
+    root.mkdir(parents=True, mode=0o700)
+    root.chmod(0o700)
+    specifications = (
+        ("receipt", "receipt.json", MAX_RECEIPT_BYTES, "formal receipt", 0o600),
+        ("request", "request.json", MAX_REQUEST_BYTES, "formal request", 0o600),
+        ("witness", "witness.cert", MAX_WITNESS_BYTES, "formal witness", 0o600),
+        ("checker", "checker", MAX_CHECKER_BYTES, "formal checker", 0o700),
+        (
+            "proof_identity",
+            "proof-identity.json",
+            MAX_IDENTITY_BYTES,
+            "formal proof identity",
+            0o600,
+        ),
+        ("verifier", "verify_receipt.py", MAX_SOURCE_BYTES, "outer verifier", 0o400),
+    )
+    replacements = {}
+    for field, filename, maximum_bytes, label, mode in specifications:
+        payload = read_regular_snapshot(
+            getattr(inputs, field), maximum_bytes, label
+        )
+        destination = root / filename
+        write_private_snapshot(destination, payload, mode)
+        replacements[field] = destination
+    return inputs._replace(**replacements)
+
+
+def snapshot_source_mutation_inputs(
+    repository_root: Path,
+) -> SourceMutationInputs:
+    certificate_root = repository_root / "spacecraft_burn_cert"
+    destinations = {
+        "source": certificate_root / "certify.py",
+        "codec": certificate_root / "witness_codec.py",
+        "test": certificate_root / "tests/test_certifier.py",
+        "baseline": (
+            certificate_root
+            / "evidence/legacy-v1/baseline_receipt.json"
+        ),
+    }
+    sources = {
+        "source": (SOURCE, MAX_SOURCE_BYTES, "producer source"),
+        "codec": (
+            SOURCE.with_name("witness_codec.py"),
+            MAX_SOURCE_BYTES,
+            "witness codec",
+        ),
+        "test": (
+            ROOT / "tests/test_certifier.py",
+            MAX_SOURCE_BYTES,
+            "certifier contract tests",
+        ),
+        "baseline": (
+            BASELINE,
+            MAX_RECEIPT_BYTES,
+            "legacy baseline receipt",
+        ),
+    }
+    repository_root.mkdir(parents=True, mode=0o700)
+    repository_root.chmod(0o700)
+    for field, destination in destinations.items():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        source, maximum_bytes, label = sources[field]
+        payload = read_regular_snapshot(source, maximum_bytes, label)
+        write_private_snapshot(destination, payload, 0o600)
+    return SourceMutationInputs(
+        repository_root=repository_root,
+        source=destinations["source"],
+        codec=destinations["codec"],
+        test=destinations["test"],
+        baseline=destinations["baseline"],
+    )
+
+
 
 
 def verifier_command(inputs: FormalInputs, witness: Path | None = None) -> tuple[str, ...]:
     return (
-        str(PYTHON), "-I", "-B", str(VERIFIER), str(inputs.receipt),
+        str(PYTHON), "-I", "-B", str(inputs.verifier), str(inputs.receipt),
         "--source", str(SOURCE), "--request", str(inputs.request),
         "--witness", str(witness or inputs.witness),
         "--checker", str(inputs.checker), "--proof-identity", str(inputs.proof_identity),
@@ -429,26 +582,44 @@ def verifier_command(inputs: FormalInputs, witness: Path | None = None) -> tuple
     )
 
 
-def certifier_test_command(selector: str = "") -> tuple[str, ...]:
+def certifier_test_command(
+    inputs: SourceMutationInputs,
+    selector: str = "",
+) -> tuple[str, ...]:
     return (
         str(PYTHON),
         "-I",
         "-B",
         "-c",
         ISOLATED_UNITTEST_RUNNER,
-        str(ROOT / "tests" / "test_certifier.py"),
-        str(ROOT.parent),
+        str(inputs.test),
+        str(inputs.repository_root),
         selector,
     )
 
 
-def exercise_mutation(name: str) -> dict:
+def exercise_mutation(
+    name: str,
+    inputs: SourceMutationInputs | None = None,
+) -> dict:
+    if inputs is None:
+        with tempfile.TemporaryDirectory(
+            prefix="spacecraft-source-input-snapshot-"
+        ) as directory:
+            root = Path(directory)
+            root.chmod(0o700)
+            snapshot = snapshot_source_mutation_inputs(root / "repository")
+            return exercise_mutation(name, snapshot)
+
     mutation = MUTATIONS[name]
-    original = read_regular_snapshot(SOURCE, MAX_SOURCE_BYTES, "producer source")
-    codec_source = SOURCE.with_name("witness_codec.py")
-    codec_bytes = read_regular_snapshot(codec_source, MAX_SOURCE_BYTES, "witness codec")
-    original_mode = SOURCE.stat().st_mode & 0o777
-    codec_mode = codec_source.stat().st_mode & 0o777
+    original = read_regular_snapshot(
+        inputs.source, MAX_SOURCE_BYTES, "producer source"
+    )
+    codec_bytes = read_regular_snapshot(
+        inputs.codec, MAX_SOURCE_BYTES, "witness codec"
+    )
+    original_mode = inputs.source.stat().st_mode & 0o777
+    codec_mode = inputs.codec.stat().st_mode & 0o777
     a_before = sha256(original)
     mutant = mutated_bytes(original, name)
     test_record = None
@@ -461,21 +632,26 @@ def exercise_mutation(name: str) -> dict:
         atomic_bytes(isolated, original, original_mode)
         atomic_bytes(isolated_codec, codec_bytes, codec_mode)
         atomic_bytes(isolated, mutant, original_mode)
-        b_hash = sha256(read_regular_snapshot(isolated, MAX_SOURCE_BYTES, "mutant source"))
+        b_hash = sha256(
+            read_regular_snapshot(isolated, MAX_SOURCE_BYTES, "mutant source")
+        )
         test_record = run(
-            certifier_test_command(),
+            certifier_test_command(inputs),
             timeout=45,
             extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
         reason_observed = mutation["expected_reason"] in test_record["output"]
         caught = mutant_failure_caught(
-            test_record["returncode"], test_record["output"], mutation["expected_reason"]
+            test_record["returncode"],
+            test_record["output"],
+            mutation["expected_reason"],
         )
         atomic_bytes(isolated, original, original_mode)
         restored_test = run(
             certifier_test_command(
+                inputs,
                 "CertifierContractTests."
-                "test_baseline_contract_integrates_mass_and_converts_thrust_to_km"
+                "test_baseline_contract_integrates_mass_and_converts_thrust_to_km",
             ),
             timeout=30,
             extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
@@ -500,7 +676,11 @@ def exercise_mutation(name: str) -> dict:
         "mutant_tests_output_limited": test_record["output_limited"],
         "reason_observed": reason_observed,
         "mutant_test_output_sha256": sha256(
-            normalized_mutant_test_output(test_record["output"], isolated).encode("utf-8")
+            normalized_mutant_test_output(
+                test_record["output"],
+                isolated,
+                inputs.repository_root,
+            ).encode("utf-8")
         ),
         "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
         "caught": caught,
@@ -556,20 +736,43 @@ def mutated_witness(original: bytes, name: str) -> bytes:
 
 
 def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
-    original = read_regular_snapshot(inputs.witness, MAX_WITNESS_BYTES, "formal witness")
+    original = read_regular_snapshot(
+        inputs.witness, MAX_WITNESS_BYTES, "formal witness"
+    )
+    try:
+        checker_bytes = read_regular_snapshot(
+            inputs.checker, MAX_CHECKER_BYTES, "formal checker"
+        )
+    except RuntimeError:
+        checker_digest = None
+    else:
+        checker_digest = sha256(checker_bytes)
     mutant = mutated_witness(original, name)
     with tempfile.TemporaryDirectory(prefix="spacecraft-witness-mutation-") as directory:
         path = Path(directory) / f"{name}.cert"
         path.write_bytes(mutant)
-        checker = run((str(inputs.checker), str(path), inputs.request_digest,
-                       inputs.model_id, inputs.epoch), timeout=180)
+        checker = run(
+            (
+                str(inputs.checker),
+                str(path),
+                inputs.request_digest,
+                inputs.model_id,
+                inputs.epoch,
+            ),
+            timeout=180,
+        )
         verifier = run(verifier_command(inputs, path), timeout=30)
         parsed = parse_json_output(verifier)
-    checker_refused = checker["returncode"] == 1
+    checker_refused = (
+        checker["returncode"] == 1
+        and checker["output_limited"] is False
+        and checker["output"] == WITNESS_MUTATION_REFUSALS[name]
+    )
     return {
         "mutation": name,
         "original_sha256": sha256(original),
         "mutant_sha256": sha256(mutant),
+        "checker_sha256": checker_digest,
         "checker_refused": checker_refused,
         "checker_returncode": checker["returncode"],
         "checker_timed_out": checker["returncode"] == 124,
@@ -582,29 +785,82 @@ def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
         "outer_verifier_output_sha256": verifier["output_sha256"],
         "outer_verifier_output_limited": verifier["output_limited"],
         "caught": witness_mutation_caught(
-            checker["returncode"], verifier["returncode"], parsed
+            checker["returncode"],
+            verifier["returncode"],
+            parsed,
+            name=name,
+            checker_output=checker["output"],
+            checker_output_limited=checker["output_limited"],
         ),
     }
 
 
-def campaign(inputs: FormalInputs) -> dict:
+def campaign_on_snapshot(
+    inputs: FormalInputs,
+    source_inputs: SourceMutationInputs,
+) -> dict:
     original_hash = sha256(
-        read_regular_snapshot(SOURCE, MAX_SOURCE_BYTES, "producer source")
+        read_regular_snapshot(
+            source_inputs.source, MAX_SOURCE_BYTES, "producer source"
+        )
     )
+    receipt_source_digest = formal_receipt_source_digest(inputs)
+    if original_hash != receipt_source_digest:
+        raise RuntimeError(
+            "private source snapshot does not match formal receipt source binding"
+        )
     before, before_process = verify_baseline(inputs)
     if (
         before.get("status") != "ACCEPT"
         or before_process.get("contract_valid") is not True
     ):
         raise RuntimeError("baseline verifier did not accept before mutation campaign")
-    records = [exercise_mutation(name) for name in MUTATIONS]
-    witness_records = [exercise_witness_mutation(name, inputs) for name in (
-        "corruption", "chain", "coverage"
-    )]
+    binding = before.get("binding")
+    if type(binding) is not dict:
+        raise RuntimeError("baseline verifier omitted formal binding")
+    witness_digest = binding.get("witness_sha256")
+    checker_digest = binding.get("checker_sha256")
+    if type(witness_digest) is not str or type(checker_digest) is not str:
+        raise RuntimeError("baseline verifier binding is incomplete")
+
+    records = [
+        exercise_mutation(name, source_inputs)
+        for name in MUTATIONS
+    ]
+    witness_records = [
+        exercise_witness_mutation(name, inputs)
+        for name in ("corruption", "chain", "coverage")
+    ]
     final_hash = sha256(
-        read_regular_snapshot(SOURCE, MAX_SOURCE_BYTES, "producer source")
+        read_regular_snapshot(
+            source_inputs.source, MAX_SOURCE_BYTES, "producer source"
+        )
     )
     after, after_process = verify_baseline(inputs)
+    source_evidence_valid = all(
+        record.get("caught") is True
+        and record.get("restored") is True
+        and record.get("restored_contract_test_passed") is True
+        and record.get("a_before_sha256") == original_hash
+        and record.get("a_after_sha256") == original_hash
+        for record in records
+    )
+    witness_evidence_valid = all(
+        record.get("caught") is True
+        and record.get("original_sha256") == witness_digest
+        and record.get("checker_sha256") == checker_digest
+        and record.get("checker_returncode") == 1
+        and record.get("checker_timed_out") is False
+        and record.get("checker_output_limited") is False
+        and record.get("checker_output_excerpt")
+        == WITNESS_MUTATION_REFUSALS.get(record.get("mutation"))
+        and record.get("outer_verifier_returncode") == 2
+        and record.get("outer_verifier_timed_out") is False
+        and record.get("outer_verifier_output_limited") is False
+        and record.get("outer_verifier")
+        == {"status": "REFUSED", "reasons": ["witness-hash-mismatch"]}
+        for record in witness_records
+    )
     status = (
         "PASS"
         if original_hash == final_hash
@@ -612,13 +868,9 @@ def campaign(inputs: FormalInputs) -> dict:
         and before_process.get("contract_valid") is True
         and after.get("status") == "ACCEPT"
         and after_process.get("contract_valid") is True
-        and all(
-            record["caught"]
-            and record["restored"]
-            and record["restored_contract_test_passed"]
-            for record in records
-        )
-        and all(record["caught"] for record in witness_records)
+        and after.get("binding") == binding
+        and source_evidence_valid
+        and witness_evidence_valid
         else "FAIL"
     )
     return {
@@ -633,6 +885,17 @@ def campaign(inputs: FormalInputs) -> dict:
         "baseline_verifier_after": after,
         "baseline_verifier_after_process": after_process,
     }
+
+
+def campaign(inputs: FormalInputs) -> dict:
+    with tempfile.TemporaryDirectory(
+        prefix="spacecraft-campaign-snapshot-"
+    ) as directory:
+        root = Path(directory)
+        root.chmod(0o700)
+        formal_snapshot = snapshot_formal_inputs(inputs, root / "formal")
+        source_snapshot = snapshot_source_mutation_inputs(root / "repository")
+        return campaign_on_snapshot(formal_snapshot, source_snapshot)
 
 
 def _lexical_absolute(path: Path | str) -> Path:

@@ -1874,6 +1874,7 @@ def validate_auxiliary_documents(
     witness_record_keys = {
         "mutation",
         "original_sha256",
+        "checker_sha256",
         "mutant_sha256",
         "checker_refused",
         "checker_returncode",
@@ -1901,6 +1902,7 @@ def validate_auxiliary_documents(
             or name not in expected_witness_records
             or record != expected_record
             or record.get("original_sha256") != bindings["witness_sha256"]
+            or record.get("checker_sha256") != bindings["checker_sha256"]
             or record.get("mutant_sha256") == bindings["witness_sha256"]
             or record.get("checker_refused") is not True
             or type(record.get("checker_returncode")) is not int

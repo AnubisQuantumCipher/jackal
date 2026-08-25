@@ -25,8 +25,7 @@ INSTRUMENT_VALIDATION_PATH = Path(
 )
 QUALIFIED_PATTERN = re.compile(
     r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split()))
-    + r"(?=(?:[.!?](?:[*_`]+)?|(?:[*_`]+)[.!?])(?:\s|$)|(?:[*_`]+)?\s*$)",
-    re.IGNORECASE,
+    + r"(?=(?:[.!?](?:[*_`]+)?|(?:[*_`]+)[.!?])(?:\s|$)|(?:[*_`]+)?\s*$)"
 )
 TEXT_TARGETS = (
     Path("README.md"),
@@ -304,9 +303,7 @@ def json_findings(
         ) is not None
         if structured_verdict:
             verdict_location = f"{location}.verdict"
-            canonical = re.fullmatch(
-                r"CERTIFIED\s+SAFE", verdict, re.IGNORECASE
-            ) is not None
+            canonical = verdict == "CERTIFIED SAFE"
             if not canonical:
                 findings.append({
                     "file": str(relative),

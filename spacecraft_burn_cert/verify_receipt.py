@@ -2,16 +2,16 @@
 """Independent verifier for spacecraft finite-burn interval receipts.
 
 This file deliberately imports nothing from ``certify.py``.  It uses a second
-interval implementation (pairs of scaled integers and free functions), parses
-the producer's source contract with ``ast``, exactly checks the orbital
-polynomial identities, and replays every ODE tube and cutoff post-processing
-operation before accepting a baseline receipt.
+interval implementation (pairs of scaled integers and free functions), extracts
+the producer's source contract with a bounded tokenizer, exactly checks the
+orbital polynomial identities, and replays every ODE tube and cutoff
+post-processing operation before accepting a baseline receipt.
 """
 
 from __future__ import annotations
 
 import argparse
-import ast
+import io
 import hashlib
 import itertools
 import json
@@ -24,6 +24,8 @@ import stat
 import subprocess
 import tempfile
 import time
+import token
+import tokenize
 from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -41,6 +43,11 @@ MAX_JSON_NESTING_DEPTH = 128
 MAX_JSON_INTEGER_DIGITS = 128
 MAX_EXACT_INTEGER_DIGITS = 128
 MAX_CHECKER_OUTPUT_BYTES = 4096
+MAX_SOURCE_CONTRACT_TOKENS = 262_144
+MAX_SOURCE_CONTRACT_NESTING = 128
+MAX_SOURCE_CONTRACT_TOKEN_BYTES = 64 * 1024
+MAX_SOURCE_CONTRACT_LITERAL_BYTES = 4096
+MAX_SOURCE_CONTRACT_STATEMENT_TOKENS = 16
 PINNED_TOOLCHAIN_CONFIGURATIONS = [
     {
         "path": "proofs/lean/lakefile.toml",
@@ -834,14 +841,162 @@ CONTRACT = {
 }
 
 
+def source_contract_literal(tokens: list[tokenize.TokenInfo]) -> object:
+    if len(tokens) == 1:
+        item = tokens[0]
+        if item.type == token.STRING:
+            if (
+                not item.string.startswith('"')
+                or not item.string.endswith('"')
+                or len(item.string.encode("utf-8"))
+                > MAX_SOURCE_CONTRACT_LITERAL_BYTES
+            ):
+                raise ValueError("source contract string is not bounded canonical text")
+            try:
+                value = json.loads(item.string)
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                raise ValueError("source contract string is invalid") from error
+            if type(value) is not str:
+                raise ValueError("source contract string is invalid")
+            return value
+        if item.type == token.NAME and item.string in {"True", "False"}:
+            return item.string == "True"
+        if item.type == token.NUMBER and re.fullmatch(
+            r"(?:0|[1-9][0-9]*)", item.string
+        ):
+            if len(item.string) > MAX_EXACT_INTEGER_DIGITS:
+                raise ValueError("source contract integer is too large")
+            return int(item.string)
+        raise ValueError("source contract value is not a simple literal")
+    if (
+        len(tokens) == 2
+        and tokens[0].type == token.OP
+        and tokens[0].string in {"+", "-"}
+        and tokens[1].type == token.NUMBER
+        and re.fullmatch(r"(?:0|[1-9][0-9]*)", tokens[1].string)
+    ):
+        if len(tokens[1].string) > MAX_EXACT_INTEGER_DIGITS:
+            raise ValueError("source contract integer is too large")
+        value = int(tokens[1].string)
+        return value if tokens[0].string == "+" else -value
+    raise ValueError("source contract value is not a simple literal")
+
+
+def extract_source_contract_statement(
+    statement: list[tokenize.TokenInfo],
+    contains_contract_name: bool,
+    overflowed: bool,
+    values: dict[str, object],
+) -> None:
+    if not contains_contract_name:
+        return
+    if (
+        overflowed
+        or len(statement) < 3
+        or statement[0].type != token.NAME
+        or statement[0].string not in CONTRACT
+        or statement[1].type != token.OP
+        or statement[1].string != "="
+    ):
+        raise ValueError("source contract assignment is not top-level and simple")
+    name = statement[0].string
+    if name in values:
+        raise ValueError("duplicate source contract assignment")
+    values[name] = source_contract_literal(statement[2:])
+
+
 def source_literals(raw: bytes, path: Path) -> dict[str, object]:
-    tree = ast.parse(raw.decode("utf-8"), filename=str(path))
-    values = {}
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            name = node.targets[0].id
-            if name in CONTRACT:
-                values[name] = ast.literal_eval(node.value)
+    if type(raw) is not bytes or len(raw) > MAX_SOURCE_BYTES:
+        raise ValueError("producer source is not bounded bytes")
+    del path
+    values: dict[str, object] = {}
+    statement: list[tokenize.TokenInfo] = []
+    statement_contains_contract = False
+    statement_overflowed = False
+    statement_segment_start = True
+    indentation = 0
+    brackets: list[str] = []
+    matching = {")": "(", "]": "[", "}": "{"}
+    token_count = 0
+
+    def finish_statement() -> None:
+        nonlocal statement
+        nonlocal statement_contains_contract
+        nonlocal statement_overflowed
+        nonlocal statement_segment_start
+        extract_source_contract_statement(
+            statement,
+            statement_contains_contract,
+            statement_overflowed,
+            values,
+        )
+        statement = []
+        statement_contains_contract = False
+        statement_overflowed = False
+        statement_segment_start = True
+
+    try:
+        stream = tokenize.tokenize(io.BytesIO(raw).readline)
+        for item in stream:
+            token_count += 1
+            if token_count > MAX_SOURCE_CONTRACT_TOKENS:
+                raise ValueError("producer source token budget exceeded")
+            if (
+                len(item.string.encode("utf-8"))
+                > MAX_SOURCE_CONTRACT_TOKEN_BYTES
+            ):
+                raise ValueError("producer source token is too large")
+            if item.type == token.INDENT:
+                indentation += 1
+                continue
+            if item.type == token.DEDENT:
+                indentation -= 1
+                if indentation < 0:
+                    raise ValueError("producer source indentation is invalid")
+                continue
+            if item.type == token.OP:
+                if item.string in "([{":
+                    brackets.append(item.string)
+                    if len(brackets) > MAX_SOURCE_CONTRACT_NESTING:
+                        raise ValueError("producer source nesting budget exceeded")
+                elif item.string in ")]}":
+                    if not brackets or brackets.pop() != matching[item.string]:
+                        raise ValueError("producer source brackets are invalid")
+            if item.type == token.ERRORTOKEN and item.string.strip():
+                raise ValueError("producer source token is invalid")
+            if item.type == token.NEWLINE:
+                if indentation == 0:
+                    finish_statement()
+                continue
+            if item.type == token.ENDMARKER:
+                if indentation == 0 and statement:
+                    finish_statement()
+                break
+            if item.type in {
+                token.ENCODING,
+                token.NL,
+                token.COMMENT,
+                token.INDENT,
+                token.DEDENT,
+            }:
+                continue
+            if indentation != 0:
+                continue
+            if (
+                statement_segment_start
+                and item.type == token.NAME
+                and item.string in CONTRACT
+            ):
+                statement_contains_contract = True
+            statement_segment_start = item.type == token.OP and item.string == ";"
+            if len(statement) < MAX_SOURCE_CONTRACT_STATEMENT_TOKENS:
+                statement.append(item)
+            else:
+                statement_overflowed = True
+    except (IndentationError, SyntaxError, tokenize.TokenError) as error:
+        raise ValueError("producer source tokenization failed") from error
+    if brackets or indentation != 0:
+        raise ValueError("producer source structure is incomplete")
     return values
 
 
@@ -2700,15 +2855,19 @@ def verify_receipt(
 
     try:
         source_raw = read_regular_snapshot(source_path, MAX_SOURCE_BYTES)
-        literals = source_literals(source_raw, source_path)
-    except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+    except (OSError, ValueError):
         return {"status": "REFUSED", "reasons": ["invalid-producer-source"]}
-    for name, (required, reason) in CONTRACT.items():
-        if literals.get(name) != required:
-            reasons.append(reason)
     source_digest = hashlib.sha256(source_raw).hexdigest()
     if candidate.get("source_sha256") != source_digest:
-        reasons.append("source-hash-mismatch")
+        return {"status": "REFUSED", "reasons": ["source-hash-mismatch"]}
+    try:
+        literals = source_literals(source_raw, source_path)
+    except (UnicodeDecodeError, SyntaxError, ValueError):
+        return {"status": "REFUSED", "reasons": ["invalid-producer-source"]}
+    for name, (required, reason) in CONTRACT.items():
+        observed = literals.get(name)
+        if type(observed) is not type(required) or observed != required:
+            reasons.append(reason)
 
     if first_difference(EXPECTED_MODEL_CONTRACT, candidate.get("model_contract")) is not None:
         reasons.append("model-contract-mismatch")

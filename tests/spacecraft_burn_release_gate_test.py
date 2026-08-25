@@ -220,6 +220,36 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             (root / gate.TEXT_TARGETS[0]).write_text(wrapped + "\n")
             self.assertEqual(gate.scan(root)["status"], "PASS")
 
+    def test_fully_qualified_text_verdict_requires_exact_case(self):
+        gate = load_gate()
+        cases = (
+            (gate.QUALIFIED_VERDICT, None),
+            (gate.QUALIFIED_VERDICT.lower(), "unqualified-certified-safe"),
+            (
+                gate.QUALIFIED_VERDICT.replace("CERTIFIED SAFE", "Certified Safe"),
+                "unqualified-certified-safe",
+            ),
+        )
+        for claim, expected_reason in cases:
+            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                write_clean_surfaces(root, gate)
+                target = gate.TEXT_TARGETS[0]
+                (root / target).write_text(claim + "\n")
+                result = gate.scan(root)
+                if expected_reason is None:
+                    self.assertEqual(result["status"], "PASS", result["findings"])
+                else:
+                    self.assertEqual(result["status"], "FAIL")
+                    self.assertIn(
+                        {
+                            "file": str(target),
+                            "json_path": "$",
+                            "reason": expected_reason,
+                        },
+                        result["findings"],
+                    )
+
     def test_exact_qualifier_may_end_inside_markdown_emphasis(self):
         gate = load_gate()
         with tempfile.TemporaryDirectory() as directory:
@@ -676,6 +706,85 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                 },
             }))
             self.assertEqual(gate.scan(root)["status"], "PASS")
+
+    def test_recognized_structured_verdicts_require_exact_case_and_whitespace(self):
+        gate = load_gate()
+        baseline_target = Path(
+            "spacecraft_burn_cert/evidence/baseline_receipt_v2.json"
+        )
+        instrument_target = gate.INSTRUMENT_VALIDATION_PATH
+
+        def document_for(target: Path, verdict: str) -> dict:
+            candidate = {
+                "step_exact": "1/16",
+                "verdict": "CERTIFIED SAFE",
+                "verdict_qualifier": gate.MODEL_QUALIFIER,
+                "producer_assurance": "candidate-only",
+                "formal_checker_status": "NOT_EXECUTED",
+                "evidence_classification": (
+                    "rigorously interval-bounded, not formal-bounded"
+                ),
+            }
+            formal = {
+                **candidate,
+                "step_exact": "1/32",
+                "verdict": verdict,
+                "formal_checker_status": "ACCEPT",
+                "evidence_classification": "formal-bounded",
+            }
+            if target == baseline_target:
+                return {
+                    "schema": "spacecraft-finite-burn-formal-receipt-v2",
+                    "verdict": verdict,
+                    "verdict_qualifier": gate.MODEL_QUALIFIER,
+                    "producer_assurance": "candidate-only",
+                    "formal_checker_status": "ACCEPT",
+                    "evidence_classification": "formal-bounded",
+                }
+            return {
+                "schema": "spacecraft-finite-burn-instrument-validation-v2",
+                "step_refinement": {
+                    "runs": [
+                        candidate,
+                        formal,
+                        {**candidate, "step_exact": "1/48"},
+                    ]
+                },
+            }
+
+        verdicts = (
+            ("CERTIFIED SAFE", None),
+            ("certified safe", "noncanonical-structured-verdict"),
+            ("Certified Safe", "noncanonical-structured-verdict"),
+            ("CERTIFIED  SAFE", "noncanonical-structured-verdict"),
+        )
+        for target in (baseline_target, instrument_target):
+            expected_path = (
+                "$.verdict"
+                if target == baseline_target
+                else "$.step_refinement.runs[1].verdict"
+            )
+            for verdict, expected_reason in verdicts:
+                with (
+                    self.subTest(target=str(target), verdict=verdict),
+                    tempfile.TemporaryDirectory() as directory,
+                ):
+                    root = Path(directory)
+                    write_clean_surfaces(root, gate)
+                    (root / target).write_text(json.dumps(document_for(target, verdict)))
+                    result = gate.scan(root)
+                    if expected_reason is None:
+                        self.assertEqual(result["status"], "PASS", result["findings"])
+                    else:
+                        self.assertEqual(result["status"], "FAIL")
+                        self.assertIn(
+                            {
+                                "file": str(target),
+                                "json_path": expected_path,
+                                "reason": expected_reason,
+                            },
+                            result["findings"],
+                        )
 
     def test_structured_formal_status_belongs_only_to_baseline_step(self):
         gate = load_gate()

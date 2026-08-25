@@ -1354,6 +1354,68 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
                         expected_witness_records=witness_records,
                     )
 
+    def test_auxiliary_witness_mutations_bind_checker_digest(self):
+        package = load_packager()
+        evidence = ROOT / "spacecraft_burn_cert/evidence"
+        receipt_bytes = (evidence / package.RECEIPT_NAME).read_bytes()
+        receipt = json.loads(receipt_bytes)
+        documents = {
+            name: json.loads((evidence / name).read_text())
+            for name in package.AUXILIARY_EVIDENCE_NAMES
+        }
+        mutation = documents["mutation_aba_v2.json"]
+        bindings = {
+            "receipt_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
+            "witness_sha256": receipt["formal_checker"]["witness_sha256"],
+            "checker_sha256": receipt["formal_checker"]["checker_sha256"],
+            "proof_identity_file_sha256": receipt["formal_checker"]
+            ["proof_identity_file_sha256"],
+            "proof_identity_digest_sha256": receipt["formal_checker"]
+            ["proof_identity_digest_sha256"],
+            "request_digest": receipt["formal_checker"]["request_digest"],
+            "model_id": receipt["formal_checker"]["model_id"],
+            "epoch": receipt["formal_checker"]["epoch"],
+            "nonce": receipt["formal_checker"]["nonce"],
+            "source_sha256": receipt["source_sha256"],
+        }
+        for record in mutation["witness_mutations"]:
+            record["checker_sha256"] = bindings["checker_sha256"]
+
+        def validate(candidate):
+            candidate_mutation = candidate["mutation_aba_v2.json"]
+            package.validate_auxiliary_documents(
+                candidate,
+                receipt,
+                bindings,
+                expected_independent=candidate["independent_verification_v2.json"],
+                expected_instrument=candidate["instrument_validation_v2.json"],
+                expected_source_mutants={
+                    row["mutation"]: row
+                    for row in candidate_mutation["mutations"]
+                },
+                expected_witness_records={
+                    row["mutation"]: row
+                    for row in candidate_mutation["witness_mutations"]
+                },
+            )
+
+        validate(documents)
+
+        for mutation_kind in ("missing", "mismatch"):
+            with self.subTest(mutation_kind=mutation_kind):
+                changed = copy.deepcopy(documents)
+                record = changed["mutation_aba_v2.json"]["witness_mutations"][0]
+                if mutation_kind == "missing":
+                    del record["checker_sha256"]
+                else:
+                    record["checker_sha256"] = "0" * 64
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "auxiliary evidence witness mutation record",
+                ):
+                    validate(changed)
+
+
 
 if __name__ == "__main__":
     unittest.main()

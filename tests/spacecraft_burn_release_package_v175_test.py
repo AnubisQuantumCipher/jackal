@@ -353,6 +353,56 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("/usr/bin/python3 -I -B", result.stderr)
 
+    def test_validator_command_preserves_private_sibling_import_path(self):
+        package = load_packager()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            private = root / "private-validator"
+            working = root / "unrelated-working-directory"
+            private.mkdir()
+            working.mkdir()
+            sibling = private / "validator_sibling.py"
+            sibling.write_text('VALUE = "private-sibling"\n')
+            script = private / "validator_entry.py"
+            script.write_text(
+                "import sys\n"
+                "import validator_sibling\n"
+                "print(validator_sibling.VALUE)\n"
+                "print(validator_sibling.__file__)\n"
+                "print('site' in sys.modules)\n"
+            )
+            command = package.validator_python_command(script)
+            self.assertEqual(
+                command[1:5],
+                ("-E", "-s", "-S", "-B"),
+            )
+            self.assertNotIn("-I", command)
+            self.assertEqual(command[5], str(script))
+            self.assertNotIn(str(ROOT), " ".join(command))
+            environment = {
+                "LANG": "C",
+                "LC_ALL": "C",
+                "PATH": "/usr/bin:/bin",
+                "TZ": "UTC",
+            }
+            self.assertFalse(
+                any(name.startswith("PYTHON") for name in environment)
+            )
+            result = subprocess.run(
+                command,
+                cwd=working,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            lines = result.stdout.splitlines()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(lines[0], "private-sibling")
+            self.assertEqual(Path(lines[1]).resolve(), sibling.resolve())
+            self.assertEqual(lines[2], "False")
+            self.assertFalse((private / "__pycache__").exists())
+
     @unittest.skipUnless(
         Path("/Library/Developer/CommandLineTools/usr/bin/python3").is_file(),
         "Command Line Tools Python is unavailable",

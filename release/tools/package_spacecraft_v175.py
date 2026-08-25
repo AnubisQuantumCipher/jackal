@@ -1933,6 +1933,18 @@ def _materialize_bytes(path: Path, data: bytes, mode: int = 0o600) -> None:
     path.chmod(mode)
 
 
+def validator_python_command(script: Path, *arguments: str) -> tuple[str, ...]:
+    return (
+        sys.executable,
+        "-E",
+        "-s",
+        "-S",
+        "-B",
+        str(script),
+        *arguments,
+    )
+
+
 def reproduce_auxiliary_validators(
     tracked_inputs: Mapping[str, bytes],
     receipt_bytes: bytes,
@@ -2014,11 +2026,8 @@ def reproduce_auxiliary_validators(
                 "authoritative independent verification refused staged release inputs"
             )
         validator = subprocess.run(
-            (
-                sys.executable,
-                "-I",
-                "-B",
-                str(private / VALIDATION_LOGICAL_PATH),
+            validator_python_command(
+                private / VALIDATION_LOGICAL_PATH,
                 "--baseline",
                 str(receipt_path),
                 "--output",

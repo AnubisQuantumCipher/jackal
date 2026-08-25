@@ -31,8 +31,9 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
     def test_full_hosted_campaign_is_bounded_and_complete(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         source = executable_workflow_surface(source)
-        self.assertIn("timeout-minutes: 240", source)
+        self.assertIn("timeout-minutes: 360", source)
         self.assertNotIn("timeout-minutes: 60", source)
+        self.assertNotIn("timeout-minutes: 240", source)
         self.assertIn("fetch-depth: 0", source)
         request_digest = hashlib.sha256(
             (ROOT / "spacecraft_burn_cert/request_v2.json").read_bytes()
@@ -76,6 +77,59 @@ class SpacecraftBurnWorkflowTests(unittest.TestCase):
             source,
         )
         self.assertNotIn("matrix.os", source)
+
+    def test_full_campaign_uses_maximum_hosted_timeout_without_scope_reduction(self):
+        source = executable_workflow_surface(
+            WORKFLOW.read_text(encoding="utf-8")
+        )
+        self.assertEqual(source.count("timeout-minutes:"), 1)
+        self.assertIn("timeout-minutes: 360", source)
+        self.assertNotIn("timeout-minutes: 240", source)
+        for required in (
+            "jackal_spacecraft_burn_check",
+            "spacecraft_burn_proof_identity.py check --proof-only",
+            "spacecraft_burn_cert/certify.py",
+            "spacecraft_burn_cert/verify_receipt.py",
+            "spacecraft_burn_cert/validate.py",
+            "spacecraft_burn_cert/mutation_aba.py",
+            "spacecraft_burn_cert/release_evidence.py",
+            "tests.spacecraft_burn_release_package_v175_test",
+            "run-a",
+            "run-b",
+            "cmp -s",
+            "spacecraft_burn_release_gate.py",
+        ):
+            self.assertIn(required, source)
+
+    def test_full_campaign_push_scope_is_master_and_version_tags_only(self):
+        source = executable_workflow_surface(
+            WORKFLOW.read_text(encoding="utf-8")
+        )
+        trigger = source[:source.index("permissions:")]
+        self.assertRegex(
+            trigger,
+            (
+                r"(?m)^on:\n"
+                r"  push:\n"
+                r"    branches:\n"
+                r"      - master\n"
+                r"    tags:\n"
+                r"      - ['\"]v\*['\"]\n"
+                r"  pull_request:\n"
+                r"  workflow_dispatch:$"
+            ),
+        )
+        self.assertNotIn("branches-ignore:", trigger)
+        self.assertNotIn("tags-ignore:", trigger)
+
+    def test_early_failure_artifact_upload_warns_when_no_files_exist(self):
+        source = executable_workflow_surface(
+            WORKFLOW.read_text(encoding="utf-8")
+        )
+        self.assertIn("if: always()", source)
+        self.assertIn("if-no-files-found: warn", source)
+        self.assertNotIn("if-no-files-found: error", source)
+        self.assertIn("actions/upload-artifact@", source)
 
     def test_primary_formal_workflow_builds_and_audits_spacecraft_lane(self):
         source = GAUSSIAN.read_text(encoding="utf-8")

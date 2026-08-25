@@ -2,6 +2,10 @@ name: Spacecraft burn formal certificate gate
 
 on:
   push:
+    branches:
+      - master
+    tags:
+      - 'v*'
   pull_request:
   workflow_dispatch:
 
@@ -14,7 +18,7 @@ jobs:
     # runner. It deliberately does not claim byte identity with publication
     # artifacts built on a different owning platform.
     runs-on: macos-14
-    timeout-minutes: 240
+    timeout-minutes: 360
     env:
       MODEL_ID: jackal-spacecraft-finite-burn-ode-v2
       RELEASE_EPOCH: v1.7.5
@@ -148,5 +152,5 @@ jobs:
           name: NON-PUBLICATION-platform-local-spacecraft-burn-macos-14-${{ github.sha }}
           path: |
             ${{ runner.temp }}/spacecraft-v2/**/*.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14

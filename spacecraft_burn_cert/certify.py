@@ -26,16 +26,25 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
-from decimal import Decimal, localcontext
+import sys
+import tempfile
 from fractions import Fraction
 from pathlib import Path
 from typing import Iterable, Sequence
 
+
+PRIVATE_SOURCE_FD_ENV = "JACKAL_SPACECRAFT_PRIVATE_SOURCE_FD"
+MAX_WITNESS_BYTES = 64 * 1024 * 1024
+MAX_CHECKER_BYTES = 512 * 1024 * 1024
+MAX_IDENTITY_BYTES = 16 * 1024 * 1024
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+
 try:
-    from spacecraft_burn_cert import witness_codec
-except ModuleNotFoundError:  # Direct execution from the package directory.
     import witness_codec  # type: ignore[no-redef]
+except ModuleNotFoundError:
+    from spacecraft_burn_cert import witness_codec
 
 
 SCALE_BITS = 80
@@ -57,6 +66,15 @@ MODEL_QUALIFIER = (
     "and machine-checked interval-certificate assumptions"
 )
 FORMAL_THEOREM = "spacecraft_burn_certified_safe"
+PICARD_PRODUCER_NONCLAIM = (
+    "The Python Picard witness generator and its source are not formally verified. "
+    "They are outside the mathematical soundness base because the pinned Lean "
+    "checker independently checks every accepted tube, but remain trusted for "
+    "termination, witness search/completeness, and reproducible generation. A "
+    "producer defect may cause refusal, nontermination, or failure to find a "
+    "witness, but cannot yield formal ACCEPT absent a defect in the pinned Lean "
+    "checker or outer verification gate."
+)
 FORMAL_RESULT_RE = re.compile(
     r"^ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
     r"margin_lo=(-?[0-9]+) margin_hi=(-?[0-9]+) "
@@ -231,8 +249,8 @@ class DInterval:
             "hi_scaled_integer": str(self.hi),
             "lo_exact": fraction_text(self.lo_fraction()),
             "hi_exact": fraction_text(self.hi_fraction()),
-            "lo_decimal": decimal_text(self.lo_fraction()),
-            "hi_decimal": decimal_text(self.hi_fraction()),
+            "lo_decimal": decimal_lower_text(self.lo_fraction()),
+            "hi_decimal": decimal_upper_text(self.hi_fraction()),
         }
 
     def __repr__(self) -> str:
@@ -253,11 +271,24 @@ def fraction_text(value: Fraction) -> str:
     return f"{value.numerator}/{value.denominator}"
 
 
-def decimal_text(value: Fraction, digits: int = 28) -> str:
-    with localcontext() as context:
-        context.prec = digits + 12
-        result = Decimal(value.numerator) / Decimal(value.denominator)
-        return format(result, f".{digits}f")
+def _scaled_decimal_text(units: int, digits: int) -> str:
+    scale = 10**digits
+    sign = "-" if units < 0 else ""
+    whole, fractional = divmod(abs(units), scale)
+    return f"{sign}{whole}.{fractional:0{digits}d}"
+
+
+def decimal_lower_text(value: Fraction, digits: int = 28) -> str:
+    scale = 10**digits
+    units = value.numerator * scale // value.denominator
+    return _scaled_decimal_text(units, digits)
+
+
+def decimal_upper_text(value: Fraction, digits: int = 28) -> str:
+    scale = 10**digits
+    numerator = value.numerator * scale
+    units = -((-numerator) // value.denominator)
+    return _scaled_decimal_text(units, digits)
 
 
 ZERO = DInterval.point(0)
@@ -302,6 +333,8 @@ def derivative(
     radius = r2.sqrt()
     speed = v2.sqrt()
     acceleration_mass = mass if INTEGRATE_MASS else initial_mass
+    if acceleration_mass.lo <= 0:
+        raise CertificationError("mass must stay strictly positive")
     thrust_accel = thrust / acceleration_mass * THRUST_KM_SCALE
     gravity_denom = r2 * radius
     ax = -MU * x / gravity_denom + thrust_accel * vx / speed
@@ -457,6 +490,114 @@ def producer_status() -> dict[str, str]:
     }
 
 
+def _strict_identity_object(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate proof-identity key")
+        result[key] = value
+    return result
+
+
+def validate_proof_identity_for_binding(
+    identity: dict,
+    identity_bytes: bytes,
+    checker_digest: str,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+) -> str:
+    try:
+        reparsed = json.loads(
+            identity_bytes.decode("utf-8"),
+            object_pairs_hook=_strict_identity_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError(f"non-finite proof-identity value: {value}")
+            ),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise CertificationError("invalid proof identity") from error
+    if type(identity) is not dict or identity != reparsed:
+        raise CertificationError("invalid proof identity")
+    expected_keys = {
+        "build_attestation", "checker", "fragment", "generator",
+        "identity_digest_sha256", "proof", "schema", "source_closure",
+        "toolchain",
+    }
+    if (
+        set(identity) != expected_keys
+        or identity.get("schema") != "jackal-spacecraft-burn-proof-identity-v1"
+    ):
+        raise CertificationError("invalid proof identity")
+    recorded = identity.get("identity_digest_sha256")
+    body = {key: value for key, value in identity.items() if key != "identity_digest_sha256"}
+    actual = hashlib.sha256(
+        json.dumps(
+            body, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
+    ).hexdigest()
+    checker = identity.get("checker")
+    fragment = identity.get("fragment")
+    proof = identity.get("proof")
+    if (
+        type(recorded) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", recorded) is None
+        or recorded != actual
+        or type(checker) is not dict
+        or checker.get("sha256") != checker_digest
+        or type(fragment) is not dict
+        or fragment.get("request_digest") != request_digest
+        or fragment.get("model_id") != model_id
+        or fragment.get("release_epoch") != epoch
+        or fragment.get("soundness_theorem")
+        != "JackalIv.Spacecraft.spacecraft_burn_certified_safe"
+        or type(proof) is not dict
+        or proof.get("axiom_policy")
+        != {
+            "allowed_exactly": ["propext", "Classical.choice", "Quot.sound"],
+            "forbidden": ["sorryAx", "any additional axiom"],
+        }
+    ):
+        raise CertificationError("proof identity does not bind the checker request")
+    return recorded
+
+
+def read_regular_snapshot(path: Path, maximum_bytes: int, label: str) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
+            raise CertificationError(f"{label} must be a bounded regular file")
+        payload = bytearray()
+        while len(payload) <= maximum_bytes:
+            block = os.read(descriptor, min(1024 * 1024, maximum_bytes + 1 - len(payload)))
+            if not block:
+                break
+            payload.extend(block)
+        after = os.fstat(descriptor)
+        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if (
+            len(payload) > maximum_bytes
+            or len(payload) != before.st_size
+            or any(getattr(before, field) != getattr(after, field) for field in stable_fields)
+        ):
+            raise CertificationError(f"{label} changed during bounded read")
+        return bytes(payload)
+    except CertificationError:
+        raise
+    except OSError as error:
+        raise CertificationError(f"{label} is not a readable regular file") from error
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
 def bind_formal_checker(
     receipt: dict,
     witness_path: Path,
@@ -468,41 +609,56 @@ def bind_formal_checker(
     nonce: str,
 ) -> None:
     """Bind an accepted exact checker execution to a publication receipt."""
-    if any(path.is_symlink() or not path.is_file() for path in (
-        witness_path, checker_path, proof_identity_path
-    )):
-        raise CertificationError("formal binding inputs must be regular non-symlink files")
-    witness_path = witness_path.resolve()
-    checker_path = checker_path.resolve()
-    proof_identity_path = proof_identity_path.resolve()
     try:
-        proof_identity_bytes = proof_identity_path.read_bytes()
-        checker_bytes = checker_path.read_bytes()
-        witness_bytes = witness_path.read_bytes()
+        proof_identity_bytes = read_regular_snapshot(
+            proof_identity_path, MAX_IDENTITY_BYTES, "proof identity"
+        )
+        checker_bytes = read_regular_snapshot(
+            checker_path, MAX_CHECKER_BYTES, "formal checker"
+        )
+        witness_bytes = read_regular_snapshot(
+            witness_path, MAX_WITNESS_BYTES, "formal witness"
+        )
+    except CertificationError:
+        raise
+    try:
         identity = json.loads(proof_identity_bytes)
-        identity_digest = identity["identity_digest_sha256"]
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+    ) as error:
         raise CertificationError("invalid proof identity") from error
     checker_digest = hashlib.sha256(checker_bytes).hexdigest()
     witness_digest = hashlib.sha256(witness_bytes).hexdigest()
     proof_identity_file_digest = hashlib.sha256(proof_identity_bytes).hexdigest()
-    completed = subprocess.run(
-        [str(checker_path), str(witness_path), request_digest, model_id, epoch],
-        cwd=checker_path.parent,
-        env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=180,
-        check=False,
+    identity_digest = validate_proof_identity_for_binding(
+        identity,
+        proof_identity_bytes,
+        checker_digest,
+        request_digest,
+        model_id,
+        epoch,
+    )
+    completed = run_formal_checker_snapshot(
+        checker_bytes, witness_bytes, request_digest, model_id, epoch
     )
     if completed.returncode != 0 or completed.stderr:
         raise CertificationError("formal checker refused or emitted stderr")
     try:
-        if checker_path.read_bytes() != checker_bytes or witness_path.read_bytes() != witness_bytes:
+        if (
+            read_regular_snapshot(
+                checker_path, MAX_CHECKER_BYTES, "formal checker"
+            )
+            != checker_bytes
+            or read_regular_snapshot(
+                witness_path, MAX_WITNESS_BYTES, "formal witness"
+            )
+            != witness_bytes
+        ):
             raise CertificationError("formal binding input changed during checker execution")
-    except OSError as error:
+    except CertificationError as error:
         raise CertificationError("formal binding input became unreadable") from error
     result_line = completed.stdout.removesuffix("\n")
     if "\n" in result_line or "\r" in result_line:
@@ -513,6 +669,18 @@ def bind_formal_checker(
     margin_lo, margin_hi = int(match.group(1)), int(match.group(2))
     if margin_lo <= 0 or margin_lo > margin_hi:
         raise CertificationError("formal checker returned a non-positive or invalid margin")
+    try:
+        replayed_margin = receipt["orbital_hulls"]["margin_intersection"]
+        candidate_margin = (
+            int(replayed_margin["lo_scaled_integer"]),
+            int(replayed_margin["hi_scaled_integer"]),
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise CertificationError("producer margin hull is invalid") from error
+    if (margin_lo, margin_hi) != candidate_margin:
+        raise CertificationError(
+            "formal checker margin does not match the producer-wide margin hull"
+        )
     receipt["formal_checker_status"] = "ACCEPT"
     receipt["formal_checker"] = {
         "checker_sha256": checker_digest,
@@ -532,8 +700,8 @@ def bind_formal_checker(
         "hi_scaled_integer": str(margin_hi),
         "lo_exact": fraction_text(Fraction(margin_lo, SCALE)),
         "hi_exact": fraction_text(Fraction(margin_hi, SCALE)),
-        "lo_decimal": decimal_text(Fraction(margin_lo, SCALE)),
-        "hi_decimal": decimal_text(Fraction(margin_hi, SCALE)),
+        "lo_decimal": decimal_lower_text(Fraction(margin_lo, SCALE)),
+        "hi_decimal": decimal_upper_text(Fraction(margin_hi, SCALE)),
     }
     receipt["evidence_classification"].update({
         "ode_reachable_set": "formal-bounded by the pinned Lean certificate checker",
@@ -542,6 +710,7 @@ def bind_formal_checker(
     })
     receipt["non_claims"] = [
         "The theorem is conditional on the stated finite-burn ODE model and supplied input bounds.",
+        PICARD_PRODUCER_NONCLAIM,
         "The Lean kernel, compiler, runtime, checker executable, and declared axioms remain trusted components.",
         "The formal lower endpoint is a certified lower bound, not the exact mathematical infimum.",
         "No Monte Carlo or nominal trajectory supports the universal verdict.",
@@ -593,6 +762,132 @@ def _hull_dict(
 
 def _source_sha256() -> str:
     return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def write_private_snapshot(path: Path, payload: bytes, mode: int) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    try:
+        view = memoryview(payload)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise CertificationError("private snapshot write failed")
+            offset += written
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def run_formal_checker_snapshot(
+    checker_bytes: bytes,
+    witness_bytes: bytes,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+) -> subprocess.CompletedProcess[str]:
+    """Execute exactly the checker and witness bytes already hashed by the producer."""
+    with tempfile.TemporaryDirectory(
+        prefix="jackal-spacecraft-formal-binding-"
+    ) as directory:
+        private = Path(directory)
+        checker = private / "jackal_spacecraft_burn_check"
+        witness = private / "baseline_witness_v2.cert"
+        write_private_snapshot(checker, checker_bytes, 0o500)
+        write_private_snapshot(witness, witness_bytes, 0o400)
+        return subprocess.run(
+            [str(checker), str(witness), request_digest, model_id, epoch],
+            cwd=private,
+            env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+
+
+def run_from_private_source_snapshot(argv: Sequence[str]) -> int:
+    source_bytes = read_regular_snapshot(
+        Path(__file__), MAX_SOURCE_BYTES, "producer source"
+    )
+    codec_bytes = read_regular_snapshot(
+        Path(__file__).with_name("witness_codec.py"),
+        MAX_SOURCE_BYTES,
+        "witness codec",
+    )
+    source_digest = hashlib.sha256(source_bytes).hexdigest()
+    with tempfile.TemporaryDirectory(prefix="jackal-spacecraft-producer-") as directory:
+        private = Path(directory)
+        source_snapshot = private / "certify.py"
+        codec_snapshot = private / "witness_codec.py"
+        write_private_snapshot(source_snapshot, source_bytes, 0o500)
+        write_private_snapshot(codec_snapshot, codec_bytes, 0o400)
+        read_fd, write_fd = os.pipe()
+        try:
+            payload = source_digest.encode("ascii")
+            offset = 0
+            while offset < len(payload):
+                written = os.write(write_fd, payload[offset:])
+                if written <= 0:
+                    raise CertificationError("private source binding write failed")
+                offset += written
+            os.close(write_fd)
+            write_fd = -1
+            child_environment = {
+                "LANG": "C",
+                "LC_ALL": "C",
+                "PATH": "/usr/bin:/bin",
+            }
+            child_environment[PRIVATE_SOURCE_FD_ENV] = str(read_fd)
+            completed = subprocess.run(
+                [sys.executable, "-E", "-s", "-S", "-B", str(source_snapshot), *argv],
+                cwd=Path.cwd(),
+                env=child_environment,
+                pass_fds=(read_fd,),
+                check=False,
+            )
+        finally:
+            if write_fd >= 0:
+                os.close(write_fd)
+            os.close(read_fd)
+    return completed.returncode
+
+
+def private_source_snapshot_digest() -> str | None:
+    descriptor_text = os.environ.pop(PRIVATE_SOURCE_FD_ENV, None)
+    if descriptor_text is None:
+        return None
+    if re.fullmatch(r"[0-9]+", descriptor_text) is None:
+        raise CertificationError("private producer source descriptor is invalid")
+    descriptor = int(descriptor_text)
+    if descriptor < 3:
+        raise CertificationError("private producer source descriptor is invalid")
+    payload = bytearray()
+    try:
+        while len(payload) <= 64:
+            block = os.read(descriptor, 65 - len(payload))
+            if not block:
+                break
+            payload.extend(block)
+    except OSError as error:
+        raise CertificationError("private producer source binding is unreadable") from error
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+    try:
+        digest = payload.decode("ascii")
+    except UnicodeDecodeError as error:
+        raise CertificationError("private producer source binding is invalid") from error
+    if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise CertificationError("private producer source binding is invalid")
+    snapshot_directory = Path(__file__).resolve().parent
+    if snapshot_directory.stat().st_mode & 0o077:
+        raise CertificationError("private producer source directory is not private")
+    return digest
 
 
 def _witness_interval(value: DInterval) -> witness_codec.Interval:
@@ -763,11 +1058,11 @@ def certify() -> tuple[dict, witness_codec.BurnWitness]:
             "formula_only_global_lower_exact": fraction_text(
                 minimum_formula_margin.lo_fraction()
             ),
-            "formula_only_global_lower_decimal": decimal_text(
+            "formula_only_global_lower_decimal": decimal_lower_text(
                 minimum_formula_margin.lo_fraction()
             ),
             "reported_lower_exact": fraction_text(reported),
-            "reported_lower_decimal": decimal_text(reported),
+            "reported_lower_decimal": decimal_lower_text(reported),
             "minimum_location": minimum_location,
         },
         "verdict": classification["verdict"],
@@ -792,37 +1087,54 @@ def certify() -> tuple[dict, witness_codec.BurnWitness]:
 
 
 def write_json_atomic(path: Path, payload: dict) -> None:
-    path = path.resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
     data = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
-    with temporary.open("xb") as stream:
-        stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
+    write_bytes_atomic(path, data)
 
 
 def write_bytes_atomic(path: Path, payload: bytes) -> None:
-    path = path.resolve()
+    path = Path(os.path.abspath(path))
+    if path.is_symlink():
+        raise CertificationError("output path must not be a symlink")
+    if os.path.lexists(path):
+        raise CertificationError("output path must not already exist")
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
-    with temporary.open("xb") as stream:
-        stream.write(payload)
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
+    try:
+        write_private_snapshot(temporary, payload, 0o644)
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def format_summary(receipt: dict, path: Path) -> str:
+    status = receipt.get("formal_checker_status")
+    if status == "NOT_EXECUTED":
+        if receipt.get("producer_assurance") != "candidate-only":
+            raise CertificationError("candidate summary lacks producer assurance")
+        return (
+            f"CANDIDATE ONLY producer_assurance=candidate-only "
+            f"formal_checker_status=NOT_EXECUTED "
+            f"candidate_verdict={receipt['verdict']} {receipt['verdict_qualifier']} "
+            f"candidate_margin_lo={receipt['decisive_margin']['reported_lower_decimal']} "
+            f"receipt={path}"
+        )
+    if status != "ACCEPT":
+        raise CertificationError("summary requires an explicit formal checker status")
     return (
-        f"{receipt['verdict']} {receipt['verdict_qualifier']} "
-        f"margin_lo={receipt['decisive_margin']['reported_lower_decimal']} "
+        f"CHECKER-ACCEPTED CANDIDATE outer_verification=REQUIRED "
+        f"candidate_verdict={receipt['verdict']} {receipt['verdict_qualifier']} "
+        f"checker_claimed_status=formal-bounded formal_checker_status=ACCEPT "
+        f"formal_margin_lo={receipt['formal_decisive_margin']['lo_decimal']} "
         f"receipt={path}"
     )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path)
     parser.add_argument("--witness", type=Path)
@@ -832,7 +1144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--model-id")
     parser.add_argument("--epoch")
     parser.add_argument("--nonce")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
     formal_values = (
         args.checker, args.proof_identity, args.request_digest,
         args.model_id, args.epoch, args.nonce,
@@ -843,10 +1155,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         or args.output is None
     ):
         parser.error("formal publication requires output, witness, and every formal binding argument")
-    if args.checker is not None and any(path.is_symlink() for path in (
-        args.witness, args.checker, args.proof_identity
-    )):
-        parser.error("formal publication inputs must not be symlinks")
+    if any(
+        path is not None and path.is_symlink()
+        for path in (args.output, args.witness, args.checker, args.proof_identity)
+    ):
+        parser.error("output and formal publication paths must not be symlinks")
+    if any(
+        path is not None and os.path.lexists(Path(os.path.abspath(path)))
+        for path in (args.output, args.witness)
+    ):
+        parser.error("output and witness paths must not already exist")
+    named_paths = [
+        path for path in (args.output, args.witness, args.checker, args.proof_identity)
+        if path is not None
+    ]
+    lexical_paths = [Path(os.path.abspath(path)) for path in named_paths]
+    if len(set(lexical_paths)) != len(lexical_paths):
+        parser.error("output, witness, checker, and proof identity paths must be distinct")
+    resolved_paths = [path.resolve(strict=False) for path in lexical_paths]
+    if len(set(resolved_paths)) != len(resolved_paths):
+        parser.error("resolved output and formal input paths must be distinct")
+    for index, left in enumerate(lexical_paths):
+        for right in lexical_paths[index + 1:]:
+            if left.exists() and right.exists() and os.path.samefile(left, right):
+                parser.error("output and formal input files must not share an inode")
+    source_snapshot_digest = private_source_snapshot_digest()
+    if source_snapshot_digest is None:
+        return run_from_private_source_snapshot(arguments)
+    observed_source_digest = _source_sha256()
+    if source_snapshot_digest != observed_source_digest:
+        raise CertificationError("private producer source snapshot binding failed")
     receipt, witness = certify()
     encoded_witness = witness_codec.encode_witness(witness)
     if args.witness:
@@ -857,6 +1195,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.proof_identity, args.request_digest, args.model_id,
             args.epoch, args.nonce,
         )
+    if _source_sha256() != observed_source_digest:
+        raise CertificationError("private producer source snapshot changed during execution")
     if args.output:
         write_json_atomic(args.output, receipt)
         print(format_summary(receipt, args.output.resolve()))

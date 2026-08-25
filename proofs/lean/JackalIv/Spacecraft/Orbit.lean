@@ -18,6 +18,137 @@ def expectedInitialBox (bits branch : Nat) : Box := ![
 def expectedThrust (bits branch : Nat) : DInterval :=
   partitionIv bits 1995 2005 2 (branch % 2)
 
+def SuppliedInitialState (state : State) : Prop :=
+  (66779995 / 10000 : ℝ) ≤ state 0 ∧ state 0 ≤ (66800005 / 10000 : ℝ) ∧
+  (-5 / 10000 : ℝ) ≤ state 1 ∧ state 1 ≤ (5 / 10000 : ℝ) ∧
+  (-2 / 100000 : ℝ) ≤ state 2 ∧ state 2 ≤ (2 / 100000 : ℝ) ∧
+  (77258 / 10000 : ℝ) ≤ state 3 ∧ state 3 ≤ (77262 / 10000 : ℝ) ∧
+  (11985 / 10 : ℝ) ≤ state 4 ∧ state 4 ≤ (12015 / 10 : ℝ)
+
+def SuppliedThrust (thrust : ℝ) : Prop :=
+  (1995 : ℝ) ≤ thrust ∧ thrust ≤ (2005 : ℝ)
+
+def SuppliedCutoffTime (time : ℝ) : Prop :=
+  (237 / 2 : ℝ) ≤ time ∧ time ≤ (243 / 2 : ℝ)
+
+theorem supplied_cutoff_time_covered {time : ℝ}
+    (htime : SuppliedCutoffTime time) :
+    ∃ step : Nat, 3792 ≤ step ∧ step < 3888 ∧
+      ((step : ℝ) / 32 ≤ time ∧ time ≤ ((step + 1 : Nat) : ℝ) / 32) := by
+  rcases htime with ⟨htimeLow, htimeHigh⟩
+  by_cases htop : time = (243 / 2 : ℝ)
+  · refine ⟨3887, by omega, by omega, ?_, ?_⟩ <;> norm_num [htop]
+  · have htimeLt : time < (243 / 2 : ℝ) := htimeHigh.lt_of_ne htop
+    have hscaled0 : 0 ≤ 32 * time := by
+      have := htimeLow
+      positivity
+    let step : Nat := ⌊32 * time⌋₊
+    have hlower : 3792 ≤ step := by
+      apply Nat.le_floor
+      dsimp [step]
+      norm_num at htimeLow ⊢
+      linarith
+    have hupper : step < 3888 := by
+      rw [Nat.floor_lt hscaled0]
+      norm_num at htimeLt ⊢
+      linarith
+    have hleft : (step : ℝ) ≤ 32 * time := by
+      exact Nat.floor_le hscaled0
+    have hright : 32 * time < (step : ℝ) + 1 := by
+      exact Nat.lt_floor_add_one (32 * time)
+    refine ⟨step, hlower, hupper, ?_, ?_⟩
+    · linarith
+    · norm_num at hright ⊢
+      linarith
+
+theorem mem_partitionIv_of_between {bits count index : Nat} {lo hi : ℚ}
+    {x : ℝ}
+    (hlo : ((lo + index * ((hi - lo) / count) : ℚ) : ℝ) ≤ x)
+    (hhi : x ≤ ((lo + (index + 1) * ((hi - lo) / count) : ℚ) : ℝ)) :
+    Mem bits x (partitionIv bits lo hi count index) := by
+  constructor
+  · exact (pointRat_sound bits
+      (lo + index * ((hi - lo) / count))).1.trans hlo
+  · exact hhi.trans (pointRat_sound bits
+      (lo + (index + 1) * ((hi - lo) / count))).2
+
+private theorem x_partition_covered {bits : Nat} {x : ℝ}
+    (hx : (66779995 / 10000 : ℝ) ≤ x ∧
+      x ≤ (66800005 / 10000 : ℝ)) :
+    ∃ index < 4, Mem bits x
+      (partitionIv bits (66779995 / 10000) (66800005 / 10000) 4 index) := by
+  by_cases h1 : x ≤ (26713999 / 4000 : ℝ)
+  · exact ⟨0, by omega, mem_partitionIv_of_between
+      (by norm_num at hx ⊢; exact hx.1) (by norm_num at h1 ⊢; exact h1)⟩
+  by_cases h2 : x ≤ (6679 : ℝ)
+  · exact ⟨1, by omega, mem_partitionIv_of_between (by norm_num at h1 ⊢; linarith)
+      (by norm_num at h2 ⊢; exact h2)⟩
+  by_cases h3 : x ≤ (26718001 / 4000 : ℝ)
+  · exact ⟨2, by omega, mem_partitionIv_of_between (by norm_num at h2 ⊢; linarith)
+      (by norm_num at h3 ⊢; exact h3)⟩
+  · exact ⟨3, by omega, mem_partitionIv_of_between (by norm_num at h3 ⊢; linarith)
+      (by norm_num at hx ⊢; exact hx.2)⟩
+
+private theorem two_partition_covered {bits : Nat} {lo mid hi : ℚ} {x : ℝ}
+    (hx : (lo : ℝ) ≤ x ∧ x ≤ (hi : ℝ))
+    (hmid : mid = (lo + hi) / 2) :
+    ∃ index < 2, Mem bits x (partitionIv bits lo hi 2 index) := by
+  by_cases h : x ≤ (mid : ℝ)
+  · subst mid
+    exact ⟨0, by omega, mem_partitionIv_of_between
+      (by norm_num at hx ⊢; exact hx.1) (by norm_num at h ⊢; linarith)⟩
+  · subst mid
+    exact ⟨1, by omega, mem_partitionIv_of_between (by norm_num at h ⊢; linarith)
+      (by norm_num at hx ⊢; linarith)⟩
+
+private theorem one_partition_covered {bits : Nat} {lo hi : ℚ} {x : ℝ}
+    (hx : (lo : ℝ) ≤ x ∧ x ≤ (hi : ℝ)) :
+    Mem bits x (partitionIv bits lo hi 1 0) := by
+  apply mem_partitionIv_of_between <;> norm_num at hx ⊢
+  · exact hx.1
+  · exact hx.2
+
+theorem supplied_input_cells {state : State} {thrust : ℝ}
+    (hs : SuppliedInitialState state) (ht : SuppliedThrust thrust) :
+    ∃ branch < 32,
+      (∀ i, Mem 80 (state i) (expectedInitialBox 80 branch i)) ∧
+      Mem 80 thrust (expectedThrust 80 branch) := by
+  rcases hs with ⟨hx0, hx1, hy0, hy1, hvx0, hvx1, hvy0, hvy1, hm0, hm1⟩
+  obtain ⟨ix, hix, hmemx⟩ := x_partition_covered ⟨hx0, hx1⟩
+  have hmemy := one_partition_covered (bits := 80)
+    (lo := -5 / 10000) (hi := 5 / 10000) (x := state 1)
+    ⟨by norm_num at hy0 ⊢; exact hy0, by norm_num at hy1 ⊢; exact hy1⟩
+  have hmemvx := one_partition_covered (bits := 80)
+    (lo := -2 / 100000) (hi := 2 / 100000) (x := state 2)
+    ⟨by norm_num at hvx0 ⊢; exact hvx0, by norm_num at hvx1 ⊢; exact hvx1⟩
+  obtain ⟨ivy, hivy, hmemvy⟩ := two_partition_covered (bits := 80)
+    (lo := 77258 / 10000) (mid := 7726 / 1000) (hi := 77262 / 10000)
+    (x := state 3)
+    ⟨by norm_num at hvy0 ⊢; exact hvy0, by norm_num at hvy1 ⊢; exact hvy1⟩
+    (by norm_num)
+  obtain ⟨im, him, hmemm⟩ := two_partition_covered (bits := 80)
+    (lo := 11985 / 10) (mid := 1200) (hi := 12015 / 10)
+    (x := state 4)
+    ⟨by norm_num at hm0 ⊢; exact hm0, by norm_num at hm1 ⊢; exact hm1⟩
+    (by norm_num)
+  obtain ⟨it, hit, hmemt⟩ := two_partition_covered (bits := 80)
+    (lo := 1995) (mid := 2000) (hi := 2005) (x := thrust) ht (by norm_num)
+  let branch := ix * 8 + ivy * 4 + im * 2 + it
+  have hb : branch < 32 := by dsimp [branch]; omega
+  have hix' : (branch / 8) % 4 = ix := by dsimp [branch]; omega
+  have hivy' : (branch / 4) % 2 = ivy := by dsimp [branch]; omega
+  have him' : (branch / 2) % 2 = im := by dsimp [branch]; omega
+  have hit' : branch % 2 = it := by dsimp [branch]; omega
+  refine ⟨branch, hb, ?_, ?_⟩
+  · intro i
+    fin_cases i
+    · simpa [expectedInitialBox, hix'] using hmemx
+    · simpa [expectedInitialBox] using hmemy
+    · simpa [expectedInitialBox] using hmemvx
+    · simpa [expectedInitialBox, hivy'] using hmemvy
+    · simpa [expectedInitialBox, him'] using hmemm
+  · simpa [expectedThrust, hit'] using hmemt
+
 def stepsCovered (branch expected : Nat) : List StepWitness → Bool
   | [] => true
   | step :: tail =>
@@ -34,6 +165,49 @@ def branchesCovered (bits expected stepsPerBranch : Nat) :
       branch.steps.length == stepsPerBranch &&
       stepsCovered expected 0 branch.steps &&
       branchesCovered bits (expected + 1) stepsPerBranch tail
+
+theorem branchesCovered_contains {bits expected stepsPerBranch target : Nat}
+    {branches : List BranchWitness}
+    (hcovered : branchesCovered bits expected stepsPerBranch branches = true)
+    (hlower : expected ≤ target)
+    (hupper : target < expected + branches.length) :
+    ∃ branch ∈ branches,
+      branch.branch = target ∧
+      branch.initial = expectedInitialBox bits target ∧
+      branch.thrust = expectedThrust bits target := by
+  induction branches generalizing expected target with
+  | nil => simp only [List.length_nil, add_zero] at hupper; omega
+  | cons branch tail ih =>
+      simp only [branchesCovered, Bool.and_eq_true] at hcovered
+      rcases hcovered with
+        ⟨⟨⟨⟨⟨hbranch, hinitial⟩, hthrust⟩, _hlength⟩, _hsteps⟩, htail⟩
+      by_cases heq : target = expected
+      · subst target
+        refine ⟨branch, by simp, ?_, ?_, ?_⟩
+        · exact of_decide_eq_true hbranch
+        · exact of_decide_eq_true hinitial
+        · exact of_decide_eq_true hthrust
+      · have hnext : expected + 1 ≤ target := by omega
+        have htailUpper : target < expected + 1 + tail.length := by
+          simp only [List.length_cons] at hupper
+          omega
+        obtain ⟨found, hmem, hnumber, hinitial', hthrust'⟩ :=
+          ih htail hnext htailUpper
+        exact ⟨found, by simp [hmem], hnumber, hinitial', hthrust'⟩
+
+theorem branchesCovered_member_length {bits expected stepsPerBranch : Nat}
+    {branches : List BranchWitness} {branch : BranchWitness}
+    (hcovered : branchesCovered bits expected stepsPerBranch branches = true)
+    (hmem : branch ∈ branches) : branch.steps.length = stepsPerBranch := by
+  induction branches generalizing expected with
+  | nil => simp at hmem
+  | cons head tail ih =>
+      simp only [branchesCovered, Bool.and_eq_true] at hcovered
+      rcases hcovered with ⟨⟨⟨⟨⟨_, _⟩, _⟩, hlength⟩, _⟩, htail⟩
+      simp only [List.mem_cons] at hmem
+      rcases hmem with rfl | hmem
+      · exact of_decide_eq_true hlength
+      · exact ih htail hmem
 
 def ExactCutoffCoverage (witness : BurnWitness) : Prop :=
   witness.scaleBits = 80 ∧
@@ -59,6 +233,28 @@ instance (witness : BurnWitness) : Decidable (ExactCutoffCoverage witness) :=
     witness.declaredCutoffCells = 3072 ∧
     witness.branches.length = 32 ∧
     branchesCovered witness.scaleBits 0 witness.stepsPerBranch witness.branches = true))
+
+theorem supplied_inputs_covered {witness : BurnWitness}
+    (hcoverage : ExactCutoffCoverage witness)
+    {state : State} {thrust : ℝ}
+    (hs : SuppliedInitialState state) (ht : SuppliedThrust thrust) :
+    ∃ branch ∈ witness.branches,
+      (∀ i, Mem witness.scaleBits (state i) (branch.initial i)) ∧
+      Mem witness.scaleBits thrust branch.thrust := by
+  rcases hcoverage with
+    ⟨hbits, _hnum, _hden, _hparts, hsteps, _hfirst, _hdeclared,
+      _htubes, _hcutoffs, hlength, hbranches⟩
+  obtain ⟨number, hnumber, hstateCell, hthrustCell⟩ := supplied_input_cells hs ht
+  have hupper : number < 0 + witness.branches.length := by
+    simp only [zero_add, hlength]
+    exact hnumber
+  obtain ⟨branch, hmem, hbranch, hinitial, hthrust⟩ :=
+    branchesCovered_contains hbranches (Nat.zero_le number) hupper
+  refine ⟨branch, hmem, ?_, ?_⟩
+  · rw [hinitial]
+    simpa [hbits] using hstateCell
+  · rw [hthrust]
+    simpa [hbits] using hthrustCell
 
 def checkCutoffCoverage (witness : BurnWitness) : Except String Unit :=
   if ExactCutoffCoverage witness then .ok () else .error "cutoff-coverage"
@@ -120,9 +316,9 @@ def orbitPostprocess (bits : Nat) (box : Box) : Except String OrbitIntervals := 
   let eccentricityIntersection ← match intersection eccentricity eccentricityVector with
     | some value => pure value
     | none => throw "eccentricity-intersection"
-  /- The vector route drives the safety margin; the independent scalar route
-  and nonempty intersection remain mandatory consistency checks. -/
-  let apoapsis := mul bits axis (add (oneIv bits) eccentricityVector)
+  /- Both exact eccentricity formulas are proved equal below, so their checked
+  intersection remains an enclosure and is the decisive publication route. -/
+  let apoapsis := mul bits axis (add (oneIv bits) eccentricityIntersection)
   let altitude := sub apoapsis (earthRadiusIv bits)
   let margin := sub altitude (thousandIv bits)
   pure ⟨radius, v2, energy, axis, angular, eccentricitySquared, eccentricity,
@@ -163,6 +359,23 @@ noncomputable def apoapsisRadius (state : State) : ℝ :=
 
 noncomputable def apoapsisMargin (state : State) : ℝ :=
   apoapsisRadius state - (63781363 / 10000 : ℝ) - 1000
+
+theorem orbitalEccentricityFormula_eq_vector (state : State)
+    (hr : 0 < radiusSq state) :
+    orbitalEccentricityFormula state = orbitalEccentricity state := by
+  apply congrArg Real.sqrt
+  have hrsqrt : Real.sqrt (radiusSq state) ≠ 0 := (Real.sqrt_pos.2 hr).ne'
+  have hmu : (pinnedModelRequest.mu : ℝ) ≠ 0 := by
+    norm_num [pinnedModelRequest]
+  have hrsq : (Real.sqrt (radiusSq state)) ^ 2 = radiusSq state :=
+    Real.sq_sqrt hr.le
+  simp only [orbitalEccentricityX, orbitalEccentricityY, orbitalRadialProduct,
+    orbitalEnergy, orbitalAngularMomentum, speedSq]
+  field_simp
+  simp only [radiusSq] at hrsq ⊢
+  ring_nf at hrsq ⊢
+  rw [hrsq]
+  ring
 
 theorem sqrt_ok_data {bits : Nat} {a out : DInterval}
     (h : sqrt bits a = .ok out) :
@@ -271,6 +484,13 @@ theorem orbitPostprocess_sound {bits : Nat} {box : Box}
           exact div_sound hv2 htwo hhalfData.1
         have hmu := pointRat_sound bits pinnedModelRequest.mu
         have hpotentialData := div_ok_data hpotential
+        have hradiusPos : 0 < Real.sqrt (radiusSq state) := by
+          rcases hpotentialData.1 with hpos | hneg
+          · exact hpos.trans_le hradiusMem.1
+          · have hnonneg := Real.sqrt_nonneg (radiusSq state)
+            have hlt := hradiusMem.2.trans_lt hneg
+            linarith
+        have hr2pos : 0 < radiusSq state := Real.sqrt_pos.mp hradiusPos
         have hpotentialMem : Mem bits
             ((pinnedModelRequest.mu : ℝ) / Real.sqrt (radiusSq state))
             potential := by
@@ -320,22 +540,6 @@ theorem orbitPostprocess_sound {bits : Nat} {box : Box}
           rw [hevData.2]
           simpa [orbitalEccentricity, sqrtUnchecked] using sqrt_sound hevData.1
             (by positivity) hevSqMem
-        have hapoMem : Mem bits (apoapsisRadius state)
-            (mul bits axis (add (oneIv bits) eccentricityVector)) := by
-          simpa [apoapsisRadius, oneIv] using mul_sound haxisMem
-            (add_sound (pointRat_sound bits (1 : ℚ)) hevMem)
-        have haltitudeMem : Mem bits
-            (apoapsisRadius state - (63781363 / 10000 : ℝ))
-            (sub (mul bits axis (add (oneIv bits) eccentricityVector))
-              (earthRadiusIv bits)) := by
-          exact sub_sound hapoMem (by
-            simpa [earthRadiusIv] using
-              pointRat_sound bits (63781363 / 10000 : ℚ))
-        have hmarginMem : Mem bits (apoapsisMargin state)
-            (sub (sub (mul bits axis (add (oneIv bits) eccentricityVector))
-              (earthRadiusIv bits)) (thousandIv bits)) := by
-          simpa [apoapsisMargin, earthRadiusIv, thousandIv] using
-            sub_sound haltitudeMem (pointRat_sound bits (1000 : ℚ))
         have hangularMem : Mem bits (orbitalAngularMomentum state) angular := by
           simpa [orbitalAngularMomentum, angular] using
             sub_sound (mul_sound (hs 0) (hs 3)) (mul_sound (hs 1) (hs 2))
@@ -368,6 +572,28 @@ theorem orbitPostprocess_sound {bits : Nat} {box : Box}
           rw [heccData.2]
           simpa [orbitalEccentricityFormula, sqrtUnchecked] using
             sqrt_sound heccData.1 heccNonneg heccSquaredMem
+        have hinterMem : Mem bits (orbitalEccentricity state)
+            eccentricityIntersection := by
+          apply intersection_sound hinter
+          · rw [← orbitalEccentricityFormula_eq_vector state hr2pos]
+            exact heccMem
+          · exact hevMem
+        have hapoMem : Mem bits (apoapsisRadius state)
+            (mul bits axis (add (oneIv bits) eccentricityIntersection)) := by
+          simpa [apoapsisRadius, oneIv] using mul_sound haxisMem
+            (add_sound (pointRat_sound bits (1 : ℚ)) hinterMem)
+        have haltitudeMem : Mem bits
+            (apoapsisRadius state - (63781363 / 10000 : ℝ))
+            (sub (mul bits axis (add (oneIv bits) eccentricityIntersection))
+              (earthRadiusIv bits)) := by
+          exact sub_sound hapoMem (by
+            simpa [earthRadiusIv] using
+              pointRat_sound bits (63781363 / 10000 : ℚ))
+        have hmarginMem : Mem bits (apoapsisMargin state)
+            (sub (sub (mul bits axis (add (oneIv bits) eccentricityIntersection))
+              (earthRadiusIv bits)) (thousandIv bits)) := by
+          simpa [apoapsisMargin, earthRadiusIv, thousandIv] using
+            sub_sound haltitudeMem (pointRat_sound bits (1000 : ℚ))
         exact ⟨hmarginMem, heccMem, hevMem⟩
 
 theorem orbitPostprocess_margin_sound {bits : Nat} {box : Box}

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import importlib.util
+import hashlib
 import json
+import os
 import platform
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,9 +19,23 @@ IDENTITY = ROOT / "release" / "evidence" / "spacecraft_burn_proof_identity_v1.js
 
 
 class SpacecraftProofIdentityTests(unittest.TestCase):
+    def load_wrapper(self):
+        sys.path.insert(0, str(SCRIPT.parent))
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "spacecraft_identity_wrapper_test", SCRIPT
+            )
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        finally:
+            sys.path.pop(0)
+
     def run_gate(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, "-B", str(SCRIPT), *args],
+            [sys.executable, "-I", "-B", str(SCRIPT), *args],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -53,6 +71,523 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         result = self.run_gate("check", "--lane=gaussian")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("fixed to spacecraft-burn", result.stderr)
+
+    def test_generator_rejects_multiline_import_and_all_hidden_runtime_constructs(self) -> None:
+        wrapper = self.load_wrapper()
+        with self.assertRaises(wrapper.engine.GateError):
+            wrapper.parse_spacecraft_imports(
+                SCRIPT,
+                "import\n  JackalIv.HiddenRuntime\n",
+            )
+        with self.assertRaises(wrapper.engine.GateError):
+            wrapper.parse_spacecraft_imports(
+                SCRIPT,
+                "import Mathlib import\n  JackalIv.HiddenRuntime\n",
+            )
+        with self.assertRaises(wrapper.engine.GateError):
+            wrapper.parse_spacecraft_imports(
+                SCRIPT,
+                "prelude import JackalIv.HiddenRuntime\n",
+            )
+        with self.assertRaises(wrapper.engine.GateError):
+            wrapper.parse_spacecraft_imports(
+                SCRIPT,
+                "module\npublic import JackalIv.HiddenRuntime\n",
+            )
+        for code in (
+            "@[simp, implemented_by hiddenImpl] def checked : Nat := 0",
+            "public axiom hidden : False",
+            "@[deprecated] noncomputable axiom hidden : False",
+            "#print axioms Nat.add_comm axiom hidden : False",
+        ):
+            with self.subTest(code=code):
+                self.assertTrue(
+                    wrapper.SPACECRAFT_IMPLEMENTED_BY_RE.search(code)
+                    or wrapper.SPACECRAFT_AXIOM_DECLARATION_RE.search(code)
+                )
+
+    def test_generator_refuses_checker_root_or_dependency_configuration_drift(self) -> None:
+        wrapper = self.load_wrapper()
+        payloads = {
+            path: (ROOT / path).read_bytes()
+            for path in wrapper.PINNED_CONFIGURATION_SHA256
+        }
+        wrapper.validate_pinned_configuration_payloads(payloads)
+        payloads["proofs/lean/lakefile.toml"] = payloads[
+            "proofs/lean/lakefile.toml"
+        ].replace(
+            b'root = "JackalIv.Spacecraft.CertMain"',
+            b'root = "JackalIv.Spacecraft.FakeMain"',
+        )
+        with self.assertRaises(wrapper.engine.GateError):
+            wrapper.validate_pinned_configuration_payloads(payloads)
+
+    def test_private_recording_does_not_resolve_live_generator_against_private_root(self) -> None:
+        wrapper = self.load_wrapper()
+        source_closure = {"files": [], "root_module": "Fixture"}
+        toolchain = {"compiler": {"sha256": "1" * 64}}
+        observed_compiler = {"sha256": "1" * 64}
+        theorem_axioms = [{"axioms": [], "theorem": "fixture"}]
+        previous_root = wrapper.engine.REPO_ROOT
+        previous_file = wrapper.engine.__file__
+        try:
+            with tempfile.TemporaryDirectory(prefix="identity-private-record-") as directory:
+                wrapper.engine.REPO_ROOT = Path(directory)
+                wrapper.engine.__file__ = str(SCRIPT)
+                with (
+                    mock.patch.object(
+                        wrapper.engine,
+                        "collect_source_closure",
+                        return_value=source_closure,
+                    ),
+                    mock.patch.object(
+                        wrapper.engine,
+                        "collect_toolchain",
+                        return_value=(toolchain, observed_compiler),
+                    ),
+                    mock.patch.object(
+                        wrapper.engine,
+                        "run_axiom_audit",
+                        return_value=theorem_axioms,
+                    ),
+                    mock.patch.object(
+                        wrapper,
+                        "_collect_engine_source_closure",
+                        return_value=source_closure,
+                        create=True,
+                    ),
+                    mock.patch.object(
+                        wrapper,
+                        "_collect_engine_toolchain",
+                        return_value=(toolchain, observed_compiler),
+                        create=True,
+                    ),
+                    mock.patch.object(
+                        wrapper,
+                        "_run_engine_axiom_audit",
+                        return_value=theorem_axioms,
+                        create=True,
+                    ),
+                    mock.patch.object(wrapper, "locked_packages", return_value=[]),
+                    mock.patch.object(wrapper, "validate_spacecraft_package_checkouts"),
+                ):
+                    sections = wrapper.collect_spacecraft_proof_sections()
+        finally:
+            wrapper.engine.REPO_ROOT = previous_root
+            wrapper.engine.__file__ = previous_file
+        self.assertEqual(sections["source_closure"], source_closure)
+        self.assertEqual(sections["toolchain"]["compiler"], toolchain["compiler"])
+        self.assertEqual(sections["_observed_compiler"], observed_compiler)
+        self.assertEqual(sections["proof"]["theorems"], theorem_axioms)
+        self.assertEqual(
+            [entry["path"] for entry in sections["generator"]["files"]],
+            [
+                "release/tools/spacecraft_burn_proof_identity.py",
+                "release/tools/gaussian_proof_identity.py",
+            ],
+        )
+
+    def test_dependency_verifier_rejects_assume_unchanged_byte_drift(self) -> None:
+        wrapper = self.load_wrapper()
+        packages = ROOT / "proofs" / "lean" / ".lake" / "packages"
+        with tempfile.TemporaryDirectory(prefix="identity-hostile-", dir=packages) as directory:
+            checkout = Path(directory)
+
+            def git(*arguments: str) -> str:
+                completed = subprocess.run(
+                    ["/usr/bin/git", "-C", str(checkout), *arguments],
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                return completed.stdout.strip()
+
+            git("init", "-q")
+            git("config", "user.name", "JACKAL test")
+            git("config", "user.email", "jackal-test@example.invalid")
+            payload = checkout / "Bound.lean"
+            payload.write_text("theorem bound : True := trivial\n", encoding="utf-8")
+            git("add", "Bound.lean")
+            git("commit", "-q", "-m", "fixture")
+            revision = git("rev-parse", "HEAD")
+            record = wrapper.verify_git_dependency_checkout(checkout, revision)
+            self.assertEqual(record["revision"], revision)
+            git("update-index", "--assume-unchanged", "Bound.lean")
+            payload.write_text("axiom hidden : False\n", encoding="utf-8")
+            with self.assertRaisesRegex(wrapper.engine.GateError, "index hiding"):
+                wrapper.verify_git_dependency_checkout(checkout, revision)
+
+    def test_identity_generation_cleans_all_workspace_build_outputs(self) -> None:
+        wrapper = self.load_wrapper()
+        wrapper._CLEAN_REBUILD = True
+        wrapper.engine.CHECKER_TARGET = "jackal_spacecraft_burn_check"
+        with (
+            mock.patch.object(wrapper, "locked_packages", return_value=[]),
+            mock.patch.object(wrapper, "validate_spacecraft_package_checkouts") as validate,
+            mock.patch.object(wrapper.engine, "run", return_value="") as run,
+        ):
+            wrapper.build_spacecraft_checker()
+        self.assertEqual(validate.call_count, 3)
+        self.assertEqual(run.call_args_list[0].args[0], ["lake", "clean"])
+        self.assertEqual(
+            run.call_args_list[1].args[0],
+            ["lake", "build", "jackal_spacecraft_burn_check"],
+        )
+
+    def test_private_source_snapshot_admits_only_the_explicit_closure(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(prefix="identity-source-allowlist-") as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "private"
+            (source / "JackalIv").mkdir(parents=True)
+            (source / "JackalIv/Root.lean").write_text(
+                "theorem admitted : True := trivial\n",
+                encoding="utf-8",
+            )
+            (source / "lakefile.toml").write_text("name = \"fixture\"\n", encoding="utf-8")
+            (source / "lakefile.lean").write_text(
+                "package malicious where\n",
+                encoding="utf-8",
+            )
+            wrapper.snapshot_local_lean_workspace(
+                source,
+                destination,
+                {Path("JackalIv/Root.lean"), Path("lakefile.toml")},
+            )
+            self.assertTrue((destination / "JackalIv/Root.lean").is_file())
+            self.assertFalse((destination / "lakefile.lean").exists())
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "Escaped.lean").write_text(
+                "axiom escaped : False\n",
+                encoding="utf-8",
+            )
+            os.symlink(outside, source / "Escaped")
+            with self.assertRaisesRegex(wrapper.engine.GateError, "symlink"):
+                wrapper.snapshot_local_lean_workspace(
+                    source,
+                    root / "private-escaped",
+                    {Path("Escaped/Escaped.lean")},
+                )
+
+    def test_lake_commands_force_the_absolute_pinned_configuration(self) -> None:
+        wrapper = self.load_wrapper()
+        command = wrapper.configured_lake_command(
+            ["lake", "build", "jackal_spacecraft_burn_check"],
+            Path("/private/work/proofs/lean"),
+            Path("/private/toolchain/bin"),
+        )
+        self.assertEqual(command[0], "/private/toolchain/bin/lake")
+        self.assertIn("--file=/private/work/proofs/lean/lakefile.toml", command)
+        self.assertIn("--rehash", command)
+        self.assertIn("--reconfigure", command)
+        self.assertIn("--no-cache", command)
+        with self.assertRaises(wrapper.engine.GateError):
+            wrapper.configured_lake_command(
+                ["lake", "--file=lakefile.lean", "build"],
+                Path("/private/work/proofs/lean"),
+                Path("/private/toolchain/bin"),
+            )
+        package = {
+            "config_file": "lakefile.toml",
+            "inherited": True,
+            "manifest_file": "lake-manifest.json",
+            "name": "BoundDep",
+            "scope": "verified",
+            "subdirectory": "lean",
+            "type": "git",
+        }
+        override = json.loads(wrapper.private_package_override_bytes([package]))
+        self.assertEqual(override["version"], "1.2.0")
+        self.assertEqual(
+            override["packages"][0]["dir"],
+            ".lake/packages/BoundDep/lean",
+        )
+        previous_active = wrapper._PRIVATE_BUILD_ACTIVE
+        previous_override = wrapper._PRIVATE_PACKAGE_OVERRIDE_PATH
+        try:
+            wrapper._PRIVATE_BUILD_ACTIVE = True
+            wrapper._PRIVATE_PACKAGE_OVERRIDE_PATH = Path("/private/inputs/packages.json")
+            private_command = wrapper.configured_lake_command(
+                ["lake", "clean"],
+                Path("/private/work/proofs/lean"),
+                Path("/private/toolchain/bin"),
+            )
+        finally:
+            wrapper._PRIVATE_BUILD_ACTIVE = previous_active
+            wrapper._PRIVATE_PACKAGE_OVERRIDE_PATH = previous_override
+        self.assertIn("--packages=/private/inputs/packages.json", private_command)
+
+    def test_complete_toolchain_snapshot_binds_nonlauncher_bytes(self) -> None:
+        wrapper = self.load_wrapper()
+        token = "leanprover/lean4:v4.32.0"
+        with tempfile.TemporaryDirectory(prefix="identity-toolchain-") as directory:
+            root = Path(directory)
+            source = root / wrapper.toolchain_directory_name(token)
+            destination = root / "private-toolchain"
+            (source / "bin").mkdir(parents=True)
+            (source / "lib/lean").mkdir(parents=True)
+            for name in ("lake", "lean", "leanc"):
+                path = source / "bin" / name
+                path.write_bytes((name + "\n").encode("ascii"))
+                path.chmod(0o755)
+            library = source / "lib/lean/libleanshared.dylib"
+            library.write_bytes(b"bound-library-bytes\n")
+            expected = wrapper.snapshot_complete_toolchain(
+                source,
+                destination,
+                token,
+            )
+            library_copy = destination / "lib/lean/libleanshared.dylib"
+            library_copy.write_bytes(b"mutated-library-bytes\n")
+            actual = wrapper.complete_toolchain_tree_record(destination, token)
+            self.assertNotEqual(actual["aggregate_sha256"], expected["aggregate_sha256"])
+
+    def test_dependency_symlink_snapshot_refuses_package_escape(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(prefix="identity-symlink-") as directory:
+            root = Path(directory)
+            package = root / "package"
+            destination = root / "private"
+            (package / "docs").mkdir(parents=True)
+            (package / "README.md").write_text("bound\n", encoding="utf-8")
+            safe = package / "docs" / "README.md"
+            safe.symlink_to("../README.md")
+
+            def oid(target: str) -> str:
+                payload = os.fsencode(target)
+                return hashlib.sha1(
+                    b"blob " + str(len(payload)).encode("ascii") + b"\0" + payload
+                ).hexdigest()
+
+            wrapper.snapshot_symlink(
+                safe,
+                destination / "docs" / "README.md",
+                oid("../README.md"),
+                package,
+            )
+            self.assertEqual(
+                os.readlink(destination / "docs" / "README.md"),
+                "../README.md",
+            )
+
+            escaped = package / "escape"
+            escaped.symlink_to("../outside")
+            with self.assertRaisesRegex(wrapper.engine.GateError, "escapes package"):
+                wrapper.snapshot_symlink(
+                    escaped,
+                    destination / "escape",
+                    oid("../outside"),
+                    package,
+                )
+
+    def test_private_package_layout_refuses_symlinked_configuration_paths(self) -> None:
+        wrapper = self.load_wrapper()
+        package = {
+            "config_file": "lakefile.toml",
+            "inherited": True,
+            "manifest_file": "lake-manifest.json",
+            "name": "BoundDep",
+            "scope": "verified",
+            "subdirectory": "lean",
+            "type": "git",
+        }
+        with tempfile.TemporaryDirectory(prefix="identity-package-layout-") as directory:
+            private_lean = Path(directory)
+            package_root = private_lean / ".lake/packages/BoundDep"
+            real = package_root / "real"
+            real.mkdir(parents=True)
+            (real / "lakefile.toml").write_text("name = 'fixture'\n", encoding="utf-8")
+            (real / "lake-manifest.json").write_text("{}\n", encoding="utf-8")
+            (package_root / "lean").symlink_to(real, target_is_directory=True)
+            with self.assertRaisesRegex(wrapper.engine.GateError, "symlink"):
+                wrapper.validate_private_package_layout(private_lean, package)
+
+    def test_platform_launcher_binds_system_python_symlink_and_final_target(self) -> None:
+        wrapper = self.load_wrapper()
+        record = wrapper.trusted_platform_launcher(
+            "python-interpreter",
+            Path(sys.executable),
+        )
+        self.assertEqual(record["invocation_path"], os.path.abspath(sys.executable))
+        self.assertEqual(record["resolved_path"], str(Path(sys.executable).resolve(strict=True)))
+        self.assertGreater(record["bytes"], 0)
+        self.assertRegex(record["sha256"], r"^[0-9a-f]{64}$")
+
+    @unittest.skipUnless(sys.platform == "darwin", "sandbox-exec is macOS-specific")
+    def test_private_sandbox_allows_build_outputs_and_refuses_source_writes(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(prefix="identity-sandbox-") as directory:
+            root = Path(directory).resolve(strict=True)
+            private_lean = root / "repo/proofs/lean"
+            private_toolchain = root / "private-elan/toolchains/fake"
+            private_toolchain.mkdir(parents=True)
+            private_lean.mkdir(parents=True)
+            source = private_lean / "Source.lean"
+            source.write_text("theorem source : True := trivial\n", encoding="utf-8")
+            proofwidgets = private_lean / ".lake/packages/proofwidgets/widget"
+            proofwidgets.mkdir(parents=True)
+            package_lock = proofwidgets / "package-lock.json"
+            package_lock.write_text("{}\n", encoding="utf-8")
+            packages = [{
+                "name": "proofwidgets",
+                "subdirectory": None,
+                "type": "git",
+            }]
+            previous_home = wrapper._PRIVATE_PROCESS_HOME
+            previous_tmp = wrapper._PRIVATE_PROCESS_TMP
+            try:
+                wrapper._PRIVATE_PROCESS_HOME = root / "process-home"
+                wrapper._PRIVATE_PROCESS_TMP = root / "process-tmp"
+                profile = wrapper.private_build_sandbox_profile(
+                    private_lean,
+                    private_toolchain,
+                    packages,
+                )
+            finally:
+                wrapper._PRIVATE_PROCESS_HOME = previous_home
+                wrapper._PRIVATE_PROCESS_TMP = previous_tmp
+            self.assertIn("(deny default)", profile)
+            allowed = subprocess.run(
+                [
+                    "/usr/bin/sandbox-exec",
+                    "-p",
+                    profile,
+                    "/bin/sh",
+                    "-c",
+                    'printf allowed > "$1/.lake/build/output"',
+                    "sh",
+                    str(private_lean),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
+            bookkeeping = subprocess.run(
+                [
+                    "/usr/bin/sandbox-exec",
+                    "-p",
+                    profile,
+                    "/bin/sh",
+                    "-c",
+                    'printf 179e66574f04806e > "$1.hash"',
+                    "sh",
+                    str(package_lock),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(bookkeeping.returncode, 0, bookkeeping.stderr)
+            blocked = subprocess.run(
+                [
+                    "/usr/bin/sandbox-exec",
+                    "-p",
+                    profile,
+                    "/bin/sh",
+                    "-c",
+                    'printf blocked > "$1"',
+                    "sh",
+                    str(source),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(blocked.returncode, 0)
+            self.assertEqual(source.read_text(encoding="utf-8"), "theorem source : True := trivial\n")
+            blocked_package = subprocess.run(
+                [
+                    "/usr/bin/sandbox-exec",
+                    "-p",
+                    profile,
+                    "/bin/sh",
+                    "-c",
+                    'printf changed > "$1"',
+                    "sh",
+                    str(package_lock),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(blocked_package.returncode, 0)
+            self.assertEqual(package_lock.read_text(encoding="utf-8"), "{}\n")
+
+    def test_private_lake_bookkeeping_is_exact_and_required_after_build(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(prefix="identity-bookkeeping-") as directory:
+            private_lean = Path(directory)
+            bookkeeping = (
+                private_lean
+                / ".lake/packages/proofwidgets/widget/package-lock.json.hash"
+            )
+            bookkeeping.parent.mkdir(parents=True)
+            wrapper.validate_private_lake_bookkeeping(
+                private_lean, require_complete=False
+            )
+            with self.assertRaisesRegex(wrapper.engine.GateError, "missing"):
+                wrapper.validate_private_lake_bookkeeping(
+                    private_lean, require_complete=True
+                )
+            bookkeeping.write_bytes(b"wrong")
+            with self.assertRaisesRegex(wrapper.engine.GateError, "drift"):
+                wrapper.validate_private_lake_bookkeeping(
+                    private_lean, require_complete=False
+                )
+            bookkeeping.write_bytes(b"179e66574f04806e")
+            wrapper.validate_private_lake_bookkeeping(
+                private_lean, require_complete=True
+            )
+
+    def test_atomic_writer_refuses_existing_explicit_output_and_symlink_parent(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(prefix="identity-output-") as directory:
+            root = Path(directory).resolve(strict=True)
+            existing = root / "identity.json"
+            existing.write_bytes(b"old\n")
+            with self.assertRaisesRegex(wrapper.engine.GateError, "already exists"):
+                wrapper.write_payload_atomic(
+                    existing,
+                    b"new\n",
+                    0o644,
+                    allow_replace=False,
+                )
+            self.assertEqual(existing.read_bytes(), b"old\n")
+            wrapper.write_payload_atomic(
+                existing,
+                b"replacement\n",
+                0o644,
+                allow_replace=True,
+            )
+            self.assertEqual(existing.read_bytes(), b"replacement\n")
+            created = root / "created.json"
+            wrapper.write_payload_atomic(
+                created,
+                b"created\n",
+                0o644,
+                allow_replace=False,
+            )
+            self.assertEqual(created.read_bytes(), b"created\n")
+            real_parent = root / "real"
+            real_parent.mkdir()
+            linked_parent = root / "linked"
+            os.symlink(real_parent, linked_parent)
+            with self.assertRaisesRegex(wrapper.engine.GateError, "traverse symlinks"):
+                wrapper.write_payload_atomic(
+                    linked_parent / "new.json",
+                    b"new\n",
+                    0o644,
+                    allow_replace=False,
+                )
 
 
 if __name__ == "__main__":

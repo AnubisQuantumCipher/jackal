@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -25,6 +27,69 @@ def load_harness(testcase: unittest.TestCase):
 
 
 class MutationHarnessTests(unittest.TestCase):
+    def test_cli_refuses_symlink_hardlink_and_resolved_parent_output_aliases(self):
+        harness = load_harness(self)
+        for case in ("symlink", "dangling-symlink", "hardlink", "resolved-parent"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                real = root / "real"
+                real.mkdir()
+                baseline = real / "baseline.json"
+                original = b"authoritative baseline\n"
+                baseline.write_bytes(original)
+                request = root / "request.json"
+                witness = root / "witness.cert"
+                checker = root / "checker"
+                identity = root / "identity.json"
+                for path in (request, witness, checker, identity):
+                    path.write_bytes(path.name.encode("ascii"))
+                if case == "symlink":
+                    output = root / "output.json"
+                    output.symlink_to(baseline)
+                elif case == "dangling-symlink":
+                    output = root / "output.json"
+                    output.symlink_to(root / "missing.json")
+                elif case == "hardlink":
+                    output = root / "output.json"
+                    os.link(baseline, output)
+                else:
+                    alias = root / "alias"
+                    alias.symlink_to(real, target_is_directory=True)
+                    output = alias / baseline.name
+                argv = [
+                    "--output", str(output), "--baseline", str(baseline),
+                    "--request", str(request), "--witness", str(witness),
+                    "--checker", str(checker), "--proof-identity", str(identity),
+                    "--expected-receipt-sha256", "a" * 64,
+                    "--expected-proof-file-sha256", "b" * 64,
+                    "--expected-proof-identity-sha256", "c" * 64,
+                    "--expected-request-digest", "d" * 64,
+                    "--expected-model-id", "model", "--expected-epoch", "epoch",
+                    "--nonce", "nonce",
+                ]
+                with mock.patch.object(
+                    harness, "campaign", return_value={"status": "PASS"}
+                ) as campaign:
+                    with self.assertRaises(SystemExit):
+                        harness.main(argv)
+                campaign.assert_not_called()
+                self.assertEqual(baseline.read_bytes(), original)
+
+    def test_atomic_evidence_write_completes_short_writes(self):
+        harness = load_harness(self)
+        payload = {"status": "PASS", "detail": "x" * 4096}
+        real_write = os.write
+
+        def short_write(descriptor, data):
+            return real_write(descriptor, data[:max(1, len(data) // 4)])
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "evidence.json"
+            with mock.patch.object(harness.os, "write", side_effect=short_write) as write:
+                harness.write_atomic(output, payload)
+            self.assertGreater(write.call_count, 1)
+            self.assertEqual(json.loads(output.read_bytes()), payload)
+
     def test_timeout_byte_output_is_preserved_as_text_evidence(self):
         harness = load_harness(self)
         timeout = subprocess.TimeoutExpired(
@@ -54,6 +119,34 @@ class MutationHarnessTests(unittest.TestCase):
             harness.normalized_mutant_test_output(second, second_path),
         )
 
+    def test_repeated_source_mutation_has_identical_output_evidence_hash(self):
+        harness = load_harness(self)
+        first = harness.exercise_mutation("meters_as_kilometers")
+        second = harness.exercise_mutation("meters_as_kilometers")
+        self.assertEqual(
+            first["mutant_test_output_sha256"],
+            second["mutant_test_output_sha256"],
+        )
+
+    def test_source_mutation_runner_ignores_hostile_python_environment(self):
+        harness = load_harness(self)
+        with tempfile.TemporaryDirectory() as directory:
+            hostile = Path(directory)
+            (hostile / "unittest.py").write_text(
+                'raise RuntimeError("hostile PYTHONPATH imported")\n'
+            )
+            with mock.patch.dict(
+                harness.os.environ,
+                {
+                    "PYTHONPATH": str(hostile),
+                    "PYTHONWARNINGS": "error",
+                    "PYTHONSTARTUP": str(hostile / "startup.py"),
+                },
+            ):
+                result = harness.exercise_mutation("meters_as_kilometers")
+        self.assertTrue(result["caught"])
+        self.assertFalse(result["mutant_tests_timed_out"])
+
     def test_witness_timeout_cannot_pass_the_integrated_mutation_path(self):
         harness = load_harness(self)
         interval = witness_codec.Interval(0, 10)
@@ -70,7 +163,8 @@ class MutationHarnessTests(unittest.TestCase):
             witness_path = root / "witness.cert"
             witness_path.write_bytes(witness_codec.encode_witness(witness))
             inputs = harness.FormalInputs(
-                root / "receipt.json", witness_path, root / "checker",
+                root / "receipt.json", root / "request.json", witness_path,
+                root / "checker",
                 root / "identity.json", "a" * 64, "b" * 64, "c" * 64,
                 "d" * 64, "model", "epoch", "nonce",
             )

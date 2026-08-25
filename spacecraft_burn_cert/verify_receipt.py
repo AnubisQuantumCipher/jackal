@@ -18,6 +18,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import tempfile
 from fractions import Fraction
@@ -27,8 +28,233 @@ from typing import Iterable, Sequence
 
 BITS = 80
 DEN = 1 << BITS
+MAX_RECEIPT_BYTES = 16 * 1024 * 1024
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+MAX_REQUEST_BYTES = 1024 * 1024
+MAX_WITNESS_BYTES = 64 * 1024 * 1024
+MAX_CHECKER_BYTES = 512 * 1024 * 1024
+MAX_IDENTITY_BYTES = 16 * 1024 * 1024
+PINNED_TOOLCHAIN_CONFIGURATIONS = [
+    {
+        "path": "proofs/lean/lakefile.toml",
+        "sha256": "48b4a93ddda8ea85bda3fe65ac2f94dc43d6629641cdaf7bead228ec26d90bfe",
+    },
+    {
+        "path": "proofs/lean/lake-manifest.json",
+        "sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4",
+    },
+    {
+        "path": "proofs/lean/lean-toolchain",
+        "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e",
+    },
+]
 Interval = tuple[int, int]
 Box = tuple[Interval, ...]
+
+RECEIPT_TOP_LEVEL_KEYS = {
+    "cutoff_state_hull",
+    "decisive_margin",
+    "evidence_classification",
+    "formal_checker",
+    "formal_checker_status",
+    "formal_decisive_margin",
+    "method",
+    "model_contract",
+    "non_claims",
+    "orbital_hulls",
+    "problem",
+    "producer_assurance",
+    "schema",
+    "source_sha256",
+    "verdict",
+    "verdict_qualifier",
+    "witness",
+}
+INTERVAL_KEYS = {
+    "lo_scaled_integer",
+    "hi_scaled_integer",
+    "lo_exact",
+    "hi_exact",
+    "lo_decimal",
+    "hi_decimal",
+}
+EXPECTED_MODEL_CONTRACT = {
+    "thrust_acceleration_scale": "0.001",
+    "integrate_mass": True,
+    "apoapsis_eccentricity_sign": 1,
+    "energy_denominator": 2,
+    "propagate_full_box": True,
+    "decision_mode": "exact_lower_bound",
+}
+EXPECTED_PROBLEM = {
+    "mu_km3_s2": "398600.4418",
+    "g0_m_s2": "9.80665",
+    "isp_s": "450",
+    "earth_radius_km": "6378.1363",
+    "initial_bounds": [
+        ["13355999/2000", "13360001/2000"],
+        ["-1/2000", "1/2000"],
+        ["-1/50000", "1/50000"],
+        ["38629/5000", "38631/5000"],
+        ["2397/2", "2403/2"],
+    ],
+    "thrust_bounds_N": ["1995", "2005"],
+    "burn_time_bounds_s": ["237/2", "243/2"],
+}
+EXPECTED_EVIDENCE_CLASSIFICATION = {
+    "inputs_and_unit_constants": "exact",
+    "interval_arithmetic": "exact integer implementation with outward rounding",
+    "ode_reachable_set": "formal-bounded by the pinned Lean certificate checker",
+    "orbital_algebra": "formal-bounded by the pinned Lean certificate checker",
+    "nominal_reference": "numerically estimated diagnostic only",
+    "sampling": "not used for the decisive result",
+    "overall": "formal-bounded",
+}
+PICARD_PRODUCER_NONCLAIM = (
+    "The Python Picard witness generator and its source are not formally verified. "
+    "They are outside the mathematical soundness base because the pinned Lean "
+    "checker independently checks every accepted tube, but remain trusted for "
+    "termination, witness search/completeness, and reproducible generation. A "
+    "producer defect may cause refusal, nontermination, or failure to find a "
+    "witness, but cannot yield formal ACCEPT absent a defect in the pinned Lean "
+    "checker or outer verification gate."
+)
+EXPECTED_NON_CLAIMS = [
+    "The theorem is conditional on the stated finite-burn ODE model and supplied input bounds.",
+    PICARD_PRODUCER_NONCLAIM,
+    "The Lean kernel, compiler, runtime, checker executable, and declared axioms remain trusted components.",
+    "The formal lower endpoint is a certified lower bound, not the exact mathematical infimum.",
+    "No Monte Carlo or nominal trajectory supports the universal verdict.",
+]
+EXPECTED_REQUEST = {
+    "burn_time_bounds_s": ["237/2", "243/2"],
+    "earth_radius_km": "63781363/10000",
+    "g0_m_s2": "196133/20000",
+    "initial_bounds": [
+        ["13355999/2000", "13360001/2000"],
+        ["-1/2000", "1/2000"],
+        ["-1/50000", "1/50000"],
+        ["38629/5000", "38631/5000"],
+        ["2397/2", "2403/2"],
+    ],
+    "isp_s": "450",
+    "minimum_apoapsis_altitude_km": "1000",
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "mu_km3_s2": "1993002209/5000",
+    "partition_counts": [4, 1, 1, 2, 2, 2],
+    "schema": "jackal-spacecraft-burn-request-v2",
+    "step_s": "1/32",
+    "thrust_bounds_N": ["1995", "2005"],
+    "thrust_km_scale": "1/1000",
+}
+ALLOWED_AXIOMS = ["propext", "Classical.choice", "Quot.sound"]
+EXPECTED_PROOF_THEOREMS = [
+    "JackalIv.Spacecraft.spacecraft_burn_certified_safe",
+    "JackalIv.Spacecraft.spacecraft_burn_universal_safe",
+    "JackalIv.Spacecraft.spacecraft_burn_certificate_sound",
+    "JackalIv.Spacecraft.checkBurnWitness_sound",
+    "JackalIv.Spacecraft.checkBurnWitness_universal_sound",
+    "JackalIv.Spacecraft.checkBurnWitness_margin_bound",
+    "JackalIv.Spacecraft.checkBranchesCert_sound",
+    "JackalIv.Spacecraft.checkBranchesCert_universal_sound",
+    "JackalIv.Spacecraft.checkBranchesCert_margin_bound",
+    "JackalIv.Spacecraft.checkBranchCert_sound",
+    "JackalIv.Spacecraft.checkBranchCert_universal_sound",
+    "JackalIv.Spacecraft.checkBranchCert_margin_bound",
+    "JackalIv.Spacecraft.checkOrbitSteps_sound",
+    "JackalIv.Spacecraft.checkOrbitSteps_margin_bound",
+    "JackalIv.Spacecraft.checked_chain_state_safe",
+    "JackalIv.Spacecraft.checked_chain_state_margin_bound",
+    "JackalIv.Spacecraft.chain_state_at_exists",
+    "JackalIv.Spacecraft.checked_steps_nonvacuous",
+    "JackalIv.Spacecraft.checked_steps_compose",
+    "JackalIv.Spacecraft.exists_classicalSolution_of_checkStep",
+    "JackalIv.Spacecraft.orbitPostprocess_sound",
+    "JackalIv.Spacecraft.orbitalEccentricityFormula_eq_vector",
+    "JackalIv.Spacecraft.intersection_sound",
+    "JackalIv.Spacecraft.supplied_inputs_covered",
+    "JackalIv.Spacecraft.supplied_cutoff_time_covered",
+    "JackalIv.Spacecraft.checkCutoffCoverage_sound",
+    "JackalIv.Spacecraft.fieldEnclosed",
+    "JackalIv.Spacecraft.burnField_contDiffOn_of_domain",
+    "JackalIv.Spacecraft.burnField_locallyLipschitzOn_of_domain",
+]
+EXPECTED_BUILD_ISOLATION_POLICY = (
+    "Publication generation copies an explicit local Lean source closure, every pinned "
+    "dependency blob, and the complete pinned Lean toolchain regular-file tree into a "
+    "private mode-0700 workspace. Deterministic path overrides make Lake consume only "
+    "those verified dependency snapshots. Lake is invoked with the absolute pinned "
+    "lakefile, rehashing, reconfiguration, no remote cache, and the private toolchain. macOS "
+    "sandbox policy denies the build subprocess writes to source and toolchain bytes "
+    "while permitting dedicated .lake build/configuration directories and one exact "
+    "ProofWidgets hash sidecar that --rehash recomputes but never trusts as an input. "
+    "That sidecar and exact source/dependency manifests are checked around every Lake "
+    "command, and the complete toolchain tree is checked before and after the build. "
+    "This boundary trusts the "
+    "owning macOS kernel, sandbox facility, dyld, libSystem, hardware, and the invoking "
+    "Python interpreter; it is not a proof of that platform supply chain."
+)
+EXPECTED_LAKE_GENERATED_BOOKKEEPING = {
+    "definition": (
+        "Exact non-source Lake hash sidecars required to replay pinned dependency "
+        "targets under --rehash; each is recomputed, never trusted as an input, and "
+        "validated after every Lake command."
+    ),
+    "files": [
+        {
+            "bytes": 16,
+            "path": ".lake/packages/proofwidgets/widget/package-lock.json.hash",
+            "sha256": "971a4e08a78d3b185902cde49867376deb03135a517d4380eb1cb6604cfcb38b",
+        },
+    ],
+}
+
+
+class DuplicateJsonKey(ValueError):
+    pass
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateJsonKey(key)
+        result[key] = value
+    return result
+
+
+def reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number: {value}")
+
+
+def strict_json_bytes(raw: bytes) -> object:
+    return json.loads(
+        raw.decode("utf-8"),
+        object_pairs_hook=reject_duplicate_keys,
+        parse_constant=reject_nonfinite_json,
+    )
+
+
+def first_difference(expected: object, actual: object, path: str = "$") -> str | None:
+    if type(expected) is not type(actual):
+        return f"{path}:type"
+    if isinstance(expected, dict):
+        if set(expected) != set(actual):
+            return f"{path}:keys"
+        for key in sorted(expected):
+            difference = first_difference(expected[key], actual[key], f"{path}.{key}")
+            if difference is not None:
+                return difference
+        return None
+    if isinstance(expected, list):
+        if len(expected) != len(actual):
+            return f"{path}:length"
+        for index, (left, right) in enumerate(zip(expected, actual)):
+            difference = first_difference(left, right, f"{path}[{index}]")
+            if difference is not None:
+                return difference
+        return None
+    return None if expected == actual else f"{path}:value"
 
 
 def floor_q(value: Fraction) -> int:
@@ -141,7 +367,7 @@ def interior(a: Box, b: Box) -> bool:
 
 
 Z = point(0)
-O = point(1)
+ONE = point(1)
 TWO = point(2)
 KILO = point(1000)
 MU = point("398600.4418")
@@ -204,7 +430,7 @@ def post(z: Box) -> dict[str, Interval]:
         raise ValueError("non-elliptic energy in independent replay")
     semimajor = div(neg(MU), mul(TWO, energy))
     momentum = sub(mul(x, vy), mul(y, vx))
-    e2 = add(O, div(mul(mul(TWO, energy), sq(momentum)), sq(MU)))
+    e2 = add(ONE, div(mul(mul(TWO, energy), sq(momentum)), sq(MU)))
     eccentricity = root(e2)
 
     radial_dot = add(mul(x, vx), mul(y, vy))
@@ -214,8 +440,8 @@ def post(z: Box) -> dict[str, Interval]:
     ev2 = add(sq(ex), sq(ey))
     ev = root(ev2)
     e = meet(eccentricity, ev)
-    apo_formula = mul(semimajor, add(O, eccentricity))
-    apo = mul(semimajor, add(O, e))
+    apo_formula = mul(semimajor, add(ONE, eccentricity))
+    apo = mul(semimajor, add(ONE, e))
     alt_formula = sub(apo_formula, RE)
     alt = sub(apo, RE)
     return {
@@ -259,8 +485,22 @@ def trace_update(hasher, branch: int, index: int, boxes: Iterable[Box]) -> None:
             hasher.update(b";")
 
 
+def canonical_witness_record(hasher, tokens: Sequence[object]) -> int:
+    encoded = (" ".join(str(token) for token in tokens) + "\n").encode("ascii")
+    hasher.update(encoded)
+    return len(encoded)
+
+
+def canonical_box_tokens(box: Box) -> tuple[int, ...]:
+    return tuple(endpoint for value in box for endpoint in value)
+
+
 def replay() -> dict:
     digest = hashlib.sha256()
+    witness_digest = hashlib.sha256()
+    witness_magic = b"jackal-spacecraft-burn-cert v2\n"
+    witness_digest.update(witness_magic)
+    witness_byte_size = len(witness_magic)
     state_hull = None
     post_hulls: dict[str, Interval] = {}
     minimum_cell = None
@@ -273,10 +513,34 @@ def replay() -> dict:
     domain_speed_squared_lo = None
     domain_mass_lo = None
     arms = branches()
+    cutoff_count = len(arms) * (TOTAL_STEPS - FIRST_CUTOFF_STEP)
+    witness_byte_size += canonical_witness_record(
+        witness_digest,
+        (
+            "config",
+            BITS,
+            H.numerator,
+            H.denominator,
+            *PARTS,
+            TOTAL_STEPS,
+            FIRST_CUTOFF_STEP,
+            len(arms),
+            len(arms) * TOTAL_STEPS,
+            cutoff_count,
+        ),
+    )
     for branch_id, (initial, thrust) in enumerate(arms):
+        witness_byte_size += canonical_witness_record(
+            witness_digest,
+            ("branch", branch_id, *canonical_box_tokens(initial), *thrust),
+        )
         state = initial
         for index in range(TOTAL_STEPS):
             tube, endpoint, iterations = step(state, thrust)
+            witness_byte_size += canonical_witness_record(
+                witness_digest,
+                ("tube", branch_id, index, *canonical_box_tokens(tube)),
+            )
             max_iterations = max(max_iterations, iterations)
             tube_count += 1
             radius_squared_lo = add(sq(tube[0]), sq(tube[1]))[0]
@@ -313,6 +577,10 @@ def replay() -> dict:
                 if minimum_formula_lo is None or f_lo < minimum_formula_lo:
                     minimum_formula_lo = f_lo
             state = endpoint
+    witness_byte_size += canonical_witness_record(
+        witness_digest,
+        ("end", len(arms), len(arms) * TOTAL_STEPS, cutoff_count),
+    )
     return {
         "trace_sha256": digest.hexdigest(),
         "branch_count": len(arms),
@@ -329,11 +597,47 @@ def replay() -> dict:
             "speed_squared_exact": frac_text(Fraction(domain_speed_squared_lo, DEN)),
             "mass_exact": frac_text(Fraction(domain_mass_lo, DEN)),
         },
+        "canonical_witness_sha256": witness_digest.hexdigest(),
+        "canonical_witness_byte_size": witness_byte_size,
     }
 
 
 def frac_text(q: Fraction) -> str:
     return str(q.numerator) if q.denominator == 1 else f"{q.numerator}/{q.denominator}"
+
+
+def _scaled_decimal_text(units: int, digits: int) -> str:
+    scale = 10**digits
+    sign = "-" if units < 0 else ""
+    whole, fractional = divmod(abs(units), scale)
+    return f"{sign}{whole}.{fractional:0{digits}d}"
+
+
+def decimal_lower_text(value: Fraction, digits: int = 28) -> str:
+    scale = 10**digits
+    units = value.numerator * scale // value.denominator
+    return _scaled_decimal_text(units, digits)
+
+
+def decimal_upper_text(value: Fraction, digits: int = 28) -> str:
+    scale = 10**digits
+    numerator = value.numerator * scale
+    units = -((-numerator) // value.denominator)
+    return _scaled_decimal_text(units, digits)
+
+
+def interval_document(value: Interval) -> dict[str, str]:
+    lo, hi = value
+    lo_fraction = Fraction(lo, DEN)
+    hi_fraction = Fraction(hi, DEN)
+    return {
+        "lo_scaled_integer": str(lo),
+        "hi_scaled_integer": str(hi),
+        "lo_exact": frac_text(lo_fraction),
+        "hi_exact": frac_text(hi_fraction),
+        "lo_decimal": decimal_lower_text(lo_fraction),
+        "hi_decimal": decimal_upper_text(hi_fraction),
+    }
 
 
 def poly_const(value: Fraction | int, variables: int) -> dict[tuple[int, ...], Fraction]:
@@ -484,13 +788,20 @@ def source_literals(raw: bytes, path: Path) -> dict[str, object]:
 
 def parse_receipt_interval(payload: dict, reasons: list[str], label: str) -> Interval | None:
     try:
+        if type(payload) is not dict or set(payload) != INTERVAL_KEYS:
+            raise ValueError
+        if not all(type(payload[key]) is str for key in INTERVAL_KEYS):
+            raise ValueError
+        if re.fullmatch(r"-?(?:0|[1-9][0-9]*)", payload["lo_scaled_integer"]) is None:
+            raise ValueError
+        if re.fullmatch(r"-?(?:0|[1-9][0-9]*)", payload["hi_scaled_integer"]) is None:
+            raise ValueError
         lo = int(payload["lo_scaled_integer"])
         hi = int(payload["hi_scaled_integer"])
         if lo > hi:
             raise ValueError
-        if Fraction(payload["lo_exact"]) != Fraction(lo, DEN):
-            raise ValueError
-        if Fraction(payload["hi_exact"]) != Fraction(hi, DEN):
+        expected = interval_document((lo, hi))
+        if first_difference(expected, payload) is not None:
             raise ValueError
         return lo, hi
     except (KeyError, TypeError, ValueError, ZeroDivisionError):
@@ -510,7 +821,95 @@ MODEL_QUALIFIER = (
 )
 
 
-def checker_acceptance_line(line: str, model_id: str, epoch: str) -> bool:
+def expected_receipt_document(
+    expected: dict,
+    *,
+    source_digest: str,
+    witness_digest: str,
+    witness_byte_size: int,
+    checker_digest: str,
+    proof_file_digest: str,
+    proof_identity_digest: str,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+    nonce: str,
+    result_line: str,
+    formal_margin: Interval,
+) -> dict:
+    cutoff_names = ("x", "y", "vx", "vy", "mass")
+    minimum_cell = expected["minimum_cell"]
+    minimum_formula = Fraction(expected["minimum_formula_lo"], DEN)
+    reported_lower = Fraction(minimum_cell[0], DEN)
+    return {
+        "schema": "spacecraft-finite-burn-formal-receipt-v2",
+        "source_sha256": source_digest,
+        "method": {
+            "arithmetic": "exact-integer outward-rounded dyadic intervals",
+            "scale_bits": BITS,
+            "ode_enclosure": "validated Picard self-map plus interval endpoint integral",
+            "step_exact": "1/32",
+            "partition_counts": list(PARTS),
+            "branch_count": expected["branch_count"],
+            "tube_count": expected["tube_count"],
+            "postprocess_count": expected["postprocess_count"],
+            "maximum_picard_iterations": expected["maximum_picard_iterations"],
+            "trace_sha256": expected["trace_sha256"],
+            "domain_lower_bounds": expected["domain_lower_bounds"],
+        },
+        "model_contract": EXPECTED_MODEL_CONTRACT,
+        "witness": {
+            "format": "jackal-spacecraft-burn-cert v2",
+            "sha256": witness_digest,
+            "byte_size": witness_byte_size,
+            "branch_count": expected["branch_count"],
+            "tube_count": expected["tube_count"],
+            "cutoff_cell_count": expected["postprocess_count"],
+        },
+        "problem": EXPECTED_PROBLEM,
+        "cutoff_state_hull": {
+            name: interval_document(value)
+            for name, value in zip(cutoff_names, expected["cutoff"])
+        },
+        "orbital_hulls": {
+            name: interval_document(value) for name, value in expected["post"].items()
+        },
+        "decisive_margin": {
+            "interval": interval_document(minimum_cell),
+            "formula_only_global_lower_exact": frac_text(minimum_formula),
+            "formula_only_global_lower_decimal": decimal_lower_text(minimum_formula),
+            "reported_lower_exact": frac_text(reported_lower),
+            "reported_lower_decimal": decimal_lower_text(reported_lower),
+            "minimum_location": expected["minimum_location"],
+        },
+        "verdict": "CERTIFIED SAFE" if reported_lower > 0 else "INDETERMINATE",
+        "verdict_qualifier": MODEL_QUALIFIER,
+        "producer_assurance": "candidate-only",
+        "formal_checker_status": "ACCEPT",
+        "formal_checker": {
+            "checker_sha256": checker_digest,
+            "proof_identity_file_sha256": proof_file_digest,
+            "proof_identity_digest_sha256": proof_identity_digest,
+            "witness_sha256": witness_digest,
+            "request_digest": request_digest,
+            "model_id": model_id,
+            "epoch": epoch,
+            "nonce": nonce,
+            "theorem": "spacecraft_burn_certified_safe",
+            "result_line": result_line,
+        },
+        "formal_decisive_margin": {
+            "scale_bits": BITS,
+            **interval_document(formal_margin),
+        },
+        "evidence_classification": EXPECTED_EVIDENCE_CLASSIFICATION,
+        "non_claims": EXPECTED_NON_CLAIMS,
+    }
+
+
+def checker_acceptance_margin(
+    line: str, model_id: str, epoch: str
+) -> tuple[int, int] | None:
     match = re.fullmatch(
         r"ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded "
         r"margin_lo=([0-9]+) margin_hi=([0-9]+) model="
@@ -520,9 +919,22 @@ def checker_acceptance_line(line: str, model_id: str, epoch: str) -> bool:
         line,
     )
     if match is None:
-        return False
+        return None
     margin_lo, margin_hi = map(int, match.groups())
-    return 0 < margin_lo <= margin_hi
+    return (margin_lo, margin_hi) if 0 < margin_lo <= margin_hi else None
+
+
+def checker_acceptance_line(line: str, model_id: str, epoch: str) -> bool:
+    return checker_acceptance_margin(line, model_id, epoch) is not None
+
+
+def formal_margin_matches_replay(formal_margin: Interval, expected: dict) -> bool:
+    """Bind the checker-wide hull to the independently replayed cell hull."""
+    post_hulls = expected.get("post")
+    return (
+        isinstance(post_hulls, dict)
+        and post_hulls.get("margin_intersection") == formal_margin
+    )
 
 
 def sha256_file(path: Path) -> str:
@@ -533,19 +945,1038 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def read_regular_snapshot(path: Path, maximum_bytes: int) -> bytes:
+    """Open once without following the final symlink, bound, and snapshot a file."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
+            raise ValueError("input is not a bounded regular file")
+        payload = bytearray()
+        while len(payload) <= maximum_bytes:
+            block = os.read(
+                descriptor,
+                min(1024 * 1024, maximum_bytes + 1 - len(payload)),
+            )
+            if not block:
+                break
+            payload.extend(block)
+        after = os.fstat(descriptor)
+        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if (
+            len(payload) > maximum_bytes
+            or len(payload) != before.st_size
+            or any(getattr(before, field) != getattr(after, field) for field in stable_fields)
+        ):
+            raise ValueError("input changed during bounded read")
+        return bytes(payload)
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def write_output_atomic(path: Path, payload: bytes) -> None:
+    write_output_atomic_bound(path, payload, ())
+
+
+def _lexical_absolute(path: Path | str) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _resolved_parent_leaf(path: Path | str) -> Path:
+    lexical = _lexical_absolute(path)
+    if not lexical.name:
+        raise ValueError("output path has no filename")
+    return lexical.parent.resolve(strict=False) / lexical.name
+
+
+def prepare_output_path(
+    path: Path | str, input_paths: Iterable[Path | str]
+) -> Path:
+    """Validate an output without ever resolving or following its leaf."""
+    lexical = _lexical_absolute(path)
+    resolved_parent = _resolved_parent_leaf(lexical)
+    output_candidates = tuple(dict.fromkeys((lexical, resolved_parent)))
+    for candidate in output_candidates:
+        try:
+            metadata = os.lstat(candidate)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise ValueError("verification output path cannot be inspected") from error
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError("verification output path must not be a symlink")
+        raise ValueError("verification output path must not already exist")
+
+    for input_path in input_paths:
+        input_lexical = _lexical_absolute(input_path)
+        input_resolved_parent = _resolved_parent_leaf(input_lexical)
+        if lexical == input_lexical or resolved_parent == input_resolved_parent:
+            raise ValueError("verification output must not alias an input path")
+    return resolved_parent
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_output_atomic_bound(
+    path: Path | str,
+    payload: bytes,
+    input_paths: Iterable[Path | str],
+) -> Path:
+    inputs = tuple(input_paths)
+    target = prepare_output_path(path, inputs)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target = prepare_output_path(target, inputs)
+    descriptor: int | None = None
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.tmp-", dir=target.parent
+        )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o644)
+        view = memoryview(payload)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise RuntimeError("zero-length verifier output write")
+            offset += written
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = None
+        os.replace(temporary, target)
+        temporary = None
+        _fsync_directory(target.parent)
+        return target
+    except BaseException:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+
+
 def canonical_json_bytes(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
+
+
+def resolve_identity_bound_path(identity_path: Path, recorded: str) -> Path | None:
+    relative = Path(recorded)
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    ancestors = (identity_path.parent, *tuple(identity_path.parents)[:4])
+    for ancestor in ancestors:
+        direct = ancestor / relative
+        if direct.is_file() and not direct.is_symlink():
+            return direct
+        if relative.parts[:2] == ("proofs", "lean"):
+            packaged = ancestor / "proofs" / Path(*relative.parts[2:])
+            if packaged.is_file() and not packaged.is_symlink():
+                return packaged
+    return None
+
+
+def repository_local_lean_module_exists(identity_path: Path, module: str) -> bool:
+    if LEAN_MODULE_RE.fullmatch(module) is None:
+        return True
+    relative = Path("proofs/lean") / (module.replace(".", "/") + ".lean")
+    ancestors = (identity_path.parent, *tuple(identity_path.parents)[:4])
+    for ancestor in ancestors:
+        candidates = (
+            ancestor / relative,
+            ancestor / "proofs" / Path(*relative.parts[2:]),
+        )
+        if any(os.path.lexists(candidate) for candidate in candidates):
+            return True
+    return False
+
+
+def normalized_manifest_packages(manifest: object) -> list[dict] | None:
+    packages = manifest.get("packages") if type(manifest) is dict else None
+    if type(packages) is not list:
+        return None
+    normalized = []
+    for package in packages:
+        if (
+            type(package) is not dict
+            or type(package.get("name")) is not str
+            or package.get("type") != "git"
+            or type(package.get("rev")) is not str
+            or type(package.get("inherited")) is not bool
+            or type(package.get("configFile")) is not str
+            or not package["configFile"]
+            or Path(package["configFile"]).is_absolute()
+            or ".." in Path(package["configFile"]).parts
+            or type(package.get("manifestFile")) is not str
+            or not package["manifestFile"]
+            or Path(package["manifestFile"]).is_absolute()
+            or ".." in Path(package["manifestFile"]).parts
+            or type(package.get("scope", "")) is not str
+            or (
+                package.get("subDir") is not None
+                and (
+                    type(package["subDir"]) is not str
+                    or Path(package["subDir"]).is_absolute()
+                    or ".." in Path(package["subDir"]).parts
+                )
+            )
+            or Path(package["name"]).is_absolute()
+            or len(Path(package["name"]).parts) != 1
+            or package["name"] in {"", ".", ".."}
+        ):
+            return None
+        if package["type"] == "git" and re.fullmatch(
+            r"[0-9a-f]{40}", package["rev"]
+        ) is None:
+            return None
+        normalized.append({
+            "config_file": package.get("configFile"),
+            "inherited": package.get("inherited"),
+            "input_revision": package.get("inputRev"),
+            "manifest_file": package.get("manifestFile"),
+            "name": package["name"],
+            "revision": package["rev"],
+            "scope": package.get("scope"),
+            "subdirectory": package.get("subDir"),
+            "type": package["type"],
+            "url": package.get("url"),
+        })
+    normalized.sort(key=lambda row: row["name"])
+    if len({row["name"] for row in normalized}) != len(normalized):
+        return None
+    return normalized
+
+
+def private_dependency_override_bytes(packages: list[dict]) -> bytes:
+    entries = []
+    for package in packages:
+        relative = Path(".lake/packages") / package["name"]
+        if package["subdirectory"] is not None:
+            relative /= package["subdirectory"]
+        entries.append({
+            "configFile": package["config_file"],
+            "dir": relative.as_posix(),
+            "inherited": package["inherited"],
+            "manifestFile": package["manifest_file"],
+            "name": package["name"],
+            "scope": package["scope"] or "",
+            "type": "path",
+        })
+    return (
+        json.dumps(
+            {"packages": entries, "version": "1.2.0"},
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def trusted_platform_launchers_valid(rows: object) -> bool:
+    expected_roles = [
+        "python-launcher",
+        "python-interpreter",
+        "git-client",
+        "sandbox-launcher",
+    ]
+    fixed_invocation_paths = {
+        "python-launcher": "/usr/bin/python3",
+        "git-client": "/usr/bin/git",
+        "sandbox-launcher": "/usr/bin/sandbox-exec",
+    }
+    if (
+        type(rows) is not list
+        or [row.get("role") if type(row) is dict else None for row in rows]
+        != expected_roles
+    ):
+        return False
+    for row in rows:
+        invocation_path = row.get("invocation_path")
+        resolved_path = row.get("resolved_path")
+        symlink_target = row.get("invocation_symlink_target")
+        expected_path = fixed_invocation_paths.get(row["role"])
+        if (
+            set(row)
+            != {
+                "bytes",
+                "invocation_path",
+                "invocation_symlink_target",
+                "resolved_path",
+                "role",
+                "sha256",
+            }
+            or type(row.get("bytes")) is not int
+            or row["bytes"] <= 0
+            or type(invocation_path) is not str
+            or not Path(invocation_path).is_absolute()
+            or ".." in Path(invocation_path).parts
+            or type(resolved_path) is not str
+            or not Path(resolved_path).is_absolute()
+            or ".." in Path(resolved_path).parts
+            or (symlink_target is not None and type(symlink_target) is not str)
+            or (
+                expected_path is not None
+                and (
+                    invocation_path != expected_path
+                    or resolved_path != expected_path
+                    or symlink_target is not None
+                )
+            )
+            or re.fullmatch(r"[0-9a-f]{64}", row.get("sha256", "")) is None
+        ):
+            return False
+    return True
+
+
+def lean_code_without_comments_or_strings(source: str) -> str:
+    output: list[str] = []
+    index = 0
+    block_depth = 0
+    in_string = False
+    while index < len(source):
+        char = source[index]
+        pair = source[index:index + 2]
+        if block_depth:
+            if pair == "/-":
+                output.extend("  ")
+                block_depth += 1
+                index += 2
+            elif pair == "-/":
+                output.extend("  ")
+                block_depth -= 1
+                index += 2
+            else:
+                output.append("\n" if char == "\n" else " ")
+                index += 1
+            continue
+        if in_string:
+            if char == "\\" and index + 1 < len(source):
+                output.extend("  ")
+                index += 2
+            elif char == '"':
+                output.append(" ")
+                in_string = False
+                index += 1
+            else:
+                output.append("\n" if char == "\n" else " ")
+                index += 1
+            continue
+        if pair == "/-":
+            output.extend("  ")
+            block_depth = 1
+            index += 2
+        elif pair == "--":
+            while index < len(source) and source[index] != "\n":
+                output.append(" ")
+                index += 1
+        elif char == '"':
+            output.append(" ")
+            in_string = True
+            index += 1
+        else:
+            output.append(char)
+            index += 1
+    if block_depth or in_string:
+        raise ValueError("unterminated Lean comment or string")
+    return "".join(output)
+
+
+FORBIDDEN_LEAN_CONSTRUCT_PATTERNS = (
+    r"\bsorry\b",
+    r"\badmit\b",
+    r"\bunsafe\b",
+    r"\bpartial\b",
+    r"\bextern\b",
+    r"\bnative_decide\b",
+    r"\bimplemented_by\b",
+    r"\baxioms?\b",
+)
+
+
+def has_forbidden_lean_construct(code: str) -> bool:
+    return any(
+        re.search(pattern, code) is not None
+        for pattern in FORBIDDEN_LEAN_CONSTRUCT_PATTERNS
+    )
+
+
+LEAN_MODULE_RE = re.compile(
+    r"[A-Z][A-Za-z0-9_']*(?:\.[A-Z][A-Za-z0-9_']*)*"
+)
+
+
+def parse_lean_imports(code: str) -> list[str]:
+    imports: list[str] = []
+    for line in code.splitlines():
+        contains_import = re.search(r"\bimport\b", line) is not None
+        match = re.fullmatch(r"\s*import\s+(.+?)\s*", line)
+        if not contains_import:
+            continue
+        if match is None:
+            raise ValueError("unsupported Lean import syntax")
+        tokens = match.group(1).split()
+        if not tokens or any(LEAN_MODULE_RE.fullmatch(token) is None for token in tokens):
+            raise ValueError("unsupported Lean import module")
+        imports.extend(tokens)
+    return imports
+
+
+def validate_identity_semantics(
+    document: dict,
+    path: Path,
+    *,
+    checker_digest: str,
+    checker_size: int | None,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+    reasons: list[str],
+) -> None:
+    expected_top = {
+        "build_attestation",
+        "checker",
+        "fragment",
+        "generator",
+        "identity_digest_sha256",
+        "proof",
+        "schema",
+        "source_closure",
+        "toolchain",
+    }
+    if set(document) != expected_top or document.get("schema") != "jackal-spacecraft-burn-proof-identity-v1":
+        reasons.append("proof-identity-schema-mismatch")
+        return
+
+    checker = document.get("checker")
+    expected_checker_keys = {"bytes", "path", "sha256", "target"}
+    if (
+        type(checker) is not dict
+        or set(checker) != expected_checker_keys
+        or checker.get("path")
+        != "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check"
+        or checker.get("target") != "jackal_spacecraft_burn_check"
+        or checker.get("sha256") != checker_digest
+        or type(checker.get("bytes")) is not int
+        or checker["bytes"] <= 0
+        or (checker_size is not None and checker["bytes"] != checker_size)
+    ):
+        reasons.append("proof-identity-checker-mismatch")
+
+    expected_fragment = {
+        "assurance": "formal-bounded",
+        "certificate_magic": "jackal-spacecraft-burn-cert v2",
+        "checker_boolean_definition": "JackalIv.Spacecraft.checkBurnCert",
+        "checker_entrypoint_definition": "main (Spacecraft.CertMain)",
+        "checker_executable": "jackal_spacecraft_burn_check",
+        "checker_root_module": "JackalIv.Spacecraft.CertMain",
+        "checker_build_cache_policy": (
+            "identity generation builds only open-once snapshots of local and pinned "
+            "dependency source bytes in a private fresh workspace without live caches"
+        ),
+        "family": "spacecraft-finite-burn-model-conditional-v2",
+        "lane": "spacecraft-burn",
+        "model_id": model_id,
+        "parser_definition": "JackalIv.Spacecraft.parseBurnWitness",
+        "premises_not_discharged_by_checker": [],
+        "release_epoch": epoch,
+        "request_digest": request_digest,
+        "runtime_alternate_implementation_boundary": (
+            "none in the local source closure; no native_decide or implemented_by"
+        ),
+        "soundness_theorem": "JackalIv.Spacecraft.spacecraft_burn_certified_safe",
+        "theorem_premises": [
+            "checkBurnCert raw requestDigest modelId epoch = .ok accepted (runtime checked)"
+        ],
+    }
+    if first_difference(expected_fragment, document.get("fragment")) is not None:
+        reasons.append("proof-identity-fragment-mismatch")
+
+    proof = document.get("proof")
+    if type(proof) is not dict or set(proof) != {
+        "axiom_audit_command", "axiom_policy", "theorems"
+    }:
+        reasons.append("proof-identity-axiom-policy-mismatch")
+    else:
+        expected_policy = {
+            "allowed_exactly": ALLOWED_AXIOMS,
+            "forbidden": ["sorryAx", "any additional axiom"],
+        }
+        theorem_rows = proof.get("theorems")
+        expected_theorem_rows = [
+            {"axioms": ALLOWED_AXIOMS, "theorem": theorem}
+            for theorem in EXPECTED_PROOF_THEOREMS
+        ]
+        if (
+            proof.get("axiom_audit_command")
+            != "lake env lean /dev/stdin with checked-in #print axioms set"
+            or first_difference(expected_policy, proof.get("axiom_policy")) is not None
+            or first_difference(expected_theorem_rows, theorem_rows) is not None
+        ):
+            reasons.append("proof-identity-axiom-policy-mismatch")
+
+    closure = document.get("source_closure")
+    closure_keys = {
+        "aggregate_sha256",
+        "definition",
+        "external_imports",
+        "files",
+        "local_construct_policy",
+        "root_modules",
+    }
+    if type(closure) is not dict or set(closure) != closure_keys:
+        reasons.append("proof-identity-source-closure-mismatch")
+        return
+    closure_payload = {
+        "external_imports": closure.get("external_imports"),
+        "files": closure.get("files"),
+        "root_modules": closure.get("root_modules"),
+    }
+    aggregate = hashlib.sha256(canonical_json_bytes(closure_payload)).hexdigest()
+    expected_construct_policy = {
+        "allowed_exact_source_lines": [],
+        "forbidden_by_default": [
+            "admit", "axiom_declaration", "extern", "implemented_by",
+            "native_decide", "partial", "sorry", "unsafe",
+        ],
+    }
+    if (
+        closure.get("aggregate_sha256") != aggregate
+        or closure.get("root_modules") != ["JackalIv.Spacecraft.CertMain"]
+        or closure.get("definition")
+        != (
+            "Every repository-local transitive Lean import reachable from root_modules; "
+            "external imports are bound through lake-manifest.json and named here."
+        )
+        or first_difference(
+            expected_construct_policy, closure.get("local_construct_policy")
+        )
+        is not None
+        or type(closure.get("external_imports")) is not list
+        or not all(type(item) is str for item in closure["external_imports"])
+    ):
+        reasons.append("proof-identity-source-closure-mismatch")
+    files = closure.get("files")
+    if type(files) is not list or not files:
+        reasons.append("proof-identity-source-closure-mismatch")
+    else:
+        observed_paths: set[str] = set()
+        observed_modules: set[str] = set()
+        observed_imports_by_module: dict[str, list[str]] = {}
+        for row in files:
+            if type(row) is not dict or set(row) != {
+                "bytes", "imports", "module", "path", "sha256"
+            }:
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            recorded_path = row.get("path")
+            module = row.get("module")
+            expected_path = (
+                "proofs/lean/" + module.replace(".", "/") + ".lean"
+                if type(module) is str
+                else None
+            )
+            source_path = (
+                resolve_identity_bound_path(path, recorded_path)
+                if type(recorded_path) is str
+                else None
+            )
+            if (
+                type(recorded_path) is not str
+                or recorded_path != expected_path
+                or recorded_path in observed_paths
+                or module in observed_modules
+                or type(row.get("imports")) is not list
+                or not all(type(item) is str for item in row["imports"])
+                or type(row.get("bytes")) is not int
+                or row["bytes"] < 0
+                or type(row.get("sha256")) is not str
+                or source_path is None
+            ):
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            try:
+                raw = read_regular_snapshot(source_path, MAX_SOURCE_BYTES)
+            except (OSError, ValueError):
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            if len(raw) != row["bytes"] or hashlib.sha256(raw).hexdigest() != row["sha256"]:
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            try:
+                code = lean_code_without_comments_or_strings(raw.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            try:
+                imports = parse_lean_imports(code)
+            except ValueError:
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            if imports != row["imports"] or has_forbidden_lean_construct(code):
+                reasons.append("proof-identity-source-closure-mismatch")
+                break
+            observed_paths.add(recorded_path)
+            observed_modules.add(module)
+            observed_imports_by_module[module] = imports
+        if len(observed_modules) == len(files):
+            pending = ["JackalIv.Spacecraft.CertMain"]
+            reached: set[str] = set()
+            external: set[str] = set()
+            while pending:
+                module = pending.pop()
+                if module in reached:
+                    continue
+                if module not in observed_imports_by_module:
+                    reasons.append("proof-identity-source-closure-mismatch")
+                    break
+                reached.add(module)
+                for imported in observed_imports_by_module[module]:
+                    if imported in observed_imports_by_module:
+                        pending.append(imported)
+                    elif repository_local_lean_module_exists(path, imported):
+                        reasons.append("proof-identity-source-closure-mismatch")
+                        break
+                    else:
+                        external.add(imported)
+            if (
+                reached != observed_modules
+                or sorted(external) != closure.get("external_imports")
+            ):
+                reasons.append("proof-identity-source-closure-mismatch")
+
+    generator = document.get("generator")
+    expected_generator_paths = (
+        "release/tools/spacecraft_burn_proof_identity.py",
+        "release/tools/gaussian_proof_identity.py",
+    )
+    if type(generator) is not dict or set(generator) != {"definition", "files"}:
+        reasons.append("proof-identity-generator-mismatch")
+    else:
+        generator_files = generator.get("files")
+        valid_generator = (
+            generator.get("definition")
+            == (
+                "Complete repository-local Python generator source closure used to construct "
+                "and verify this identity. The interpreter and standard library remain in "
+                "the explicit build-platform trusted base."
+            )
+            and type(generator_files) is list
+            and len(generator_files) == len(expected_generator_paths)
+        )
+        if valid_generator:
+            for row, expected_path in zip(generator_files, expected_generator_paths):
+                bound_path = (
+                    resolve_identity_bound_path(path, row.get("path"))
+                    if type(row) is dict and type(row.get("path")) is str
+                    else None
+                )
+                try:
+                    observed_generator_digest = (
+                        hashlib.sha256(
+                            read_regular_snapshot(bound_path, MAX_SOURCE_BYTES)
+                        ).hexdigest()
+                        if bound_path is not None
+                        else None
+                    )
+                except (OSError, ValueError):
+                    observed_generator_digest = None
+                if (
+                    type(row) is not dict
+                    or set(row) != {"path", "sha256"}
+                    or row.get("path") != expected_path
+                    or re.fullmatch(
+                        r"[0-9a-f]{64}",
+                        row.get("sha256")
+                        if type(row.get("sha256")) is str
+                        else "",
+                    )
+                    is None
+                    or bound_path is None
+                    or observed_generator_digest != row["sha256"]
+                ):
+                    valid_generator = False
+                    break
+        if not valid_generator:
+            reasons.append("proof-identity-generator-mismatch")
+
+    toolchain = document.get("toolchain")
+    toolchain_keys = {
+        "configuration_files",
+        "lake_version",
+        "lean",
+        "lean_toolchain",
+        "manifest_packages",
+        "mathlib_commit",
+        "package_checkout_policy",
+        "verified_package_trees",
+    }
+    toolchain_valid = type(toolchain) is dict and set(toolchain) == toolchain_keys
+    expected_configurations = []
+    configuration_raw: dict[str, bytes] = {}
+    for recorded_path in (
+        "proofs/lean/lakefile.toml",
+        "proofs/lean/lake-manifest.json",
+        "proofs/lean/lean-toolchain",
+    ):
+        bound_path = resolve_identity_bound_path(path, recorded_path)
+        if bound_path is None:
+            toolchain_valid = False
+            continue
+        try:
+            raw = read_regular_snapshot(bound_path, MAX_SOURCE_BYTES)
+        except (OSError, ValueError):
+            toolchain_valid = False
+            continue
+        configuration_raw[recorded_path] = raw
+        expected_configurations.append({
+            "path": recorded_path,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        })
+    if toolchain_valid:
+        lean = toolchain.get("lean")
+        toolchain_name = toolchain.get("lean_toolchain")
+        try:
+            manifest = strict_json_bytes(
+                configuration_raw["proofs/lean/lake-manifest.json"]
+            )
+            packages = normalized_manifest_packages(manifest)
+            toolchain_token = configuration_raw[
+                "proofs/lean/lean-toolchain"
+            ].decode("utf-8").strip()
+        except (KeyError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            packages = None
+            toolchain_token = ""
+        mathlib = (
+            [row for row in packages if row["name"] == "mathlib"]
+            if packages is not None
+            else []
+        )
+        git_packages = (
+            [row for row in packages if row["type"] == "git"]
+            if packages is not None
+            else []
+        )
+        verified_package_trees = toolchain.get("verified_package_trees")
+        verified_trees_valid = (
+            type(verified_package_trees) is list
+            and len(verified_package_trees) == len(git_packages)
+        )
+        if verified_trees_valid:
+            for recorded, package in zip(verified_package_trees, git_packages):
+                if (
+                    type(recorded) is not dict
+                    or set(recorded) != {
+                        "entry_count", "name", "revision", "tree_sha1",
+                        "verified_worktree_sha256",
+                    }
+                    or recorded.get("name") != package["name"]
+                    or recorded.get("revision") != package["revision"]
+                    or type(recorded.get("entry_count")) is not int
+                    or recorded["entry_count"] <= 0
+                    or re.fullmatch(r"[0-9a-f]{40}", recorded.get("tree_sha1", "")) is None
+                    or re.fullmatch(
+                        r"[0-9a-f]{64}", recorded.get("verified_worktree_sha256", "")
+                    ) is None
+                ):
+                    verified_trees_valid = False
+                    break
+        toolchain_valid = (
+            first_difference(
+                expected_configurations, toolchain.get("configuration_files")
+            )
+            is None
+            and first_difference(
+                PINNED_TOOLCHAIN_CONFIGURATIONS, expected_configurations
+            )
+            is None
+            and type(lean) is dict
+            and set(lean) == {"build", "commit", "version"}
+            and all(type(lean[key]) is str and lean[key] for key in lean)
+            and re.fullmatch(r"[0-9a-f]{40}", lean["commit"]) is not None
+            and type(toolchain_name) is str
+            and toolchain_name == toolchain_token
+            and toolchain_name == f"leanprover/lean4:v{lean['version']}"
+            and type(toolchain.get("lake_version")) is str
+            and f"Lean version {lean['version']}" in toolchain["lake_version"]
+            and first_difference(packages, toolchain.get("manifest_packages")) is None
+            and len(mathlib) == 1
+            and toolchain.get("mathlib_commit") == mathlib[0]["revision"]
+            and verified_trees_valid
+            and toolchain.get("package_checkout_policy")
+            == (
+                "Every git dependency is pinned to a full commit; replacement refs, "
+                "grafts, alternates, index hiding flags, object corruption, and "
+                "tracked-byte drift are rejected. Tracked symlinks must remain lexically "
+                "confined to real package paths. Identity generation admits only open-once "
+                "snapshots of tracked dependency bytes into a private fresh workspace and "
+                "rebuilds without live caches."
+            )
+        )
+    if not toolchain_valid:
+        reasons.append("proof-identity-toolchain-mismatch")
+
+    attestation = document.get("build_attestation")
+    attestation_keys = {
+        "attestation_digest_sha256",
+        "authentication",
+        "build_command",
+        "build_environment",
+        "checker",
+        "claim_boundary",
+        "compiler_observed_for_build_platform",
+        "inputs",
+        "kind",
+        "working_directory",
+    }
+    attestation_valid = type(attestation) is dict and set(attestation) == attestation_keys
+    if attestation_valid:
+        lean_record = (
+            toolchain.get("lean")
+            if type(toolchain) is dict and type(toolchain.get("lean")) is dict
+            else {}
+        )
+        attestation_body = {
+            key: value for key, value in attestation.items()
+            if key != "attestation_digest_sha256"
+        }
+        inputs = attestation.get("inputs")
+        compiler = attestation.get("compiler_observed_for_build_platform")
+        authentication = attestation.get("authentication")
+        build_environment = attestation.get("build_environment")
+        dependency_overrides = (
+            build_environment.get("dependency_path_overrides")
+            if type(build_environment) is dict
+            else None
+        )
+        recorded_manifest_packages = (
+            toolchain.get("manifest_packages", [])
+            if type(toolchain) is dict
+            else []
+        )
+        try:
+            expected_override_names = [row["name"] for row in recorded_manifest_packages]
+            expected_override_sha256 = hashlib.sha256(
+                private_dependency_override_bytes(recorded_manifest_packages)
+            ).hexdigest()
+        except (KeyError, TypeError, ValueError):
+            expected_override_names = None
+            expected_override_sha256 = None
+        dependency_overrides_valid = (
+            type(dependency_overrides) is dict
+            and set(dependency_overrides)
+            == {"definition", "package_count", "package_names", "sha256"}
+            and dependency_overrides.get("definition")
+            == (
+                "Deterministic Lake path overrides that force every manifest-pinned Git "
+                "dependency to load only from its already verified private tracked-blob "
+                "snapshot."
+            )
+            and dependency_overrides.get("package_count")
+            == len(recorded_manifest_packages)
+            and dependency_overrides.get("package_names")
+            == expected_override_names
+            and re.fullmatch(r"[0-9a-f]{64}", dependency_overrides.get("sha256", ""))
+            is not None
+            and dependency_overrides.get("sha256") == expected_override_sha256
+        )
+        lake_bookkeeping = (
+            build_environment.get("lake_generated_bookkeeping")
+            if type(build_environment) is dict
+            else None
+        )
+        lake_bookkeeping_valid = (
+            first_difference(
+                EXPECTED_LAKE_GENERATED_BOOKKEEPING,
+                lake_bookkeeping,
+            )
+            is None
+        )
+        launchers = (
+            build_environment.get("lean_launcher_binaries")
+            if type(build_environment) is dict
+            else None
+        )
+        launchers_valid = (
+            type(launchers) is list
+            and [row.get("name") if type(row) is dict else None for row in launchers]
+            == ["lake", "lean", "leanc"]
+        )
+        if launchers_valid:
+            for row in launchers:
+                if (
+                    set(row) != {"bytes", "name", "sha256"}
+                    or type(row.get("bytes")) is not int
+                    or row["bytes"] <= 0
+                    or re.fullmatch(r"[0-9a-f]{64}", row.get("sha256", "")) is None
+                ):
+                    launchers_valid = False
+                    break
+        toolchain_tree = (
+            build_environment.get("lean_toolchain_tree")
+            if type(build_environment) is dict
+            else None
+        )
+        recorded_toolchain_name = (
+            toolchain.get("lean_toolchain") if type(toolchain) is dict else None
+        )
+        tree_valid = (
+            type(toolchain_tree) is dict
+            and set(toolchain_tree)
+            == {
+                "aggregate_sha256",
+                "definition",
+                "directory_count",
+                "directory_name",
+                "entry_count",
+                "file_count",
+                "lean_toolchain",
+                "total_bytes",
+            }
+            and re.fullmatch(
+                r"[0-9a-f]{64}", toolchain_tree.get("aggregate_sha256", "")
+            )
+            is not None
+            and toolchain_tree.get("definition")
+            == (
+                "SHA-256 aggregate over every relative directory path/mode and regular "
+                "file path/mode/size/SHA-256 in the private Lean toolchain snapshot; "
+                "symlinks and special files are forbidden."
+            )
+            and all(
+                type(toolchain_tree.get(key)) is int and toolchain_tree[key] > 0
+                for key in ("directory_count", "entry_count", "file_count", "total_bytes")
+            )
+            and toolchain_tree.get("entry_count")
+            == toolchain_tree.get("directory_count", 0) + toolchain_tree.get("file_count", 0)
+            and toolchain_tree.get("lean_toolchain") == recorded_toolchain_name
+            and toolchain_tree.get("directory_name")
+            == str(recorded_toolchain_name or "").replace("/", "--").replace(":", "---")
+        )
+        platform_launchers = (
+            build_environment.get("trusted_platform_launchers")
+            if type(build_environment) is dict
+            else None
+        )
+        platform_launchers_valid = trusted_platform_launchers_valid(
+            platform_launchers
+        )
+        expected_inputs = {
+            "lean_commit": lean_record.get("commit"),
+            "mathlib_commit": toolchain.get("mathlib_commit")
+            if type(toolchain) is dict
+            else None,
+            "source_closure_sha256": closure.get("aggregate_sha256"),
+            "toolchain_configuration": expected_configurations,
+        }
+        attestation_valid = (
+            hashlib.sha256(canonical_json_bytes(attestation_body)).hexdigest()
+            == attestation.get("attestation_digest_sha256")
+            and first_difference(checker, attestation.get("checker")) is None
+            and first_difference(expected_inputs, inputs) is None
+            and type(compiler) is dict
+            and set(compiler)
+            == {
+                "build", "commit", "executable_bytes", "executable_sha256",
+                "target", "version",
+            }
+            and type(compiler.get("executable_bytes")) is int
+            and compiler["executable_bytes"] > 0
+            and re.fullmatch(
+                r"[0-9a-f]{64}",
+                compiler.get("executable_sha256")
+                if type(compiler.get("executable_sha256")) is str
+                else "",
+            )
+            is not None
+            and all(
+                compiler.get(key) == lean_record.get(key)
+                for key in ("build", "commit", "version")
+            )
+            and type(build_environment) is dict
+            and set(build_environment)
+            == {
+                "dependency_path_overrides",
+                "isolation_policy",
+                "lake_generated_bookkeeping",
+                "lean_launcher_binaries",
+                "lean_toolchain_tree",
+                "trusted_platform_launchers",
+            }
+            and build_environment.get("isolation_policy")
+            == EXPECTED_BUILD_ISOLATION_POLICY
+            and dependency_overrides_valid
+            and lake_bookkeeping_valid
+            and launchers_valid
+            and launchers[1]["bytes"] == compiler["executable_bytes"]
+            and launchers[1]["sha256"] == compiler["executable_sha256"]
+            and tree_valid
+            and platform_launchers_valid
+            and type(compiler.get("target")) is str
+            and bool(compiler["target"])
+            and authentication
+            == {
+                "authenticated": False,
+                "scheme": "none",
+                "statement": (
+                    "This deterministic record binds observed checker bytes to named inputs. "
+                    "It is not a signature and does not authenticate the builder or artifact."
+                ),
+            }
+            and attestation.get("build_command")
+            == ["lake", "build", "jackal_spacecraft_burn_check"]
+            and attestation.get("kind") == "unsigned-local-build-binding-v1"
+            and attestation.get("working_directory") == "proofs/lean"
+            and attestation.get("claim_boundary")
+            == (
+                "This binds the complete private Lean toolchain regular-file tree, admitted "
+                "source and dependency bytes, observed checker bytes, and named platform "
+                "launchers. It is reproducibility/build-provenance evidence, not a proof of "
+                "Python, Git, macOS, sandbox-exec, dyld, libSystem, the kernel, hardware, or "
+                "supply-chain correctness."
+            )
+        )
+    if not attestation_valid:
+        reasons.append("proof-identity-build-attestation-mismatch")
 
 
 def verify_identity_file(
     path: Path, expected_file_digest: str, expected_internal_digest: str,
     checker_digest: str, request_digest: str, model_id: str, epoch: str,
-    reasons: list[str], raw: bytes | None = None,
+    reasons: list[str], raw: bytes | None = None, checker_size: int | None = None,
 ) -> str | None:
     try:
-        raw = path.read_bytes() if raw is None else raw
-        document = json.loads(raw)
-    except (OSError, json.JSONDecodeError):
+        raw = read_regular_snapshot(path, MAX_IDENTITY_BYTES) if raw is None else raw
+        document = strict_json_bytes(raw)
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        DuplicateJsonKey,
+        ValueError,
+    ):
         reasons.append("proof-identity-invalid")
         return None
     file_digest = hashlib.sha256(raw).hexdigest()
@@ -557,22 +1988,21 @@ def verify_identity_file(
     recorded_internal = document.get("identity_digest_sha256")
     body = {key: value for key, value in document.items() if key != "identity_digest_sha256"}
     actual_internal = hashlib.sha256(canonical_json_bytes(body)).hexdigest()
-    if recorded_internal != actual_internal or recorded_internal != expected_internal_digest:
-        reasons.append("proof-identity-internal-digest-mismatch")
-    checker = document.get("checker")
-    if not isinstance(checker, dict) or checker.get("sha256") != checker_digest:
-        reasons.append("proof-identity-checker-mismatch")
-    fragment = document.get("fragment")
-    expected_fragment = {
-        "soundness_theorem": "JackalIv.Spacecraft.spacecraft_burn_certified_safe",
-        "request_digest": request_digest,
-        "model_id": model_id,
-        "release_epoch": epoch,
-    }
-    if not isinstance(fragment, dict) or any(
-        fragment.get(key) != value for key, value in expected_fragment.items()
+    if (
+        recorded_internal != actual_internal
+        or recorded_internal != expected_internal_digest
     ):
-        reasons.append("proof-identity-fragment-mismatch")
+        reasons.append("proof-identity-internal-digest-mismatch")
+    validate_identity_semantics(
+        document,
+        path,
+        checker_digest=checker_digest,
+        checker_size=checker_size,
+        request_digest=request_digest,
+        model_id=model_id,
+        epoch=epoch,
+        reasons=reasons,
+    )
     return file_digest
 
 
@@ -589,8 +2019,8 @@ def run_checker_snapshot(
         private = Path(directory)
         checker = private / "jackal_spacecraft_burn_check"
         witness = private / "witness.cert"
-        checker.write_bytes(checker_bytes)
-        witness.write_bytes(witness_bytes)
+        write_output_atomic(checker, checker_bytes)
+        write_output_atomic(witness, witness_bytes)
         checker.chmod(0o700)
         witness.chmod(0o600)
         return subprocess.run(
@@ -619,7 +2049,8 @@ def verify_formal_binding(
     expected_model_id: str | None,
     expected_epoch: str | None,
     nonce: str | None,
-) -> tuple[list[str], dict[str, str]]:
+    receipt_bytes: bytes | None = None,
+) -> tuple[list[str], dict[str, object]]:
     pins = (
         witness_path, checker_path, proof_identity_path, expected_receipt_sha256,
         expected_proof_file_sha256, expected_proof_identity_sha256,
@@ -635,23 +2066,20 @@ def verify_formal_binding(
     assert expected_epoch is not None and nonce is not None
 
     reasons: list[str] = []
-    for path, reason in (
-        (witness_path, "witness-unreadable"),
-        (checker_path, "checker-unreadable"),
-        (proof_identity_path, "proof-identity-invalid"),
-    ):
-        if not path.is_file() or path.is_symlink():
-            reasons.append(reason)
-    if reasons:
-        return reasons, {}
-    receipt_digest = sha256_file(receipt_path)
+    try:
+        receipt_bytes = receipt_path.read_bytes() if receipt_bytes is None else receipt_bytes
+    except OSError:
+        return ["receipt-unreadable"], {}
+    receipt_digest = hashlib.sha256(receipt_bytes).hexdigest()
     if receipt_digest != expected_receipt_sha256:
         reasons.append("receipt-hash-mismatch")
     try:
-        witness_bytes = witness_path.read_bytes()
-        checker_bytes = checker_path.read_bytes()
-        proof_identity_bytes = proof_identity_path.read_bytes()
-    except OSError:
+        witness_bytes = read_regular_snapshot(witness_path, MAX_WITNESS_BYTES)
+        checker_bytes = read_regular_snapshot(checker_path, MAX_CHECKER_BYTES)
+        proof_identity_bytes = read_regular_snapshot(
+            proof_identity_path, MAX_IDENTITY_BYTES
+        )
+    except (OSError, ValueError):
         return ["binding-input-unreadable"], {}
     witness_digest = hashlib.sha256(witness_bytes).hexdigest()
     checker_digest = hashlib.sha256(checker_bytes).hexdigest()
@@ -659,6 +2087,7 @@ def verify_formal_binding(
         proof_identity_path, expected_proof_file_sha256,
         expected_proof_identity_sha256, checker_digest, expected_request_digest,
         expected_model_id, expected_epoch, reasons, raw=proof_identity_bytes,
+        checker_size=len(checker_bytes),
     )
 
     binding = candidate.get("formal_checker")
@@ -676,6 +2105,8 @@ def verify_formal_binding(
         "nonce": nonce,
         "theorem": "spacecraft_burn_certified_safe",
     }
+    if set(binding) != {*expected_fields, "result_line"}:
+        reasons.append("formal-checker-binding-invalid")
     reason_by_field = {
         "checker_sha256": "checker-hash-mismatch",
         "proof_identity_file_sha256": "proof-identity-file-hash-mismatch",
@@ -693,9 +2124,12 @@ def verify_formal_binding(
     if candidate.get("verdict_qualifier") != MODEL_QUALIFIER:
         reasons.append("verdict-qualifier-mismatch")
     result_line = binding.get("result_line")
-    if not isinstance(result_line, str) or not checker_acceptance_line(
-        result_line, expected_model_id, expected_epoch
-    ):
+    formal_margin = (
+        checker_acceptance_margin(result_line, expected_model_id, expected_epoch)
+        if isinstance(result_line, str)
+        else None
+    )
+    if formal_margin is None:
         reasons.append("checker-result-line-invalid")
     if reasons:
         return sorted(set(reasons)), {}
@@ -716,8 +2150,12 @@ def verify_formal_binding(
     digests = {
         "receipt_sha256": receipt_digest,
         "witness_sha256": witness_digest,
+        "witness_byte_size": len(witness_bytes),
         "checker_sha256": checker_digest,
         "proof_identity_file_sha256": proof_file_digest or "",
+        "checker_result_line": result_line,
+        "formal_margin_lo": formal_margin[0],
+        "formal_margin_hi": formal_margin[1],
     }
     return sorted(set(reasons)), digests
 
@@ -726,6 +2164,7 @@ def verify_receipt(
     receipt_path: Path | str,
     source_path: Path | str,
     *,
+    request_path: Path | str | None = None,
     witness_path: Path | str | None = None,
     checker_path: Path | str | None = None,
     proof_identity_path: Path | str | None = None,
@@ -737,7 +2176,12 @@ def verify_receipt(
     expected_epoch: str | None = None,
     nonce: str | None = None,
 ) -> dict:
+    raw_receipt_path = Path(receipt_path)
+    raw_source_path = Path(source_path)
     caller_paths = (
+        (raw_receipt_path, "receipt-unreadable"),
+        (raw_source_path, "invalid-producer-source"),
+        (request_path, "request-file-invalid"),
         (witness_path, "witness-unreadable"),
         (checker_path, "checker-unreadable"),
         (proof_identity_path, "proof-identity-invalid"),
@@ -748,12 +2192,13 @@ def verify_receipt(
     ]
     if symlink_reasons:
         return {"status": "REFUSED", "reasons": sorted(set(symlink_reasons))}
-    receipt_path = Path(receipt_path).resolve()
-    source_path = Path(source_path).resolve()
+    receipt_path = raw_receipt_path.absolute()
+    source_path = raw_source_path.absolute()
     reasons: list[str] = []
     try:
-        candidate = json.loads(receipt_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        receipt_bytes = read_regular_snapshot(receipt_path, MAX_RECEIPT_BYTES)
+        candidate = strict_json_bytes(receipt_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, DuplicateJsonKey, ValueError):
         return {"status": "REFUSED", "reasons": ["invalid-receipt-json"]}
     if not isinstance(candidate, dict):
         return {"status": "REFUSED", "reasons": ["invalid-receipt-schema"]}
@@ -771,13 +2216,27 @@ def verify_receipt(
     ):
         if not isinstance(candidate.get(field), dict):
             return {"status": "REFUSED", "reasons": [reason]}
+    if set(candidate) != RECEIPT_TOP_LEVEL_KEYS:
+        return {"status": "REFUSED", "reasons": ["invalid-receipt-schema"]}
+    if request_path is None:
+        return {"status": "REFUSED", "reasons": ["caller-pins-required"]}
+    resolved_request = Path(request_path).absolute()
+    try:
+        request_bytes = read_regular_snapshot(resolved_request, MAX_REQUEST_BYTES)
+        request_document = strict_json_bytes(request_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, DuplicateJsonKey, ValueError):
+        return {"status": "REFUSED", "reasons": ["request-file-invalid"]}
+    if expected_request_digest is None or hashlib.sha256(request_bytes).hexdigest() != expected_request_digest:
+        return {"status": "REFUSED", "reasons": ["request-file-hash-mismatch"]}
+    if first_difference(EXPECTED_REQUEST, request_document) is not None:
+        return {"status": "REFUSED", "reasons": ["request-schema-mismatch"]}
 
     formal_reasons, formal_digests = verify_formal_binding(
         candidate,
         receipt_path,
-        witness_path=None if witness_path is None else Path(witness_path).resolve(),
-        checker_path=None if checker_path is None else Path(checker_path).resolve(),
-        proof_identity_path=None if proof_identity_path is None else Path(proof_identity_path).resolve(),
+        witness_path=None if witness_path is None else Path(witness_path).absolute(),
+        checker_path=None if checker_path is None else Path(checker_path).absolute(),
+        proof_identity_path=None if proof_identity_path is None else Path(proof_identity_path).absolute(),
         expected_receipt_sha256=expected_receipt_sha256,
         expected_proof_file_sha256=expected_proof_file_sha256,
         expected_proof_identity_sha256=expected_proof_identity_sha256,
@@ -785,12 +2244,13 @@ def verify_receipt(
         expected_model_id=expected_model_id,
         expected_epoch=expected_epoch,
         nonce=nonce,
+        receipt_bytes=receipt_bytes,
     )
     if formal_reasons:
         return {"status": "REFUSED", "reasons": formal_reasons}
 
     try:
-        source_raw = source_path.read_bytes()
+        source_raw = read_regular_snapshot(source_path, MAX_SOURCE_BYTES)
         literals = source_literals(source_raw, source_path)
     except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
         return {"status": "REFUSED", "reasons": ["invalid-producer-source"]}
@@ -801,77 +2261,52 @@ def verify_receipt(
     if candidate.get("source_sha256") != source_digest:
         reasons.append("source-hash-mismatch")
 
-    expected_contract = {
-        "thrust_acceleration_scale": "0.001",
-        "integrate_mass": True,
-        "apoapsis_eccentricity_sign": 1,
-        "energy_denominator": 2,
-        "propagate_full_box": True,
-        "decision_mode": "exact_lower_bound",
-    }
-    if candidate.get("model_contract") != expected_contract:
+    if first_difference(EXPECTED_MODEL_CONTRACT, candidate.get("model_contract")) is not None:
         reasons.append("model-contract-mismatch")
     identities = verify_symbolic_identities()
     if not identities or not all(identities.values()):
         reasons.append("symbolic-orbital-identity-failure")
 
-    decisive = candidate.get("decisive_margin")
-    if not isinstance(decisive, dict) or not isinstance(decisive.get("interval"), dict):
-        reasons.append("invalid-decisive-margin")
-    else:
-        observed = parse_receipt_interval(decisive["interval"], reasons, "decisive_margin")
-        try:
-            reported = Fraction(decisive["reported_lower_exact"])
-        except (KeyError, TypeError, ValueError, ZeroDivisionError):
-            reasons.append("reported-lower-bound-mismatch")
-        else:
-            if observed is None or reported != Fraction(observed[0], DEN):
-                reasons.append("reported-lower-bound-mismatch")
     if reasons:
         return {"status": "REFUSED", "reasons": sorted(set(reasons)), "symbolic_identities": identities}
 
     expected = replay()
-    method = candidate["method"]
-    for field_name in (
-        "trace_sha256",
-        "branch_count",
-        "tube_count",
-        "postprocess_count",
-        "maximum_picard_iterations",
+    if (
+        expected["canonical_witness_sha256"] != formal_digests["witness_sha256"]
+        or expected["canonical_witness_byte_size"]
+        != formal_digests["witness_byte_size"]
     ):
-        if method.get(field_name) != expected[field_name]:
-            reasons.append(f"replay-mismatch:{field_name}")
-    if method.get("step_exact") != "1/32" or method.get("partition_counts") != list(PARTS):
-        reasons.append("replay-method-mismatch")
-    if method.get("domain_lower_bounds") != expected["domain_lower_bounds"]:
-        reasons.append("replay-domain-mismatch")
-
-    cutoff_names = ("x", "y", "vx", "vy", "mass")
-    cutoff = candidate["cutoff_state_hull"]
-    for name, value in zip(cutoff_names, expected["cutoff"]):
-        if not isinstance(cutoff.get(name), dict):
-            reasons.append(f"missing-interval:cutoff.{name}")
-        else:
-            compare_interval(cutoff[name], value, reasons, f"cutoff.{name}")
-    orbit = candidate["orbital_hulls"]
-    for name, value in expected["post"].items():
-        if not isinstance(orbit.get(name), dict):
-            reasons.append(f"missing-interval:orbital.{name}")
-        else:
-            compare_interval(orbit[name], value, reasons, f"orbital.{name}")
-
-    decisive = candidate["decisive_margin"]
-    compare_interval(decisive["interval"], expected["minimum_cell"], reasons, "decisive_margin")
+        reasons.append("witness-not-canonical-replay")
+    formal_margin = (
+        int(formal_digests["formal_margin_lo"]),
+        int(formal_digests["formal_margin_hi"]),
+    )
+    if not formal_margin_matches_replay(formal_margin, expected):
+        reasons.append("formal-margin-replay-mismatch")
+    replayed_formal_margin = expected["post"]["margin_intersection"]
     formula_exact = frac_text(Fraction(expected["minimum_formula_lo"], DEN))
-    if decisive.get("formula_only_global_lower_exact") != formula_exact:
-        reasons.append("formula-lower-bound-mismatch")
-    if decisive.get("minimum_location") != expected["minimum_location"]:
-        reasons.append("minimum-location-mismatch")
     expected_lower = Fraction(expected["minimum_cell"][0], DEN)
-    if Fraction(decisive.get("reported_lower_exact")) != expected_lower:
-        reasons.append("reported-lower-bound-mismatch")
-    if candidate.get("verdict") != ("CERTIFIED SAFE" if expected_lower > 0 else "INDETERMINATE"):
-        reasons.append("verdict-mismatch")
+    assert expected_proof_identity_sha256 is not None
+    assert expected_request_digest is not None and expected_model_id is not None
+    assert expected_epoch is not None and nonce is not None
+    expected_document = expected_receipt_document(
+        expected,
+        source_digest=source_digest,
+        witness_digest=str(formal_digests["witness_sha256"]),
+        witness_byte_size=int(formal_digests["witness_byte_size"]),
+        checker_digest=str(formal_digests["checker_sha256"]),
+        proof_file_digest=str(formal_digests["proof_identity_file_sha256"]),
+        proof_identity_digest=expected_proof_identity_sha256,
+        request_digest=expected_request_digest,
+        model_id=expected_model_id,
+        epoch=expected_epoch,
+        nonce=nonce,
+        result_line=str(formal_digests["checker_result_line"]),
+        formal_margin=replayed_formal_margin,
+    )
+    receipt_difference = first_difference(expected_document, candidate)
+    if receipt_difference is not None:
+        reasons.append(f"receipt-document-mismatch:{receipt_difference}")
 
     return {
         "status": "ACCEPT" if not reasons else "REFUSED",
@@ -898,6 +2333,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("receipt", type=Path)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--witness", type=Path, required=True)
     parser.add_argument("--checker", type=Path, required=True)
     parser.add_argument("--proof-identity", type=Path, required=True)
@@ -910,8 +2346,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--nonce", required=True)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
+    input_paths = (
+        args.receipt,
+        args.source,
+        args.request,
+        args.witness,
+        args.checker,
+        args.proof_identity,
+    )
+    destination: Path | None = None
+    if args.output is not None:
+        try:
+            destination = prepare_output_path(args.output, input_paths)
+        except ValueError as error:
+            parser.error(str(error))
     result = verify_receipt(
         args.receipt, args.source,
+        request_path=args.request,
         witness_path=args.witness,
         checker_path=args.checker,
         proof_identity_path=args.proof_identity,
@@ -924,15 +2375,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         nonce=args.nonce,
     )
     rendered = json.dumps(result, sort_keys=True, indent=2) + "\n"
-    if args.output:
-        destination = args.output.resolve()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary = destination.with_name(f".{destination.name}.tmp-{os.getpid()}")
-        with temporary.open("xb") as stream:
-            stream.write(rendered.encode("utf-8"))
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, destination)
+    if destination is not None:
+        destination = write_output_atomic_bound(
+            destination, rendered.encode("utf-8"), input_paths
+        )
         print(f"INDEPENDENT_VERIFICATION_{result['status']} output={destination}")
     else:
         print(rendered, end="")

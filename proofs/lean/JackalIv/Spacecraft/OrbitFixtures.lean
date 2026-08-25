@@ -39,11 +39,16 @@ example (x y vx vy : ℝ) :
     (vx ^ 2 + vy ^ 2) * (x ^ 2 + y ^ 2) - (x * vx + y * vy) ^ 2 =
       (x * vy - y * vx) ^ 2 := angular_momentum_lagrange_identity x y vx vy
 
+example (state : State) (hr : 0 < radiusSq state) :
+    orbitalEccentricityFormula state = orbitalEccentricity state :=
+  orbitalEccentricityFormula_eq_vector state hr
+
 #print axioms checkCutoffCoverage_sound
 #print axioms angular_momentum_lagrange_identity
 #print axioms energy_definition_substitution
 #print axioms apoapsis_plus_expansion
 #print axioms eccentricity_vector_reduction
+#print axioms orbitalEccentricityFormula_eq_vector
 #print axioms orbitPostprocess_sound
 #print axioms orbit_margin_positive_implies_safe
 

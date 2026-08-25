@@ -1,5 +1,12 @@
 # Spacecraft finite-burn formal certificate
 
+Commit-scoped publication state: this source snapshot is the v1.7.5 candidate
+prepared before publication. It does not by itself establish current GitHub
+release state. Consult the
+[v1.7.5 release metadata](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
+and the postpublication readback on `master`; use release assets only when those
+current checks bind their exact bytes.
+
 This lane certifies a universal lower bound for the finite-duration periapsis
 burn challenge. The publication verdict is:
 
@@ -30,9 +37,9 @@ interval calculation.
 Run the local tests and claim-language gate from the repository root:
 
 ```sh
-python3 -B -m unittest discover -s spacecraft_burn_cert/tests -p 'test_*.py' -v
-python3 -B tools/spacecraft_burn_release_gate.py
-python3 -B spacecraft_burn_cert/release_evidence.py \
+/usr/bin/python3 -E -s -S -B -m unittest discover -s spacecraft_burn_cert/tests -p 'test_*.py' -v
+/usr/bin/python3 -E -s -S -B tools/spacecraft_burn_release_gate.py
+/usr/bin/python3 -E -s -S -B spacecraft_burn_cert/release_evidence.py \
   --staging-dir /absolute/path/to/release-staging --check
 ```
 

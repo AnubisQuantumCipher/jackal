@@ -16,13 +16,19 @@ import itertools
 import json
 import math
 import os
+import stat
+import tempfile
 from fractions import Fraction
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 
 ROOT = Path(__file__).resolve().parent
 CERTIFIER_PATH = ROOT / "certify.py"
+MODEL_QUALIFIER = (
+    "under the stated finite-burn ODE model, supplied input bounds, "
+    "and machine-checked interval-certificate assumptions"
+)
 
 
 def receipt_interval(payload: dict) -> tuple[Fraction, Fraction]:
@@ -203,6 +209,38 @@ def corner_diagnostics(receipt: dict, step: Fraction = Fraction(1, 32)) -> dict:
     }
 
 
+def validate_refinement_assurance(records: Sequence[dict], baseline_step: str) -> None:
+    candidate_tuple = (
+        "CERTIFIED SAFE",
+        MODEL_QUALIFIER,
+        "candidate-only",
+        "NOT_EXECUTED",
+        "rigorously interval-bounded, not formal-bounded",
+    )
+    formal_tuple = (
+        "CERTIFIED SAFE",
+        MODEL_QUALIFIER,
+        "candidate-only",
+        "ACCEPT",
+        "formal-bounded",
+    )
+    accepted = 0
+    for record in records:
+        observed = (
+            record.get("verdict"),
+            record.get("verdict_qualifier"),
+            record.get("producer_assurance"),
+            record.get("formal_checker_status"),
+            record.get("evidence_classification"),
+        )
+        expected = formal_tuple if record.get("step_exact") == baseline_step else candidate_tuple
+        if observed != expected:
+            raise RuntimeError("step refinement assurance mismatch")
+        accepted += int(record["formal_checker_status"] == "ACCEPT")
+    if accepted != 1:
+        raise RuntimeError("step refinement requires exactly one accepted baseline")
+
+
 def step_refinement(receipt: dict) -> dict:
     certifier = load_certifier()
     original_step = certifier.STEP
@@ -222,6 +260,10 @@ def step_refinement(receipt: dict) -> dict:
                         "formula_only_global_lower_exact"
                     ],
                     "verdict": result["verdict"],
+                    "verdict_qualifier": result["verdict_qualifier"],
+                    "producer_assurance": result["producer_assurance"],
+                    "formal_checker_status": result["formal_checker_status"],
+                    "evidence_classification": result["evidence_classification"]["overall"],
                     "tube_count": result["method"]["tube_count"],
                     "trace_sha256": result["method"]["trace_sha256"],
                 }
@@ -236,10 +278,15 @@ def step_refinement(receipt: dict) -> dict:
             "formula_only_global_lower_exact"
         ],
         "verdict": receipt["verdict"],
+        "verdict_qualifier": receipt["verdict_qualifier"],
+        "producer_assurance": receipt["producer_assurance"],
+        "formal_checker_status": receipt["formal_checker_status"],
+        "evidence_classification": receipt["evidence_classification"]["overall"],
         "tube_count": receipt["method"]["tube_count"],
         "trace_sha256": receipt["method"]["trace_sha256"],
     }
     records.insert(1, baseline)
+    validate_refinement_assurance(records, baseline["step_exact"])
     if any(record["verdict"] != "CERTIFIED SAFE" for record in records):
         raise RuntimeError("step refinement did not preserve the safe decision")
     return {
@@ -315,16 +362,97 @@ def validate(baseline_path: Path, include_refinement: bool = True) -> dict:
     return result
 
 
-def write_atomic(path: Path, payload: dict) -> None:
-    path = path.resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+def _lexical_absolute(path: Path | str) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _resolved_parent_leaf(path: Path | str) -> Path:
+    lexical = _lexical_absolute(path)
+    if not lexical.name:
+        raise ValueError("output path has no filename")
+    return lexical.parent.resolve(strict=False) / lexical.name
+
+
+def prepare_output_path(
+    path: Path | str, input_paths: Iterable[Path | str]
+) -> Path:
+    lexical = _lexical_absolute(path)
+    resolved_parent = _resolved_parent_leaf(lexical)
+    output_candidates = tuple(dict.fromkeys((lexical, resolved_parent)))
+    for candidate in output_candidates:
+        try:
+            metadata = os.lstat(candidate)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            raise ValueError("validation output path cannot be inspected") from error
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError("validation output path must not be a symlink")
+        raise ValueError("validation output path must not already exist")
+
+    for input_path in input_paths:
+        input_lexical = _lexical_absolute(input_path)
+        input_resolved_parent = _resolved_parent_leaf(input_lexical)
+        if lexical == input_lexical or resolved_parent == input_resolved_parent:
+            raise ValueError("validation output must not alias an input path")
+    return resolved_parent
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_atomic(
+    path: Path | str,
+    payload: dict,
+    input_paths: Iterable[Path | str] = (),
+) -> Path:
+    inputs = tuple(input_paths)
+    target = prepare_output_path(path, inputs)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target = prepare_output_path(target, inputs)
     data = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
-    with temporary.open("xb") as stream:
-        stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
+    descriptor: int | None = None
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.tmp-", dir=target.parent
+        )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o644)
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise RuntimeError("zero-length validation output write")
+            offset += written
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = None
+        os.replace(temporary, target)
+        temporary = None
+        _fsync_directory(target.parent)
+        return target
+    except BaseException:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -333,10 +461,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--skip-refinement", action="store_true")
     args = parser.parse_args(argv)
+    destination: Path | None = None
+    if args.output is not None:
+        try:
+            destination = prepare_output_path(args.output, (args.baseline,))
+        except ValueError as error:
+            parser.error(str(error))
     result = validate(args.baseline, include_refinement=not args.skip_refinement)
-    if args.output:
-        write_atomic(args.output, result)
-        print(f"INSTRUMENT_VALIDATION_{result['status']} output={args.output.resolve()}")
+    if destination is not None:
+        destination = write_atomic(destination, result, (args.baseline,))
+        print(f"INSTRUMENT_VALIDATION_{result['status']} output={destination}")
     else:
         print(json.dumps(result, sort_keys=True, indent=2))
     return 0

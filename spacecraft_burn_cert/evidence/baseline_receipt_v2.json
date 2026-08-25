@@ -1,7 +1,7 @@
 {
   "cutoff_state_hull": {
     "mass": {
-      "hi_decimal": "1148.0116300191989902543477910764",
+      "hi_decimal": "1148.0116300191989902543477910765",
       "hi_exact": "693930450374043282864501281/604462909807314587353088",
       "hi_scaled_integer": "1387860900748086565729002562",
       "lo_decimal": "1143.2150715897432411226603833843",
@@ -12,23 +12,23 @@
       "hi_decimal": "-1.0686367406732386058403824468",
       "hi_exact": "-1291902547588700910928693/1208925819614629174706176",
       "hi_scaled_integer": "-1291902547588700910928693",
-      "lo_decimal": "-1.0970146600720285705440631958",
+      "lo_decimal": "-1.0970146600720285705440631959",
       "lo_exact": "-331552336764210238449257/302231454903657293676544",
       "lo_scaled_integer": "-1326209347056840953797028"
     },
     "vy": {
-      "hi_decimal": "7.8569422550132530778072801238",
+      "hi_decimal": "7.8569422550132530778072801239",
       "hi_exact": "4749230177653354883427657/604462909807314587353088",
       "hi_scaled_integer": "9498460355306709766855314",
-      "lo_decimal": "7.8532410298989287962813529363",
+      "lo_decimal": "7.8532410298989287962813529362",
       "lo_exact": "9493985848701797035242577/1208925819614629174706176",
       "lo_scaled_integer": "9493985848701797035242577"
     },
     "x": {
-      "hi_decimal": "6616.9029477499189910525610256093",
+      "hi_decimal": "6616.9029477499189910525610256094",
       "hi_exact": "3999672409709513310664133467/604462909807314587353088",
       "hi_scaled_integer": "7999344819419026621328266934",
-      "lo_decimal": "6611.4907036697814266927517417813",
+      "lo_decimal": "6611.4907036697814266927517417812",
       "lo_exact": "7992801817808491891589635947/1208925819614629174706176",
       "lo_scaled_integer": "7992801817808491891589635947"
     },
@@ -45,10 +45,10 @@
     "formula_only_global_lower_decimal": "3.8752013718130941262311545278",
     "formula_only_global_lower_exact": "4684830994590880152455811/1208925819614629174706176",
     "interval": {
-      "hi_decimal": "50.6158562879816197173240966375",
+      "hi_decimal": "50.6158562879816197173240966376",
       "hi_exact": "30595407774222230725520567/604462909807314587353088",
       "hi_scaled_integer": "61190815548444461451041134",
-      "lo_decimal": "42.5587565118164884375971897690",
+      "lo_decimal": "42.5587565118164884375971897689",
       "lo_exact": "51450379597827184853505075/1208925819614629174706176",
       "lo_scaled_integer": "51450379597827184853505075"
     },
@@ -58,7 +58,7 @@
       "time_hi_exact": "3793/32",
       "time_lo_exact": "237/2"
     },
-    "reported_lower_decimal": "42.5587565118164884375971897690",
+    "reported_lower_decimal": "42.5587565118164884375971897689",
     "reported_lower_exact": "51450379597827184853505075/1208925819614629174706176"
   },
   "evidence_classification": {
@@ -71,14 +71,14 @@
     "sampling": "not used for the decisive result"
   },
   "formal_checker": {
-    "checker_sha256": "e2ab71210eb60db12b616962410a1de22582698d1a575e1888565bc7d34fc4a3",
-    "epoch": "v1.7.4",
+    "checker_sha256": "2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59",
+    "epoch": "v1.7.5",
     "model_id": "jackal-spacecraft-finite-burn-ode-v2",
-    "nonce": "spacecraft-burn-v2-publication-20260824",
-    "proof_identity_digest_sha256": "bab091fbd1c9db40cb087f7032b0d30f67f2d1e31a003cf790a6adb972d21f47",
-    "proof_identity_file_sha256": "ce8d7bc20f084a6ee52abc6375d667c072da42a1cd5f96ede8cce3e373e258c7",
+    "nonce": "spacecraft-burn-v2-publication-20260825",
+    "proof_identity_digest_sha256": "5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b",
+    "proof_identity_file_sha256": "5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7",
     "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
-    "result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.4",
+    "result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.5",
     "theorem": "spacecraft_burn_certified_safe",
     "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
   },
@@ -87,7 +87,7 @@
     "hi_decimal": "80.3590994886042283211137996993",
     "hi_exact": "48574095106377197444388901/604462909807314587353088",
     "hi_scaled_integer": "97148190212754394888777802",
-    "lo_decimal": "42.5587565118164884375971897690",
+    "lo_decimal": "42.5587565118164884375971897689",
     "lo_exact": "51450379597827184853505075/1208925819614629174706176",
     "lo_scaled_integer": "51450379597827184853505075",
     "scale_bits": 80
@@ -126,6 +126,7 @@
   },
   "non_claims": [
     "The theorem is conditional on the stated finite-burn ODE model and supplied input bounds.",
+    "The Python Picard witness generator and its source are not formally verified. They are outside the mathematical soundness base because the pinned Lean checker independently checks every accepted tube, but remain trusted for termination, witness search/completeness, and reproducible generation. A producer defect may cause refusal, nontermination, or failure to find a witness, but cannot yield formal ACCEPT absent a defect in the pinned Lean checker or outer verification gate.",
     "The Lean kernel, compiler, runtime, checker executable, and declared axioms remain trusted components.",
     "The formal lower endpoint is a certified lower bound, not the exact mathematical infimum.",
     "No Monte Carlo or nominal trajectory supports the universal verdict."
@@ -135,12 +136,12 @@
       "hi_decimal": "1080.3590994886042283211137996993",
       "hi_exact": "653037004913691784797476901/604462909807314587353088",
       "hi_scaled_integer": "1306074009827383569594953802",
-      "lo_decimal": "1042.5587565118164884375971897690",
+      "lo_decimal": "1042.5587565118164884375971897689",
       "lo_exact": "1260376199212456359559681075/1208925819614629174706176",
       "lo_scaled_integer": "1260376199212456359559681075"
     },
     "altitude_formula": {
-      "hi_decimal": "1114.6134758025184556423193899877",
+      "hi_decimal": "1114.6134758025184556423193899878",
       "hi_exact": "1347485009788070266998890331/1208925819614629174706176",
       "hi_scaled_integer": "1347485009788070266998890331",
       "lo_decimal": "1003.8752013718130941262311545278",
@@ -151,7 +152,7 @@
       "hi_decimal": "53003.0663261809056433376363383851",
       "hi_exact": "8009596925058350426248868985/151115727451828646838272",
       "hi_scaled_integer": "64076775400466803409990951880",
-      "lo_decimal": "52935.2205315267811329389508251635",
+      "lo_decimal": "52935.2205315267811329389508251634",
       "lo_exact": "3999672179222322506859606109/75557863725914323419136",
       "lo_scaled_integer": "63994754867557160109753697744"
     },
@@ -159,12 +160,12 @@
       "hi_decimal": "7458.4953994886042283211137990468",
       "hi_exact": "9016767663918701919827456781/1208925819614629174706176",
       "hi_scaled_integer": "9016767663918701919827456781",
-      "lo_decimal": "7420.6950565118164884375971899437",
+      "lo_decimal": "7420.6950565118164884375971899436",
       "lo_exact": "8971069853303774709792184055/1208925819614629174706176",
       "lo_scaled_integer": "8971069853303774709792184055"
     },
     "apoapsis_formula": {
-      "hi_decimal": "7492.7497758025184556423193893352",
+      "hi_decimal": "7492.7497758025184556423193893353",
       "hi_exact": "4529089331939694308615696655/604462909807314587353088",
       "hi_scaled_integer": "9058178663879388617231393310",
       "lo_decimal": "7382.0115013718130941262311547025",
@@ -188,10 +189,10 @@
       "lo_scaled_integer": "63656091178809166968519"
     },
     "eccentricity_squared": {
-      "hi_decimal": "0.0035866804316925588013990555",
+      "hi_decimal": "0.0035866804316925588013990556",
       "hi_exact": "4336030580579678638853/1208925819614629174706176",
       "hi_scaled_integer": "4336030580579678638853",
-      "lo_decimal": "0.0022247889483622943248171804",
+      "lo_decimal": "0.0022247889483622943248171803",
       "lo_exact": "168100300179278473161/75557863725914323419136",
       "lo_scaled_integer": "2689604802868455570576"
     },
@@ -215,12 +216,12 @@
       "hi_decimal": "-28.1920654455674677320247962530",
       "hi_exact": "-4260264478176489595720723/151115727451828646838272",
       "hi_scaled_integer": "-34082115825411916765765784",
-      "lo_decimal": "-28.2715283775294197832427572087",
+      "lo_decimal": "-28.2715283775294197832427572088",
       "lo_exact": "-34178180615563001162414695/1208925819614629174706176",
       "lo_scaled_integer": "-34178180615563001162414695"
     },
     "margin_formula": {
-      "hi_decimal": "114.6134758025184556423193899877",
+      "hi_decimal": "114.6134758025184556423193899878",
       "hi_exact": "138559190173441092292714331/1208925819614629174706176",
       "hi_scaled_integer": "138559190173441092292714331",
       "lo_decimal": "3.8752013718130941262311545278",
@@ -231,7 +232,7 @@
       "hi_decimal": "80.3590994886042283211137996993",
       "hi_exact": "48574095106377197444388901/604462909807314587353088",
       "hi_scaled_integer": "97148190212754394888777802",
-      "lo_decimal": "42.5587565118164884375971897690",
+      "lo_decimal": "42.5587565118164884375971897689",
       "lo_exact": "51450379597827184853505075/1208925819614629174706176",
       "lo_scaled_integer": "51450379597827184853505075"
     },
@@ -239,7 +240,7 @@
       "hi_decimal": "6681.3111134383560783084277281268",
       "hi_exact": "8077209513913795263590462779/1208925819614629174706176",
       "hi_scaled_integer": "8077209513913795263590462779",
-      "lo_decimal": "6678.9917996786786720684596217109",
+      "lo_decimal": "6678.9917996786786720684596217108",
       "lo_exact": "8074405635625933768174018423/1208925819614629174706176",
       "lo_scaled_integer": "8074405635625933768174018423"
     },
@@ -247,15 +248,15 @@
       "hi_decimal": "7069.3728093389916236783423816825",
       "hi_exact": "8546347317691514072783785177/1208925819614629174706176",
       "hi_scaled_integer": "8546347317691514072783785177",
-      "lo_decimal": "7049.5028863882159302306459600650",
+      "lo_decimal": "7049.5028863882159302306459600649",
       "lo_exact": "8522326054802568036552525277/1208925819614629174706176",
       "lo_scaled_integer": "8522326054802568036552525277"
     },
     "speed_squared": {
-      "hi_decimal": "62.9341552414273784786901807189",
+      "hi_decimal": "62.9341552414273784786901807190",
       "hi_exact": "76082725206996904153242371/1208925819614629174706176",
       "hi_scaled_integer": "76082725206996904153242371",
-      "lo_decimal": "62.8161662104251262482656170944",
+      "lo_decimal": "62.8161662104251262482656170943",
       "lo_exact": "75940085220986970483982483/1208925819614629174706176",
       "lo_scaled_integer": "75940085220986970483982483"
     }
@@ -298,7 +299,7 @@
   },
   "producer_assurance": "candidate-only",
   "schema": "spacecraft-finite-burn-formal-receipt-v2",
-  "source_sha256": "c871d943a9c9ff12b12f4688d72278270c544a4a3d5ed9e8284257140157db3b",
+  "source_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
   "verdict": "CERTIFIED SAFE",
   "verdict_qualifier": "under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions",
   "witness": {

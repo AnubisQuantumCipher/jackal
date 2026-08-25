@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -19,6 +21,77 @@ class ReleaseEvidenceTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def make_staging(self, module, root: Path) -> Path:
+        staging = root / "staging"
+        staging.mkdir()
+        witness = b"canonical witness\n"
+        receipt = {
+            "witness": {
+                "sha256": module.sha256(witness), "byte_size": len(witness),
+                "branch_count": 1, "tube_count": 2, "cutoff_cell_count": 1,
+            },
+            "formal_checker": {"theorem": "spacecraft_burn_certified_safe"},
+        }
+        (staging / "baseline_witness_v2.cert").write_bytes(witness)
+        (staging / "baseline_receipt_v2.json").write_bytes(
+            module.canonical_json(receipt)
+        )
+        for name in module.JSON_NAMES[1:]:
+            (staging / name).write_text("{}\n")
+        return staging
+
+    def test_install_refuses_symlink_hardlink_and_resolved_parent_output_aliases(self):
+        module = self.load_module()
+        for case in ("symlink", "dangling-symlink", "hardlink", "resolved-parent"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                staging = self.make_staging(module, root)
+                source = staging / "baseline_receipt_v2.json"
+                original = source.read_bytes()
+                if case == "resolved-parent":
+                    evidence = root / "evidence"
+                    evidence.symlink_to(staging, target_is_directory=True)
+                else:
+                    evidence = root / "evidence"
+                    evidence.mkdir()
+                    destination = evidence / "baseline_receipt_v2.json"
+                    if case == "symlink":
+                        destination.symlink_to(source)
+                    elif case == "dangling-symlink":
+                        destination.symlink_to(root / "missing.json")
+                    else:
+                        os.link(source, destination)
+                with self.assertRaises(RuntimeError):
+                    module.install_or_check(
+                        staging, check=False, evidence_dir=evidence
+                    )
+                self.assertEqual(source.read_bytes(), original)
+
+    def test_atomic_release_evidence_output_completes_short_writes_and_cleans_failure(self):
+        module = self.load_module()
+        payload = b"release evidence" * 512
+        real_write = os.write
+
+        def short_write(descriptor, data):
+            return real_write(descriptor, data[:max(1, len(data) // 4)])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / "evidence.json"
+            with mock.patch.object(module.os, "write", side_effect=short_write) as write:
+                module.atomic_write(destination, payload)
+            self.assertGreater(write.call_count, 1)
+            self.assertEqual(destination.read_bytes(), payload)
+
+            failed = root / "failed.json"
+            with (
+                mock.patch.object(module.os, "write", side_effect=OSError("blocked")),
+                self.assertRaisesRegex(OSError, "blocked"),
+            ):
+                module.atomic_write(failed, payload)
+            self.assertFalse(failed.exists())
+            self.assertEqual(list(root.glob(".failed.json.tmp-*")), [])
 
     def test_check_refuses_stale_evidence_entries(self):
         module = self.load_module()

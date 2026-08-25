@@ -1,9 +1,9 @@
 {
-  "completed_pass": 22,
+  "completed_pass": 28,
   "invalid_findings": 1,
-  "review_sha256": "8ad449e3b653896cf64e49b7cc46918bff6f7a68deefb979267722bfa68112ee",
-  "resolved_findings": 10,
-  "reviewed_commit": "746c16d6fade9d173fe71ab884d137dd238def06",
+  "review_sha256": "4115aea32097f5a2969884288fbc48eb89fa0f203470392bd5212151c98d8976",
+  "resolved_findings": 12,
+  "reviewed_commit": "62c5cd7a6b8190f78eef685e65aa4e2d4ae2416a",
   "schema": "jackal-spacecraft-independent-review-clearance-v175",
   "status": "complete",
   "unresolved_release_blocking": 0

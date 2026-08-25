@@ -1082,47 +1082,252 @@ def canonical_json_bytes(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
 
 
+def _identity_bound_relative_candidates(recorded: str) -> tuple[Path, ...]:
+    relative = Path(recorded)
+    if (
+        not recorded
+        or relative.is_absolute()
+        or relative == Path(".")
+        or ".." in relative.parts
+    ):
+        raise ValueError("identity-bound path is not a confined relative path")
+    candidates = [relative]
+    if relative.parts[:2] == ("proofs", "lean"):
+        candidates.append(Path("proofs", *relative.parts[2:]))
+    return tuple(dict.fromkeys(candidates))
+
+
+def _open_directory_snapshot(path: Path) -> tuple[Path, int]:
+    """Open a resolved directory component-by-component without following links."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise OSError("required no-follow directory-open support is unavailable")
+    resolved = path.resolve(strict=True)
+    if not resolved.is_absolute():
+        raise ValueError("identity source root must resolve to an absolute path")
+    flags = os.O_RDONLY | nofollow | directory | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(os.sep, flags)
+    try:
+        for component in resolved.parts[1:]:
+            child = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            raise ValueError("identity source root is not a directory")
+        return resolved, descriptor
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        raise
+
+
+def _read_regular_at(
+    root_descriptor: int, relative: Path, maximum_bytes: int
+) -> bytes:
+    """Read one stable regular file beneath an already-open directory root."""
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise OSError("required no-follow open support is unavailable")
+    directory_flags = (
+        os.O_RDONLY | nofollow | directory | getattr(os, "O_CLOEXEC", 0)
+    )
+    file_flags = (
+        os.O_RDONLY
+        | nofollow
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.dup(root_descriptor)
+    try:
+        for component in relative.parts[:-1]:
+            child = os.open(component, directory_flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        leaf = os.open(relative.parts[-1], file_flags, dir_fd=descriptor)
+        os.close(descriptor)
+        descriptor = leaf
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
+            raise ValueError("identity-bound input is not a bounded regular file")
+        payload = bytearray()
+        while len(payload) <= maximum_bytes:
+            block = os.read(
+                descriptor,
+                min(1024 * 1024, maximum_bytes + 1 - len(payload)),
+            )
+            if not block:
+                break
+            payload.extend(block)
+        after = os.fstat(descriptor)
+        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if (
+            len(payload) > maximum_bytes
+            or len(payload) != before.st_size
+            or any(
+                getattr(before, field) != getattr(after, field)
+                for field in stable_fields
+            )
+        ):
+            raise ValueError("identity-bound input changed during bounded read")
+        return bytes(payload)
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+
+
+class IdentityBoundSource:
+    """Open-once authority for every source byte named by a proof identity."""
+
+    def __init__(self, identity_path: Path, source_root: Path | None = None):
+        self._roots: list[tuple[Path, int]] = []
+        seen: set[Path] = set()
+        try:
+            for ancestor in identity_bound_ancestors(identity_path, source_root):
+                resolved, descriptor = _open_directory_snapshot(ancestor)
+                if resolved in seen:
+                    os.close(descriptor)
+                    continue
+                seen.add(resolved)
+                self._roots.append((resolved, descriptor))
+        except BaseException:
+            self.close()
+            raise
+        if not self._roots:
+            raise ValueError("no identity-bound source root is available")
+
+    def close(self) -> None:
+        while self._roots:
+            _, descriptor = self._roots.pop()
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+    def __enter__(self) -> "IdentityBoundSource":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def read(self, recorded: str, maximum_bytes: int) -> bytes | None:
+        candidates = _identity_bound_relative_candidates(recorded)
+        for _root, descriptor in self._roots:
+            for relative in candidates:
+                try:
+                    return _read_regular_at(descriptor, relative, maximum_bytes)
+                except FileNotFoundError:
+                    continue
+        return None
+
+    def entry_exists(self, recorded: str) -> bool:
+        """Conservatively detect a local entry without following any symlink."""
+        nofollow = getattr(os, "O_NOFOLLOW", None)
+        directory = getattr(os, "O_DIRECTORY", None)
+        if nofollow is None or directory is None:
+            return True
+        flags = os.O_RDONLY | nofollow | directory | getattr(os, "O_CLOEXEC", 0)
+        for _root, root_descriptor in self._roots:
+            for relative in _identity_bound_relative_candidates(recorded):
+                descriptor = os.dup(root_descriptor)
+                try:
+                    missing = False
+                    for component in relative.parts[:-1]:
+                        try:
+                            child = os.open(component, flags, dir_fd=descriptor)
+                        except FileNotFoundError:
+                            missing = True
+                            break
+                        except OSError:
+                            return True
+                        os.close(descriptor)
+                        descriptor = child
+                    if missing:
+                        continue
+                    try:
+                        os.stat(
+                            relative.parts[-1],
+                            dir_fd=descriptor,
+                            follow_symlinks=False,
+                        )
+                    except FileNotFoundError:
+                        continue
+                    except (OSError, ValueError):
+                        return True
+                    return True
+                finally:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+        return False
+
+    def locate(self, recorded: str) -> Path | None:
+        candidates = _identity_bound_relative_candidates(recorded)
+        for root, descriptor in self._roots:
+            for relative in candidates:
+                try:
+                    _read_regular_at(descriptor, relative, MAX_SOURCE_BYTES)
+                except FileNotFoundError:
+                    continue
+                return root / relative
+        return None
+
+
 def identity_bound_ancestors(
     identity_path: Path, source_root: Path | None = None
 ) -> tuple[Path, ...]:
-    candidates = []
     if source_root is not None:
-        candidates.append(source_root)
-    candidates.extend((identity_path.parent, *tuple(identity_path.parents)[:4]))
-    return tuple(dict.fromkeys(candidates))
+        return (source_root,)
+    return tuple(dict.fromkeys((identity_path.parent, *tuple(identity_path.parents)[:4])))
 
 
 def resolve_identity_bound_path(
     identity_path: Path, recorded: str, source_root: Path | None = None
 ) -> Path | None:
-    relative = Path(recorded)
-    if relative.is_absolute() or ".." in relative.parts:
+    try:
+        with IdentityBoundSource(identity_path, source_root) as source:
+            return source.locate(recorded)
+    except (OSError, RuntimeError, ValueError):
         return None
-    for ancestor in identity_bound_ancestors(identity_path, source_root):
-        direct = ancestor / relative
-        if direct.is_file() and not direct.is_symlink():
-            return direct
-        if relative.parts[:2] == ("proofs", "lean"):
-            packaged = ancestor / "proofs" / Path(*relative.parts[2:])
-            if packaged.is_file() and not packaged.is_symlink():
-                return packaged
-    return None
+
+
+def read_identity_bound_snapshot(
+    identity_path: Path,
+    recorded: str,
+    maximum_bytes: int,
+    source_root: Path | None = None,
+    *,
+    source: IdentityBoundSource | None = None,
+) -> bytes | None:
+    if source is not None:
+        return source.read(recorded, maximum_bytes)
+    with IdentityBoundSource(identity_path, source_root) as opened_source:
+        return opened_source.read(recorded, maximum_bytes)
 
 
 def repository_local_lean_module_exists(
-    identity_path: Path, module: str, source_root: Path | None = None
+    identity_path: Path,
+    module: str,
+    source_root: Path | None = None,
+    *,
+    source: IdentityBoundSource | None = None,
 ) -> bool:
     if LEAN_MODULE_RE.fullmatch(module) is None:
         return True
-    relative = Path("proofs/lean") / (module.replace(".", "/") + ".lean")
-    for ancestor in identity_bound_ancestors(identity_path, source_root):
-        candidates = (
-            ancestor / relative,
-            ancestor / "proofs" / Path(*relative.parts[2:]),
-        )
-        if any(os.path.lexists(candidate) for candidate in candidates):
-            return True
-    return False
+    recorded = "proofs/lean/" + module.replace(".", "/") + ".lean"
+    try:
+        if source is not None:
+            return source.entry_exists(recorded)
+        with IdentityBoundSource(identity_path, source_root) as opened_source:
+            return opened_source.entry_exists(recorded)
+    except (OSError, RuntimeError, ValueError):
+        return True
 
 
 def normalized_manifest_packages(manifest: object) -> list[dict] | None:
@@ -1365,7 +1570,7 @@ def parse_lean_imports(code: str) -> list[str]:
     return imports
 
 
-def validate_identity_semantics(
+def _validate_identity_semantics(
     document: dict,
     path: Path,
     *,
@@ -1376,6 +1581,7 @@ def validate_identity_semantics(
     epoch: str,
     reasons: list[str],
     source_root: Path | None = None,
+    source: IdentityBoundSource,
 ) -> None:
     expected_top = {
         "build_attestation",
@@ -1520,11 +1726,20 @@ def validate_identity_semantics(
                 if type(module) is str
                 else None
             )
-            source_path = (
-                resolve_identity_bound_path(path, recorded_path, source_root)
-                if type(recorded_path) is str
-                else None
-            )
+            try:
+                source_raw = (
+                    read_identity_bound_snapshot(
+                        path,
+                        recorded_path,
+                        MAX_SOURCE_BYTES,
+                        source_root,
+                        source=source,
+                    )
+                    if type(recorded_path) is str
+                    else None
+                )
+            except (OSError, RuntimeError, ValueError):
+                source_raw = None
             if (
                 type(recorded_path) is not str
                 or recorded_path != expected_path
@@ -1535,15 +1750,11 @@ def validate_identity_semantics(
                 or type(row.get("bytes")) is not int
                 or row["bytes"] < 0
                 or type(row.get("sha256")) is not str
-                or source_path is None
+                or source_raw is None
             ):
                 reasons.append("proof-identity-source-closure-mismatch")
                 break
-            try:
-                raw = read_regular_snapshot(source_path, MAX_SOURCE_BYTES)
-            except (OSError, ValueError):
-                reasons.append("proof-identity-source-closure-mismatch")
-                break
+            raw = source_raw
             if len(raw) != row["bytes"] or hashlib.sha256(raw).hexdigest() != row["sha256"]:
                 reasons.append("proof-identity-source-closure-mismatch")
                 break
@@ -1578,7 +1789,9 @@ def validate_identity_semantics(
                 for imported in observed_imports_by_module[module]:
                     if imported in observed_imports_by_module:
                         pending.append(imported)
-                    elif repository_local_lean_module_exists(path, imported, source_root):
+                    elif repository_local_lean_module_exists(
+                        path, imported, source_root, source=source
+                    ):
                         reasons.append("proof-identity-source-closure-mismatch")
                         break
                     else:
@@ -1610,27 +1823,32 @@ def validate_identity_semantics(
         )
         if valid_generator:
             for row, expected_path in zip(generator_files, expected_generator_paths):
-                bound_path = (
-                    resolve_identity_bound_path(path, row.get("path"), source_root)
-                    if type(row) is dict and type(row.get("path")) is str
-                    else None
-                )
                 try:
-                    observed_generator_digest = (
-                        hashlib.sha256(
-                            read_regular_snapshot(bound_path, MAX_SOURCE_BYTES)
-                        ).hexdigest()
-                        if bound_path is not None
+                    generator_raw = (
+                        read_identity_bound_snapshot(
+                            path,
+                            row.get("path"),
+                            MAX_SOURCE_BYTES,
+                            source_root,
+                            source=source,
+                        )
+                        if type(row) is dict and type(row.get("path")) is str
                         else None
                     )
-                except (OSError, ValueError):
+                    observed_generator_digest = (
+                        hashlib.sha256(generator_raw).hexdigest()
+                        if generator_raw is not None
+                        else None
+                    )
+                except (OSError, RuntimeError, ValueError):
+                    generator_raw = None
                     observed_generator_digest = None
                 if (
                     type(row) is not dict
                     or set(row) != {"path", "sha256"}
                     or row.get("path") != expected_path
                     or not valid_lower_hex_digest(row.get("sha256"))
-                    or bound_path is None
+                    or generator_raw is None
                     or observed_generator_digest != row["sha256"]
                 ):
                     valid_generator = False
@@ -1657,13 +1875,17 @@ def validate_identity_semantics(
         "proofs/lean/lake-manifest.json",
         "proofs/lean/lean-toolchain",
     ):
-        bound_path = resolve_identity_bound_path(path, recorded_path, source_root)
-        if bound_path is None:
-            toolchain_valid = False
-            continue
         try:
-            raw = read_regular_snapshot(bound_path, MAX_SOURCE_BYTES)
-        except (OSError, ValueError):
+            raw = read_identity_bound_snapshot(
+                path,
+                recorded_path,
+                MAX_SOURCE_BYTES,
+                source_root,
+                source=source,
+            )
+        except (OSError, RuntimeError, ValueError):
+            raw = None
+        if raw is None:
             toolchain_valid = False
             continue
         configuration_raw[recorded_path] = raw
@@ -1977,6 +2199,42 @@ def validate_identity_semantics(
         reasons.append("proof-identity-build-attestation-mismatch")
 
 
+def validate_identity_semantics(
+    document: dict,
+    path: Path,
+    *,
+    checker_digest: str,
+    checker_size: int | None,
+    request_digest: str,
+    model_id: str,
+    epoch: str,
+    reasons: list[str],
+    source_root: Path | None = None,
+) -> None:
+    try:
+        with IdentityBoundSource(path, source_root) as source:
+            _validate_identity_semantics(
+                document,
+                path,
+                checker_digest=checker_digest,
+                checker_size=checker_size,
+                request_digest=request_digest,
+                model_id=model_id,
+                epoch=epoch,
+                reasons=reasons,
+                source_root=source_root,
+                source=source,
+            )
+    except (OSError, RuntimeError, ValueError):
+        for reason in (
+            "proof-identity-source-closure-mismatch",
+            "proof-identity-generator-mismatch",
+            "proof-identity-toolchain-mismatch",
+        ):
+            if reason not in reasons:
+                reasons.append(reason)
+
+
 def verify_identity_file(
     path: Path, expected_file_digest: str, expected_internal_digest: str,
     checker_digest: str, request_digest: str, model_id: str, epoch: str,
@@ -2197,6 +2455,8 @@ def verify_receipt(
 ) -> dict:
     raw_receipt_path = Path(receipt_path)
     raw_source_path = Path(source_path)
+    if "\0" in os.fspath(raw_source_path):
+        return {"status": "REFUSED", "reasons": ["invalid-producer-source"]}
     caller_paths = (
         (raw_receipt_path, "receipt-unreadable"),
         (raw_source_path, "invalid-producer-source"),
@@ -2205,14 +2465,23 @@ def verify_receipt(
         (checker_path, "checker-unreadable"),
         (proof_identity_path, "proof-identity-invalid"),
     )
-    symlink_reasons = [
-        reason for value, reason in caller_paths
-        if value is not None and Path(value).is_symlink()
-    ]
+    symlink_reasons = []
+    for value, reason in caller_paths:
+        if value is None:
+            continue
+        try:
+            if Path(value).is_symlink():
+                symlink_reasons.append(reason)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            symlink_reasons.append(reason)
     if symlink_reasons:
         return {"status": "REFUSED", "reasons": sorted(set(symlink_reasons))}
     receipt_path = raw_receipt_path.absolute()
     source_path = raw_source_path.absolute()
+    try:
+        proof_source_root = source_path.parent.parent.resolve(strict=True)
+    except (OSError, RuntimeError, ValueError):
+        return {"status": "REFUSED", "reasons": ["invalid-producer-source"]}
     reasons: list[str] = []
     try:
         receipt_bytes = read_regular_snapshot(receipt_path, MAX_RECEIPT_BYTES)
@@ -2264,7 +2533,7 @@ def verify_receipt(
         expected_epoch=expected_epoch,
         nonce=nonce,
         receipt_bytes=receipt_bytes,
-        proof_source_root=source_path.parent.parent.resolve(strict=True),
+        proof_source_root=proof_source_root,
     )
     if formal_reasons:
         return {"status": "REFUSED", "reasons": formal_reasons}

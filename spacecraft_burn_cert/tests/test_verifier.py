@@ -53,6 +53,50 @@ def load_verifier(testcase: unittest.TestCase):
 
 
 class IndependentVerifierTests(unittest.TestCase):
+    def test_missing_producer_source_root_refuses_without_traceback(self):
+        verifier = load_verifier(self)
+        with tempfile.TemporaryDirectory() as directory:
+            missing_source = Path(directory) / "missing-root" / "producer" / "certify.py"
+            result = verifier.verify_receipt(
+                ROOT / "evidence/baseline_receipt_v2.json",
+                missing_source,
+                request_path=ROOT / "request_v2.json",
+            )
+
+        self.assertEqual(
+            result,
+            {"status": "REFUSED", "reasons": ["invalid-producer-source"]},
+        )
+
+    def test_malformed_producer_source_roots_refuse_without_traceback(self):
+        verifier = load_verifier(self)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "producer" / "certify.py"
+            with mock.patch.object(
+                verifier.Path,
+                "resolve",
+                side_effect=RuntimeError("Symlink loop from publication interpreter"),
+            ):
+                loop_result = verifier.verify_receipt(
+                    ROOT / "evidence/baseline_receipt_v2.json",
+                    source,
+                    request_path=ROOT / "request_v2.json",
+                )
+            nul_result = verifier.verify_receipt(
+                ROOT / "evidence/baseline_receipt_v2.json",
+                "producer\0/certify.py",
+                request_path=ROOT / "request_v2.json",
+            )
+
+        self.assertEqual(
+            loop_result,
+            {"status": "REFUSED", "reasons": ["invalid-producer-source"]},
+        )
+        self.assertEqual(
+            nul_result,
+            {"status": "REFUSED", "reasons": ["invalid-producer-source"]},
+        )
+
     def test_detached_proof_identity_resolves_exact_sources_from_explicit_root(self):
         verifier = load_verifier(self)
         identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
@@ -75,6 +119,141 @@ class IndependentVerifierTests(unittest.TestCase):
 
         self.assertEqual(observed, sha(PROOF_IDENTITY))
         self.assertEqual(reasons, [])
+
+    def test_explicit_source_root_cannot_borrow_identity_sibling_sources(self):
+        verifier = load_verifier(self)
+        identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory(prefix="empty-proof-source-root-") as directory:
+            reasons: list[str] = []
+            verifier.verify_identity_file(
+                PROOF_IDENTITY,
+                sha(PROOF_IDENTITY),
+                identity["identity_digest_sha256"],
+                identity["checker"]["sha256"],
+                REQUEST_DIGEST,
+                MODEL_ID,
+                EPOCH,
+                reasons,
+                checker_size=identity["checker"]["bytes"],
+                source_root=Path(directory),
+            )
+
+        self.assertIn("proof-identity-source-closure-mismatch", reasons)
+        self.assertIn("proof-identity-generator-mismatch", reasons)
+        self.assertIn("proof-identity-toolchain-mismatch", reasons)
+
+    def test_identity_bound_reads_refuse_intermediate_symlinks(self):
+        verifier = load_verifier(self)
+        identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory(prefix="identity-symlink-root-") as directory:
+            temporary = Path(directory)
+            source_root = temporary / "source"
+            outside = temporary / "outside"
+            source_root.mkdir()
+            generator = outside / "release" / "tools" / "gaussian_proof_identity.py"
+            generator.parent.mkdir(parents=True)
+            generator.write_bytes(
+                (ROOT.parent / "release/tools/gaussian_proof_identity.py").read_bytes()
+            )
+            (source_root / "release").symlink_to(
+                outside / "release", target_is_directory=True
+            )
+            lean_source = outside / "proofs" / "JackalIv" / "Bound.lean"
+            lean_source.parent.mkdir(parents=True)
+            lean_source.write_text("theorem bound : True := trivial\n", encoding="utf-8")
+            (source_root / "proofs").mkdir()
+            (source_root / "proofs" / "JackalIv").symlink_to(
+                outside / "proofs" / "JackalIv", target_is_directory=True
+            )
+
+            self.assertIsNone(
+                verifier.resolve_identity_bound_path(
+                    PROOF_IDENTITY,
+                    "release/tools/gaussian_proof_identity.py",
+                    source_root,
+                )
+            )
+            self.assertIsNone(
+                verifier.resolve_identity_bound_path(
+                    PROOF_IDENTITY,
+                    "proofs/lean/JackalIv/Bound.lean",
+                    source_root,
+                )
+            )
+            reasons: list[str] = []
+            verifier.verify_identity_file(
+                PROOF_IDENTITY,
+                sha(PROOF_IDENTITY),
+                identity["identity_digest_sha256"],
+                identity["checker"]["sha256"],
+                REQUEST_DIGEST,
+                MODEL_ID,
+                EPOCH,
+                reasons,
+                checker_size=identity["checker"]["bytes"],
+                source_root=source_root,
+            )
+
+        self.assertIn("proof-identity-source-closure-mismatch", reasons)
+        self.assertIn("proof-identity-generator-mismatch", reasons)
+        self.assertIn("proof-identity-toolchain-mismatch", reasons)
+
+    def test_identity_bound_reads_accept_complete_packaged_layout(self):
+        verifier = load_verifier(self)
+        identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory(prefix="identity-packaged-root-") as directory:
+            source_root = Path(directory)
+            recorded_paths = [
+                row["path"] for row in identity["source_closure"]["files"]
+            ]
+            recorded_paths.extend(
+                row["path"] for row in identity["toolchain"]["configuration_files"]
+            )
+            for recorded in recorded_paths:
+                relative = Path(recorded)
+                packaged = source_root / "proofs" / Path(*relative.parts[2:])
+                packaged.parent.mkdir(parents=True, exist_ok=True)
+                packaged.write_bytes((ROOT.parent / relative).read_bytes())
+            for row in identity["generator"]["files"]:
+                relative = Path(row["path"])
+                destination = source_root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes((ROOT.parent / relative).read_bytes())
+
+            reasons: list[str] = []
+            verifier.verify_identity_file(
+                PROOF_IDENTITY,
+                sha(PROOF_IDENTITY),
+                identity["identity_digest_sha256"],
+                identity["checker"]["sha256"],
+                REQUEST_DIGEST,
+                MODEL_ID,
+                EPOCH,
+                reasons,
+                checker_size=identity["checker"]["bytes"],
+                source_root=source_root,
+            )
+
+        self.assertEqual(reasons, [])
+
+    def test_identity_bound_source_root_is_held_open_against_replacement(self):
+        verifier = load_verifier(self)
+        with tempfile.TemporaryDirectory(prefix="identity-open-root-") as directory:
+            temporary = Path(directory)
+            source_root = temporary / "source"
+            original = b"original exact source bytes\n"
+            bound = source_root / "release" / "tools" / "bound.py"
+            bound.parent.mkdir(parents=True)
+            bound.write_bytes(original)
+            with verifier.IdentityBoundSource(PROOF_IDENTITY, source_root) as source:
+                moved = temporary / "moved-source"
+                source_root.rename(moved)
+                replacement = source_root / "release" / "tools" / "bound.py"
+                replacement.parent.mkdir(parents=True)
+                replacement.write_bytes(b"replacement bytes\n")
+                observed = source.read("release/tools/bound.py", 1024)
+
+        self.assertEqual(observed, original)
 
     def test_cli_refuses_symlink_hardlink_and_resolved_parent_output_aliases(self):
         verifier = load_verifier(self)
@@ -226,19 +405,32 @@ class IndependentVerifierTests(unittest.TestCase):
     def test_identity_refuses_a_substituted_delegated_generator_engine(self):
         verifier = load_verifier(self)
         identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
-        real_resolve = verifier.resolve_identity_bound_path
+        real_read = verifier.read_identity_bound_snapshot
         with tempfile.TemporaryDirectory() as directory:
             substitute = Path(directory) / "gaussian_proof_identity.py"
             substitute.write_text("# substituted identity engine\n", encoding="utf-8")
 
-            def resolve(identity_path, recorded, source_root=None):
+            def read(
+                identity_path,
+                recorded,
+                maximum_bytes,
+                source_root=None,
+                *,
+                source=None,
+            ):
                 if recorded == "release/tools/gaussian_proof_identity.py":
-                    return substitute
-                return real_resolve(identity_path, recorded, source_root)
+                    return substitute.read_bytes()
+                return real_read(
+                    identity_path,
+                    recorded,
+                    maximum_bytes,
+                    source_root,
+                    source=source,
+                )
 
             reasons: list[str] = []
             with mock.patch.object(
-                verifier, "resolve_identity_bound_path", side_effect=resolve
+                verifier, "read_identity_bound_snapshot", side_effect=read
             ):
                 verifier.verify_identity_file(
                     PROOF_IDENTITY,
@@ -267,7 +459,7 @@ class IndependentVerifierTests(unittest.TestCase):
                 verifier.resolve_identity_bound_path(
                     identity, "proofs/lean/JackalIv/Bound.lean"
                 ),
-                source,
+                source.resolve(),
             )
             self.assertTrue(
                 verifier.repository_local_lean_module_exists(

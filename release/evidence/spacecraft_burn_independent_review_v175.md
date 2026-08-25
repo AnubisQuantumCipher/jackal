@@ -2,10 +2,10 @@
 
 Review schema: jackal-spacecraft-independent-review-v175
 Status: complete
-Reviewed commit: `62c5cd7a6b8190f78eef685e65aa4e2d4ae2416a`
+Reviewed commit: `17eb525e0cc87b717d231b275abf1d01c19f3973`
 Producer source SHA-256: `d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a`
-Completed review passes: 28
-Resolved findings: 12
+Completed review passes: 33
+Resolved findings: 15
 Invalid findings: 1
 Unresolved release-blocking findings: 0
 Review class: internal independent code review, not external peer review
@@ -19,6 +19,8 @@ The review-fix cycle then used four adversarial security refutation passes and o
 The first full package smoke then exposed one additional integration defect: isolated Python removed the private validator's sibling import path. A failing regression preceded the two-file launcher fix. Three independent lenses and a fresh CodeRabbit pass reviewed exact commit `746c16d6fade9d173fe71ab884d137dd238def06`; all four returned zero new findings.
 
 The first hosted full-certificate run then exposed a platform-boundary defect: a macOS-14 runner correctly produced different checker build-attestation bytes from the owning platform, while the owning-platform byte test was guarded only by architecture. The first proposed matcher failed open on malformed records and incomplete inspection; adversarial review caught both issues before repush. Independent launcher-security, integration, and CodeRabbit passes reviewed the final test-only correction at exact commit `62c5cd7a6b8190f78eef685e65aa4e2d4ae2416a`.
+
+The second hosted run reached package tests and correctly refused the non-owning publication runtime, exposing test expectations that still required owning-platform success and an unbounded traceback envelope at the direct entrypoint. Security and integration review rejected permissive refusal codes, normalized stderr, weak runner classification, and the traceback surface. The final production/test correction was independently re-reviewed and CodeRabbit reviewed exact commit `17eb525e0cc87b717d231b275abf1d01c19f3973`.
 
 Files read in full or through their complete release closure included:
 
@@ -58,7 +60,13 @@ Disposition: R-012 | status: resolved | `tests/spacecraft_burn_proof_identity_te
 
 Disposition: R-013 | status: resolved | `tests/spacecraft_burn_proof_identity_test.py:67-131` rejects malformed launcher records and inspection errors, observes every launcher before classification, skips a complete mismatch only on exact GitHub Actions macOS, and fails ordinary Darwin/arm64 drift.
 
-No finding changed the Lean theorem, checker executable, witness, request, model, epoch, nonce, or qualified verdict. R-001 through R-009 and R-011 through R-013 closed publication integrity and bounded-refusal defects around the existing formal result.
+Disposition: R-014 | status: resolved | `tests/spacecraft_burn_release_package_v175_test.py:36-100,350-535` treats owning-compatible success as authoritative on any host, but permits a mismatch only on exact GitHub-hosted macOS and only as the canonical publication-runtime refusal.
+
+Disposition: R-015 | status: resolved | `tests/spacecraft_burn_release_package_v175_test.py:36-100,555-705` requires `RUNNER_ENVIRONMENT=github-hosted`, return code 2, empty stdout, exact one-line stderr, no output, and exact Git path/SHA binding on success; alternate codes, whitespace, traceback, and local spoofing refuse.
+
+Disposition: R-016 | status: resolved | `release/tools/package_spacecraft_v175.py:2357-2405` catches only publication-startup `RuntimeError`, emits one closed or generic bounded line with return code 2, and leaves argument parsing and build failures outside the handler.
+
+No finding changed the Lean theorem, checker executable, witness, request, model, epoch, nonce, or qualified verdict. R-001 through R-009 and R-011 through R-016 closed publication integrity and bounded-refusal defects around the existing formal result.
 
 ## Full-file Picard/source review
 
@@ -86,4 +94,6 @@ Passes 19-22 reviewed exact commit `746c16d6fade9d173fe71ab884d137dd238def06`: C
 
 Passes 23-28 reviewed the hosted platform-boundary correction: initial CodeRabbit, adversarial security and integration passes, corrected security and integration re-reviews, and final CodeRabbit on exact commit `62c5cd7a6b8190f78eef685e65aa4e2d4ae2416a`. The final matcher independently pins the identity, fails closed on malformed or incomplete observation, and distinguishes hosted platform-local mismatch from owning-host drift.
 
-Final pass result: pass 28 completed with zero new findings.
+Passes 29-33 reviewed the hosted publication-runtime correction: adversarial package security and integration passes, corrected zero-finding re-reviews, and final CodeRabbit on exact commit `17eb525e0cc87b717d231b275abf1d01c19f3973`. The final packager keeps non-owning hosted bytes non-publication while making its startup refusal exact, bounded, and independently testable.
+
+Final pass result: pass 33 completed with zero new findings.

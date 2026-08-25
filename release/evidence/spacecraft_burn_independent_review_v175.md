@@ -2,10 +2,10 @@
 
 Review schema: jackal-spacecraft-independent-review-v175
 Status: complete
-Reviewed commit: `17eb525e0cc87b717d231b275abf1d01c19f3973`
+Reviewed commit: `54c9af66405c445d17735c92ee177cd652fc34b9`
 Producer source SHA-256: `d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a`
-Completed review passes: 33
-Resolved findings: 15
+Completed review passes: 37
+Resolved findings: 17
 Invalid findings: 1
 Unresolved release-blocking findings: 0
 Review class: internal independent code review, not external peer review
@@ -21,6 +21,8 @@ The first full package smoke then exposed one additional integration defect: iso
 The first hosted full-certificate run then exposed a platform-boundary defect: a macOS-14 runner correctly produced different checker build-attestation bytes from the owning platform, while the owning-platform byte test was guarded only by architecture. The first proposed matcher failed open on malformed records and incomplete inspection; adversarial review caught both issues before repush. Independent launcher-security, integration, and CodeRabbit passes reviewed the final test-only correction at exact commit `62c5cd7a6b8190f78eef685e65aa4e2d4ae2416a`.
 
 The second hosted run reached package tests and correctly refused the non-owning publication runtime, exposing test expectations that still required owning-platform success and an unbounded traceback envelope at the direct entrypoint. Security and integration review rejected permissive refusal codes, normalized stderr, weak runner classification, and the traceback surface. The final production/test correction was independently re-reviewed and CodeRabbit reviewed exact commit `17eb525e0cc87b717d231b275abf1d01c19f3973`.
+
+The third hosted run passed the corrected unit and claim gates, then spent the remaining job budget generating a fresh platform-local proof identity and was canceled at 4h00. The full campaign was preserved and moved to the 360-minute hosted maximum; feature-branch push duplication was removed while PR, master, tag, and manual campaigns remain. Security, integration, and two CodeRabbit passes reviewed the final workflow/test correction at exact commit `54c9af66405c445d17735c92ee177cd652fc34b9`.
 
 Files read in full or through their complete release closure included:
 
@@ -66,7 +68,11 @@ Disposition: R-015 | status: resolved | `tests/spacecraft_burn_release_package_v
 
 Disposition: R-016 | status: resolved | `release/tools/package_spacecraft_v175.py:2357-2405` catches only publication-startup `RuntimeError`, emits one closed or generic bounded line with return code 2, and leaves argument parsing and build failures outside the handler.
 
-No finding changed the Lean theorem, checker executable, witness, request, model, epoch, nonce, or qualified verdict. R-001 through R-009 and R-011 through R-016 closed publication integrity and bounded-refusal defects around the existing formal result.
+Disposition: R-017 | status: resolved | `.github/workflows/spacecraft-burn-proof-gate.yml:3-21,149-155` uses the 360-minute GitHub-hosted maximum, runs feature work once through pull requests, retains master and `v*` tag campaigns, and warns rather than masking an earlier failure when no log artifact exists.
+
+Disposition: R-018 | status: resolved | `tests/spacecraft_burn_workflow_test.py:31-145` anchors the exact timeout scalar and scopes always/warn/upload assertions to the unique non-publication artifact step while retaining every proof, certificate, mutation, evidence, and byte-comparison command.
+
+No finding changed the Lean theorem, checker executable, witness, request, model, epoch, nonce, or qualified verdict. R-001 through R-009 and R-011 through R-018 closed publication integrity and bounded-refusal defects around the existing formal result.
 
 ## Full-file Picard/source review
 
@@ -96,4 +102,6 @@ Passes 23-28 reviewed the hosted platform-boundary correction: initial CodeRabbi
 
 Passes 29-33 reviewed the hosted publication-runtime correction: adversarial package security and integration passes, corrected zero-finding re-reviews, and final CodeRabbit on exact commit `17eb525e0cc87b717d231b275abf1d01c19f3973`. The final packager keeps non-owning hosted bytes non-publication while making its startup refusal exact, bounded, and independently testable.
 
-Final pass result: pass 33 completed with zero new findings.
+Passes 34-37 reviewed the hosted runtime-budget correction: workflow security and integration passes, the first CodeRabbit test-oracle findings, and final zero-finding CodeRabbit on exact commit `54c9af66405c445d17735c92ee177cd652fc34b9`. The full campaign remains intact at the maximum hosted duration with non-duplicated feature execution.
+
+Final pass result: pass 37 completed with zero new findings.

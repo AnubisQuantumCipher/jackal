@@ -77,6 +77,29 @@ class SpacecraftBurnV175EpochTests(unittest.TestCase):
         self.assertEqual(receipt["formal_checker"]["nonce"], NONCE)
         self.assertEqual(identity["fragment"]["release_epoch"], EPOCH)
 
+    def test_current_evidence_is_bound_to_current_source_and_receipt(self):
+        evidence = ROOT / "spacecraft_burn_cert/evidence"
+        source_path = ROOT / "spacecraft_burn_cert/certify.py"
+        receipt_path = evidence / "baseline_receipt_v2.json"
+        receipt = json.loads(receipt_path.read_text())
+        source_digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        receipt_digest = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+        manifest = json.loads((evidence / "baseline_witness_v2.manifest.json").read_text())
+        independent = json.loads((evidence / "independent_verification_v2.json").read_text())
+        instrument = json.loads((evidence / "instrument_validation_v2.json").read_text())
+        mutation = json.loads((evidence / "mutation_aba_v2.json").read_text())
+
+        self.assertEqual(receipt["source_sha256"], source_digest)
+        self.assertEqual(manifest["receipt_sha256"], receipt_digest)
+        self.assertEqual(independent["binding"]["receipt_sha256"], receipt_digest)
+        self.assertEqual(instrument["baseline_receipt_sha256"], receipt_digest)
+        self.assertEqual(mutation["baseline_source_sha256"], source_digest)
+        self.assertEqual(mutation["final_source_sha256"], source_digest)
+        for record in mutation["mutations"]:
+            with self.subTest(mutation=record["mutation"]):
+                self.assertEqual(record["a_before_sha256"], source_digest)
+                self.assertEqual(record["a_after_sha256"], source_digest)
+
     def test_report_identity_table_matches_current_v175_evidence(self):
         receipt_path = ROOT / "spacecraft_burn_cert/evidence/baseline_receipt_v2.json"
         identity_path = ROOT / "release/evidence/spacecraft_burn_proof_identity_v1.json"

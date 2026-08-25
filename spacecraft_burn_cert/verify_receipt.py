@@ -1082,12 +1082,23 @@ def canonical_json_bytes(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
 
 
-def resolve_identity_bound_path(identity_path: Path, recorded: str) -> Path | None:
+def identity_bound_ancestors(
+    identity_path: Path, source_root: Path | None = None
+) -> tuple[Path, ...]:
+    candidates = []
+    if source_root is not None:
+        candidates.append(source_root)
+    candidates.extend((identity_path.parent, *tuple(identity_path.parents)[:4]))
+    return tuple(dict.fromkeys(candidates))
+
+
+def resolve_identity_bound_path(
+    identity_path: Path, recorded: str, source_root: Path | None = None
+) -> Path | None:
     relative = Path(recorded)
     if relative.is_absolute() or ".." in relative.parts:
         return None
-    ancestors = (identity_path.parent, *tuple(identity_path.parents)[:4])
-    for ancestor in ancestors:
+    for ancestor in identity_bound_ancestors(identity_path, source_root):
         direct = ancestor / relative
         if direct.is_file() and not direct.is_symlink():
             return direct
@@ -1098,12 +1109,13 @@ def resolve_identity_bound_path(identity_path: Path, recorded: str) -> Path | No
     return None
 
 
-def repository_local_lean_module_exists(identity_path: Path, module: str) -> bool:
+def repository_local_lean_module_exists(
+    identity_path: Path, module: str, source_root: Path | None = None
+) -> bool:
     if LEAN_MODULE_RE.fullmatch(module) is None:
         return True
     relative = Path("proofs/lean") / (module.replace(".", "/") + ".lean")
-    ancestors = (identity_path.parent, *tuple(identity_path.parents)[:4])
-    for ancestor in ancestors:
+    for ancestor in identity_bound_ancestors(identity_path, source_root):
         candidates = (
             ancestor / relative,
             ancestor / "proofs" / Path(*relative.parts[2:]),
@@ -1363,6 +1375,7 @@ def validate_identity_semantics(
     model_id: str,
     epoch: str,
     reasons: list[str],
+    source_root: Path | None = None,
 ) -> None:
     expected_top = {
         "build_attestation",
@@ -1508,7 +1521,7 @@ def validate_identity_semantics(
                 else None
             )
             source_path = (
-                resolve_identity_bound_path(path, recorded_path)
+                resolve_identity_bound_path(path, recorded_path, source_root)
                 if type(recorded_path) is str
                 else None
             )
@@ -1565,7 +1578,7 @@ def validate_identity_semantics(
                 for imported in observed_imports_by_module[module]:
                     if imported in observed_imports_by_module:
                         pending.append(imported)
-                    elif repository_local_lean_module_exists(path, imported):
+                    elif repository_local_lean_module_exists(path, imported, source_root):
                         reasons.append("proof-identity-source-closure-mismatch")
                         break
                     else:
@@ -1598,7 +1611,7 @@ def validate_identity_semantics(
         if valid_generator:
             for row, expected_path in zip(generator_files, expected_generator_paths):
                 bound_path = (
-                    resolve_identity_bound_path(path, row.get("path"))
+                    resolve_identity_bound_path(path, row.get("path"), source_root)
                     if type(row) is dict and type(row.get("path")) is str
                     else None
                 )
@@ -1644,7 +1657,7 @@ def validate_identity_semantics(
         "proofs/lean/lake-manifest.json",
         "proofs/lean/lean-toolchain",
     ):
-        bound_path = resolve_identity_bound_path(path, recorded_path)
+        bound_path = resolve_identity_bound_path(path, recorded_path, source_root)
         if bound_path is None:
             toolchain_valid = False
             continue
@@ -1968,6 +1981,7 @@ def verify_identity_file(
     path: Path, expected_file_digest: str, expected_internal_digest: str,
     checker_digest: str, request_digest: str, model_id: str, epoch: str,
     reasons: list[str], raw: bytes | None = None, checker_size: int | None = None,
+    source_root: Path | None = None,
 ) -> str | None:
     try:
         raw = read_regular_snapshot(path, MAX_IDENTITY_BYTES) if raw is None else raw
@@ -2004,6 +2018,7 @@ def verify_identity_file(
         model_id=model_id,
         epoch=epoch,
         reasons=reasons,
+        source_root=source_root,
     )
     return file_digest
 
@@ -2052,6 +2067,7 @@ def verify_formal_binding(
     expected_epoch: str | None,
     nonce: str | None,
     receipt_bytes: bytes | None = None,
+    proof_source_root: Path | None = None,
 ) -> tuple[list[str], dict[str, object]]:
     pins = (
         witness_path, checker_path, proof_identity_path, expected_receipt_sha256,
@@ -2090,6 +2106,7 @@ def verify_formal_binding(
         expected_proof_identity_sha256, checker_digest, expected_request_digest,
         expected_model_id, expected_epoch, reasons, raw=proof_identity_bytes,
         checker_size=len(checker_bytes),
+        source_root=proof_source_root,
     )
 
     binding = candidate.get("formal_checker")
@@ -2247,6 +2264,7 @@ def verify_receipt(
         expected_epoch=expected_epoch,
         nonce=nonce,
         receipt_bytes=receipt_bytes,
+        proof_source_root=source_path.parent.parent.resolve(strict=True),
     )
     if formal_reasons:
         return {"status": "REFUSED", "reasons": formal_reasons}

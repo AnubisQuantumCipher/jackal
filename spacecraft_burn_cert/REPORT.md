@@ -86,7 +86,7 @@ direct checker invocation is diagnostic, not the publication binding.
 | Artifact | SHA-256 |
 |---|---|
 | Full witness release asset | `27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c` |
-| Baseline receipt | `9d303d86c6f1516cfa34c6266efbef1ded1e945a563936730a88c4d3039e5ea9` |
+| Baseline receipt | `a7537a9d55b8c7ebfbff5c2baa00d6be713e6194d82cd6f7700fa302c40b4314` |
 | Lean checker executable | `2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59` |
 | Proof identity file | `5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7` |
 | Proof identity internal digest | `5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b` |

@@ -53,6 +53,29 @@ def load_verifier(testcase: unittest.TestCase):
 
 
 class IndependentVerifierTests(unittest.TestCase):
+    def test_detached_proof_identity_resolves_exact_sources_from_explicit_root(self):
+        verifier = load_verifier(self)
+        identity = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory(prefix="detached-proof-identity-") as directory:
+            detached = Path(directory) / PROOF_IDENTITY.name
+            detached.write_bytes(PROOF_IDENTITY.read_bytes())
+            reasons: list[str] = []
+            observed = verifier.verify_identity_file(
+                detached,
+                sha(PROOF_IDENTITY),
+                identity["identity_digest_sha256"],
+                identity["checker"]["sha256"],
+                REQUEST_DIGEST,
+                MODEL_ID,
+                EPOCH,
+                reasons,
+                checker_size=identity["checker"]["bytes"],
+                source_root=ROOT.parent,
+            )
+
+        self.assertEqual(observed, sha(PROOF_IDENTITY))
+        self.assertEqual(reasons, [])
+
     def test_cli_refuses_symlink_hardlink_and_resolved_parent_output_aliases(self):
         verifier = load_verifier(self)
 
@@ -208,10 +231,10 @@ class IndependentVerifierTests(unittest.TestCase):
             substitute = Path(directory) / "gaussian_proof_identity.py"
             substitute.write_text("# substituted identity engine\n", encoding="utf-8")
 
-            def resolve(identity_path, recorded):
+            def resolve(identity_path, recorded, source_root=None):
                 if recorded == "release/tools/gaussian_proof_identity.py":
                     return substitute
-                return real_resolve(identity_path, recorded)
+                return real_resolve(identity_path, recorded, source_root)
 
             reasons: list[str] = []
             with mock.patch.object(

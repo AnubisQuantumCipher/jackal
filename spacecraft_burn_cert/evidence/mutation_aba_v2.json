@@ -1,5 +1,5 @@
 {
-  "baseline_source_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
+  "baseline_source_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
   "baseline_verifier_after": {
     "binding": {
       "checker_result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.5",
@@ -11,7 +11,7 @@
       "nonce": "spacecraft-burn-v2-publication-20260825",
       "proof_identity_digest_sha256": "5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b",
       "proof_identity_file_sha256": "5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7",
-      "receipt_sha256": "9d303d86c6f1516cfa34c6266efbef1ded1e945a563936730a88c4d3039e5ea9",
+      "receipt_sha256": "a7537a9d55b8c7ebfbff5c2baa00d6be713e6194d82cd6f7700fa302c40b4314",
       "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
       "witness_byte_size": 35939138,
       "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
@@ -47,7 +47,7 @@
       "nonce": "spacecraft-burn-v2-publication-20260825",
       "proof_identity_digest_sha256": "5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b",
       "proof_identity_file_sha256": "5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7",
-      "receipt_sha256": "9d303d86c6f1516cfa34c6266efbef1ded1e945a563936730a88c4d3039e5ea9",
+      "receipt_sha256": "a7537a9d55b8c7ebfbff5c2baa00d6be713e6194d82cd6f7700fa302c40b4314",
       "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
       "witness_byte_size": 35939138,
       "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
@@ -72,17 +72,17 @@
       "vis_viva_cleared_denominator_identity": true
     }
   },
-  "final_source_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
+  "final_source_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
   "mutations": [
     {
-      "a_after_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "a_before_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "b_sha256": "7c8b98f15aa62c430d884d23c54bd1c2066e2a11b482813f5340a6fd3c48c68f",
+      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "b_sha256": "ba5b78c5b9f39c4e3d55b777096e70f68fe576cde820ae636902e0ef2d17190b",
       "bug": "uses m/s^2 thrust acceleration in a km/s^2 state model",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "unit-scale-mismatch",
-      "mutant_test_output_sha256": "44100b38c3afabcbe0db7ee9c8e2d281f6f5350b68f79f24a50b3af1fa0b8948",
+      "mutant_test_output_sha256": "674828710aa300387fb4edff8f51e051941f87f3f72759631f1b30987612f04d",
       "mutant_tests_failed": true,
       "mutant_tests_timed_out": false,
       "mutation": "meters_as_kilometers",
@@ -91,14 +91,14 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "a_before_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "b_sha256": "f1f15a1249bd653d25298a4c8ad0a9f15fa82b84a3118e5c8be44dc04026c637",
+      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "b_sha256": "d1b8ff2d1731108e1d8f7e3315f8fae04cd49945cc018a300a38b2595744968d",
       "bug": "freezes mass and sets propellant mass flow to zero",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "mass-integration-mismatch",
-      "mutant_test_output_sha256": "7fc8ae8c7f71cda88f245f57ca054cad80cb28a663a8a292fe76cf3de0588e1f",
+      "mutant_test_output_sha256": "35b23f826bcf2a8181cd47236c8268bb89cfbf90170ca3359113ea3966093d1c",
       "mutant_tests_failed": true,
       "mutant_tests_timed_out": false,
       "mutation": "frozen_mass",
@@ -107,14 +107,14 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "a_before_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "b_sha256": "ce71f525733ee9bdd37219e53146217a02363faf92ed0251d2918ef48439194c",
+      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "b_sha256": "a8f8089c9cb5cfbbdf5ddcfdaf497832c2d82de0e2d60ba9c89d7c347831bf8b",
       "bug": "uses a(1-e) instead of a(1+e)",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "apoapsis-plus-mismatch",
-      "mutant_test_output_sha256": "71aa477551937bf6ca1cb8442f06da19742685c0004800df059691d68de98c38",
+      "mutant_test_output_sha256": "65a325514bf599fb1fbb90d682697c2ac9da73c2ec4cb7507dfd0b4aa43e93f6",
       "mutant_tests_failed": true,
       "mutant_tests_timed_out": false,
       "mutation": "periapsis_instead_of_apoapsis",
@@ -123,14 +123,14 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "a_before_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "b_sha256": "cf8c08515404d86ee8c8d76df15ffc34c627e09d832b00145a1bf31583008490",
+      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "b_sha256": "55a0ad0bcf7eca1a0de2cefc4b874d263b61066b5f7ee3c57bfdc0c1cc751ab9",
       "bug": "uses v^2 instead of v^2/2 in specific orbital energy",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "energy-half-mismatch",
-      "mutant_test_output_sha256": "3350e8064e26cd90427393a0946b58cbbe1951f7636ff5b92017fea2b47a6e20",
+      "mutant_test_output_sha256": "985df60f93aee40591489bbc9e56b2f5523a9fd8991d94df617f44688ebfbece",
       "mutant_tests_failed": true,
       "mutant_tests_timed_out": false,
       "mutation": "double_kinetic_energy",
@@ -139,14 +139,14 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "a_before_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "b_sha256": "ab0ab020aa4e410aa9c7533ea3dbcdb4964ecf65e1173a8925e5efec82adc10d",
+      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "b_sha256": "f1bf51d05e808edcf5d3137ceb5b08e5b2149e6d18580dee418b44efcd8bc828",
       "bug": "uses the center of each uncertainty interval",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "full-box-coverage-mismatch",
-      "mutant_test_output_sha256": "0f8bd9b519ec620dc75867d08105214f0acbbf7866636426b7f89aaa4822de1b",
+      "mutant_test_output_sha256": "bbe1ffba173bb1ff902b859eec2870b22ee6b7838f68d1784a095130338297e6",
       "mutant_tests_failed": true,
       "mutant_tests_timed_out": false,
       "mutation": "center_only",
@@ -155,14 +155,14 @@
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "a_before_sha256": "2084f09a45678c9ad65ce2b281fc79e042ae1c687ef90d5bb920857c8b1046c2",
-      "b_sha256": "1959687f20ab89b7a8386213a664925d9a35904454572dc60a4f9f707c838217",
+      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+      "b_sha256": "27f4e66ea6a5b7c3cb357038b6be9de6be02bca0ed17aa300886a0e3a57b2f12",
       "bug": "ceil-rounds a lower bound before reporting and deciding",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "decision-rounding-mismatch",
-      "mutant_test_output_sha256": "2623f0a1efb6f8ce3a07d45bf729d6d0a01ee87fa74946ce0199cd5f6cea0f36",
+      "mutant_test_output_sha256": "576462eb8857ad64e37154744b6429c8e902c134c01dcf14133242932721d89c",
       "mutant_tests_failed": true,
       "mutant_tests_timed_out": false,
       "mutation": "round_margin_upward",

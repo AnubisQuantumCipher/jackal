@@ -16,6 +16,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "release" / "tools" / "spacecraft_burn_proof_identity.py"
 IDENTITY = ROOT / "release" / "evidence" / "spacecraft_burn_proof_identity_v1.json"
+OWNING_PLATFORM_PYTHON = Path("/usr/bin/python3")
 
 
 class SpacecraftProofIdentityTests(unittest.TestCase):
@@ -33,9 +34,11 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         finally:
             sys.path.pop(0)
 
-    def run_gate(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_gate(
+        self, *args: str, interpreter: Path | str | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, "-I", "-B", str(SCRIPT), *args],
+            [str(interpreter or sys.executable), "-I", "-B", str(SCRIPT), *args],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -53,7 +56,7 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
         "committed executable identity is macOS/arm64-specific",
     )
     def test_committed_checker_binary_identity_reproduces_on_owning_platform(self) -> None:
-        result = self.run_gate("check")
+        result = self.run_gate("check", interpreter=OWNING_PLATFORM_PYTHON)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("checker build binding", result.stdout)
 

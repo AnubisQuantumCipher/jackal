@@ -170,7 +170,7 @@
     "files": [
       {
         "path": "release/tools/spacecraft_burn_proof_identity.py",
-        "sha256": "84f7cea7c861940d66cb82d1e0e05ea0175ea4ebe09de4f82fb9e4109d90cee8"
+        "sha256": "72d376a1e382b9436718f2c98145d260ab9d0eb8030bbcc80cb8bf0dbb4455d7"
       },
       {
         "path": "release/tools/gaussian_proof_identity.py",
@@ -178,7 +178,7 @@
       }
     ]
   },
-  "identity_digest_sha256": "5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b",
+  "identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
   "proof": {
     "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
     "axiom_policy": {

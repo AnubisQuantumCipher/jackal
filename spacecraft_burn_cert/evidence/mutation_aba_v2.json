@@ -1,5 +1,5 @@
 {
-  "baseline_source_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+  "baseline_source_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
   "baseline_verifier_after": {
     "binding": {
       "checker_result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.5",
@@ -9,9 +9,9 @@
       "formal_margin_lo": 51450379597827184853505075,
       "model_id": "jackal-spacecraft-finite-burn-ode-v2",
       "nonce": "spacecraft-burn-v2-publication-20260825",
-      "proof_identity_digest_sha256": "5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b",
-      "proof_identity_file_sha256": "5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7",
-      "receipt_sha256": "a7537a9d55b8c7ebfbff5c2baa00d6be713e6194d82cd6f7700fa302c40b4314",
+      "proof_identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
+      "proof_identity_file_sha256": "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876",
+      "receipt_sha256": "489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed",
       "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
       "witness_byte_size": 35939138,
       "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
@@ -35,6 +35,13 @@
       "eccentricity_vector_reduction": true,
       "vis_viva_cleared_denominator_identity": true
     }
+  },
+  "baseline_verifier_after_process": {
+    "contract_valid": true,
+    "output_limited": false,
+    "output_sha256": "de716e84319e63ee2971e06586414df692e7f1d69da802917e7aa28895876246",
+    "returncode": 0,
+    "timed_out": false
   },
   "baseline_verifier_before": {
     "binding": {
@@ -45,9 +52,9 @@
       "formal_margin_lo": 51450379597827184853505075,
       "model_id": "jackal-spacecraft-finite-burn-ode-v2",
       "nonce": "spacecraft-burn-v2-publication-20260825",
-      "proof_identity_digest_sha256": "5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b",
-      "proof_identity_file_sha256": "5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7",
-      "receipt_sha256": "a7537a9d55b8c7ebfbff5c2baa00d6be713e6194d82cd6f7700fa302c40b4314",
+      "proof_identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
+      "proof_identity_file_sha256": "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876",
+      "receipt_sha256": "489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed",
       "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
       "witness_byte_size": 35939138,
       "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
@@ -72,102 +79,121 @@
       "vis_viva_cleared_denominator_identity": true
     }
   },
-  "final_source_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
+  "baseline_verifier_before_process": {
+    "contract_valid": true,
+    "output_limited": false,
+    "output_sha256": "de716e84319e63ee2971e06586414df692e7f1d69da802917e7aa28895876246",
+    "returncode": 0,
+    "timed_out": false
+  },
+  "final_source_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
   "mutations": [
     {
-      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "b_sha256": "ba5b78c5b9f39c4e3d55b777096e70f68fe576cde820ae636902e0ef2d17190b",
+      "a_after_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "a_before_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "b_sha256": "9bca6a83c895235e4fff363daa13e489bb84008ecb571ce413952b6e43903e8b",
       "bug": "uses m/s^2 thrust acceleration in a km/s^2 state model",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "unit-scale-mismatch",
-      "mutant_test_output_sha256": "674828710aa300387fb4edff8f51e051941f87f3f72759631f1b30987612f04d",
+      "mutant_test_output_sha256": "ec523655743e553402ce1f25a9ce3d646dc00680a826b82b2efcfdc66a9de996",
       "mutant_tests_failed": true,
+      "mutant_tests_output_limited": false,
       "mutant_tests_timed_out": false,
       "mutation": "meters_as_kilometers",
       "reason_observed": true,
       "restored": true,
+      "restored_contract_test_output_limited": false,
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "b_sha256": "d1b8ff2d1731108e1d8f7e3315f8fae04cd49945cc018a300a38b2595744968d",
+      "a_after_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "a_before_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "b_sha256": "e880756c94e8cfb8e9cfe32db704f19ae4fcf463833a32f82ed97035b521675f",
       "bug": "freezes mass and sets propellant mass flow to zero",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "mass-integration-mismatch",
-      "mutant_test_output_sha256": "35b23f826bcf2a8181cd47236c8268bb89cfbf90170ca3359113ea3966093d1c",
+      "mutant_test_output_sha256": "b30ae217f0aacbb5665477050a209c99f09ed7e28a48a7b237b9934b50cfe22b",
       "mutant_tests_failed": true,
+      "mutant_tests_output_limited": false,
       "mutant_tests_timed_out": false,
       "mutation": "frozen_mass",
       "reason_observed": true,
       "restored": true,
+      "restored_contract_test_output_limited": false,
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "b_sha256": "a8f8089c9cb5cfbbdf5ddcfdaf497832c2d82de0e2d60ba9c89d7c347831bf8b",
+      "a_after_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "a_before_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "b_sha256": "149b0e229b47f4e69c05ebc208f87863d765a540fb2f96f6502bff38ff0524e5",
       "bug": "uses a(1-e) instead of a(1+e)",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "apoapsis-plus-mismatch",
-      "mutant_test_output_sha256": "65a325514bf599fb1fbb90d682697c2ac9da73c2ec4cb7507dfd0b4aa43e93f6",
+      "mutant_test_output_sha256": "cede1a9bf56117f1dac1c25f1776abfd7fe22220dd690c719666b2608cc4403c",
       "mutant_tests_failed": true,
+      "mutant_tests_output_limited": false,
       "mutant_tests_timed_out": false,
       "mutation": "periapsis_instead_of_apoapsis",
       "reason_observed": true,
       "restored": true,
+      "restored_contract_test_output_limited": false,
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "b_sha256": "55a0ad0bcf7eca1a0de2cefc4b874d263b61066b5f7ee3c57bfdc0c1cc751ab9",
+      "a_after_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "a_before_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "b_sha256": "16bc2eb5730831c1b5f323aee3df937fd9591ff5e18e0a7dd67910c9335e2ccb",
       "bug": "uses v^2 instead of v^2/2 in specific orbital energy",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "energy-half-mismatch",
-      "mutant_test_output_sha256": "985df60f93aee40591489bbc9e56b2f5523a9fd8991d94df617f44688ebfbece",
+      "mutant_test_output_sha256": "1c417121185c27651e4208306f9fbb1e0de3e4fd7586092973b838bf42bd04f1",
       "mutant_tests_failed": true,
+      "mutant_tests_output_limited": false,
       "mutant_tests_timed_out": false,
       "mutation": "double_kinetic_energy",
       "reason_observed": true,
       "restored": true,
+      "restored_contract_test_output_limited": false,
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "b_sha256": "f1bf51d05e808edcf5d3137ceb5b08e5b2149e6d18580dee418b44efcd8bc828",
+      "a_after_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "a_before_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "b_sha256": "95d41d1010810f79202662bf14d45dc1e41d22b0e28444ebd38bf31d422f632d",
       "bug": "uses the center of each uncertainty interval",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "full-box-coverage-mismatch",
-      "mutant_test_output_sha256": "bbe1ffba173bb1ff902b859eec2870b22ee6b7838f68d1784a095130338297e6",
+      "mutant_test_output_sha256": "512b4cbb5d0e8ebfaf38c2df8f57d6e70540e5614e4147ec6420fb45f01d0e83",
       "mutant_tests_failed": true,
+      "mutant_tests_output_limited": false,
       "mutant_tests_timed_out": false,
       "mutation": "center_only",
       "reason_observed": true,
       "restored": true,
+      "restored_contract_test_output_limited": false,
       "restored_contract_test_passed": true
     },
     {
-      "a_after_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "a_before_sha256": "6c4a61aa55abfd1203aaed521761c5ad8579537bcf3097d58731075219161416",
-      "b_sha256": "27f4e66ea6a5b7c3cb357038b6be9de6be02bca0ed17aa300886a0e3a57b2f12",
+      "a_after_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "a_before_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+      "b_sha256": "b890404963acd6e002a417ae613ba710ba0a5678c1eace26f8d257e6db3b5777",
       "bug": "ceil-rounds a lower bound before reporting and deciding",
       "caught": true,
       "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
       "expected_reason": "decision-rounding-mismatch",
-      "mutant_test_output_sha256": "576462eb8857ad64e37154744b6429c8e902c134c01dcf14133242932721d89c",
+      "mutant_test_output_sha256": "63976458a3a7345581542925e4cedb7026307804c79a732de61f7b5558c92038",
       "mutant_tests_failed": true,
+      "mutant_tests_output_limited": false,
       "mutant_tests_timed_out": false,
       "mutation": "round_margin_upward",
       "reason_observed": true,
       "restored": true,
+      "restored_contract_test_output_limited": false,
       "restored_contract_test_passed": true
     }
   ],
@@ -177,7 +203,10 @@
     {
       "caught": true,
       "checker_output_excerpt": "REJECT noncanonical-control-character\n",
+      "checker_output_limited": false,
+      "checker_output_sha256": "3100144ee87c6ad62a37341a88538ac409277bd766480ab43913fd55ece616f9",
       "checker_refused": true,
+      "checker_returncode": 1,
       "checker_timed_out": false,
       "mutant_sha256": "b1a944f229a3f16eb889dfdac9085ce23ca37544f1643b8e3c0acc94164a47a8",
       "mutation": "corruption",
@@ -187,12 +216,19 @@
           "witness-hash-mismatch"
         ],
         "status": "REFUSED"
-      }
+      },
+      "outer_verifier_output_limited": false,
+      "outer_verifier_output_sha256": "36fb5cd8456b2549144fe1b684c3b6a037610c7d80447d4a8dcc2f5e62654cef",
+      "outer_verifier_returncode": 2,
+      "outer_verifier_timed_out": false
     },
     {
       "caught": true,
       "checker_output_excerpt": "REJECT picard-strict-interior\n",
+      "checker_output_limited": false,
+      "checker_output_sha256": "906b30e2f0998e93f154d5036737ffa495f3870a3c99f8f355818a59c6e419c2",
       "checker_refused": true,
+      "checker_returncode": 1,
       "checker_timed_out": false,
       "mutant_sha256": "ef87e321f4879f4825fd70cf82d296a7e4177c77c6798623c732ff66d3000b23",
       "mutation": "chain",
@@ -202,12 +238,19 @@
           "witness-hash-mismatch"
         ],
         "status": "REFUSED"
-      }
+      },
+      "outer_verifier_output_limited": false,
+      "outer_verifier_output_sha256": "36fb5cd8456b2549144fe1b684c3b6a037610c7d80447d4a8dcc2f5e62654cef",
+      "outer_verifier_returncode": 2,
+      "outer_verifier_timed_out": false
     },
     {
       "caught": true,
       "checker_output_excerpt": "REJECT cutoff-coverage\n",
+      "checker_output_limited": false,
+      "checker_output_sha256": "ec0d1afadbc79ed82bc6c1e2d2eb756fb0ee5bf068c3eabdde0b0cbb21680c0a",
       "checker_refused": true,
+      "checker_returncode": 1,
       "checker_timed_out": false,
       "mutant_sha256": "a1b8a74320fea4453c997e71365c9b2295efb9960e6133238b61beac430f52de",
       "mutation": "coverage",
@@ -217,7 +260,11 @@
           "witness-hash-mismatch"
         ],
         "status": "REFUSED"
-      }
+      },
+      "outer_verifier_output_limited": false,
+      "outer_verifier_output_sha256": "36fb5cd8456b2549144fe1b684c3b6a037610c7d80447d4a8dcc2f5e62654cef",
+      "outer_verifier_returncode": 2,
+      "outer_verifier_timed_out": false
     }
   ]
 }

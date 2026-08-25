@@ -86,10 +86,10 @@ direct checker invocation is diagnostic, not the publication binding.
 | Artifact | SHA-256 |
 |---|---|
 | Full witness release asset | `27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c` |
-| Baseline receipt | `a7537a9d55b8c7ebfbff5c2baa00d6be713e6194d82cd6f7700fa302c40b4314` |
+| Baseline receipt | `489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed` |
 | Lean checker executable | `2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59` |
-| Proof identity file | `5140d819410533245bac47451c1ae07c3230c2a8172997c9172c4572bad14cd7` |
-| Proof identity internal digest | `5041533e12ab62a442791c37de69104ab6b08df54011c64b05161a777c83377b` |
+| Proof identity file | `dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876` |
+| Proof identity internal digest | `418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be` |
 | Request | `03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7` |
 
 Model ID is `jackal-spacecraft-finite-burn-ode-v2`; release epoch is `v1.7.5`;
@@ -161,7 +161,31 @@ proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check \
 /usr/bin/python3 -E -s -S -B spacecraft_burn_cert/validate.py \
   --baseline "$RUN_DIR/baseline_receipt_v2.json" \
   --output "$RUN_DIR/instrument_validation_v2.json"
-/usr/bin/python3 -E -s -S -B tools/spacecraft_burn_release_gate.py
+/usr/bin/python3 -E -s -S -B tools/spacecraft_burn_release_gate.py \
+  --instrument-validation "$RUN_DIR/instrument_validation_v2.json"
+/usr/bin/python3 -E -s -S -B spacecraft_burn_cert/mutation_aba.py \
+  --baseline "$RUN_DIR/baseline_receipt_v2.json" \
+  --request spacecraft_burn_cert/request_v2.json \
+  --witness "$RUN_DIR/baseline_witness_v2.cert" \
+  --checker proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check \
+  --proof-identity "$RUN_DIR/spacecraft_burn_proof_identity_v1.json" \
+  --expected-receipt-sha256 "$RECEIPT_SHA" \
+  --expected-proof-file-sha256 "$PROOF_FILE_SHA" \
+  --expected-proof-identity-sha256 "$PROOF_IDENTITY_SHA" \
+  --expected-request-digest 03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7 \
+  --expected-model-id jackal-spacecraft-finite-burn-ode-v2 \
+  --expected-epoch v1.7.5 --nonce spacecraft-burn-v2-publication-20260825 \
+  --output "$RUN_DIR/mutation_aba_v2.json"
+REPRO_PARENT=$(mktemp -d)
+REPRO_DIR="$REPRO_PARENT/evidence"
+/usr/bin/python3 -E -s -S -B spacecraft_burn_cert/release_evidence.py \
+  --staging-dir "$RUN_DIR" --evidence-dir "$REPRO_DIR" --include-witness
+/usr/bin/python3 -E -s -S -B spacecraft_burn_cert/release_evidence.py \
+  --staging-dir "$RUN_DIR" --evidence-dir "$REPRO_DIR" \
+  --include-witness --check
+/usr/bin/python3 -E -s -S -B spacecraft_burn_cert/release_evidence.py \
+  --staging-dir "$RUN_DIR" \
+  --evidence-dir spacecraft_burn_cert/evidence --check
 ```
 
 Release publication must include the full witness asset and verify downloaded

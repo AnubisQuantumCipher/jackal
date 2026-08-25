@@ -2,10 +2,10 @@
 
 Review schema: jackal-spacecraft-independent-review-v175
 Status: complete
-Reviewed commit: `04fd09e1921d94df944697b06a6eef58e4b21b16`
+Reviewed commit: `746c16d6fade9d173fe71ab884d137dd238def06`
 Producer source SHA-256: `d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a`
-Completed review passes: 18
-Resolved findings: 9
+Completed review passes: 22
+Resolved findings: 10
 Invalid findings: 1
 Unresolved release-blocking findings: 0
 Review class: internal independent code review, not external peer review
@@ -15,6 +15,8 @@ Review class: internal independent code review, not external peer review
 Five independent lenses reviewed evidence-bearing candidate `8b9f5876b9228a5ab3590d1829c8f741c8647411`: full-file Picard producer and witness codec; Lean theorem/checker and proof identity; outer verifier and hostile-input boundaries; deterministic packaging and hosted workflow; and claim/evidence/plugin integration. CodeRabbit independently reviewed the same committed range.
 
 The review-fix cycle then used four adversarial security refutation passes and one separate code-quality pass. Every surviving issue received a failing regression before the implementation change. After evidence regeneration, five fresh independent lenses and a fresh CodeRabbit pass reviewed exact commit `04fd09e1921d94df944697b06a6eef58e4b21b16`; all six final passes returned zero new findings.
+
+The first full package smoke then exposed one additional integration defect: isolated Python removed the private validator's sibling import path. A failing regression preceded the two-file launcher fix. Three independent lenses and a fresh CodeRabbit pass reviewed exact commit `746c16d6fade9d173fe71ab884d137dd238def06`; all four returned zero new findings.
 
 Files read in full or through their complete release closure included:
 
@@ -48,7 +50,9 @@ Disposition: R-009 | status: resolved | `spacecraft_burn_cert/evidence/mutation_
 
 Disposition: R-010 | status: invalid | CodeRabbit suggested restoring `engine.CHECKER_TARGET` in `tests/spacecraft_burn_proof_identity_test.py:269-284`, but `load_wrapper()` at lines 23-35 creates a new wrapper and engine module for every call, so the assignment cannot leak into another test instance.
 
-No finding changed the Lean theorem, checker executable, witness, request, model, epoch, nonce, or qualified verdict. R-001 through R-009 closed publication integrity and bounded-refusal defects around the existing formal result.
+Disposition: R-011 | status: resolved | `release/tools/package_spacecraft_v175.py:1936-1946,2028-2042` launches only the private instrument validator with `-E -s -S -B`, restoring its snapshotted sibling import while excluding environment, user-site, site-package, and bytecode effects.
+
+No finding changed the Lean theorem, checker executable, witness, request, model, epoch, nonce, or qualified verdict. R-001 through R-009 and R-011 closed publication integrity and bounded-refusal defects around the existing formal result.
 
 ## Full-file Picard/source review
 
@@ -72,4 +76,6 @@ Passes 1-6 reviewed the first evidence-bearing candidate through five independen
 
 Passes 13-18 reviewed exact commit `04fd09e1921d94df944697b06a6eef58e4b21b16`: CodeRabbit, holistic integration, hostile-input security, mathematical/proof correspondence, deterministic package/release binding, and public-claim integrity. Each returned zero new findings. The final security pass recomputed all five tracked evidence digests and cross-checked receipt, witness, checker, request, producer, and proof-identity bindings. The final package pass confirmed the fixed twelve-asset contract and review-admin-only post-review diff. The final claims pass confirmed exact model-conditional wording and no JACKEL plugin-byte impact.
 
-Final pass result: pass 18 completed with zero new findings.
+Passes 19-22 reviewed exact commit `746c16d6fade9d173fe71ab884d137dd238def06`: CodeRabbit, launcher hostile-input security, launcher maintainability, and full package integration. Each returned zero new findings. The private validator can resolve only its snapshotted sibling module under the sanitized private working tree; the independent verifier remains on the stricter isolated path.
+
+Final pass result: pass 22 completed with zero new findings.

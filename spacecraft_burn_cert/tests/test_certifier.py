@@ -108,6 +108,63 @@ class CertifierContractTests(unittest.TestCase):
                 with self.subTest(path=path.name), self.assertRaises(c.CertificationError):
                     c.read_regular_snapshot(path, 8, "fixture")
 
+    def test_formal_binding_distinguishes_changed_from_unreadable_inputs(self):
+        c = load_certifier(self)
+        identity_bytes = json.dumps({"identity_digest_sha256": "a" * 64}).encode()
+        checker_bytes = b"checker"
+        witness_bytes = b"witness"
+        receipt = {
+            "orbital_hulls": {
+                "margin_intersection": {
+                    "lo_scaled_integer": "5",
+                    "hi_scaled_integer": "9",
+                }
+            }
+        }
+        accepted = subprocess.CompletedProcess(
+            [],
+            0,
+            (
+                "ACCEPT theorem=spacecraft_burn_certified_safe "
+                "status=formal-bounded margin_lo=5 margin_hi=9 "
+                "model=model-v2 epoch=v1.7.5\n"
+            ),
+            "",
+        )
+        with (
+            mock.patch.object(
+                c,
+                "read_regular_snapshot",
+                side_effect=(
+                    identity_bytes,
+                    checker_bytes,
+                    witness_bytes,
+                    b"changed-checker",
+                    witness_bytes,
+                ),
+            ),
+            mock.patch.object(
+                c,
+                "validate_proof_identity_for_binding",
+                return_value="a" * 64,
+            ),
+            mock.patch.object(c, "run_formal_checker_snapshot", return_value=accepted),
+            self.assertRaisesRegex(
+                c.CertificationError,
+                "formal binding input changed during checker execution",
+            ),
+        ):
+            c.bind_formal_checker(
+                receipt,
+                Path("witness"),
+                Path("checker"),
+                Path("identity"),
+                "b" * 64,
+                "model-v2",
+                "v1.7.5",
+                "nonce-v1",
+            )
+
     def test_cli_refuses_aliasing_output_and_formal_input_paths(self):
         c = load_certifier(self)
         with tempfile.TemporaryDirectory() as directory:

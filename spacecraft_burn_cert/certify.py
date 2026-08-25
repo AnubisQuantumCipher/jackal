@@ -647,19 +647,16 @@ def bind_formal_checker(
     if completed.returncode != 0 or completed.stderr:
         raise CertificationError("formal checker refused or emitted stderr")
     try:
-        if (
-            read_regular_snapshot(
-                checker_path, MAX_CHECKER_BYTES, "formal checker"
-            )
-            != checker_bytes
-            or read_regular_snapshot(
-                witness_path, MAX_WITNESS_BYTES, "formal witness"
-            )
-            != witness_bytes
-        ):
-            raise CertificationError("formal binding input changed during checker execution")
+        checker_after = read_regular_snapshot(
+            checker_path, MAX_CHECKER_BYTES, "formal checker"
+        )
+        witness_after = read_regular_snapshot(
+            witness_path, MAX_WITNESS_BYTES, "formal witness"
+        )
     except CertificationError as error:
         raise CertificationError("formal binding input became unreadable") from error
+    if checker_after != checker_bytes or witness_after != witness_bytes:
+        raise CertificationError("formal binding input changed during checker execution")
     result_line = completed.stdout.removesuffix("\n")
     if "\n" in result_line or "\r" in result_line:
         raise CertificationError("formal checker output is not one canonical line")

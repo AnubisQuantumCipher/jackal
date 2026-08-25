@@ -27,11 +27,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[2]
-TRUSTED_PYTHON_RUNTIMES = {
-    Path("/Applications/Xcode.app/Contents/Developer/usr/bin/python3"),
-    Path("/Library/Developer/CommandLineTools/usr/bin/python3"),
-    Path("/usr/bin/python3"),
-}
+PYTHON_LAUNCHER = Path("/usr/bin/python3")
 
 VERSION = "v1.7.5"
 CERTIFICATE_EPOCH = "v1.7.5"
@@ -72,7 +68,6 @@ REVIEW_REQUIRED_SECTIONS = (
     "## Final zero-finding pass",
 )
 REVIEW_ADMIN_PATHS = (
-    "docs/superpowers/plans/2026-08-24-spacecraft-burn-formal-certification-v2.md",
     f"release/evidence/{REVIEW_NAME}",
     f"release/evidence/{REVIEW_CLEARANCE_NAME}",
 )
@@ -256,12 +251,135 @@ def validate_request_binding(request_bytes: bytes, binding: dict) -> None:
         )
 
 
-def validate_publication_startup() -> None:
-    runtime = Path(sys.executable).resolve()
-    trusted_runtimes = {path.resolve() for path in TRUSTED_PYTHON_RUNTIMES}
+def observed_platform_binary(path: Path, role: str) -> dict[str, object]:
+    try:
+        before = os.lstat(path)
+        symlink_target = os.readlink(path) if stat.S_ISLNK(before.st_mode) else None
+        resolved = path.resolve(strict=True)
+        raw = read_bounded_regular_file(
+            resolved,
+            f"live {role}",
+            MAX_TRACKED_INPUT_BYTES,
+        )
+        after = os.lstat(path)
+        after_target = os.readlink(path) if stat.S_ISLNK(after.st_mode) else None
+    except (OSError, RuntimeError) as error:
+        raise RuntimeError(
+            "publication Python runtime does not match proof identity"
+        ) from error
+    identity_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+        symlink_target,
+    )
+    identity_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+        after_target,
+    )
+    if identity_before != identity_after:
+        raise RuntimeError(
+            "publication Python runtime does not match proof identity"
+        )
+    return {
+        "bytes": len(raw),
+        "invocation_path": path.as_posix(),
+        "invocation_symlink_target": symlink_target,
+        "resolved_path": resolved.as_posix(),
+        "role": role,
+        "sha256": sha256(raw),
+    }
+
+
+def validate_publication_runtime(identity: object) -> dict[str, object]:
+    attestation = identity.get("build_attestation") if isinstance(identity, dict) else None
+    environment = (
+        attestation.get("build_environment") if isinstance(attestation, dict) else None
+    )
+    rows = (
+        environment.get("trusted_platform_launchers")
+        if isinstance(environment, dict)
+        else None
+    )
+    expected_roles = (
+        "python-launcher",
+        "python-interpreter",
+        "git-client",
+        "sandbox-launcher",
+    )
     if (
-        runtime not in trusted_runtimes
-        or sys.flags.isolated != 1
+        not isinstance(rows, list)
+        or len(rows) != len(expected_roles)
+        or tuple(
+            row.get("role") if isinstance(row, dict) else None for row in rows
+        )
+        != expected_roles
+    ):
+        raise RuntimeError(
+            "publication Python runtime does not match proof identity"
+        )
+    launcher = rows[0]
+    interpreter = rows[1]
+    git_client = rows[2]
+    expected_keys = {
+        "bytes",
+        "invocation_path",
+        "invocation_symlink_target",
+        "resolved_path",
+        "role",
+        "sha256",
+    }
+    if (
+        not isinstance(launcher, dict)
+        or not isinstance(interpreter, dict)
+        or not isinstance(git_client, dict)
+        or set(launcher) != expected_keys
+        or set(interpreter) != expected_keys
+        or set(git_client) != expected_keys
+        or launcher.get("invocation_path") != PYTHON_LAUNCHER.as_posix()
+        or git_client.get("invocation_path") != GIT_EXECUTABLE.as_posix()
+        or Path(sys.executable).as_posix() != interpreter.get("invocation_path")
+    ):
+        raise RuntimeError(
+            "publication Python runtime does not match proof identity"
+        )
+    observed_launcher = observed_platform_binary(
+        PYTHON_LAUNCHER, "python-launcher"
+    )
+    observed_interpreter = observed_platform_binary(
+        Path(sys.executable), "python-interpreter"
+    )
+    observed_git = observed_platform_binary(GIT_EXECUTABLE, "git-client")
+    if (
+        observed_launcher != launcher
+        or observed_interpreter != interpreter
+        or observed_git != git_client
+    ):
+        raise RuntimeError(
+            "publication Python runtime does not match proof identity"
+        )
+    return {
+        "launcher_path": observed_launcher["invocation_path"],
+        "launcher_sha256": observed_launcher["sha256"],
+        "interpreter_path": observed_interpreter["invocation_path"],
+        "interpreter_resolved_path": observed_interpreter["resolved_path"],
+        "interpreter_sha256": observed_interpreter["sha256"],
+        "git_path": observed_git["invocation_path"],
+        "git_sha256": observed_git["sha256"],
+    }
+
+
+def validate_publication_startup() -> dict[str, object]:
+    if (
+        sys.flags.isolated != 1
         or sys.flags.dont_write_bytecode != 1
         or sys.flags.ignore_environment != 1
         or sys.flags.no_user_site != 1
@@ -270,6 +388,18 @@ def validate_publication_startup() -> None:
             "publication requires /usr/bin/python3 -I -B "
             "release/tools/package_spacecraft_v175.py"
         )
+    try:
+        identity_bytes = read_bounded_regular_file(
+            IDENTITY,
+            "live proof identity",
+            MAX_TRACKED_INPUT_BYTES,
+        )
+        identity = strict_json_document(identity_bytes, "live proof identity")
+    except RuntimeError as error:
+        raise RuntimeError(
+            "publication Python runtime does not match proof identity"
+        ) from error
+    return validate_publication_runtime(identity)
 
 
 def load_claim_validator(source_bytes: bytes):
@@ -1706,6 +1836,12 @@ def reproduce_auxiliary_validators(
     checker_bytes: bytes,
     binding: Mapping[str, str],
 ) -> tuple[dict, dict]:
+    validate_publication_runtime(
+        strict_json_document(
+            tracked_inputs[IDENTITY_LOGICAL_PATH],
+            "snapshotted proof identity",
+        )
+    )
     with tempfile.TemporaryDirectory(prefix="jackal-release-validation-") as directory:
         private = Path(directory)
         for logical_path, data in tracked_inputs.items():
@@ -2012,6 +2148,7 @@ def build(
     receipt = strict_json_document(receipt_bytes, "staged baseline receipt")
     identity_bytes = tracked_inputs[IDENTITY_LOGICAL_PATH]
     identity = strict_json_document(identity_bytes, "proof identity")
+    validate_publication_runtime(identity)
     checker_bytes = read_bounded_regular_file(
         CHECKER, "live formal checker", MAX_CHECKER_BYTES
     )
@@ -2097,6 +2234,7 @@ def build(
     sums = "".join(
         f"{sha256(assets[name])}  {name}\n" for name in sorted(assets)
     ).encode("ascii")
+    validate_publication_runtime(identity)
     write_release_assets(output, assets, sums, commit, tracked_inputs)
     return {name: sha256(data) for name, data in assets.items()} | {
         "SHA256SUMS": sha256(sums)
@@ -2104,7 +2242,7 @@ def build(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    validate_publication_startup()
+    runtime = validate_publication_startup()
     parser = argparse.ArgumentParser(
         epilog=(
             "Publication invocation: /usr/bin/python3 -I -B "
@@ -2125,7 +2263,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(
         f"SPACECRAFT_V175_ASSETS_BUILT files={len(result)} "
-        f"output={output} python=/usr/bin/python3 isolated=1 bytecode=off"
+        f"output={output} launcher={runtime['launcher_path']} "
+        f"launcher_sha256={runtime['launcher_sha256']} "
+        f"python_interpreter={runtime['interpreter_path']} "
+        f"python_resolved={runtime['interpreter_resolved_path']} "
+        f"python_sha256={runtime['interpreter_sha256']} "
+        f"git={runtime['git_path']} git_sha256={runtime['git_sha256']} "
+        "isolated=1 bytecode=off"
     )
     return 0
 

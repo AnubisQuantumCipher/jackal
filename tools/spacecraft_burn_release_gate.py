@@ -7,7 +7,9 @@ import argparse
 import html
 from html.parser import HTMLParser
 import json
+import os
 import re
+import stat
 import unicodedata
 from pathlib import Path
 from typing import Sequence
@@ -47,20 +49,21 @@ JSON_TARGETS = (
     Path("release/evidence/spacecraft_burn_release_metadata_v175.json"),
 )
 TARGETS = TEXT_TARGETS + JSON_TARGETS
-BOUNDED_ASSURANCE_SEPARATOR = r"(?:[\W_]){1,16}"
+MAX_PUBLICATION_SURFACE_BYTES = 4 * 1024 * 1024
+ASSURANCE_SEPARATOR = r"(?:[\W_])+"
 FORBIDDEN = {
     "proved-safe": re.compile(
-        rf"\bPROVED{BOUNDED_ASSURANCE_SEPARATOR}SAFE\b", re.IGNORECASE
+        rf"\bPROVED{ASSURANCE_SEPARATOR}SAFE\b", re.IGNORECASE
     ),
     "proved-unsafe": re.compile(
-        rf"\bPROVED{BOUNDED_ASSURANCE_SEPARATOR}UNSAFE\b", re.IGNORECASE
+        rf"\bPROVED{ASSURANCE_SEPARATOR}UNSAFE\b", re.IGNORECASE
     ),
     "formally-proved-result": re.compile(
-        rf"\bformally{BOUNDED_ASSURANCE_SEPARATOR}proved\b", re.IGNORECASE
+        rf"\bformally{ASSURANCE_SEPARATOR}proved\b", re.IGNORECASE
     ),
 }
 UNQUALIFIED_CERTIFIED_SAFE_PATTERN = re.compile(
-    rf"\bCERTIFIED{BOUNDED_ASSURANCE_SEPARATOR}SAFE\b", re.IGNORECASE
+    rf"\bCERTIFIED{ASSURANCE_SEPARATOR}SAFE\b", re.IGNORECASE
 )
 ASSURANCE_KEYWORDS = (
     "CERTIFIED",
@@ -277,6 +280,12 @@ def structured_verdict_location_allowed(
     return False
 
 
+def json_child_location(location: str, key: str) -> str:
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) is not None:
+        return f"{location}.{key}"
+    return f"{location}[{json.dumps(key, ensure_ascii=False)}]"
+
+
 def json_findings(
     value: object,
     relative: Path,
@@ -325,7 +334,8 @@ def json_findings(
                     "reason": "incomplete-structured-assurance",
                 })
         for key, item in value.items():
-            child = f"{location}.{key}"
+            child = json_child_location(location, key)
+            findings.extend(string_findings(key, relative, f"{child}#key"))
             if structured_verdict and key == "verdict":
                 continue
             findings.extend(json_findings(item, relative, child, document_schema))
@@ -415,16 +425,168 @@ def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
     return result
 
 
+def read_surface_descriptor(descriptor: int) -> bytes:
+    before = os.fstat(descriptor)
+    if not stat.S_ISREG(before.st_mode):
+        raise ValueError("publication surface is not a regular file")
+    if before.st_nlink != 1:
+        raise ValueError("publication surface is hard-linked")
+    if before.st_size > MAX_PUBLICATION_SURFACE_BYTES:
+        raise ValueError("publication surface exceeds its size limit")
+    chunks: list[bytes] = []
+    observed = 0
+    while observed <= MAX_PUBLICATION_SURFACE_BYTES:
+        chunk = os.read(
+            descriptor,
+            min(
+                1024 * 1024,
+                MAX_PUBLICATION_SURFACE_BYTES + 1 - observed,
+            ),
+        )
+        if not chunk:
+            break
+        chunks.append(chunk)
+        observed += len(chunk)
+    after = os.fstat(descriptor)
+    identity_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    identity_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    if (
+        observed > MAX_PUBLICATION_SURFACE_BYTES
+        or observed != after.st_size
+        or identity_before != identity_after
+    ):
+        raise ValueError("publication surface changed while it was read")
+    return b"".join(chunks)
+
+
+def open_scan_root(root: Path) -> int:
+    flags = (
+        os.O_RDONLY
+        | os.O_DIRECTORY
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open(root, flags)
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise ValueError("publication scan root is not a directory")
+    return descriptor
+
+
+def surface_identity(metadata: os.stat_result) -> tuple[int, ...]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def open_relative_surface_descriptor(root_descriptor: int, relative: Path) -> int:
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or Path(relative.as_posix()) != relative
+        or not relative.parts
+    ):
+        raise ValueError("publication surface path is invalid")
+    directory = os.dup(root_descriptor)
+    try:
+        directory_flags = (
+            os.O_RDONLY
+            | os.O_DIRECTORY
+            | os.O_NOFOLLOW
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        for component in relative.parts[:-1]:
+            child = os.open(component, directory_flags, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        file_flags = (
+            os.O_RDONLY
+            | os.O_NONBLOCK
+            | os.O_NOFOLLOW
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        return os.open(relative.parts[-1], file_flags, dir_fd=directory)
+    finally:
+        os.close(directory)
+
+
+def _after_surface_snapshot(_relative: Path) -> None:
+    """No-op seam for exercising path-replacement refusal."""
+
+
+def read_relative_surface(root_descriptor: int, relative: Path) -> bytes:
+    descriptor = open_relative_surface_descriptor(root_descriptor, relative)
+    try:
+        before = os.fstat(descriptor)
+        data = read_surface_descriptor(descriptor)
+    finally:
+        os.close(descriptor)
+    _after_surface_snapshot(relative)
+    replacement = open_relative_surface_descriptor(root_descriptor, relative)
+    try:
+        after = os.fstat(replacement)
+    finally:
+        os.close(replacement)
+    if surface_identity(before) != surface_identity(after):
+        raise ValueError("publication surface path changed after it was read")
+    return data
+
+
+def read_surface_path(path: Path) -> bytes:
+    flags = (
+        os.O_RDONLY
+        | os.O_NONBLOCK
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        data = read_surface_descriptor(descriptor)
+    finally:
+        os.close(descriptor)
+    _after_surface_snapshot(path)
+    replacement = os.open(path, flags)
+    try:
+        after = os.fstat(replacement)
+    finally:
+        os.close(replacement)
+    if surface_identity(before) != surface_identity(after):
+        raise ValueError("publication surface path changed after it was read")
+    return data
+
+
 def scan_instrument_validation(path: Path) -> dict:
     relative = INSTRUMENT_VALIDATION_PATH
     findings = []
     try:
         payload = json.loads(
-            path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys
+            read_surface_path(path).decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
         )
     except DuplicateJsonKey:
         findings.append({"file": str(relative), "reason": "duplicate-json-key"})
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
         findings.append({"file": str(relative), "reason": "invalid-json"})
     else:
         findings.extend(document_findings(payload, relative))
@@ -438,33 +600,68 @@ def scan_instrument_validation(path: Path) -> dict:
 
 def scan(root: Path) -> dict:
     findings = []
-    for relative in TEXT_TARGETS:
-        path = root / relative
-        if not path.is_file():
-            findings.append({"file": str(relative), "reason": "missing-publication-surface"})
-            continue
+    try:
+        root_descriptor = open_scan_root(root)
+    except (OSError, ValueError):
+        findings.append({"file": ".", "reason": "invalid-publication-root"})
+    else:
+        root_identity = surface_identity(os.fstat(root_descriptor))
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            findings.append({"file": str(relative), "reason": "invalid-text-surface"})
-            continue
-        findings.extend(string_findings(text, relative, "$"))
-    for relative in JSON_TARGETS:
-        path = root / relative
-        if not path.is_file():
-            findings.append({"file": str(relative), "reason": "missing-publication-surface"})
-            continue
-        try:
-            payload = json.loads(
-                path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys
-            )
-        except DuplicateJsonKey:
-            findings.append({"file": str(relative), "reason": "duplicate-json-key"})
-            continue
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            findings.append({"file": str(relative), "reason": "invalid-json"})
-            continue
-        findings.extend(document_findings(payload, relative))
+            for relative in TEXT_TARGETS:
+                try:
+                    text = read_relative_surface(root_descriptor, relative).decode(
+                        "utf-8"
+                    )
+                except FileNotFoundError:
+                    findings.append({
+                        "file": str(relative),
+                        "reason": "missing-publication-surface",
+                    })
+                    continue
+                except (OSError, ValueError, UnicodeDecodeError):
+                    findings.append({
+                        "file": str(relative),
+                        "reason": "invalid-text-surface",
+                    })
+                    continue
+                findings.extend(string_findings(text, relative, "$"))
+            for relative in JSON_TARGETS:
+                try:
+                    payload = json.loads(
+                        read_relative_surface(root_descriptor, relative).decode(
+                            "utf-8"
+                        ),
+                        object_pairs_hook=reject_duplicate_keys,
+                    )
+                except FileNotFoundError:
+                    findings.append({
+                        "file": str(relative),
+                        "reason": "missing-publication-surface",
+                    })
+                    continue
+                except DuplicateJsonKey:
+                    findings.append({
+                        "file": str(relative),
+                        "reason": "duplicate-json-key",
+                    })
+                    continue
+                except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+                    findings.append({"file": str(relative), "reason": "invalid-json"})
+                    continue
+                findings.extend(document_findings(payload, relative))
+        finally:
+            try:
+                current_root_identity = surface_identity(
+                    os.stat(root, follow_symlinks=False)
+                )
+            except OSError:
+                current_root_identity = None
+            if current_root_identity != root_identity:
+                findings.append({
+                    "file": ".",
+                    "reason": "invalid-publication-root",
+                })
+            os.close(root_descriptor)
     return {
         "status": "PASS" if not findings else "FAIL",
         "surface_count": len(TEXT_TARGETS) + len(JSON_TARGETS),
@@ -478,10 +675,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--instrument-validation", type=Path)
     args = parser.parse_args(argv)
-    result = (
-        scan_instrument_validation(args.instrument_validation.resolve())
+    root = Path(os.path.abspath(os.fspath(args.root)))
+    instrument_validation = (
+        Path(os.path.abspath(os.fspath(args.instrument_validation)))
         if args.instrument_validation
-        else scan(args.root.resolve())
+        else None
+    )
+    result = (
+        scan_instrument_validation(instrument_validation)
+        if instrument_validation is not None
+        else scan(root)
     )
     print(json.dumps(result, sort_keys=True, indent=2))
     return 0 if result["status"] == "PASS" else 2

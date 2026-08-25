@@ -431,6 +431,11 @@ class IndependentVerifierTests(unittest.TestCase):
         original = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
         mutations = (
             (
+                "manifest-packages",
+                ("toolchain", "manifest_packages"),
+                "proof-identity-toolchain-mismatch",
+            ),
+            (
                 "package-tree-sha1",
                 ("toolchain", "verified_package_trees", 0, "tree_sha1"),
                 "proof-identity-toolchain-mismatch",

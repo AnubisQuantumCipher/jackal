@@ -1776,9 +1776,15 @@ def validate_identity_semantics(
             if type(build_environment) is dict
             else None
         )
-        recorded_manifest_packages = (
+        recorded_manifest_packages_value = (
             toolchain.get("manifest_packages", [])
             if type(toolchain) is dict
+            else None
+        )
+        recorded_manifest_packages_valid = type(recorded_manifest_packages_value) is list
+        recorded_manifest_packages = (
+            recorded_manifest_packages_value
+            if recorded_manifest_packages_valid
             else []
         )
         try:
@@ -1790,7 +1796,8 @@ def validate_identity_semantics(
             expected_override_names = None
             expected_override_sha256 = None
         dependency_overrides_valid = (
-            type(dependency_overrides) is dict
+            recorded_manifest_packages_valid
+            and type(dependency_overrides) is dict
             and set(dependency_overrides)
             == {"definition", "package_count", "package_names", "sha256"}
             and dependency_overrides.get("definition")

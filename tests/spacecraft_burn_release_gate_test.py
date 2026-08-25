@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +58,137 @@ def write_clean_surfaces(root: Path, gate) -> None:
 class SpacecraftBurnReleaseGateTests(unittest.TestCase):
     def test_current_repository_claim_surfaces_pass(self):
         self.assertEqual(load_gate().scan(ROOT)["status"], "PASS")
+
+    def test_scan_rejects_symlink_fifo_and_oversize_surfaces(self):
+        gate = load_gate()
+        cases = (
+            (gate.TEXT_TARGETS[0], "invalid-text-surface", "text"),
+            (gate.JSON_TARGETS[0], "invalid-json", "json"),
+        )
+        for relative, expected_reason, surface_type in cases:
+            for mutation in ("symlink", "hardlink", "fifo", "oversize"):
+                with (
+                    self.subTest(
+                        relative=str(relative),
+                        mutation=mutation,
+                    ),
+                    tempfile.TemporaryDirectory() as directory,
+                ):
+                    root = Path(directory)
+                    write_clean_surfaces(root, gate)
+                    target = root / relative
+                    target.unlink()
+                    if mutation in {"symlink", "hardlink"}:
+                        external = root.parent / f"{root.name}-external-{target.name}"
+                        self.addCleanup(
+                            lambda path=external: path.unlink(missing_ok=True)
+                        )
+                        external.write_text("{}\n" if surface_type == "json" else "neutral\n")
+                        if mutation == "symlink":
+                            target.symlink_to(external)
+                        else:
+                            os.link(external, target)
+                    elif mutation == "fifo":
+                        os.mkfifo(target)
+                    elif surface_type == "json":
+                        target.write_text(
+                            json.dumps(
+                                {"padding": "x" * gate.MAX_PUBLICATION_SURFACE_BYTES}
+                            )
+                        )
+                    else:
+                        target.write_text(
+                            "x" * (gate.MAX_PUBLICATION_SURFACE_BYTES + 1)
+                        )
+                    findings = gate.scan(root)["findings"]
+                    self.assertTrue(
+                        any(
+                            item["file"] == str(relative)
+                            and item["reason"] == expected_reason
+                            for item in findings
+                        ),
+                        findings,
+                    )
+
+    def test_scan_rejects_symlinked_parent_directory(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_clean_surfaces(root, gate)
+            release = root / "release"
+            moved = root / "release-real"
+            release.rename(moved)
+            release.symlink_to(moved, target_is_directory=True)
+            findings = gate.scan(root)["findings"]
+        self.assertTrue(
+            any(
+                item["file"] == str(gate.TEXT_TARGETS[-1])
+                and item["reason"] == "invalid-text-surface"
+                for item in findings
+            ),
+            findings,
+        )
+
+    def test_scan_rejects_path_replacement_after_open_once_snapshot(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_clean_surfaces(root, gate)
+            relative = gate.TEXT_TARGETS[0]
+            target = root / relative
+            original = root / "original-readme"
+            replaced = False
+
+            def replace_after_snapshot(observed_relative):
+                nonlocal replaced
+                if observed_relative == relative and not replaced:
+                    target.rename(original)
+                    target.write_text("publication surface\n")
+                    replaced = True
+
+            with mock.patch.object(
+                gate,
+                "_after_surface_snapshot",
+                side_effect=replace_after_snapshot,
+                create=True,
+            ):
+                findings = gate.scan(root)["findings"]
+        self.assertTrue(
+            any(
+                item["file"] == str(relative)
+                and item["reason"] == "invalid-text-surface"
+                for item in findings
+            ),
+            findings,
+        )
+
+    def test_scan_rejects_root_replacement_during_snapshot(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            outer = Path(directory)
+            root = outer / "scan-root"
+            root.mkdir()
+            write_clean_surfaces(root, gate)
+            moved = outer / "original-root"
+            replaced = False
+
+            def replace_root(_relative):
+                nonlocal replaced
+                if not replaced:
+                    root.rename(moved)
+                    root.mkdir()
+                    replaced = True
+
+            with mock.patch.object(
+                gate,
+                "_after_surface_snapshot",
+                side_effect=replace_root,
+            ):
+                findings = gate.scan(root)["findings"]
+        self.assertTrue(
+            any(item["reason"] == "invalid-publication-root" for item in findings),
+            findings,
+        )
 
     def test_each_forbidden_phrase_is_detected_in_every_publication_class(self):
         gate = load_gate()
@@ -313,7 +446,7 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                     )
                 )
 
-    def test_bounded_punctuation_separators_cannot_hide_assurance_phrases(self):
+    def test_arbitrary_nonword_separators_cannot_hide_assurance_phrases(self):
         gate = load_gate()
         cases = {
             "proved-safe": (
@@ -321,6 +454,9 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                 "PROVED/SAFE",
                 "PROVED_SAFE",
                 "PROVED—SAFE",
+                "PROVED" + (" " * 17) + "SAFE",
+                "PROVED" + ("&nbsp;" * 17) + "SAFE",
+                "PROVED" + ("-" * 64) + "SAFE",
                 "ＰＲＯＶＥＤ_ＳＡＦＥ",
             ),
             "formally-proved-result": (
@@ -328,6 +464,7 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                 "formally/proved",
                 "formally_proved",
                 "formally—proved",
+                "formally" + (" " * 17) + "proved",
                 "ｆｏｒｍａｌｌｙ_ｐｒｏｖｅｄ",
             ),
             "unqualified-certified-safe": (
@@ -335,6 +472,7 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                 "CERTIFIED/SAFE",
                 "CERTIFIED_SAFE",
                 "CERTIFIED—SAFE",
+                "CERTIFIED" + (" " * 17) + "SAFE",
                 "ＣＥＲＴＩＦＩＥＤ_ＳＡＦＥ",
             ),
         }
@@ -366,6 +504,33 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
                             ),
                             result["findings"],
                         )
+
+    def test_json_object_keys_are_claim_scanned(self):
+        gate = load_gate()
+        cases = (
+            ("PROVED SAFE", "proved-safe"),
+            ("CERTIFIED SAFE", "unqualified-certified-safe"),
+            ("formally proved", "formally-proved-result"),
+        )
+        for claim, expected_reason in cases:
+            with (
+                self.subTest(claim=claim),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                write_clean_surfaces(root, gate)
+                (root / gate.JSON_TARGETS[0]).write_text(
+                    json.dumps({"nested": {claim: False}})
+                )
+                findings = gate.scan(root)["findings"]
+                self.assertTrue(
+                    any(
+                        item["reason"] == expected_reason
+                        and item.get("json_path", "").endswith("#key")
+                        for item in findings
+                    ),
+                    findings,
+                )
 
     def test_html_comments_cannot_split_assurance_tokens(self):
         gate = load_gate()
@@ -610,6 +775,32 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             self.assertTrue(
                 any(item["reason"] == "incomplete-structured-assurance" for item in result["findings"])
             )
+
+    def test_instrument_cli_preserves_lexical_symlink_for_reader_refusal(self):
+        gate = load_gate()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "instrument.json"
+            target.write_text("{}\n")
+            link = root / "instrument-link.json"
+            link.symlink_to(target)
+            result = {
+                "status": "FAIL",
+                "surface_count": 1,
+                "forbidden_current_surface_count": 1,
+                "findings": [{"reason": "invalid-json"}],
+            }
+            with (
+                mock.patch.object(
+                    gate,
+                    "scan_instrument_validation",
+                    return_value=result,
+                ) as scan,
+                mock.patch("builtins.print"),
+            ):
+                status = gate.main(["--instrument-validation", str(link)])
+        self.assertEqual(status, 2)
+        scan.assert_called_once_with(link)
 
     def test_generated_instrument_file_requires_exact_schema(self):
         gate = load_gate()

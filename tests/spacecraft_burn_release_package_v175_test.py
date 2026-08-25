@@ -5,13 +5,14 @@ import importlib.util
 import json
 import os
 import copy
+from contextlib import redirect_stdout
 import subprocess
 import sys
 import tarfile
 import tempfile
 import unittest
 import zlib
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from types import ModuleType
 from unittest import mock
@@ -351,6 +352,88 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("/usr/bin/python3 -I -B", result.stderr)
+
+    @unittest.skipUnless(
+        Path("/Library/Developer/CommandLineTools/usr/bin/python3").is_file(),
+        "Command Line Tools Python is unavailable",
+    )
+    def test_publication_entrypoint_rejects_unbound_alternate_python(self):
+        alternate = "/Library/Developer/CommandLineTools/usr/bin/python3"
+        result = subprocess.run(
+            [alternate, "-I", "-B", str(SCRIPT), "--help"],
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("proof identity", result.stderr)
+
+    def test_publication_runtime_binds_live_git_client(self):
+        package = load_packager()
+        identity = json.loads(package.IDENTITY.read_text(encoding="utf-8"))
+        rows = identity["build_attestation"]["build_environment"][
+            "trusted_platform_launchers"
+        ]
+        interpreter = next(row for row in rows if row["role"] == "python-interpreter")
+        with mock.patch.object(package.sys, "executable", interpreter["invocation_path"]):
+            runtime = package.validate_publication_runtime(identity)
+            self.assertEqual(runtime["git_path"], "/usr/bin/git")
+            git_row = next(row for row in rows if row["role"] == "git-client")
+            git_row["sha256"] = "0" * 64
+            with self.assertRaisesRegex(RuntimeError, "proof identity"):
+                package.validate_publication_runtime(identity)
+
+    def test_success_report_uses_observed_runtime_identity(self):
+        package = load_packager()
+        runtime = {
+            "launcher_path": "/usr/bin/python3",
+            "launcher_sha256": "1" * 64,
+            "interpreter_path": "/Applications/Xcode/usr/bin/python3",
+            "interpreter_resolved_path": "/Applications/Xcode/python3.9",
+            "interpreter_sha256": "2" * 64,
+            "git_path": "/usr/bin/git",
+            "git_sha256": "3" * 64,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "assets"
+            stream = StringIO()
+            with (
+                mock.patch.object(
+                    package,
+                    "validate_publication_startup",
+                    return_value=runtime,
+                ),
+                mock.patch.object(package, "build", return_value={"asset": "digest"}),
+                redirect_stdout(stream),
+            ):
+                status = package.main([
+                    "--staging-dir",
+                    str(root),
+                    "--output-dir",
+                    str(output),
+                    "--merge-commit",
+                    "a" * 40,
+                    "--reviewed-commit",
+                    "b" * 40,
+                ])
+        report = stream.getvalue()
+        self.assertEqual(status, 0)
+        self.assertIn(f"python_interpreter={runtime['interpreter_path']}", report)
+        self.assertIn(f"python_resolved={runtime['interpreter_resolved_path']}", report)
+        self.assertIn(f"python_sha256={runtime['interpreter_sha256']}", report)
+        self.assertIn(f"git_sha256={runtime['git_sha256']}", report)
+        self.assertNotIn(" python=/usr/bin/python3 ", report)
+
+    def test_release_claim_scan_rejects_json_object_keys(self):
+        package = load_packager()
+        claim_validator = load_current_claim_validator(package)
+        payload = json.dumps({"nested": {"PROVED SAFE": False}}).encode()
+        with self.assertRaisesRegex(RuntimeError, "claim surface"):
+            package.assert_release_claims(
+                package.RECEIPT_NAME,
+                payload,
+                claim_validator,
+            )
 
     def test_release_and_certificate_epoch_are_v175(self):
         package = load_packager()
@@ -819,11 +902,22 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
 
     def test_reviewed_tree_allows_only_review_administration_changes(self):
         package = load_packager()
+        self.assertEqual(
+            package.REVIEW_ADMIN_PATHS,
+            (
+                package.REVIEW_LOGICAL_PATH,
+                package.REVIEW_CLEARANCE_LOGICAL_PATH,
+            ),
+        )
         package.validate_reviewed_tree_changes(package.REVIEW_ADMIN_PATHS)
         with self.assertRaisesRegex(RuntimeError, "reviewed source tree"):
             package.validate_reviewed_tree_changes(
                 [*package.REVIEW_ADMIN_PATHS, "spacecraft_burn_cert/certify.py"]
             )
+        with self.assertRaisesRegex(RuntimeError, "reviewed source tree"):
+            package.validate_reviewed_tree_changes([
+                "docs/superpowers/plans/2026-08-24-spacecraft-burn-formal-certification-v2.md"
+            ])
 
     def test_git_release_binding_rejects_nonexistent_commit_objects(self):
         package = load_packager()

@@ -31,9 +31,9 @@ publication. At this candidate commit, the
 historical v1.7.4 release remained published and its 11 public assets had passed
 download readback, but **v1.7.4 should not be used as the publication-grade
 verifier bundle**. Its tag full-certificate campaign was cancelled at the
-60-minute ceiling. The v1.7.5 candidate was prepared to close the structured-
-verdict, claim-surface, executable-archive, verification-instruction, and tag-
-campaign gaps before independent review and publication.
+60-minute ceiling. The v1.7.5 candidate was prepared to close gaps in the
+structured verdict, claim surfaces, executable archive, verification
+instructions, and tag campaign before independent review and publication.
 
 The published historical [v1.7.4 release](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.4)
 added a repository/release formal certificate for the spacecraft finite-burn

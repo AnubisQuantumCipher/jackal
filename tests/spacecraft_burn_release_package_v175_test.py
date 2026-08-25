@@ -37,6 +37,56 @@ def load_current_claim_validator(package):
     )
 
 
+
+def hosted_nonpublication_platform(environment: object) -> bool:
+    return (
+        type(environment) is dict
+        and environment.get("GITHUB_ACTIONS") == "true"
+        and environment.get("RUNNER_OS") == "macOS"
+    )
+
+
+def assert_packager_platform_outcome(
+    testcase: unittest.TestCase,
+    *,
+    environment: dict,
+    result: subprocess.CompletedProcess,
+    output_path: Path | None,
+    runtime: dict | None,
+    expected_git: dict | None,
+) -> None:
+    if result.returncode == 0:
+        testcase.assertEqual(result.stderr, "")
+        if output_path is not None:
+            testcase.assertTrue(output_path.exists())
+        if (runtime is None) != (expected_git is None):
+            testcase.fail(
+                "successful runtime and expected Git binding must be supplied together"
+            )
+        if runtime is not None and expected_git is not None:
+            testcase.assertEqual(
+                runtime.get("git_path"),
+                expected_git.get("invocation_path"),
+            )
+            testcase.assertEqual(
+                runtime.get("git_sha256"),
+                expected_git.get("sha256"),
+            )
+        return
+
+    testcase.assertTrue(
+        hosted_nonpublication_platform(environment),
+        f"ordinary/local packager failed: {result.stderr}",
+    )
+    testcase.assertEqual(result.stdout, "")
+    testcase.assertEqual(
+        result.stderr.strip(),
+        "publication Python runtime does not match proof identity",
+    )
+    testcase.assertIsNone(runtime)
+    if output_path is not None:
+        testcase.assertFalse(output_path.exists())
+
 class SpacecraftReleasePackageV175Tests(unittest.TestCase):
     def test_frozen_github_release_metadata_is_bound_and_claim_scanned(self):
         package = load_packager()
@@ -320,6 +370,7 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             )
 
     def test_packager_runs_directly_from_outside_repository(self):
+        environment = {**os.environ}
         with tempfile.TemporaryDirectory() as directory:
             marker = Path(directory) / "sitecustomize-ran"
             hostile = Path(directory) / "hostile-python"
@@ -330,12 +381,21 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
             result = subprocess.run(
                 ["/usr/bin/python3", "-I", "-B", str(SCRIPT), "--help"],
                 cwd=directory,
-                env={**os.environ, "PYTHONPATH": str(hostile)},
+                env={**environment, "PYTHONPATH": str(hostile)},
                 text=True,
                 capture_output=True,
             )
             self.assertFalse(marker.exists())
-        self.assertEqual(result.returncode, 0, result.stderr)
+        assert_packager_platform_outcome(
+            self,
+            environment=environment,
+            result=result,
+            output_path=None,
+            runtime=None,
+            expected_git=None,
+        )
+        if result.returncode != 0:
+            return
         self.assertIn("--reviewed-commit", result.stdout)
         self.assertIn(
             "/usr/bin/python3 -I -B release/tools/package_spacecraft_v175.py",
@@ -419,18 +479,184 @@ class SpacecraftReleasePackageV175Tests(unittest.TestCase):
 
     def test_publication_runtime_binds_live_git_client(self):
         package = load_packager()
+        environment = dict(os.environ)
         identity = json.loads(package.IDENTITY.read_text(encoding="utf-8"))
         rows = identity["build_attestation"]["build_environment"][
             "trusted_platform_launchers"
         ]
         interpreter = next(row for row in rows if row["role"] == "python-interpreter")
+        git_row = next(row for row in rows if row["role"] == "git-client")
         with mock.patch.object(package.sys, "executable", interpreter["invocation_path"]):
-            runtime = package.validate_publication_runtime(identity)
+            try:
+                runtime = package.validate_publication_runtime(identity)
+            except RuntimeError as error:
+                result = subprocess.CompletedProcess(
+                    args=("validate_publication_runtime",),
+                    returncode=1,
+                    stdout="",
+                    stderr=str(error),
+                )
+                assert_packager_platform_outcome(
+                    self,
+                    environment=environment,
+                    result=result,
+                    output_path=None,
+                    runtime=None,
+                    expected_git=git_row,
+                )
+                return
+
+            result = subprocess.CompletedProcess(
+                args=("validate_publication_runtime",),
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
+            assert_packager_platform_outcome(
+                self,
+                environment=environment,
+                result=result,
+                output_path=None,
+                runtime=runtime,
+                expected_git=git_row,
+            )
             self.assertEqual(runtime["git_path"], "/usr/bin/git")
-            git_row = next(row for row in rows if row["role"] == "git-client")
             git_row["sha256"] = "0" * 64
             with self.assertRaisesRegex(RuntimeError, "proof identity"):
                 package.validate_publication_runtime(identity)
+
+    def test_hosted_nonpublication_platform_detection_is_exact(self):
+        cases = (
+            (
+                {"GITHUB_ACTIONS": "true", "RUNNER_OS": "macOS"},
+                True,
+            ),
+            (
+                {"GITHUB_ACTIONS": "false", "RUNNER_OS": "macOS"},
+                False,
+            ),
+            (
+                {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux"},
+                False,
+            ),
+            ({}, False),
+        )
+        for environment, expected in cases:
+            with self.subTest(environment=environment):
+                self.assertEqual(
+                    hosted_nonpublication_platform(environment),
+                    expected,
+                )
+
+    def test_platform_conditional_packager_outcomes_remain_fail_closed(self):
+        refusal = "publication Python runtime does not match proof identity"
+        hosted_environment = {
+            "GITHUB_ACTIONS": "true",
+            "RUNNER_OS": "macOS",
+        }
+        local_environment = {}
+        expected_git = {
+            "invocation_path": "/usr/bin/git",
+            "sha256": "a" * 64,
+        }
+        local_runtime = {
+            "git_path": expected_git["invocation_path"],
+            "git_sha256": expected_git["sha256"],
+        }
+        with tempfile.TemporaryDirectory(
+            prefix="conditional-packager-outcome-"
+        ) as directory:
+            root = Path(directory)
+            hosted_output = root / "hosted-assets"
+            hosted_result = subprocess.CompletedProcess(
+                args=("packager",),
+                returncode=1,
+                stdout="",
+                stderr=refusal + "\n",
+            )
+            assert_packager_platform_outcome(
+                self,
+                environment=hosted_environment,
+                result=hosted_result,
+                output_path=hosted_output,
+                runtime=None,
+                expected_git=expected_git,
+            )
+
+            for label, result, create_output in (
+                (
+                    "wrong-refusal",
+                    subprocess.CompletedProcess(
+                        args=("packager",),
+                        returncode=1,
+                        stdout="",
+                        stderr="different refusal\n",
+                    ),
+                    False,
+                ),
+                ("published-output", hosted_result, True),
+            ):
+                with self.subTest(label=label):
+                    if create_output:
+                        hosted_output.mkdir()
+                    with self.assertRaises(AssertionError):
+                        assert_packager_platform_outcome(
+                            self,
+                            environment=hosted_environment,
+                            result=result,
+                            output_path=hosted_output,
+                            runtime=None,
+                            expected_git=expected_git,
+                        )
+                    if hosted_output.exists():
+                        hosted_output.rmdir()
+
+            local_output = root / "local-assets"
+            local_output.mkdir()
+            local_result = subprocess.CompletedProcess(
+                args=("packager",),
+                returncode=0,
+                stdout="release assets written\n",
+                stderr="",
+            )
+            assert_packager_platform_outcome(
+                self,
+                environment=local_environment,
+                result=local_result,
+                output_path=local_output,
+                runtime=local_runtime,
+                expected_git=expected_git,
+            )
+            assert_packager_platform_outcome(
+                self,
+                environment=hosted_environment,
+                result=local_result,
+                output_path=local_output,
+                runtime=local_runtime,
+                expected_git=expected_git,
+            )
+            with self.assertRaises(AssertionError):
+                assert_packager_platform_outcome(
+                    self,
+                    environment=local_environment,
+                    result=hosted_result,
+                    output_path=local_output,
+                    runtime=local_runtime,
+                    expected_git=expected_git,
+                )
+            drifted_runtime = {
+                **local_runtime,
+                "git_sha256": "0" * 64,
+            }
+            with self.assertRaises(AssertionError):
+                assert_packager_platform_outcome(
+                    self,
+                    environment=local_environment,
+                    result=local_result,
+                    output_path=local_output,
+                    runtime=drifted_runtime,
+                    expected_git=expected_git,
+                )
 
     def test_success_report_uses_observed_runtime_identity(self):
         package = load_packager()

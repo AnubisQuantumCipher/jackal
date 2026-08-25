@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 import functools
 import importlib.util
 import hashlib
@@ -18,9 +19,52 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "release" / "tools" / "spacecraft_burn_proof_identity.py"
 IDENTITY = ROOT / "release" / "evidence" / "spacecraft_burn_proof_identity_v1.json"
 OWNING_PLATFORM_PYTHON = Path("/usr/bin/python3")
+COMMITTED_IDENTITY_SHA256 = (
+    "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876"
+)
 
 
-def platform_launchers_match(wrapper, records: object) -> bool:
+def committed_platform_launcher_records(
+    identity_path: Path = IDENTITY,
+) -> list[dict]:
+    raw = identity_path.read_bytes()
+    observed_digest = hashlib.sha256(raw).hexdigest()
+    if observed_digest != COMMITTED_IDENTITY_SHA256:
+        raise AssertionError(
+            "proof identity file SHA-256 mismatch: "
+            f"expected={COMMITTED_IDENTITY_SHA256} observed={observed_digest}"
+        )
+
+    def reject_duplicates(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate proof identity key: {key}")
+            result[key] = value
+        return result
+
+    document = json.loads(
+        raw.decode("utf-8"),
+        object_pairs_hook=reject_duplicates,
+    )
+    if type(document) is not dict:
+        raise AssertionError("proof identity root is not an object")
+    try:
+        records = document["build_attestation"]["build_environment"][
+            "trusted_platform_launchers"
+        ]
+    except (KeyError, TypeError) as error:
+        raise AssertionError(
+            "proof identity trusted platform launcher list is missing"
+        ) from error
+    if type(records) is not list or not records:
+        raise AssertionError(
+            "proof identity trusted platform launcher list is invalid"
+        )
+    return records
+
+
+def platform_launcher_mismatch(wrapper, records: object) -> str | None:
     keys = {
         "bytes",
         "invocation_path",
@@ -30,57 +74,60 @@ def platform_launchers_match(wrapper, records: object) -> bool:
         "sha256",
     }
     if type(records) is not list or not records or len(records) > 16:
-        return False
+        raise AssertionError("trusted platform launcher list is invalid")
     roles: set[str] = set()
-    invocation_paths: set[str] = set()
-    resolved_paths: set[str] = set()
-    try:
-        for expected in records:
-            if (
-                type(expected) is not dict
-                or set(expected) != keys
-                or type(expected.get("bytes")) is not int
-                or expected["bytes"] <= 0
-                or type(expected.get("invocation_path")) is not str
-                or type(expected.get("resolved_path")) is not str
-                or type(expected.get("role")) is not str
-                or type(expected.get("sha256")) is not str
-                or (
-                    expected.get("invocation_symlink_target") is not None
-                    and type(expected.get("invocation_symlink_target")) is not str
-                )
-            ):
-                return False
-            role = expected["role"]
-            invocation_path = expected["invocation_path"]
-            resolved_path = expected["resolved_path"]
-            if (
-                not role
-                or not invocation_path
-                or not resolved_path
-                or role in roles
-                or invocation_path in invocation_paths
-                or resolved_path in resolved_paths
-            ):
-                return False
-            roles.add(role)
-            invocation_paths.add(invocation_path)
-            resolved_paths.add(resolved_path)
-            observed = wrapper.trusted_platform_launcher(
-                role,
-                Path(invocation_path),
+    diagnostics: list[str] = []
+    for expected in records:
+        if (
+            type(expected) is not dict
+            or set(expected) != keys
+            or type(expected.get("bytes")) is not int
+            or expected["bytes"] <= 0
+            or type(expected.get("invocation_path")) is not str
+            or not expected["invocation_path"]
+            or type(expected.get("resolved_path")) is not str
+            or not expected["resolved_path"]
+            or type(expected.get("role")) is not str
+            or not expected["role"]
+            or type(expected.get("sha256")) is not str
+            or len(expected["sha256"]) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in expected["sha256"]
             )
-            if observed != expected:
-                return False
-    except (
-        OSError,
-        RuntimeError,
-        TypeError,
-        ValueError,
-        wrapper.engine.GateError,
-    ):
-        return False
-    return True
+            or (
+                expected.get("invocation_symlink_target") is not None
+                and type(expected.get("invocation_symlink_target")) is not str
+            )
+        ):
+            raise AssertionError("trusted platform launcher record is malformed")
+        role = expected["role"]
+        if role in roles:
+            raise AssertionError(f"duplicate trusted platform launcher role: {role}")
+        roles.add(role)
+        observed = wrapper.trusted_platform_launcher(
+            role,
+            Path(expected["invocation_path"]),
+        )
+        if observed != expected:
+            differing_fields = sorted(
+                key for key in keys if observed.get(key) != expected.get(key)
+            )
+            diagnostics.append(
+                f"role={role} "
+                f"expected_sha256={expected['sha256']} "
+                f"observed_sha256={observed.get('sha256')} "
+                f"differing_fields={','.join(differing_fields)}"
+            )
+    return "; ".join(diagnostics) if diagnostics else None
+
+
+def hosted_macos_mismatch_is_skippable(environment: object) -> bool:
+    return (
+        type(environment) is dict
+        and environment.get("GITHUB_ACTIONS") == "true"
+        and environment.get("RUNNER_OS") == "macOS"
+    )
 
 
 def requires_exact_owning_platform_launchers(test):
@@ -89,15 +136,12 @@ def requires_exact_owning_platform_launchers(test):
         if sys.platform != "darwin" or platform.machine() != "arm64":
             self.skipTest("committed executable identity is macOS/arm64-specific")
         wrapper = self.load_wrapper()
-        identity = json.loads(IDENTITY.read_text(encoding="utf-8"))
-        records = identity["build_attestation"]["build_environment"][
-            "trusted_platform_launchers"
-        ]
-        if not platform_launchers_match(wrapper, records):
-            self.skipTest(
-                "committed executable identity belongs to a different "
-                "macOS/arm64 launcher platform"
-            )
+        records = committed_platform_launcher_records()
+        diagnostic = platform_launcher_mismatch(wrapper, records)
+        if diagnostic is not None:
+            if hosted_macos_mismatch_is_skippable(dict(os.environ)):
+                self.skipTest(diagnostic)
+            self.fail(diagnostic)
         return test(self, *args, **kwargs)
 
     return wrapped
@@ -555,11 +599,15 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
             target.write_bytes(b"exact synthetic launcher bytes\n")
             invocation = root / "launcher"
             invocation.symlink_to(target.name)
+            other_target = root / "other-launcher.bin"
+            other_target.write_bytes(b"distinct observed launcher bytes\n")
+            other_invocation = root / "other-launcher"
+            other_invocation.symlink_to(other_target.name)
             record = wrapper.trusted_platform_launcher(
                 "synthetic-launcher",
                 invocation,
             )
-            self.assertTrue(platform_launchers_match(wrapper, [record]))
+            self.assertIsNone(platform_launcher_mismatch(wrapper, [record]))
 
             mutations = (
                 ("sha256", "0" * 64),
@@ -572,9 +620,214 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
                 with self.subTest(field=field):
                     changed = dict(record)
                     changed[field] = replacement
-                    self.assertFalse(
-                        platform_launchers_match(wrapper, [changed])
+                    diagnostic = platform_launcher_mismatch(wrapper, [changed])
+                    self.assertIsInstance(diagnostic, str)
+                    expected_fields = (
+                        ("sha256", "resolved_path")
+                        if field == "invocation_path"
+                        else (field,)
                     )
+                    for expected_field in expected_fields:
+                        self.assertIn(expected_field, diagnostic)
+
+    def test_committed_launcher_records_require_independent_identity_pin(self) -> None:
+        self.assertEqual(
+            hashlib.sha256(IDENTITY.read_bytes()).hexdigest(),
+            COMMITTED_IDENTITY_SHA256,
+        )
+        records = committed_platform_launcher_records(IDENTITY)
+        self.assertTrue(records)
+        with tempfile.TemporaryDirectory(
+            prefix="launcher-identity-pin-"
+        ) as directory:
+            candidate = Path(directory) / "identity.json"
+            candidate.write_bytes(b'{"build_attestation":{}}\n')
+            with self.assertRaisesRegex(
+                AssertionError,
+                "proof identity file SHA-256",
+            ):
+                committed_platform_launcher_records(candidate)
+
+    def test_launcher_mismatch_refuses_malformed_and_inspection_errors(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(
+            prefix="launcher-mismatch-contract-"
+        ) as directory:
+            launcher = Path(directory) / "launcher"
+            launcher.write_bytes(b"observed launcher bytes\n")
+            record = wrapper.trusted_platform_launcher(
+                "synthetic-launcher",
+                launcher,
+            )
+            self.assertIsNone(platform_launcher_mismatch(wrapper, [record]))
+
+            malformed = (
+                [{key: value for key, value in record.items() if key != "sha256"}],
+                [{**record, "bytes": False}],
+                [record, dict(record)],
+            )
+            for records in malformed:
+                with self.subTest(records=records), self.assertRaises(
+                    (AssertionError, TypeError, ValueError)
+                ):
+                    platform_launcher_mismatch(wrapper, records)
+
+            for error in (
+                OSError("launcher unreadable"),
+                wrapper.engine.GateError("launcher invalid"),
+            ):
+                with (
+                    self.subTest(error=type(error).__name__),
+                    mock.patch.object(
+                        wrapper,
+                        "trusted_platform_launcher",
+                        side_effect=error,
+                    ),
+                    self.assertRaises(type(error)),
+                ):
+                    platform_launcher_mismatch(wrapper, [record])
+
+    def test_later_launcher_inspection_error_overrides_earlier_mismatch(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(
+            prefix="launcher-late-inspection-"
+        ) as directory:
+            root = Path(directory)
+            first_path = root / "first-launcher"
+            second_path = root / "second-launcher"
+            first_path.write_bytes(b"first launcher bytes\n")
+            second_path.write_bytes(b"second launcher bytes\n")
+            first = wrapper.trusted_platform_launcher(
+                "first-launcher",
+                first_path,
+            )
+            second = wrapper.trusted_platform_launcher(
+                "second-launcher",
+                second_path,
+            )
+            first_mismatch = dict(first)
+            first_mismatch["sha256"] = "0" * 64
+            inspect = wrapper.trusted_platform_launcher
+
+            for error in (
+                OSError("later launcher unreadable"),
+                wrapper.engine.GateError("later launcher invalid"),
+            ):
+                def inspect_all(role, path):
+                    if role == "second-launcher":
+                        raise error
+                    return inspect(role, path)
+
+                with (
+                    self.subTest(error=type(error).__name__),
+                    mock.patch.object(
+                        wrapper,
+                        "trusted_platform_launcher",
+                        side_effect=inspect_all,
+                    ),
+                    self.assertRaises(type(error)),
+                ):
+                    platform_launcher_mismatch(
+                        wrapper,
+                        [first_mismatch, second],
+                    )
+
+    def test_observed_launcher_mismatch_has_exact_digest_diagnostic(self) -> None:
+        wrapper = self.load_wrapper()
+        with tempfile.TemporaryDirectory(
+            prefix="launcher-mismatch-diagnostic-"
+        ) as directory:
+            launcher = Path(directory) / "launcher"
+            launcher.write_bytes(b"observed launcher bytes\n")
+            observed = wrapper.trusted_platform_launcher(
+                "diagnostic-launcher",
+                launcher,
+            )
+            expected = dict(observed)
+            expected["sha256"] = "0" * 64
+            diagnostic = platform_launcher_mismatch(wrapper, [expected])
+        self.assertIsInstance(diagnostic, str)
+        self.assertIn("diagnostic-launcher", diagnostic)
+        self.assertIn(expected["sha256"], diagnostic)
+        self.assertIn(observed["sha256"], diagnostic)
+
+    def test_hosted_macos_mismatch_skip_policy_is_exact(self) -> None:
+        cases = (
+            (
+                {"GITHUB_ACTIONS": "true", "RUNNER_OS": "macOS"},
+                True,
+            ),
+            (
+                {"GITHUB_ACTIONS": "false", "RUNNER_OS": "macOS"},
+                False,
+            ),
+            (
+                {"GITHUB_ACTIONS": "true", "RUNNER_OS": "Linux"},
+                False,
+            ),
+            ({}, False),
+        )
+        for environment, expected in cases:
+            with self.subTest(environment=environment):
+                self.assertEqual(
+                    hosted_macos_mismatch_is_skippable(environment),
+                    expected,
+                )
+
+    def test_owning_platform_decorator_skips_only_hosted_macos_mismatch(self) -> None:
+        diagnostic = (
+            "role=python-interpreter "
+            "expected_sha256=" + "0" * 64 + " "
+            "observed_sha256=" + "1" * 64
+        )
+        probe = requires_exact_owning_platform_launchers(
+            lambda _self: None
+        )
+
+        def invoke(environment, assertion):
+            with ExitStack() as stack:
+                stack.enter_context(
+                    mock.patch.object(sys, "platform", "darwin")
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        platform,
+                        "machine",
+                        return_value="arm64",
+                    )
+                )
+                stack.enter_context(
+                    mock.patch(
+                        f"{__name__}.committed_platform_launcher_records",
+                        return_value=[{"role": "python-interpreter"}],
+                        create=True,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch(
+                        f"{__name__}.platform_launcher_mismatch",
+                        return_value=diagnostic,
+                        create=True,
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.dict(
+                        os.environ,
+                        environment,
+                        clear=True,
+                    )
+                )
+                stack.enter_context(assertion)
+                probe(self)
+
+        invoke(
+            {"GITHUB_ACTIONS": "true", "RUNNER_OS": "macOS"},
+            self.assertRaises(unittest.SkipTest),
+        )
+        invoke(
+            {},
+            self.assertRaisesRegex(AssertionError, "python-interpreter"),
+        )
 
     @unittest.skipUnless(sys.platform == "darwin", "sandbox-exec is macOS-specific")
     def test_private_sandbox_allows_build_outputs_and_refuses_source_writes(self) -> None:

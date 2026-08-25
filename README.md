@@ -25,8 +25,9 @@ same exact release bytes.
 **Commit-scoped status:** this source snapshot was prepared as the **v1.7.5
 corrective release candidate** before publication. A tag or source snapshot does
 not itself establish current GitHub publication state; consult the
-[v1.7.5 release metadata](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
-and the postpublication readback on `master`. At this candidate commit, the
+[releases index](https://github.com/AnubisQuantumCipher/jackal/releases) and
+the postpublication readback on `master`. The v1.7.5 tag page exists only after
+publication. At this candidate commit, the
 historical v1.7.4 release remained published and its 11 public assets had passed
 download readback, but **v1.7.4 should not be used as the publication-grade
 verifier bundle**. Its tag full-certificate campaign was cancelled at the

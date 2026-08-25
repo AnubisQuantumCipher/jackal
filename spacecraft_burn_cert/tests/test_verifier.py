@@ -426,6 +426,89 @@ class IndependentVerifierTests(unittest.TestCase):
                         reasons_for(launcher_path, launcher),
                     )
 
+    def test_identity_semantics_refuses_nonstring_digest_fields(self):
+        verifier = load_verifier(self)
+        original = json.loads(PROOF_IDENTITY.read_text(encoding="utf-8"))
+        mutations = (
+            (
+                "package-tree-sha1",
+                ("toolchain", "verified_package_trees", 0, "tree_sha1"),
+                "proof-identity-toolchain-mismatch",
+            ),
+            (
+                "package-worktree-sha256",
+                (
+                    "toolchain",
+                    "verified_package_trees",
+                    0,
+                    "verified_worktree_sha256",
+                ),
+                "proof-identity-toolchain-mismatch",
+            ),
+            (
+                "dependency-overrides-sha256",
+                (
+                    "build_attestation",
+                    "build_environment",
+                    "dependency_path_overrides",
+                    "sha256",
+                ),
+                "proof-identity-build-attestation-mismatch",
+            ),
+            (
+                "lean-launcher-sha256",
+                (
+                    "build_attestation",
+                    "build_environment",
+                    "lean_launcher_binaries",
+                    0,
+                    "sha256",
+                ),
+                "proof-identity-build-attestation-mismatch",
+            ),
+            (
+                "toolchain-tree-sha256",
+                (
+                    "build_attestation",
+                    "build_environment",
+                    "lean_toolchain_tree",
+                    "aggregate_sha256",
+                ),
+                "proof-identity-build-attestation-mismatch",
+            ),
+            (
+                "platform-launcher-sha256",
+                (
+                    "build_attestation",
+                    "build_environment",
+                    "trusted_platform_launchers",
+                    0,
+                    "sha256",
+                ),
+                "proof-identity-build-attestation-mismatch",
+            ),
+        )
+
+        for label, path, expected_reason in mutations:
+            with self.subTest(field=label):
+                document = copy.deepcopy(original)
+                target = document
+                for component in path[:-1]:
+                    target = target[component]
+                target[path[-1]] = None
+                reasons: list[str] = []
+                verifier.validate_identity_semantics(
+                    document,
+                    PROOF_IDENTITY,
+                    checker_digest=document["checker"]["sha256"],
+                    checker_size=document["checker"]["bytes"],
+                    request_digest=REQUEST_DIGEST,
+                    model_id=MODEL_ID,
+                    epoch=EPOCH,
+                    reasons=reasons,
+                )
+                self.assertIn(expected_reason, reasons)
+
     def test_source_literals_parse_caller_supplied_bytes(self):
         verifier = load_verifier(self)
         raw = b'THRUST_KM_SCALE_TEXT = "0.001"\nINTEGRATE_MASS = True\n'

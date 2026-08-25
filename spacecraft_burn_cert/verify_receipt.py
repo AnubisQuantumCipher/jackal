@@ -1195,6 +1195,15 @@ def private_dependency_override_bytes(packages: list[dict]) -> bytes:
     ).encode("utf-8")
 
 
+def valid_lower_hex_digest(value: object, *, length: int = 64) -> bool:
+    return (
+        length in (40, 64)
+        and type(value) is str
+        and len(value) == length
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def trusted_platform_launchers_valid(rows: object) -> bool:
     expected_roles = [
         "python-launcher",
@@ -1245,7 +1254,7 @@ def trusted_platform_launchers_valid(rows: object) -> bool:
                     or symlink_target is not None
                 )
             )
-            or re.fullmatch(r"[0-9a-f]{64}", row.get("sha256", "")) is None
+            or not valid_lower_hex_digest(row.get("sha256"))
         ):
             return False
     return True
@@ -1607,13 +1616,7 @@ def validate_identity_semantics(
                     type(row) is not dict
                     or set(row) != {"path", "sha256"}
                     or row.get("path") != expected_path
-                    or re.fullmatch(
-                        r"[0-9a-f]{64}",
-                        row.get("sha256")
-                        if type(row.get("sha256")) is str
-                        else "",
-                    )
-                    is None
+                    or not valid_lower_hex_digest(row.get("sha256"))
                     or bound_path is None
                     or observed_generator_digest != row["sha256"]
                 ):
@@ -1696,10 +1699,12 @@ def validate_identity_semantics(
                     or recorded.get("revision") != package["revision"]
                     or type(recorded.get("entry_count")) is not int
                     or recorded["entry_count"] <= 0
-                    or re.fullmatch(r"[0-9a-f]{40}", recorded.get("tree_sha1", "")) is None
-                    or re.fullmatch(
-                        r"[0-9a-f]{64}", recorded.get("verified_worktree_sha256", "")
-                    ) is None
+                    or not valid_lower_hex_digest(
+                        recorded.get("tree_sha1"), length=40
+                    )
+                    or not valid_lower_hex_digest(
+                        recorded.get("verified_worktree_sha256")
+                    )
                 ):
                     verified_trees_valid = False
                     break
@@ -1715,7 +1720,7 @@ def validate_identity_semantics(
             and type(lean) is dict
             and set(lean) == {"build", "commit", "version"}
             and all(type(lean[key]) is str and lean[key] for key in lean)
-            and re.fullmatch(r"[0-9a-f]{40}", lean["commit"]) is not None
+            and valid_lower_hex_digest(lean["commit"], length=40)
             and type(toolchain_name) is str
             and toolchain_name == toolchain_token
             and toolchain_name == f"leanprover/lean4:v{lean['version']}"
@@ -1798,8 +1803,7 @@ def validate_identity_semantics(
             == len(recorded_manifest_packages)
             and dependency_overrides.get("package_names")
             == expected_override_names
-            and re.fullmatch(r"[0-9a-f]{64}", dependency_overrides.get("sha256", ""))
-            is not None
+            and valid_lower_hex_digest(dependency_overrides.get("sha256"))
             and dependency_overrides.get("sha256") == expected_override_sha256
         )
         lake_bookkeeping = (
@@ -1830,7 +1834,7 @@ def validate_identity_semantics(
                     set(row) != {"bytes", "name", "sha256"}
                     or type(row.get("bytes")) is not int
                     or row["bytes"] <= 0
-                    or re.fullmatch(r"[0-9a-f]{64}", row.get("sha256", "")) is None
+                    or not valid_lower_hex_digest(row.get("sha256"))
                 ):
                     launchers_valid = False
                     break
@@ -1855,10 +1859,7 @@ def validate_identity_semantics(
                 "lean_toolchain",
                 "total_bytes",
             }
-            and re.fullmatch(
-                r"[0-9a-f]{64}", toolchain_tree.get("aggregate_sha256", "")
-            )
-            is not None
+            and valid_lower_hex_digest(toolchain_tree.get("aggregate_sha256"))
             and toolchain_tree.get("definition")
             == (
                 "SHA-256 aggregate over every relative directory path/mode and regular "
@@ -1904,13 +1905,7 @@ def validate_identity_semantics(
             }
             and type(compiler.get("executable_bytes")) is int
             and compiler["executable_bytes"] > 0
-            and re.fullmatch(
-                r"[0-9a-f]{64}",
-                compiler.get("executable_sha256")
-                if type(compiler.get("executable_sha256")) is str
-                else "",
-            )
-            is not None
+            and valid_lower_hex_digest(compiler.get("executable_sha256"))
             and all(
                 compiler.get(key) == lean_record.get(key)
                 for key in ("build", "commit", "version")

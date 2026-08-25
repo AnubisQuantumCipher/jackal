@@ -187,6 +187,10 @@ class SpacecraftProofIdentityTests(unittest.TestCase):
             ],
         )
 
+    @unittest.skipUnless(
+        (ROOT / "proofs/lean/.lake/packages").is_dir(),
+        "Lake package directory is not built",
+    )
     def test_dependency_verifier_rejects_assume_unchanged_byte_drift(self) -> None:
         wrapper = self.load_wrapper()
         packages = ROOT / "proofs" / "lean" / ".lake" / "packages"

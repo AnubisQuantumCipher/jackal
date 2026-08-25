@@ -3,9 +3,10 @@
 Commit-scoped publication state: this source snapshot is the v1.7.5 candidate
 prepared before publication. It does not by itself establish current GitHub
 release state. Consult the
-[v1.7.5 release metadata](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
-and the postpublication readback on `master`; use release assets only when those
-current checks bind their exact bytes.
+[releases index](https://github.com/AnubisQuantumCipher/jackal/releases) and
+the postpublication readback on `master`; the v1.7.5 tag page exists only after
+publication. Use release assets only when those current checks bind their exact
+bytes.
 
 This lane certifies a universal lower bound for the finite-duration periapsis
 burn challenge. The publication verdict is:

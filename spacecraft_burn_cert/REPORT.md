@@ -3,9 +3,10 @@
 Commit-scoped publication state: this source snapshot records the v1.7.5
 candidate prepared before publication. Neither this source snapshot nor a tag
 alone proves the current GitHub release state. Consult the
-[v1.7.5 GitHub release metadata](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
-and the postpublication readback committed on `master`; only those current
-checks establish publication and bind the released bytes.
+[releases index](https://github.com/AnubisQuantumCipher/jackal/releases) and
+the postpublication readback committed on `master`; the v1.7.5 tag page exists
+only after publication. Only those current checks establish publication and
+bind the released bytes.
 
 ## Decisive result
 

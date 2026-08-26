@@ -939,38 +939,75 @@ binds its live Python/Git runtime to the proof identity, builds a deterministic
 safe-entry archive, and reproduces the checker and outer-verifier procedure.
 The v1.7.4 packager remains byte-for-byte unchanged.
 
-- [ ] **Step 4: Complete a new independent review**
+- [x] **Step 4: Complete a new independent review**
 
 Review the exact v1.7.5 candidate, including the Picard enclosure producer,
 formal checker, source binding, structured claims, and executable package.
 Record an internal independent-review report and clearance with zero unresolved
 release blockers; do not call it external peer review.
 
-- [ ] **Step 5: Run every full release gate on the final reviewed candidate**
+Completion evidence: reviewed commit
+`54c9af66405c445d17735c92ee177cd652fc34b9` received 37 independent-review
+passes; 17 findings were resolved, 1 was classified invalid, and 0 unresolved
+release blockers remained. The review report and clearance bind the exact
+reviewed candidate and preserve the internal-review/non-peer-review boundary.
+
+- [x] **Step 5: Run every full release gate on the final reviewed candidate**
 
 Run the full Lean build, axiom and admission audit, evidence reproduction,
 checker/verifier replay, mutation campaign, claim gate, package extraction
 replay, capability drift, all 41-tool plugin checks, skill validation,
 repository tests, and clean-diff checks from fresh state.
 
-- [ ] **Step 6: Commit, push, review, merge, and verify the merge SHA**
+Completion evidence: the full Lean build, admission/axiom audit, proof identity,
+checker and outer-verifier replay, evidence reproduction, mutation campaign,
+claim gate, capability/plugin checks, repository tests, and clean extraction
+replay passed. Two complete campaigns were byte-identical across the five
+decisive outputs; two deterministic package builds matched as 12-asset
+directories, and `SHA256SUMS` verified all 11 payload rows.
+
+- [x] **Step 6: Commit, push, review, merge, and verify the merge SHA**
 
 Push the corrective branch, open a PR with exact proof and non-claim evidence,
 wait for every required check and review disposition, merge through repository
 convention, and then require every relevant workflow to pass on the exact
 remote `master` merge commit.
 
-- [ ] **Step 7: Tag and publish v1.7.5 from the verified merge**
+Completion evidence: PR
+[17](https://github.com/AnubisQuantumCipher/jackal/pull/17) bound head
+`eb69713918798f5828950d92f1003c66d2eb26ca` and merged as
+`9a49f70b65b20907df40be99ee83e61e18adc7c5`. The required PR workflows and
+the exact-merge `master` workflows completed successfully.
+
+- [x] **Step 7: Tag and publish v1.7.5 from the verified merge**
 
 Build and compare the release assets from the exact merge commit, create and
 push an annotated v1.7.5 tag, wait for all tag-triggered workflows, validate a
 draft with the explicit asset roster and checksums, and publish it as Latest
 only after every gate is green.
 
-- [ ] **Step 8: Read back the public release and merge the closure receipt**
+Completion evidence: annotated tag object
+`1369dacf60101c2d196d577b0319b6d5c0a72aa8` peels to merge
+`9a49f70b65b20907df40be99ee83e61e18adc7c5`; all three tag-triggered
+workflows completed successfully. Public release
+[377032844](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
+was published as Latest with 12 uploaded release assets and is neither a draft
+nor a prerelease.
+
+- [x] **Step 8: Read back the public release and merge the closure receipt**
 
 Download every public asset into fresh storage, verify the tag target, sizes,
 hashes, `SHA256SUMS`, metadata, and the extracted verification procedure.
 Commit the v1.7.5 publication-readback receipt and final README state in a
 separate closure PR, merge it, and audit remote refs, plugin identity, and the
 untouched protected checkout one final time.
+
+Completion evidence: fresh public downloads reproduced all 12 uploaded release
+asset sizes and SHA-256 identities, all 11 `SHA256SUMS` rows, the canonical
+checker `ACCEPT`, the authoritative outer-verifier `ACCEPT`, and the public
+Latest metadata. The
+new `release/evidence/spacecraft_burn_release_readback_v175.json` records those
+observations, the unchanged plugin/protected-checkout identities, and the
+explicit non-claims. The closure commit containing that receipt and this final
+prose is landed through this closure PR before terminal declaration; no PR
+number is invented here.

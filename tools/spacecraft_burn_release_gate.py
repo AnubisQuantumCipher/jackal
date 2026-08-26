@@ -23,6 +23,9 @@ QUALIFIED_VERDICT = f"CERTIFIED SAFE {MODEL_QUALIFIER}"
 INSTRUMENT_VALIDATION_PATH = Path(
     "spacecraft_burn_cert/evidence/instrument_validation_v2.json"
 )
+V175_READBACK_PATH = Path(
+    "release/evidence/spacecraft_burn_release_readback_v175.json"
+)
 QUALIFIED_PATTERN = re.compile(
     r"\s+".join(map(re.escape, QUALIFIED_VERDICT.split()))
     + r"(?=(?:[.!?](?:[*_`]+)?|(?:[*_`]+)[.!?])(?:\s|$)|(?:[*_`]+)?\s*$)"
@@ -44,6 +47,7 @@ JSON_TARGETS = (
     Path("release/evidence/spacecraft_burn_proof_identity_v1.json"),
     Path("release/evidence/spacecraft_burn_review_clearance_v1.json"),
     Path("release/evidence/spacecraft_burn_release_readback_v174.json"),
+    V175_READBACK_PATH,
     Path("release/evidence/spacecraft_burn_review_clearance_v175.json"),
     Path("release/evidence/spacecraft_burn_release_metadata_v175.json"),
 )
@@ -404,10 +408,28 @@ def instrument_assurance_findings(value: object, relative: Path) -> list[dict]:
     }]
 
 
+def release_readback_findings(value: object, relative: Path) -> list[dict]:
+    if relative != V175_READBACK_PATH:
+        return []
+    if (
+        isinstance(value, dict)
+        and value.get("schema")
+        == "jackal-spacecraft-burn-release-readback-v1"
+    ):
+        return []
+    return [{
+        "file": str(relative),
+        "json_path": "$.schema",
+        "reason": "invalid-release-readback-schema",
+    }]
+
+
 def document_findings(value: object, relative: Path) -> list[dict]:
     schema = value.get("schema") if isinstance(value, dict) else None
-    return json_findings(value, relative, document_schema=schema) + instrument_assurance_findings(
-        value, relative
+    return (
+        json_findings(value, relative, document_schema=schema)
+        + instrument_assurance_findings(value, relative)
+        + release_readback_findings(value, relative)
     )
 
 

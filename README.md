@@ -22,18 +22,21 @@ same exact release bytes.
 
 ## Spacecraft finite-burn certificate
 
-**Commit-scoped status:** this source snapshot was prepared as the **v1.7.5
-corrective release candidate** before publication. A tag or source snapshot does
-not itself establish current GitHub publication state; consult the
-[releases index](https://github.com/AnubisQuantumCipher/jackal/releases) and
-the postpublication readback on `master`. The v1.7.5 tag page exists only after
-publication. At this candidate commit, the
-historical v1.7.4 release remained published and its 11 public assets had passed
-download readback, but **v1.7.4 should not be used as the publication-grade
-verifier bundle**. Its tag full-certificate campaign was cancelled at the
-60-minute ceiling. The v1.7.5 candidate was prepared to close gaps in the
-structured verdict, claim surfaces, executable archive, verification
-instructions, and tag campaign before independent review and publication.
+**Published state:** [JACKAL v1.7.5](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
+is the observed public **Latest** release and is neither a draft nor a
+prerelease. Its qualified verdict is **CERTIFIED SAFE under the stated
+finite-burn ODE model, supplied input bounds, and machine-checked
+interval-certificate assumptions**. Fresh downloads reproduced all 12 uploaded
+release asset byte identities and all 11 `SHA256SUMS` payload rows; the committed
+[v1.7.5 readback receipt](release/evidence/spacecraft_burn_release_readback_v175.json)
+binds the PR, merge, annotated tag, release metadata, asset sizes and hashes,
+proof/checker/source/request/witness/review identities, hosted checks, plugin
+identity, protected checkout, and explicit non-claims.
+
+The v1.7.4 release, tag, assets, and
+[historical readback](release/evidence/spacecraft_burn_release_readback_v174.json)
+remain immutable historical evidence. v1.7.4 is not the publication-grade
+verifier bundle; v1.7.5 is the corrective published epoch.
 
 The published historical [v1.7.4 release](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.4)
 added a repository/release formal certificate for the spacecraft finite-burn
@@ -52,8 +55,9 @@ request, model, epoch, nonce, and receipt. See
 assurance boundary and physical-model non-claims.
 
 This lane does not add an MCP command. The ordered agent catalog remains 41
-tools; use the repo-local CLI now, and use v1.7.5 release assets only after the
-fresh public-download readback is committed.
+tools. Use either the repo-local CLI or the exact published v1.7.5 assets; the
+[public-download readback](release/evidence/spacecraft_burn_release_readback_v175.json)
+binds the release bytes without changing the plugin surface.
 
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
 buttons. It treats a serious calculation as a bounded scientific claim: value, units,

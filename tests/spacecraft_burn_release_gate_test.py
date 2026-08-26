@@ -51,6 +51,10 @@ def write_clean_surfaces(root: Path, gate) -> None:
                     {**candidate, "step_exact": "1/48"},
                 ]},
             }))
+        elif relative == gate.V175_READBACK_PATH:
+            destination.write_text(json.dumps({
+                "schema": "jackal-spacecraft-burn-release-readback-v1"
+            }))
         else:
             destination.write_text("{}\n")
 
@@ -609,6 +613,57 @@ class SpacecraftBurnReleaseGateTests(unittest.TestCase):
             Path("release/evidence/spacecraft_burn_review_clearance_v175.json"),
             gate.JSON_TARGETS,
         )
+
+    def test_v175_publication_readback_is_schema_aware_gated_json(self):
+        gate = load_gate()
+        target = Path(
+            "release/evidence/spacecraft_burn_release_readback_v175.json"
+        )
+        self.assertIn(target, gate.JSON_TARGETS)
+        cases = (
+            (
+                "jackal-spacecraft-burn-release-readback-v1",
+                gate.QUALIFIED_VERDICT,
+                None,
+            ),
+            (
+                "wrong-release-readback-schema",
+                gate.QUALIFIED_VERDICT,
+                "invalid-release-readback-schema",
+            ),
+            (
+                "jackal-spacecraft-burn-release-readback-v1",
+                gate.QUALIFIED_VERDICT.lower(),
+                "unqualified-certified-safe",
+            ),
+        )
+        for schema, qualified_verdict, expected_reason in cases:
+            with (
+                self.subTest(
+                    schema=schema,
+                    qualified_verdict=qualified_verdict,
+                ),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                write_clean_surfaces(root, gate)
+                (root / target).write_text(json.dumps({
+                    "schema": schema,
+                    "proof": {"qualified_verdict": qualified_verdict},
+                }))
+                result = gate.scan(root)
+                if expected_reason is None:
+                    self.assertEqual(result["status"], "PASS", result["findings"])
+                else:
+                    self.assertEqual(result["status"], "FAIL")
+                    self.assertTrue(
+                        any(
+                            finding["file"] == str(target)
+                            and finding["reason"] == expected_reason
+                            for finding in result["findings"]
+                        ),
+                        result["findings"],
+                    )
 
     def test_frozen_github_release_metadata_and_notes_are_gated(self):
         gate = load_gate()

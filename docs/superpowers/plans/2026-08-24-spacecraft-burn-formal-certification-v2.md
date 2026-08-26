@@ -809,51 +809,168 @@ as explicitly non-final.
   compatibility and release audit
 - Create release assets in a temporary directory outside the repository
 
-- [ ] **Step 1: Audit every design completion criterion**
+- [x] **Step 1: Audit every design completion criterion**
 
 Build a requirement-to-evidence table from the approved design. Mark missing,
 weak, or indirect evidence as incomplete and continue work until every row has
 authoritative current-state proof.
 
-- [ ] **Step 2: Run all local gates fresh**
+Completion evidence: the final requirement-to-evidence audit is bound by
+`release/evidence/spacecraft_burn_release_readback_v174.json`; the qualified
+verdict and all non-claims remain explicit in `spacecraft_burn_cert/REPORT.md`.
+
+- [x] **Step 2: Run all local gates fresh**
 
 At minimum: full Lean build; theorem axiom/identity checks; admission audit;
 all spacecraft tests; full witness/checker/verifier replay; mutation campaign;
 evidence reproduction; claim-surface gate; capability drift; full Codex plugin
 suite; plugin and skill validators; `git diff --check`; clean status.
 
-- [ ] **Step 3: Freeze exact bytes and select the version from impact**
+Completion evidence: the release candidate passed the full Lean build, proof
+identity and axiom gates, zero-admission audit, full certificate replay,
+mutation A-B-A campaign, spacecraft suites, capability-drift gate, 41-tool
+plugin suites, and skill validators before publication.
+
+- [x] **Step 3: Freeze exact bytes and select the version from impact**
 
 Inspect compatibility. Derive any manifest, package, plugin cachebuster, and
 release version through owning tools. Never type pinned digests by hand.
 
-- [ ] **Step 4: Push, open the PR, and wait for every hosted check**
+Completion evidence: the owning packaging tools froze v1.7.4; the release
+readback records every downloaded asset's mechanically derived byte count and
+SHA-256 digest.
+
+- [x] **Step 4: Push, open the PR, and wait for every hosted check**
 
 The PR body lists exact theorem names, axiom sets, test totals, artifact hashes,
 assumptions, non-claims, and independent-review disposition. Do not merge with
 pending or red checks.
 
-- [ ] **Step 5: Merge using repository convention**
+Completion evidence: [PR #16](https://github.com/AnubisQuantumCipher/jackal/pull/16)
+merged from reviewed head `db1360be09be3cdfb259c251f8d914dc36450641`
+after all nine recorded check contexts completed successfully.
+
+- [x] **Step 5: Merge using repository convention**
 
 Re-query mergeability and checks immediately before merging. Record the merge
 commit and fast-forward the clean local `master` worktree only.
 
-- [ ] **Step 6: Create an annotated tag and release assets**
+Completion evidence: merge commit
+`9a0aaca36956d1f85540888c02c879d4480fd840` is the exact remote `master`
+commit to which the annotated release tag peels.
+
+- [x] **Step 6: Create an annotated tag and release assets**
 
 Bind the tag to the merge commit. Assets include the witness, receipt, proof
 identity, checker/verifier package as appropriate, independent review,
 verification instructions, and `SHA256SUMS`.
 
-- [ ] **Step 7: Publish and read back**
+Completion evidence: annotated tag object
+`b5cdf93e993aad0f9b735c644c91fe38eacad094` contains the v1.7.4 release and
+the published release exposes all 11 required assets.
+
+- [x] **Step 7: Publish and read back**
 
 Download every GitHub asset into a fresh temporary directory, compare bytes
 and SHA-256 values to the locally verified artifacts, verify the tag resolves
 to the merge commit, and confirm release metadata and Latest status are
 intentional.
 
-- [ ] **Step 8: Final state audit**
+Completion evidence: a fresh download matched all 11 expected asset digests,
+all 10 `SHA256SUMS` payload rows passed, and GitHub's Latest endpoint returned
+v1.7.4. Exact results are frozen in
+`release/evidence/spacecraft_burn_release_readback_v174.json`.
+
+- [x] **Step 8: Final state audit**
 
 Confirm implementation and `master` worktrees are clean, remote refs are
 coherent, the historical dirty checkout still contains only its protected
 untracked material plus the pre-existing review copy, and the installed plugin
 state matches any deliberately published cachebuster.
+
+Completion evidence: source and installed plugin bytes match version
+`0.1.0+codex.20260824183637` with exactly 41 unique tools; the protected
+checkout remains at `57739317b24250ff62fd9b23f67c760d9066ab94` with no
+tracked changes and only its four pre-existing untracked roots.
+
+### Task 15: v1.7.5 corrective release and publication closure
+
+The published v1.7.4 tag and assets remain immutable historical evidence. This
+task creates a new release epoch that corrects the publication-grade verifier
+bundle without changing the qualified spacecraft-burn verdict or inflating the
+Python producer above candidate-only assurance.
+
+- [x] **Step 1: Close the structured-claim schema and claim-surface gaps**
+
+Give every refinement row an exact qualified verdict, producer-assurance
+class, checker status, and evidence classification. Extend the release claim
+gate to parse the release JSON surfaces with duplicate-key rejection and allow
+the terminal label only at recognized schema locations with the required
+assurance tuple.
+
+Completion evidence: all current structured receipt and refinement rows carry
+the exact qualifier and producer/checker classifications; the claim gate now
+scans values and keys across 16 bounded, no-follow text/JSON surfaces and
+rejects arbitrary non-word separator, Unicode, rendered-markup, and duplicate-
+key evasions.
+
+- [x] **Step 2: Establish the v1.7.5 epoch and reproduce current evidence**
+
+Bind the Lean checker, proof identity, workflow nonce, receipt, witness,
+validation report, and mutation report to v1.7.5. Rebuild the checker and
+reproduce the receipt and witness independently before installing the exact
+current evidence bytes.
+
+Completion evidence: two cold proof builds produced byte-identical proof
+identity and checker bytes; two producer/checker/outer-verifier campaigns
+produced byte-identical witness, receipt, replay, validation, and mutation
+evidence. The installed evidence manifests bind those exact current bytes.
+
+- [x] **Step 3: Prepare the executable v1.7.5 verifier package**
+
+Create a versioned packager whose archive contract includes the exact checker,
+outer verifier, producer source and witness codec, proof identity, request,
+Lean toolchain metadata, and bound Lean source closure. Generate complete
+copy-paste verification instructions and preserve the frozen v1.7.4 packager.
+
+Completion evidence: `release/tools/package_spacecraft_v175.py` defines the
+fixed 12-asset roster, validates the commit-bound review and release metadata,
+binds its live Python/Git runtime to the proof identity, builds a deterministic
+safe-entry archive, and reproduces the checker and outer-verifier procedure.
+The v1.7.4 packager remains byte-for-byte unchanged.
+
+- [ ] **Step 4: Complete a new independent review**
+
+Review the exact v1.7.5 candidate, including the Picard enclosure producer,
+formal checker, source binding, structured claims, and executable package.
+Record an internal independent-review report and clearance with zero unresolved
+release blockers; do not call it external peer review.
+
+- [ ] **Step 5: Run every full release gate on the final reviewed candidate**
+
+Run the full Lean build, axiom and admission audit, evidence reproduction,
+checker/verifier replay, mutation campaign, claim gate, package extraction
+replay, capability drift, all 41-tool plugin checks, skill validation,
+repository tests, and clean-diff checks from fresh state.
+
+- [ ] **Step 6: Commit, push, review, merge, and verify the merge SHA**
+
+Push the corrective branch, open a PR with exact proof and non-claim evidence,
+wait for every required check and review disposition, merge through repository
+convention, and then require every relevant workflow to pass on the exact
+remote `master` merge commit.
+
+- [ ] **Step 7: Tag and publish v1.7.5 from the verified merge**
+
+Build and compare the release assets from the exact merge commit, create and
+push an annotated v1.7.5 tag, wait for all tag-triggered workflows, validate a
+draft with the explicit asset roster and checksums, and publish it as Latest
+only after every gate is green.
+
+- [ ] **Step 8: Read back the public release and merge the closure receipt**
+
+Download every public asset into fresh storage, verify the tag target, sizes,
+hashes, `SHA256SUMS`, metadata, and the extracted verification procedure.
+Commit the v1.7.5 publication-readback receipt and final README state in a
+separate closure PR, merge it, and audit remote refs, plugin identity, and the
+untouched protected checkout one final time.

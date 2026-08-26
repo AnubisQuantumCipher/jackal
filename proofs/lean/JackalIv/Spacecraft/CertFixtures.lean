@@ -18,6 +18,16 @@ namespace JackalIv.Spacecraft
   | .ok _ => false
 #guard checkBurnWitness coverageSkeleton = .error "cutoff-coverage"
 
+#check supplied_inputs_covered
+#check supplied_cutoff_time_covered
+#check spacecraft_burn_universal_safe
+
+#print axioms supplied_inputs_covered
+#print axioms supplied_cutoff_time_covered
+#print axioms checked_chain_state_safe
+#print axioms checked_chain_state_margin_bound
+#print axioms checkBurnWitness_margin_bound
+#print axioms spacecraft_burn_certificate_sound
 #print axioms spacecraft_burn_certified_safe
 
 end JackalIv.Spacecraft

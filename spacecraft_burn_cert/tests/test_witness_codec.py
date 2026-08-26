@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from spacecraft_burn_cert import witness_codec as codec
@@ -53,6 +54,25 @@ class WitnessCodecTests(unittest.TestCase):
         with self.assertRaisesRegex(codec.WitnessRefusal, "noncanonical-integer"):
             codec.decode_witness(mutant)
 
+    def test_integer_tokens_and_record_envelope_are_explicitly_bounded(self):
+        encoded = codec.encode_witness(minimal_witness())
+        oversized_integer = b"9" * (codec.MAX_INTEGER_DIGITS + 1)
+        mutant = encoded.replace(b"config 80 ", b"config " + oversized_integer + b" ", 1)
+        with self.assertRaisesRegex(codec.WitnessRefusal, "integer-digit-limit"):
+            codec.decode_witness(mutant)
+
+        long_record = (
+            codec.MAGIC
+            + b"x" * (codec.MAX_WITNESS_RECORD_CHARS + 1)
+            + b"\nend 0 0 0\n"
+        )
+        with self.assertRaisesRegex(codec.WitnessRefusal, "record-length-limit"):
+            codec.decode_witness(long_record)
+
+        too_many_records = codec.MAGIC + b"\n" * codec.MAX_WITNESS_RECORDS
+        with self.assertRaisesRegex(codec.WitnessRefusal, "record-count-limit"):
+            codec.decode_witness(too_many_records)
+
     def test_noncanonical_line_endings_and_step_fraction_refuse(self):
         encoded = codec.encode_witness(minimal_witness())
         with self.assertRaisesRegex(codec.WitnessRefusal, "noncanonical-line-ending"):
@@ -84,6 +104,41 @@ class WitnessCodecTests(unittest.TestCase):
             codec.Box((interval(0, 1),))
         with self.assertRaisesRegex(codec.WitnessRefusal, "interval-order"):
             interval(2, 1)
+
+    def test_encode_refuses_malformed_direct_dataclass_graphs(self):
+        class WeirdInteger(int):
+            def __str__(self):
+                return "evil"
+
+        valid = minimal_witness()
+        branch = valid.branches[0]
+        step = branch.steps[0]
+        malformed = (
+            None,
+            replace(valid, branches=None),
+            replace(valid, branches=list(valid.branches)),
+            replace(valid, branches=(replace(branch, branch=False),)),
+            replace(valid, scale_bits=WeirdInteger(80)),
+            replace(valid, branches=(replace(branch, initial=None),)),
+            replace(valid, branches=(replace(branch, thrust=None),)),
+            replace(valid, branches=(replace(branch, steps=None),)),
+            replace(valid, branches=(replace(branch, steps=list(branch.steps)),)),
+            replace(
+                valid,
+                branches=(replace(branch, steps=(replace(step, branch=False),)),),
+            ),
+            replace(
+                valid,
+                branches=(replace(branch, steps=(replace(step, step=False),)),),
+            ),
+            replace(
+                valid,
+                branches=(replace(branch, steps=(replace(step, tube=None),)),),
+            ),
+        )
+        for index, candidate in enumerate(malformed):
+            with self.subTest(index=index), self.assertRaises(codec.WitnessRefusal):
+                codec.encode_witness(candidate)
 
 
 if __name__ == "__main__":

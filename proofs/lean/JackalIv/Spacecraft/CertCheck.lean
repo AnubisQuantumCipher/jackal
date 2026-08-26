@@ -8,7 +8,7 @@ def spacecraftRequestDigest : String :=
   "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7"
 
 def spacecraftModelId : String := "jackal-spacecraft-finite-burn-ode-v2"
-def spacecraftReleaseEpoch : String := "v1.7.4"
+def spacecraftReleaseEpoch : String := "v1.7.5"
 
 structure CertifiedBurnRequest where
   witness : BurnWitness

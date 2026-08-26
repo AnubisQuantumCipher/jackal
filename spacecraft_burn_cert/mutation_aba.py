@@ -8,19 +8,37 @@ import hashlib
 import json
 import os
 import re
+import selectors
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import replace
 from pathlib import Path
-from typing import NamedTuple, Sequence
+from typing import Iterable, NamedTuple, Sequence
 
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "certify.py"
 VERIFIER = ROOT / "verify_receipt.py"
-BASELINE = ROOT / "evidence" / "baseline_receipt.json"
+BASELINE = ROOT / "evidence" / "legacy-v1" / "baseline_receipt.json"
 PYTHON = Path(sys.executable).resolve()
+MAX_SUBPROCESS_OUTPUT_CHARS = 1024 * 1024
+MAX_JSON_NESTING_DEPTH = 128
+MAX_JSON_INTEGER_DIGITS = 128
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+MAX_WITNESS_BYTES = 64 * 1024 * 1024
+MAX_RECEIPT_BYTES = 16 * 1024 * 1024
+MAX_REQUEST_BYTES = 1024 * 1024
+MAX_CHECKER_BYTES = 512 * 1024 * 1024
+MAX_IDENTITY_BYTES = 16 * 1024 * 1024
+WITNESS_MUTATION_REFUSALS = {
+    "corruption": "REJECT noncanonical-control-character\n",
+    "chain": "REJECT picard-strict-interior\n",
+    "coverage": "REJECT cutoff-coverage\n",
+}
 
 
 MUTATIONS = {
@@ -62,9 +80,89 @@ MUTATIONS = {
     },
 }
 
+ISOLATED_UNITTEST_RUNNER = r"""
+import importlib.util
+import sys
+import unittest
+from pathlib import Path
+
+test_path = Path(sys.argv[1]).resolve()
+repository_root = Path(sys.argv[2]).resolve()
+selector = sys.argv[3]
+sys.path.insert(0, str(repository_root))
+module_name = "spacecraft_certifier_contract_tests"
+spec = importlib.util.spec_from_file_location(module_name, test_path)
+if spec is None or spec.loader is None:
+    raise RuntimeError("cannot load snapshotted certifier contract tests")
+module = importlib.util.module_from_spec(spec)
+sys.modules[module_name] = module
+spec.loader.exec_module(module)
+loader = unittest.TestLoader()
+suite = (
+    loader.loadTestsFromName(selector, module)
+    if selector
+    else loader.loadTestsFromModule(module)
+)
+result = unittest.TextTestRunner(verbosity=2).run(suite)
+raise SystemExit(0 if result.wasSuccessful() else 1)
+"""
+
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def read_regular_snapshot(path: Path, maximum_bytes: int, label: str) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > maximum_bytes:
+            raise RuntimeError(f"{label} is not a bounded regular file")
+        payload = bytearray()
+        while len(payload) <= maximum_bytes:
+            block = os.read(
+                descriptor, min(1024 * 1024, maximum_bytes + 1 - len(payload))
+            )
+            if not block:
+                break
+            payload.extend(block)
+        after = os.fstat(descriptor)
+        stable = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+        if (
+            len(payload) > maximum_bytes
+            or len(payload) != before.st_size
+            or any(getattr(before, field) != getattr(after, field) for field in stable)
+        ):
+            raise RuntimeError(f"{label} changed during bounded read")
+        return bytes(payload)
+    except OSError as error:
+        raise RuntimeError(f"{label} is unreadable") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def write_private_snapshot(path: Path, data: bytes, mode: int) -> None:
+    descriptor = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+        mode,
+    )
+    try:
+        os.fchmod(descriptor, mode)
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise RuntimeError("short formal-input snapshot write")
+            offset += written
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def atomic_bytes(path: Path, data: bytes, mode: int) -> None:
@@ -96,99 +194,281 @@ def mutated_bytes(original: bytes, name: str) -> bytes:
 
 
 def hash_only_cycle(name: str, source: Path = SOURCE) -> dict:
-    original = source.read_bytes()
+    original = read_regular_snapshot(source, MAX_SOURCE_BYTES, "mutation source")
     mode = source.stat().st_mode & 0o777
     a_before = sha256(original)
     b_data = mutated_bytes(original, name)
     try:
         atomic_bytes(source, b_data, mode)
-        b_hash = sha256(source.read_bytes())
+        b_hash = sha256(read_regular_snapshot(source, MAX_SOURCE_BYTES, "mutation source"))
     finally:
         atomic_bytes(source, original, mode)
-    a_after = sha256(source.read_bytes())
+    restored_bytes = read_regular_snapshot(source, MAX_SOURCE_BYTES, "mutation source")
+    a_after = sha256(restored_bytes)
     return {
         "mutation": name,
         "a_before_sha256": a_before,
         "b_sha256": b_hash,
         "a_after_sha256": a_after,
-        "restored": a_before == a_after and source.read_bytes() == original,
+        "restored": a_before == a_after and restored_bytes == original,
     }
 
 
-def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | None = None) -> dict:
-    environment = dict(os.environ)
-    environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    if extra_env:
-        environment.update(extra_env)
+def _kill_process_group(process: subprocess.Popen) -> None:
     try:
-        completed = subprocess.run(
-            list(command),
-            cwd=ROOT.parent,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout,
-            check=False,
-            text=True,
-        )
-        output = completed.stdout
-        return {
-            "returncode": completed.returncode,
-            "output_sha256": sha256(output.encode("utf-8")),
-            "output": output,
-            "output_excerpt": output[-3000:],
-        }
-    except subprocess.TimeoutExpired as error:
-        def timeout_text(value: str | bytes | None) -> str:
-            if value is None:
-                return ""
-            if isinstance(value, bytes):
-                return value.decode("utf-8", errors="replace")
-            return value
+        os.killpg(process.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
 
-        output = timeout_text(error.stdout) + timeout_text(error.stderr)
-        return {
-            "returncode": 124,
-            "output_sha256": sha256(output.encode("utf-8")),
-            "output": output,
-            "output_excerpt": output[-3000:],
-        }
+
+def run_bounded_process(
+    command: Sequence[str],
+    *,
+    environment: dict[str, str],
+    timeout: int,
+) -> tuple[int, bytes, bool]:
+    process = subprocess.Popen(
+        list(command),
+        cwd=ROOT.parent,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=False,
+        start_new_session=True,
+    )
+    assert process.stdout is not None
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+    output = bytearray()
+    deadline = time.monotonic() + timeout
+    failure: str | None = None
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+                break
+            events = selector.select(remaining)
+            if not events:
+                failure = "timeout"
+                break
+            for key, _mask in events:
+                chunk = os.read(
+                    key.fd,
+                    min(
+                        64 * 1024,
+                        MAX_SUBPROCESS_OUTPUT_CHARS + 1 - len(output),
+                    ),
+                )
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                output.extend(chunk)
+                if len(output) > MAX_SUBPROCESS_OUTPUT_CHARS:
+                    failure = "limit"
+                    break
+            if failure is not None:
+                break
+        if failure is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+            else:
+                try:
+                    returncode = process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    failure = "timeout"
+    except BaseException:
+        _kill_process_group(process)
+        raise
+    finally:
+        selector.close()
+        process.stdout.close()
+    if failure is not None:
+        _kill_process_group(process)
+        return (
+            125 if failure == "limit" else 124,
+            bytes(output[:MAX_SUBPROCESS_OUTPUT_CHARS]),
+            failure == "limit",
+        )
+    return returncode, bytes(output), False
+
+
+def run(command: Sequence[str], timeout: int = 150, extra_env: dict[str, str] | None = None) -> dict:
+    environment = {
+        "LANG": "C",
+        "LC_ALL": "C",
+        "PATH": "/usr/bin:/bin",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONHASHSEED": "0",
+        "TZ": "UTC",
+    }
+    if extra_env:
+        if set(extra_env) != {"SPACECRAFT_CERTIFIER_PATH"}:
+            raise ValueError("unsupported mutation subprocess environment")
+        environment.update(extra_env)
+    returncode, output_bytes, output_limited = run_bounded_process(
+        command, environment=environment, timeout=timeout
+    )
+    output = output_bytes.decode("utf-8", errors="replace")
+    return {
+        "returncode": returncode,
+        "output_sha256": sha256(output_bytes),
+        "output": output,
+        "output_excerpt": output[-3000:],
+        "output_limited": output_limited,
+    }
+
+
+def parse_json_document(text: str, maximum_chars: int) -> dict | None:
+    if type(text) is not str or len(text) > maximum_chars:
+        return None
+
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def reject_number(_value: str) -> None:
+        raise ValueError("fractional or non-finite JSON number")
+
+    def bounded_integer(value: str) -> int:
+        digits = value[1:] if value.startswith("-") else value
+        if len(digits) > MAX_JSON_INTEGER_DIGITS:
+            raise ValueError("JSON integer exceeds the mutation digit limit")
+        return int(value)
+
+    try:
+        document = json.loads(
+            text,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=reject_number,
+            parse_float=reject_number,
+            parse_int=bounded_integer,
+        )
+    except (json.JSONDecodeError, OverflowError, RecursionError, TypeError, ValueError):
+        return None
+    pending = [(document, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if type(value) is dict:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                return None
+            if any(
+                any("\ud800" <= character <= "\udfff" for character in key)
+                for key in value
+            ):
+                return None
+            pending.extend((child, depth + 1) for child in value.values())
+        elif type(value) is list:
+            if depth >= MAX_JSON_NESTING_DEPTH:
+                return None
+            pending.extend((child, depth + 1) for child in value)
+        elif type(value) is str and any(
+            "\ud800" <= character <= "\udfff" for character in value
+        ):
+            return None
+        elif type(value) is float:
+            return None
+    return document if type(document) is dict else None
 
 
 def parse_json_output(record: dict) -> dict | None:
+    output = record.get("output") if type(record) is dict else None
+    return parse_json_document(output, MAX_SUBPROCESS_OUTPUT_CHARS)
+
+
+def formal_receipt_source_digest(inputs: FormalInputs) -> str:
+    raw = read_regular_snapshot(
+        inputs.receipt, MAX_RECEIPT_BYTES, "formal receipt"
+    )
     try:
-        return json.loads(record["output"])
-    except (json.JSONDecodeError, TypeError):
-        return None
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError("formal receipt is not UTF-8 JSON") from error
+    receipt = parse_json_document(text, MAX_RECEIPT_BYTES)
+    digest = receipt.get("source_sha256") if receipt is not None else None
+    if type(digest) is not str or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise RuntimeError("formal receipt source binding is invalid")
+    return digest
 
 
 def completed_mutant_failure(returncode: int) -> bool:
-    return returncode not in (0, 124)
+    return returncode not in (0, 124, 125)
 
 
 def mutant_failure_caught(returncode: int, output: str, expected_reason: str) -> bool:
     return completed_mutant_failure(returncode) and expected_reason in output
 
 
-def normalized_mutant_test_output(output: str, isolated_source: Path) -> str:
+def normalized_mutant_test_output(
+    output: str,
+    isolated_source: Path,
+    repository_root: Path | None = None,
+) -> str:
     """Remove nondeterministic diagnostics before binding mutant-test output."""
-    normalized = output.replace(str(isolated_source), "<MUTANT_CERTIFIER>")
-    normalized = normalized.replace(str(isolated_source.resolve()), "<MUTANT_CERTIFIER>")
-    return re.sub(r"(?m)^(Ran \d+ tests? in )\d+(?:\.\d+)?s$", r"\1<TIME>s", normalized)
+    normalized = output
+
+    def replace_path(path: Path, replacement: str) -> None:
+        nonlocal normalized
+        variants = {str(path), str(path.absolute()), str(path.resolve())}
+        for value in tuple(variants):
+            if value.startswith("/private/"):
+                variants.add(value.removeprefix("/private"))
+            elif value.startswith("/var/"):
+                variants.add("/private" + value)
+        for value in sorted(variants, key=len, reverse=True):
+            normalized = normalized.replace(value, replacement)
+
+    replace_path(isolated_source, "<MUTANT_CERTIFIER>")
+    replace_path(isolated_source.parent, "<MUTANT_DIRECTORY>")
+    replace_path(repository_root or ROOT.parent, "<REPOSITORY_ROOT>")
+    return re.sub(
+        r"(?m)^(Ran \d+ tests? in )\d+(?:\.\d+)?s$",
+        r"\1<TIME>s",
+        normalized,
+    )
 
 
-def witness_mutation_caught(returncode: int, parsed: dict | None) -> bool:
+def witness_mutation_caught(
+    checker_returncode: int,
+    outer_verifier_returncode: int,
+    parsed: dict | None,
+    *,
+    name: str | None = None,
+    checker_output: str | None = None,
+    checker_output_limited: bool = False,
+) -> bool:
+    checker_contract = checker_returncode == 1
+    if name is not None:
+        checker_contract = (
+            checker_contract
+            and checker_output_limited is False
+            and checker_output == WITNESS_MUTATION_REFUSALS.get(name)
+        )
     return (
-        completed_mutant_failure(returncode)
+        checker_contract
+        and outer_verifier_returncode == 2
         and parsed is not None
         and parsed.get("status") == "REFUSED"
-        and "witness-hash-mismatch" in parsed.get("reasons", [])
+        and parsed.get("reasons") == ["witness-hash-mismatch"]
     )
 
 
 class FormalInputs(NamedTuple):
     receipt: Path
+    request: Path
     witness: Path
     checker: Path
     proof_identity: Path
@@ -199,12 +479,99 @@ class FormalInputs(NamedTuple):
     model_id: str
     epoch: str
     nonce: str
+    verifier: Path = VERIFIER
+
+
+class SourceMutationInputs(NamedTuple):
+    repository_root: Path
+    source: Path
+    codec: Path
+    test: Path
+    baseline: Path
+
+
+def snapshot_formal_inputs(inputs: FormalInputs, root: Path) -> FormalInputs:
+    root.mkdir(parents=True, mode=0o700)
+    root.chmod(0o700)
+    specifications = (
+        ("receipt", "receipt.json", MAX_RECEIPT_BYTES, "formal receipt", 0o600),
+        ("request", "request.json", MAX_REQUEST_BYTES, "formal request", 0o600),
+        ("witness", "witness.cert", MAX_WITNESS_BYTES, "formal witness", 0o600),
+        ("checker", "checker", MAX_CHECKER_BYTES, "formal checker", 0o700),
+        (
+            "proof_identity",
+            "proof-identity.json",
+            MAX_IDENTITY_BYTES,
+            "formal proof identity",
+            0o600,
+        ),
+        ("verifier", "verify_receipt.py", MAX_SOURCE_BYTES, "outer verifier", 0o400),
+    )
+    replacements = {}
+    for field, filename, maximum_bytes, label, mode in specifications:
+        payload = read_regular_snapshot(
+            getattr(inputs, field), maximum_bytes, label
+        )
+        destination = root / filename
+        write_private_snapshot(destination, payload, mode)
+        replacements[field] = destination
+    return inputs._replace(**replacements)
+
+
+def snapshot_source_mutation_inputs(
+    repository_root: Path,
+) -> SourceMutationInputs:
+    certificate_root = repository_root / "spacecraft_burn_cert"
+    destinations = {
+        "source": certificate_root / "certify.py",
+        "codec": certificate_root / "witness_codec.py",
+        "test": certificate_root / "tests/test_certifier.py",
+        "baseline": (
+            certificate_root
+            / "evidence/legacy-v1/baseline_receipt.json"
+        ),
+    }
+    sources = {
+        "source": (SOURCE, MAX_SOURCE_BYTES, "producer source"),
+        "codec": (
+            SOURCE.with_name("witness_codec.py"),
+            MAX_SOURCE_BYTES,
+            "witness codec",
+        ),
+        "test": (
+            ROOT / "tests/test_certifier.py",
+            MAX_SOURCE_BYTES,
+            "certifier contract tests",
+        ),
+        "baseline": (
+            BASELINE,
+            MAX_RECEIPT_BYTES,
+            "legacy baseline receipt",
+        ),
+    }
+    repository_root.mkdir(parents=True, mode=0o700)
+    repository_root.chmod(0o700)
+    for field, destination in destinations.items():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        source, maximum_bytes, label = sources[field]
+        payload = read_regular_snapshot(source, maximum_bytes, label)
+        write_private_snapshot(destination, payload, 0o600)
+    return SourceMutationInputs(
+        repository_root=repository_root,
+        source=destinations["source"],
+        codec=destinations["codec"],
+        test=destinations["test"],
+        baseline=destinations["baseline"],
+    )
+
+
 
 
 def verifier_command(inputs: FormalInputs, witness: Path | None = None) -> tuple[str, ...]:
     return (
-        str(PYTHON), "-B", str(VERIFIER), str(inputs.receipt),
-        "--source", str(SOURCE), "--witness", str(witness or inputs.witness),
+        str(PYTHON), "-I", "-B", str(inputs.verifier), str(inputs.receipt),
+        "--source", str(SOURCE), "--request", str(inputs.request),
+        "--witness", str(witness or inputs.witness),
         "--checker", str(inputs.checker), "--proof-identity", str(inputs.proof_identity),
         "--expected-receipt-sha256", inputs.receipt_sha256,
         "--expected-proof-file-sha256", inputs.proof_file_sha256,
@@ -215,10 +582,44 @@ def verifier_command(inputs: FormalInputs, witness: Path | None = None) -> tuple
     )
 
 
-def exercise_mutation(name: str) -> dict:
+def certifier_test_command(
+    inputs: SourceMutationInputs,
+    selector: str = "",
+) -> tuple[str, ...]:
+    return (
+        str(PYTHON),
+        "-I",
+        "-B",
+        "-c",
+        ISOLATED_UNITTEST_RUNNER,
+        str(inputs.test),
+        str(inputs.repository_root),
+        selector,
+    )
+
+
+def exercise_mutation(
+    name: str,
+    inputs: SourceMutationInputs | None = None,
+) -> dict:
+    if inputs is None:
+        with tempfile.TemporaryDirectory(
+            prefix="spacecraft-source-input-snapshot-"
+        ) as directory:
+            root = Path(directory)
+            root.chmod(0o700)
+            snapshot = snapshot_source_mutation_inputs(root / "repository")
+            return exercise_mutation(name, snapshot)
+
     mutation = MUTATIONS[name]
-    original = SOURCE.read_bytes()
-    original_mode = SOURCE.stat().st_mode & 0o777
+    original = read_regular_snapshot(
+        inputs.source, MAX_SOURCE_BYTES, "producer source"
+    )
+    codec_bytes = read_regular_snapshot(
+        inputs.codec, MAX_SOURCE_BYTES, "witness codec"
+    )
+    original_mode = inputs.source.stat().st_mode & 0o777
+    codec_mode = inputs.codec.stat().st_mode & 0o777
     a_before = sha256(original)
     mutant = mutated_bytes(original, name)
     test_record = None
@@ -227,33 +628,39 @@ def exercise_mutation(name: str) -> dict:
     caught = False
     with tempfile.TemporaryDirectory(prefix="spacecraft-source-mutation-") as directory:
         isolated = Path(directory) / "certify.py"
+        isolated_codec = isolated.with_name("witness_codec.py")
         atomic_bytes(isolated, original, original_mode)
+        atomic_bytes(isolated_codec, codec_bytes, codec_mode)
         atomic_bytes(isolated, mutant, original_mode)
-        b_hash = sha256(isolated.read_bytes())
+        b_hash = sha256(
+            read_regular_snapshot(isolated, MAX_SOURCE_BYTES, "mutant source")
+        )
         test_record = run(
-            (
-                str(PYTHON), "-B", "-m", "unittest",
-                "spacecraft_burn_cert/tests/test_certifier.py", "-v",
-            ),
+            certifier_test_command(inputs),
             timeout=45,
             extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
         reason_observed = mutation["expected_reason"] in test_record["output"]
         caught = mutant_failure_caught(
-            test_record["returncode"], test_record["output"], mutation["expected_reason"]
+            test_record["returncode"],
+            test_record["output"],
+            mutation["expected_reason"],
         )
         atomic_bytes(isolated, original, original_mode)
         restored_test = run(
-            (
-                str(PYTHON), "-B", "-m", "unittest",
-                "spacecraft_burn_cert.tests.test_certifier.CertifierContractTests.test_baseline_contract_integrates_mass_and_converts_thrust_to_km",
-                "-v",
+            certifier_test_command(
+                inputs,
+                "CertifierContractTests."
+                "test_baseline_contract_integrates_mass_and_converts_thrust_to_km",
             ),
             timeout=30,
             extra_env={"SPACECRAFT_CERTIFIER_PATH": str(isolated)},
         )
-        a_after = sha256(isolated.read_bytes())
-        restored = a_after == a_before and isolated.read_bytes() == original
+        restored_bytes = read_regular_snapshot(
+            isolated, MAX_SOURCE_BYTES, "restored source"
+        )
+        a_after = sha256(restored_bytes)
+        restored = a_after == a_before and restored_bytes == original
     return {
         "mutation": name,
         "bug": mutation["bug"],
@@ -263,21 +670,41 @@ def exercise_mutation(name: str) -> dict:
         "a_after_sha256": a_after,
         "restored": restored,
         "restored_contract_test_passed": restored_test["returncode"] == 0,
+        "restored_contract_test_output_limited": restored_test["output_limited"],
         "mutant_tests_failed": completed_mutant_failure(test_record["returncode"]),
         "mutant_tests_timed_out": test_record["returncode"] == 124,
+        "mutant_tests_output_limited": test_record["output_limited"],
         "reason_observed": reason_observed,
         "mutant_test_output_sha256": sha256(
-            normalized_mutant_test_output(test_record["output"], isolated).encode("utf-8")
+            normalized_mutant_test_output(
+                test_record["output"],
+                isolated,
+                inputs.repository_root,
+            ).encode("utf-8")
         ),
         "detection_boundary": "source contract tests; formal publication requires separately pinned immutable bytes",
         "caught": caught,
     }
 
 
-def verify_baseline(inputs: FormalInputs) -> dict:
+def verify_baseline(inputs: FormalInputs) -> tuple[dict, dict]:
     record = run(verifier_command(inputs), timeout=180)
     parsed = parse_json_output(record)
-    return parsed or {"status": "ERROR", "record": record}
+    process = {
+        "returncode": record["returncode"],
+        "timed_out": record["returncode"] == 124,
+        "output_sha256": record["output_sha256"],
+        "output_limited": record["output_limited"],
+        "contract_valid": (
+            record["returncode"] == 0
+            and record["output_limited"] is False
+            and parsed is not None
+            and parsed.get("status") == "ACCEPT"
+        ),
+    }
+    if parsed is None:
+        return {"status": "ERROR"}, process
+    return parsed, process
 
 
 def mutated_witness(original: bytes, name: str) -> bytes:
@@ -309,51 +736,141 @@ def mutated_witness(original: bytes, name: str) -> bytes:
 
 
 def exercise_witness_mutation(name: str, inputs: FormalInputs) -> dict:
-    original = inputs.witness.read_bytes()
+    original = read_regular_snapshot(
+        inputs.witness, MAX_WITNESS_BYTES, "formal witness"
+    )
+    try:
+        checker_bytes = read_regular_snapshot(
+            inputs.checker, MAX_CHECKER_BYTES, "formal checker"
+        )
+    except RuntimeError:
+        checker_digest = None
+    else:
+        checker_digest = sha256(checker_bytes)
     mutant = mutated_witness(original, name)
     with tempfile.TemporaryDirectory(prefix="spacecraft-witness-mutation-") as directory:
         path = Path(directory) / f"{name}.cert"
         path.write_bytes(mutant)
-        checker = run((str(inputs.checker), str(path), inputs.request_digest,
-                       inputs.model_id, inputs.epoch), timeout=180)
+        checker = run(
+            (
+                str(inputs.checker),
+                str(path),
+                inputs.request_digest,
+                inputs.model_id,
+                inputs.epoch,
+            ),
+            timeout=180,
+        )
         verifier = run(verifier_command(inputs, path), timeout=30)
         parsed = parse_json_output(verifier)
-    checker_refused = completed_mutant_failure(checker["returncode"])
+    checker_refused = (
+        checker["returncode"] == 1
+        and checker["output_limited"] is False
+        and checker["output"] == WITNESS_MUTATION_REFUSALS[name]
+    )
     return {
         "mutation": name,
         "original_sha256": sha256(original),
         "mutant_sha256": sha256(mutant),
+        "checker_sha256": checker_digest,
         "checker_refused": checker_refused,
+        "checker_returncode": checker["returncode"],
         "checker_timed_out": checker["returncode"] == 124,
+        "checker_output_sha256": checker["output_sha256"],
+        "checker_output_limited": checker["output_limited"],
         "checker_output_excerpt": checker["output_excerpt"],
         "outer_verifier": parsed,
-        "caught": witness_mutation_caught(checker["returncode"], parsed),
+        "outer_verifier_returncode": verifier["returncode"],
+        "outer_verifier_timed_out": verifier["returncode"] == 124,
+        "outer_verifier_output_sha256": verifier["output_sha256"],
+        "outer_verifier_output_limited": verifier["output_limited"],
+        "caught": witness_mutation_caught(
+            checker["returncode"],
+            verifier["returncode"],
+            parsed,
+            name=name,
+            checker_output=checker["output"],
+            checker_output_limited=checker["output_limited"],
+        ),
     }
 
 
-def campaign(inputs: FormalInputs) -> dict:
-    original_hash = sha256(SOURCE.read_bytes())
-    before = verify_baseline(inputs)
-    if before.get("status") != "ACCEPT":
+def campaign_on_snapshot(
+    inputs: FormalInputs,
+    source_inputs: SourceMutationInputs,
+) -> dict:
+    original_hash = sha256(
+        read_regular_snapshot(
+            source_inputs.source, MAX_SOURCE_BYTES, "producer source"
+        )
+    )
+    receipt_source_digest = formal_receipt_source_digest(inputs)
+    if original_hash != receipt_source_digest:
+        raise RuntimeError(
+            "private source snapshot does not match formal receipt source binding"
+        )
+    before, before_process = verify_baseline(inputs)
+    if (
+        before.get("status") != "ACCEPT"
+        or before_process.get("contract_valid") is not True
+    ):
         raise RuntimeError("baseline verifier did not accept before mutation campaign")
-    records = [exercise_mutation(name) for name in MUTATIONS]
-    witness_records = [exercise_witness_mutation(name, inputs) for name in (
-        "corruption", "chain", "coverage"
-    )]
-    final_hash = sha256(SOURCE.read_bytes())
-    after = verify_baseline(inputs)
+    binding = before.get("binding")
+    if type(binding) is not dict:
+        raise RuntimeError("baseline verifier omitted formal binding")
+    witness_digest = binding.get("witness_sha256")
+    checker_digest = binding.get("checker_sha256")
+    if type(witness_digest) is not str or type(checker_digest) is not str:
+        raise RuntimeError("baseline verifier binding is incomplete")
+
+    records = [
+        exercise_mutation(name, source_inputs)
+        for name in MUTATIONS
+    ]
+    witness_records = [
+        exercise_witness_mutation(name, inputs)
+        for name in ("corruption", "chain", "coverage")
+    ]
+    final_hash = sha256(
+        read_regular_snapshot(
+            source_inputs.source, MAX_SOURCE_BYTES, "producer source"
+        )
+    )
+    after, after_process = verify_baseline(inputs)
+    source_evidence_valid = all(
+        record.get("caught") is True
+        and record.get("restored") is True
+        and record.get("restored_contract_test_passed") is True
+        and record.get("a_before_sha256") == original_hash
+        and record.get("a_after_sha256") == original_hash
+        for record in records
+    )
+    witness_evidence_valid = all(
+        record.get("caught") is True
+        and record.get("original_sha256") == witness_digest
+        and record.get("checker_sha256") == checker_digest
+        and record.get("checker_returncode") == 1
+        and record.get("checker_timed_out") is False
+        and record.get("checker_output_limited") is False
+        and record.get("checker_output_excerpt")
+        == WITNESS_MUTATION_REFUSALS.get(record.get("mutation"))
+        and record.get("outer_verifier_returncode") == 2
+        and record.get("outer_verifier_timed_out") is False
+        and record.get("outer_verifier_output_limited") is False
+        and record.get("outer_verifier")
+        == {"status": "REFUSED", "reasons": ["witness-hash-mismatch"]}
+        for record in witness_records
+    )
     status = (
         "PASS"
         if original_hash == final_hash
         and before.get("status") == "ACCEPT"
+        and before_process.get("contract_valid") is True
         and after.get("status") == "ACCEPT"
-        and all(
-            record["caught"]
-            and record["restored"]
-            and record["restored_contract_test_passed"]
-            for record in records
-        )
-        and all(record["caught"] for record in witness_records)
+        and after_process.get("contract_valid") is True
+        and after.get("binding") == binding
+        and source_evidence_valid
+        and witness_evidence_valid
         else "FAIL"
     )
     return {
@@ -362,34 +879,125 @@ def campaign(inputs: FormalInputs) -> dict:
         "baseline_source_sha256": original_hash,
         "final_source_sha256": final_hash,
         "baseline_verifier_before": before,
+        "baseline_verifier_before_process": before_process,
         "mutations": records,
         "witness_mutations": witness_records,
         "baseline_verifier_after": after,
+        "baseline_verifier_after_process": after_process,
     }
 
 
-def write_atomic(path: Path, payload: dict) -> None:
-    data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    path = path.resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}")
-    try:
-        with temporary.open("xb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    finally:
+def campaign(inputs: FormalInputs) -> dict:
+    with tempfile.TemporaryDirectory(
+        prefix="spacecraft-campaign-snapshot-"
+    ) as directory:
+        root = Path(directory)
+        root.chmod(0o700)
+        formal_snapshot = snapshot_formal_inputs(inputs, root / "formal")
+        source_snapshot = snapshot_source_mutation_inputs(root / "repository")
+        return campaign_on_snapshot(formal_snapshot, source_snapshot)
+
+
+def _lexical_absolute(path: Path | str) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _resolved_parent_leaf(path: Path | str) -> Path:
+    lexical = _lexical_absolute(path)
+    if not lexical.name:
+        raise ValueError("output path has no filename")
+    return lexical.parent.resolve(strict=False) / lexical.name
+
+
+def prepare_output_path(
+    path: Path | str, input_paths: Iterable[Path | str]
+) -> Path:
+    lexical = _lexical_absolute(path)
+    resolved_parent = _resolved_parent_leaf(lexical)
+    output_candidates = tuple(dict.fromkeys((lexical, resolved_parent)))
+    for candidate in output_candidates:
         try:
-            temporary.unlink()
+            metadata = os.lstat(candidate)
         except FileNotFoundError:
-            pass
+            continue
+        except OSError as error:
+            raise ValueError("mutation output path cannot be inspected") from error
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError("mutation output path must not be a symlink")
+        raise ValueError("mutation output path must not already exist")
+
+    for input_path in input_paths:
+        input_lexical = _lexical_absolute(input_path)
+        input_resolved_parent = _resolved_parent_leaf(input_lexical)
+        if lexical == input_lexical or resolved_parent == input_resolved_parent:
+            raise ValueError("mutation output must not alias an input path")
+    return resolved_parent
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_atomic(
+    path: Path | str,
+    payload: dict,
+    input_paths: Iterable[Path | str] = (),
+) -> Path:
+    inputs = tuple(input_paths)
+    target = prepare_output_path(path, inputs)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target = prepare_output_path(target, inputs)
+    data = (
+        json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    ).encode("utf-8")
+    descriptor: int | None = None
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.tmp-", dir=target.parent
+        )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o644)
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            written = os.write(descriptor, view[offset:])
+            if written <= 0:
+                raise RuntimeError("zero-length mutation output write")
+            offset += written
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = None
+        os.replace(temporary, target)
+        temporary = None
+        _fsync_directory(target.parent)
+        return target
+    except BaseException:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "evidence" / "mutation_aba_v2.json")
     parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--witness", type=Path, required=True)
     parser.add_argument("--checker", type=Path, required=True)
     parser.add_argument("--proof-identity", type=Path, required=True)
@@ -401,16 +1009,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--expected-epoch", required=True)
     parser.add_argument("--nonce", required=True)
     args = parser.parse_args(argv)
+    output_inputs = (
+        args.baseline,
+        args.request,
+        args.witness,
+        args.checker,
+        args.proof_identity,
+        SOURCE,
+        VERIFIER,
+        ROOT / "witness_codec.py",
+        ROOT / "tests" / "test_certifier.py",
+    )
+    try:
+        destination = prepare_output_path(args.output, output_inputs)
+    except ValueError as error:
+        parser.error(str(error))
     inputs = FormalInputs(
-        args.baseline.resolve(), args.witness.resolve(), args.checker.resolve(),
+        args.baseline.resolve(), args.request.resolve(), args.witness.resolve(),
+        args.checker.resolve(),
         args.proof_identity.resolve(), args.expected_receipt_sha256,
         args.expected_proof_file_sha256, args.expected_proof_identity_sha256,
         args.expected_request_digest, args.expected_model_id,
         args.expected_epoch, args.nonce,
     )
     result = campaign(inputs)
-    write_atomic(args.output, result)
-    print(f"MUTATION_ABA_{result['status']} output={args.output.resolve()}")
+    destination = write_atomic(destination, result, output_inputs)
+    print(f"MUTATION_ABA_{result['status']} output={destination}")
     return 0 if result["status"] == "PASS" else 2
 
 

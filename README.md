@@ -22,18 +22,38 @@ same exact release bytes.
 
 ## Spacecraft finite-burn certificate
 
-The v1.7.4 release candidate adds a repository/release formal certificate for
-the spacecraft finite-burn case. Until independent review, completion audit,
-hosted gates, and release-byte readback finish, the candidate verdict is
-**CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions**. It is not yet a
-published release verdict. The Python producer is candidate-only; the
-pinned Lean checker and outer verifier bind the 35.9 MB witness, theorem, proof
-identity, request, model, epoch, nonce, and receipt. See
+**Commit-scoped status:** this source snapshot was prepared as the **v1.7.5
+corrective release candidate** before publication. A tag or source snapshot does
+not itself establish current GitHub publication state; consult the
+[releases index](https://github.com/AnubisQuantumCipher/jackal/releases) and
+the postpublication readback on `master`. The v1.7.5 tag page exists only after
+publication. At this candidate commit, the
+historical v1.7.4 release remained published and its 11 public assets had passed
+download readback, but **v1.7.4 should not be used as the publication-grade
+verifier bundle**. Its tag full-certificate campaign was cancelled at the
+60-minute ceiling. The v1.7.5 candidate was prepared to close gaps in the
+structured verdict, claim surfaces, executable archive, verification
+instructions, and tag campaign before independent review and publication.
+
+The published historical [v1.7.4 release](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.4)
+added a repository/release formal certificate for the spacecraft finite-burn
+case. Its qualified release verdict was **CERTIFIED SAFE under the stated
+finite-burn ODE model, supplied input bounds, and machine-checked
+interval-certificate assumptions**. Independent review and the PR and
+master-branch hosted gates passed, and a fresh download of all 11 release
+assets is complete. The v1.7.4 tag full-certificate campaign was cancelled,
+not passed; the committed
+[readback receipt](release/evidence/spacecraft_burn_release_readback_v174.json)
+binds the exact tag, merge commit, asset hashes, proof identity, and installed
+plugin state. The Python producer remains candidate-only; the pinned Lean
+checker and outer verifier bind the 35.9 MB witness, theorem, proof identity,
+request, model, epoch, nonce, and receipt. See
 [`spacecraft_burn_cert/REPORT.md`](spacecraft_burn_cert/REPORT.md) for the exact
 assurance boundary and physical-model non-claims.
 
 This lane does not add an MCP command. The ordered agent catalog remains 41
-tools; use the repo-local CLI or published release assets for this certificate.
+tools; use the repo-local CLI now, and use v1.7.5 release assets only after the
+fresh public-download readback is committed.
 
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
 buttons. It treats a serious calculation as a bounded scientific claim: value, units,

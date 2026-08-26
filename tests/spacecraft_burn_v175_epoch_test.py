@@ -27,31 +27,83 @@ def load_module(path: Path, name: str):
 
 
 class SpacecraftBurnV175EpochTests(unittest.TestCase):
-    def test_readme_marks_v175_as_commit_scoped_corrective_candidate(self):
+    def test_readme_marks_v175_as_published_latest_corrective_release(self):
         readme = (ROOT / "README.md").read_text()
         rendered = " ".join(readme.split())
-        self.assertIn("v1.7.5 corrective release candidate", rendered)
-        self.assertIn("Commit-scoped status", rendered)
-        self.assertIn("source snapshot was prepared", rendered)
-        self.assertIn("current GitHub publication state", rendered)
+        self.assertIn("**Published state:**", rendered)
+        self.assertIn("observed public **Latest** release", rendered)
         self.assertIn(
-            "v1.7.4 should not be used as the publication-grade verifier bundle",
-            rendered,
+            "https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5",
+            readme,
         )
-        self.assertIn("v1.7.4 tag full-certificate campaign was cancelled", rendered)
-        self.assertIn("PR and master-branch hosted gates passed", rendered)
+        self.assertIn(
+            "release/evidence/spacecraft_burn_release_readback_v175.json",
+            readme,
+        )
+        self.assertIn("12 uploaded release asset byte identities", rendered)
+        self.assertIn("11 `SHA256SUMS` payload rows", rendered)
+        self.assertIn("v1.7.4 release, tag, assets", rendered)
+        self.assertIn("remain immutable historical evidence", rendered)
+        for stale in (
+            "v1.7.5 corrective release candidate",
+            "Commit-scoped status",
+            "source snapshot was prepared",
+            "exists only after publication",
+            "only after the fresh public-download",
+        ):
+            self.assertNotIn(stale, rendered)
 
-    def test_immutable_tag_surfaces_do_not_encode_mutable_unpublished_state(self):
-        root_readme = (ROOT / "README.md").read_text()
-        certificate_readme = (ROOT / "spacecraft_burn_cert/README.md").read_text()
-        report = (ROOT / "spacecraft_burn_cert/REPORT.md").read_text()
-        self.assertNotIn("not yet published", root_readme)
-        for surface in (certificate_readme, report):
-            with self.subTest(surface=surface[:40]):
-                rendered = " ".join(surface.split())
-                self.assertIn("Commit-scoped publication state", rendered)
-                self.assertIn("current GitHub release state", rendered)
-                self.assertNotIn("candidate; not published", rendered)
+    def test_published_docs_and_immutable_tag_surfaces_are_consistent(self):
+        surfaces = (
+            (
+                ROOT / "spacecraft_burn_cert/README.md",
+                "../release/evidence/spacecraft_burn_release_readback_v175.json",
+            ),
+            (
+                ROOT / "spacecraft_burn_cert/REPORT.md",
+                "../release/evidence/spacecraft_burn_release_readback_v175.json",
+            ),
+        )
+        release_url = (
+            "https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5"
+        )
+        for path, readback_link in surfaces:
+            with self.subTest(path=str(path)):
+                text = path.read_text()
+                rendered = " ".join(text.split())
+                self.assertIn("Published state:", rendered)
+                self.assertIn("observed public Latest release", rendered)
+                self.assertIn(release_url, text)
+                self.assertIn(readback_link, text)
+                self.assertIn(
+                    "v1.7.4 release, tag, assets, and readback remain immutable "
+                    "historical evidence",
+                    rendered,
+                )
+                for stale in (
+                    "Commit-scoped publication state",
+                    "v1.7.5 candidate",
+                    "current GitHub release state",
+                    "exists only after publication",
+                ):
+                    self.assertNotIn(stale, rendered)
+
+        notes = (ROOT / "release/spacecraft_burn_v175_release_notes.md").read_text()
+        metadata = json.loads(
+            (ROOT / "release/evidence/spacecraft_burn_release_metadata_v175.json")
+            .read_text()
+        )
+        self.assertTrue(
+            notes.startswith(
+                "# JACKAL v1.7.5 - Spacecraft finite-burn certification\n"
+            )
+        )
+        self.assertNotIn("candidate; not published", notes)
+        self.assertEqual(metadata["tag"], EPOCH)
+        self.assertEqual(
+            metadata["title"],
+            "JACKAL v1.7.5 - Spacecraft finite-burn certification",
+        )
 
     def test_checker_proof_identity_and_workflow_use_v175_epoch(self):
         checker = (ROOT / "proofs/lean/JackalIv/Spacecraft/CertCheck.lean").read_text()

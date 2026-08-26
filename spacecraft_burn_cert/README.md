@@ -1,12 +1,12 @@
 # Spacecraft finite-burn formal certificate
 
-Commit-scoped publication state: this source snapshot is the v1.7.5 candidate
-prepared before publication. It does not by itself establish current GitHub
-release state. Consult the
-[releases index](https://github.com/AnubisQuantumCipher/jackal/releases) and
-the postpublication readback on `master`; the v1.7.5 tag page exists only after
-publication. Use release assets only when those current checks bind their exact
-bytes.
+Published state: [JACKAL v1.7.5](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
+is the observed public Latest release and is neither a draft nor a prerelease.
+Fresh downloads reproduced all 12 uploaded release assets and all 11 checksum
+payload rows. The committed
+[v1.7.5 readback](../release/evidence/spacecraft_burn_release_readback_v175.json)
+binds the exact released bytes and publication metadata. The v1.7.4 release,
+tag, assets, and readback remain immutable historical evidence.
 
 This lane certifies a universal lower bound for the finite-duration periapsis
 burn challenge. The publication verdict is:

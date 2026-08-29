@@ -30,7 +30,6 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
         self.assertNotIn("pragma assume", lowered)
         self.assertNotIn("pragma annotate", lowered)
 
-    @unittest.skipUnless(shutil.which("rg"), "rg is not installed")
     def test_assumption_guard_rejects_case_and_line_break_bypasses(self):
         with tempfile.TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
@@ -41,7 +40,10 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
                 encoding="utf-8",
             )
             source.write_text(
-                "procedure Guard_Probe is begin null; end Guard_Probe;\n",
+                "-- pragma Assume (True);\n"
+                "procedure Guard_Probe is\n"
+                "  Message : constant String := \"pragma Annotate\";\n"
+                "begin null; end Guard_Probe;\n",
                 encoding="utf-8",
             )
             accepted = subprocess.run(
@@ -58,6 +60,7 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
             forbidden_pragmas = (
                 "pragma aSsUmE (True);",
                 "pragma\nAnNoTaTe (GNATprove, False_Positive, \"probe\");",
+                "pragma -- comment between Ada tokens\nAssume (True);",
             )
             for forbidden in forbidden_pragmas:
                 with self.subTest(forbidden=forbidden):
@@ -72,7 +75,7 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
                     transcript = refused.stdout + refused.stderr
                     self.assertNotEqual(refused.returncode, 0, transcript)
                     self.assertIn(
-                        "proof assumptions or justifications are forbidden",
+                        "proof assumption or justification",
                         transcript,
                     )
 
@@ -99,7 +102,7 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
             )
 
     @unittest.skipUnless(
-        shutil.which("gprbuild") and shutil.which("gnatprove") and shutil.which("rg"),
+        shutil.which("gprbuild") and shutil.which("gnatprove"),
         "GNATprove toolchain is not installed",
     )
     def test_build_runtime_boundary_and_gnatprove_gate(self):

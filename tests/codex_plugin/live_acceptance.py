@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import copy
 import hashlib
 import json
@@ -47,7 +48,30 @@ MCP_PROTOCOL_VERSION = "2025-11-25"
 # Anti-shrink floor for the sealed v1.7.3 runtime and matching repository
 # surface. Exact catalog equality and uniqueness are enforced below; this floor
 # makes a coordinated truncation refuse before any happy-path calls run.
-MIN_TOOL_COUNT = 41
+MIN_RUNTIME_TOOL_COUNT = 41
+MEASUREMENT_TOOLS = (
+    "jackal_convert",
+    "jackal_rate_apply",
+    "jackal_percent",
+    "jackal_date_delta",
+    "jackal_stat",
+    "jackal_compare",
+    "jackal_scan",
+)
+ADVANCED_TOOLS = (
+    "jackal_cas",
+    "jackal_graph",
+    "jackal_hellgate_ground_state",
+)
+STEM_TOOLS = (
+    "jackal_matrix",
+    "jackal_regression",
+    "jackal_probability",
+    "jackal_hypothesis",
+    "jackal_sensor",
+    "jackal_aerospace",
+    "jackal_linked_workspace",
+)
 HOST_TRANSCRIPT_LIMIT = 4 * 1024 * 1024
 HOST_REGISTRY_LIMIT = 1024 * 1024
 HOST_REGISTRY_ENTRY_LIMIT = 256
@@ -61,9 +85,14 @@ HOST_BINARY_VERSION_LIMIT = 1024
 HOST_BINARY_BYTE_LIMIT = 512 * 1024 * 1024
 HOST_BINARY_PATH_LIMIT = 4096
 
-HERMES_BUNDLE_SHA256 = "c6a27483077b89d899d8c73c03bfeb3191f25db2a22f8021254a7dec763ba5fe"
-INT_CERT_PRODUCER_SHA256 = "b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4"
-INT_CERT_CHECKER_SHA256 = "f8347cbd18d520852aff56920d41f5e5b496ff192f584e41d84d1a818ff29617"
+FORMAL_IDENTITY_FIELDS = frozenset({
+    "evaluator_sha256", "producer_sha256", "checker_sha256", "plugin_sha256",
+})
+FORMAL_IDENTITY_MANIFEST_ROWS = {
+    "plugin_hermes": ("plugin_sha256", 2),
+    "int_cert_producer": ("producer_sha256", 3),
+    "int_cert_checker": ("checker_sha256", 3),
+}
 
 CLAIM_TIME = "1786752000"
 CLAIM_NONCE = "jackal-codex-task5-v1"
@@ -1346,12 +1375,13 @@ def run_host_discovery_acceptance(
             raise AcceptanceError("host acceptance identities changed during the task")
         if binary_after != binary_before:
             raise AcceptanceError("host binary identity changed during the task")
+        runtime_pins = effective_runtime_pins()
         return {
             "status": "accepted",
             "acceptance_kind": "fresh-codex-host-discovery",
             "wrapper_aggregate_sha256": source_aggregate,
-            "runtime_package_sha256": provisioner.PACKAGE_SHA256,
-            "runtime_tree_sha256": provisioner.SHA256SUMS_SHA256,
+            "runtime_package_sha256": runtime_pins["package_sha256"],
+            "runtime_tree_sha256": runtime_pins["sha256sums_sha256"],
             "evidence_path": os.fspath(evidence),
             "active_mcp_cwd": os.fspath(active_before),
             "codex_binary_invocation_path": binary_before.invocation_path,
@@ -1366,7 +1396,7 @@ def run_host_discovery_acceptance(
         os.close(evidence_fd)
 
 
-def tool_payload(response: object) -> dict[str, Any]:
+def _tool_result(response: object) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if not isinstance(response, dict) or response.get("jsonrpc") != "2.0" \
             or "error" in response:
         raise AcceptanceError("MCP call did not return a successful JSON-RPC response")
@@ -1378,9 +1408,16 @@ def tool_payload(response: object) -> dict[str, Any]:
     structured = result["structuredContent"]
     content = result["content"]
     if not isinstance(structured, dict) or not isinstance(content, list) \
-            or len(content) != 1 or content[0].get("type") != "text" \
-            or not isinstance(content[0].get("text"), str):
+            or not content or any(not isinstance(block, dict) for block in content):
         raise AcceptanceError("MCP tool result content shape is invalid")
+    return structured, content
+
+
+def tool_payload(response: object) -> dict[str, Any]:
+    structured, content = _tool_result(response)
+    if len(content) != 1 or content[0].get("type") != "text" \
+            or not isinstance(content[0].get("text"), str):
+        raise AcceptanceError("MCP text fallback shape is invalid")
     try:
         text_value = strict_json_loads(content[0]["text"])
     except (ValueError, json.JSONDecodeError) as error:
@@ -1402,7 +1439,27 @@ def validate_exact(mcp_response: object, direct: object) -> dict[str, Any]:
     return value
 
 
-def _verify_formal_receipt(receipt: object) -> dict[str, Any]:
+def _validated_formal_identities(
+    expected_identities: Mapping[str, str],
+) -> dict[str, str]:
+    if not isinstance(expected_identities, Mapping) \
+            or set(expected_identities) != FORMAL_IDENTITY_FIELDS:
+        raise AcceptanceError("formal identity expectations have an unsupported shape")
+    result = dict(expected_identities)
+    if any(
+        not isinstance(value, str)
+        or re.fullmatch(r"[0-9a-f]{64}", value, re.ASCII) is None
+        for value in result.values()
+    ):
+        raise AcceptanceError("formal identity expectation is not a SHA-256 digest")
+    if result["evaluator_sha256"] != result["producer_sha256"]:
+        raise AcceptanceError("int-cert evaluator and producer expectations diverge")
+    return result
+
+
+def _verify_formal_receipt(
+    receipt: object, expected_identities: Mapping[str, str],
+) -> dict[str, Any]:
     if not isinstance(receipt, dict):
         raise AcceptanceError("formal result omitted its receipt")
     expected_request = {
@@ -1427,12 +1484,7 @@ def _verify_formal_receipt(receipt: object) -> dict[str, Any]:
         "producer_sha256": identities.get("producer_sha256"),
         "checker_sha256": identities.get("checker_sha256"),
         "plugin_sha256": identities.get("plugin_sha256"),
-    } != {
-        "evaluator_sha256": INT_CERT_PRODUCER_SHA256,
-        "producer_sha256": INT_CERT_PRODUCER_SHA256,
-        "checker_sha256": INT_CERT_CHECKER_SHA256,
-        "plugin_sha256": HERMES_BUNDLE_SHA256,
-    }:
+    } != expected_identities:
         raise AcceptanceError("formal receipt identity binding is invalid")
     certificate = receipt.get("certificate")
     if not isinstance(certificate, dict) \
@@ -1459,7 +1511,9 @@ def _normalized_formal(value: dict[str, Any]) -> dict[str, Any]:
 
 def validate_formal_int_cert(
     mcp_response: object, direct: object,
+    expected_identities: Mapping[str, str],
 ) -> dict[str, Any]:
+    expected = _validated_formal_identities(expected_identities)
     value = tool_payload(mcp_response)
     if not isinstance(direct, dict):
         raise AcceptanceError("direct formal backend result is not an object")
@@ -1467,7 +1521,7 @@ def validate_formal_int_cert(
         if result.get("status") != "formal-bounded" \
                 or result.get("checker_rerun") != "ACCEPT":
             raise AcceptanceError("formal result was not checker-attested")
-        _verify_formal_receipt(result.get("receipt"))
+        _verify_formal_receipt(result.get("receipt"), expected)
     if _normalized_formal(value) != _normalized_formal(direct):
         raise AcceptanceError("formal result failed normalized direct backend parity")
     return value
@@ -1553,15 +1607,17 @@ def _validate_bundle_verification(response: object) -> dict[str, Any]:
 
 def _validate_receipt_verification(
     response: object, receipt: dict[str, Any],
+    expected_identities: Mapping[str, str],
 ) -> dict[str, Any]:
+    identities = _validated_formal_identities(expected_identities)
     value = tool_payload(response)
     result = receipt["result"]
     expected = {
         "receipt_digest_sha256": receipt["receipt_digest_sha256"],
         "certificate_sha256": receipt["certificate"]["sha256"],
-        "checker_sha256": INT_CERT_CHECKER_SHA256,
-        "evaluator_sha256": INT_CERT_PRODUCER_SHA256,
-        "plugin_sha256": HERMES_BUNDLE_SHA256,
+        "checker_sha256": identities["checker_sha256"],
+        "evaluator_sha256": identities["evaluator_sha256"],
+        "plugin_sha256": identities["plugin_sha256"],
         "enclosure": [result["enclosure_lo"], result["enclosure_hi"]],
     }
     if value.get("status") != "verified" or value.get("verdict") != "ACCEPT" \
@@ -1586,26 +1642,246 @@ def _validate_inventory(response: object, runtime_document: object) -> list[str]
     if not isinstance(runtime_document, dict) \
             or not isinstance(runtime_document.get("tools"), list):
         raise AcceptanceError("runtime tools document is malformed")
-    expected = [record.get("name") for record in runtime_document["tools"]
-                if isinstance(record, dict)]
+    runtime_expected = [record.get("name") for record in runtime_document["tools"]
+                        if isinstance(record, dict)]
+    expected = (
+        runtime_expected
+        + list(MEASUREMENT_TOOLS)
+        + list(ADVANCED_TOOLS)
+        + list(STEM_TOOLS)
+    )
     result = response.get("result") if isinstance(response, dict) else None
     tools = result.get("tools") if isinstance(result, dict) else None
     if not isinstance(tools, list):
         raise AcceptanceError("MCP tools/list returned no tool inventory")
     discovered = [record.get("name") for record in tools if isinstance(record, dict)]
-    if len(expected) < MIN_TOOL_COUNT:
+    if len(runtime_expected) < MIN_RUNTIME_TOOL_COUNT:
         raise AcceptanceError("runtime catalog shrank below the frozen floor")
     if len(discovered) != len(expected) \
             or len(set(discovered)) != len(discovered) \
             or discovered != expected:
-        raise AcceptanceError("MCP inventory differs from the exact runtime catalog")
+        raise AcceptanceError("MCP inventory differs from the exact unified JACKAL surface")
     return discovered
+
+
+def _validate_measurement_payload(
+    response: object, *, status: str, delegated: bool = True,
+) -> dict[str, Any]:
+    value = tool_payload(response)
+    identity_value = value.get("identities", {}).get("jackal_measurement_sha256")
+    trace = value.get("delegated_to")
+    if (
+        value.get("status") != status
+        or value.get("consequence_ceiling") != "informational"
+        or not isinstance(value.get("parsed"), str)
+        or not value["parsed"]
+        or not isinstance(value.get("non_claims"), list)
+        or re.fullmatch(r"[0-9a-f]{64}", identity_value or "") is None
+        or not isinstance(trace, list)
+        or bool(trace) is not delegated
+    ):
+        raise AcceptanceError("integrated measurement envelope is invalid")
+    if status == "exact-given":
+        given = value.get("given")
+        if (
+            not isinstance(given, dict)
+            or not isinstance(given.get("source"), str)
+            or not given["source"]
+            or not isinstance(given.get("as_of"), str)
+            or not given["as_of"]
+        ):
+            raise AcceptanceError("exact-given measurement omitted provenance")
+    return value
+
+
+def _validate_measurement_refusal(response: object, *, reason: str) -> dict[str, Any]:
+    value = tool_payload(response)
+    if (
+        value.get("status") != "refused"
+        or value.get("reason") != reason
+        or value.get("consequence_ceiling") != "informational"
+        or "fields" in value
+        or not isinstance(value.get("non_claims"), list)
+    ):
+        raise AcceptanceError("measurement refusal semantics changed")
+    return value
+
+
+def _validate_cas_payload(response: object, direct: object) -> dict[str, Any]:
+    value = tool_payload(response)
+    trace = value.get("delegated_to")
+    if (
+        value.get("status") != "exact"
+        or value.get("lane") != "cas-route"
+        or value.get("formal") is not False
+        or value.get("result") != direct
+        or not isinstance(trace, list)
+        or len(trace) != 1
+        or trace[0].get("tool") != "jackal_exact"
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            value.get("identities", {}).get("jackal_advanced_sha256", ""),
+        ) is None
+        or not isinstance(value.get("non_claims"), list)
+    ):
+        raise AcceptanceError("advanced CAS assurance envelope is invalid")
+    return value
+
+
+def _validate_graph_payload(response: object) -> dict[str, Any]:
+    value, content = _tool_result(response)
+    if (
+        value.get("status") != "estimated"
+        or value.get("lane") != "graph-delegated-f64-v1"
+        or value.get("formal") is not False
+        or value.get("consequence_ceiling") != "informational"
+        or "_mcp_content" in value
+        or len(content) != 2
+        or content[0].get("type") != "text"
+        or content[1].get("type") != "image"
+        or content[1].get("mimeType") != "image/png"
+        or not isinstance(content[1].get("data"), str)
+        or not isinstance(value.get("delegated_to"), list)
+        or not isinstance(value.get("non_claims"), list)
+    ):
+        raise AcceptanceError("advanced graph assurance envelope is invalid")
+    try:
+        image = base64.b64decode(content[1]["data"], validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise AcceptanceError("advanced graph image is not base64") from error
+    if not image.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise AcceptanceError("advanced graph image is not PNG")
+    return value
+
+
+def _validate_hellgate_payload(response: object) -> dict[str, Any]:
+    value = tool_payload(response)
+    fields = value.get("fields")
+    identities = value.get("identities")
+    trial = fields.get("trial_diagnostics") if isinstance(fields, dict) else None
+    ground = fields.get("ground_state_transfer") if isinstance(fields, dict) else None
+    required_identities = {
+        "jackal_advanced_sha256",
+        "hellgate_checker_sha256",
+        "hellgate_certificate_file_sha256",
+    }
+    if (
+        value.get("status") != "bounded"
+        or value.get("lane") != "nonlinear-barta-exact-rational-v1"
+        or value.get("formal") is not False
+        or value.get("checker_verdict") != "ACCEPT"
+        or not isinstance(fields, dict)
+        or not isinstance(fields.get("eigenvalue_interval"), list)
+        or len(fields["eigenvalue_interval"]) != 2
+        or not isinstance(fields.get("eigenvalue_decimal_interval"), list)
+        or len(fields["eigenvalue_decimal_interval"]) != 2
+        or not isinstance(fields.get("interval_width"), str)
+        or not isinstance(trial, dict)
+        or trial.get("schema") != "jackal-hellgate-trial-diagnostics-v1"
+        or trial.get("status") != "bounded"
+        or trial.get("subject") != "normalized-certificate-trial-phi"
+        or not isinstance(trial.get("non_claims"), list)
+        or not any(
+            isinstance(item, str) and "not the exact ground state u0" in item
+            for item in trial["non_claims"]
+        )
+        or not isinstance(ground, dict)
+        or ground.get("schema") != "jackal-hellgate-ground-transfer-v1"
+        or ground.get("status") != "bounded"
+        or ground.get("subject") != "positive-normalized-ground-state-u0"
+        or ground.get("method") != "lambda-strong-convexity-density-transfer-v1"
+        or not isinstance(ground.get("non_claims"), list)
+        or not any(
+            isinstance(item, str) and "does not enclose polynomial moments" in item
+            for item in ground["non_claims"]
+        )
+        or not isinstance(identities, dict)
+        or not required_identities.issubset(identities)
+        or any(
+            not isinstance(identities[key], str)
+            or re.fullmatch(r"[0-9a-f]{64}", identities[key]) is None
+            for key in required_identities
+        )
+        or not isinstance(value.get("theorem"), dict)
+        or not isinstance(value.get("assumptions"), list)
+        or not isinstance(value.get("non_claims"), list)
+        or not any(
+            isinstance(item, str) and "not formal-bounded" in item
+            for item in value["non_claims"]
+        )
+    ):
+        raise AcceptanceError("HELLGATE certificate assurance envelope is invalid")
+    return value
+
+
+def _validate_stem_payload(
+    response: object, *, status: str, consequence_ceiling: str = "informational",
+) -> dict[str, Any]:
+    value = tool_payload(response)
+    if (
+        value.get("status") != status
+        or value.get("formal") is not False
+        or value.get("consequence_ceiling") != consequence_ceiling
+        or not isinstance(value.get("lane"), str)
+        or not isinstance(value.get("parsed"), dict)
+        or not isinstance(value.get("fields"), dict)
+        or not isinstance(value.get("field_status"), dict)
+        or not isinstance(value.get("delegated_to"), list)
+        or not isinstance(value.get("non_claims"), list)
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            value.get("identities", {}).get("jackal_stem_sha256", ""),
+        ) is None
+    ):
+        raise AcceptanceError("STEM assurance envelope is invalid")
+    return value
+
+
+def _validate_linked_workspace_payload(response: object) -> dict[str, Any]:
+    value, content = _tool_result(response)
+    if (
+        value.get("status") != "checked"
+        or value.get("formal") is not False
+        or value.get("consequence_ceiling") != "informational"
+        or "_mcp_content" in value
+        or len(content) != 2
+        or content[0].get("type") != "text"
+        or not isinstance(content[0].get("text"), str)
+        or content[1].get("type") != "resource"
+        or not isinstance(content[1].get("resource"), dict)
+        or not isinstance(value.get("delegated_to"), list)
+        or not isinstance(value.get("non_claims"), list)
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            value.get("identities", {}).get("jackal_stem_sha256", ""),
+        ) is None
+    ):
+        raise AcceptanceError("linked workspace assurance envelope is invalid")
+    resource = content[1]["resource"]
+    text = resource.get("text")
+    uri = resource.get("uri")
+    if (
+        set(resource) != {"uri", "mimeType", "text"}
+        or resource.get("mimeType") != "text/html"
+        or not isinstance(text, str)
+        or not text.startswith("<!doctype html>")
+        or not isinstance(uri, str)
+        or uri != "ui://jackal/linked-workspace/" + hashlib.sha256(
+            text.encode("utf-8")
+        ).hexdigest()
+        or value.get("fields", {}).get("resource_uri") != uri
+        or "Pixels are not proof" not in text
+    ):
+        raise AcceptanceError("linked workspace resource binding is invalid")
+    return value
 
 
 def run_acceptance(
     *, client: Any, runtime_document: dict[str, Any],
     direct_call: Callable[[str, dict[str, Any]], dict[str, Any]],
+    formal_identities: Mapping[str, str],
 ) -> dict[str, Any]:
+    expected_formal_identities = _validated_formal_identities(formal_identities)
     initialize = client.request(
         "initialize-1", "initialize",
         {
@@ -1636,6 +1912,7 @@ def run_acceptance(
     formal = validate_formal_int_cert(
         formal_response,
         direct_call("jackal_integrate_bound_cert", copy.deepcopy(FORMAL_ARGUMENTS)),
+        expected_formal_identities,
     )
 
     refused_response = client.request(
@@ -1649,6 +1926,366 @@ def run_acceptance(
             "jackal_integrate_bound_cert",
             copy.deepcopy(UNSUPPORTED_FORMAL_ARGUMENTS),
         ),
+    )
+
+    measurement_calls = (
+        (
+            "jackal_convert",
+            {"value": "1", "from_unit": "mi", "to_unit": "km"},
+            "exact",
+        ),
+        (
+            "jackal_rate_apply",
+            {
+                "value": "100", "rate": "3/2", "rate_source": "acceptance fixture",
+                "rate_asof": "2026-08-27", "from_label": "a", "to_label": "b",
+            },
+            "exact-given",
+        ),
+        ("jackal_percent", {"op": "change", "a": "200", "b": "250"}, "exact"),
+        (
+            "jackal_date_delta",
+            {"op": "diff", "start": "2026-01-01", "end": "2026-08-27"},
+            "exact-given",
+        ),
+        (
+            "jackal_compare",
+            {"a_value": "1", "a_unit": "mi", "b_value": "1", "b_unit": "km"},
+            "exact",
+        ),
+    )
+    measurement_results: dict[str, dict[str, Any]] = {}
+    for name, arguments, expected_status in measurement_calls:
+        measurement_results[name] = _validate_measurement_payload(
+            client.request(
+                f"measurement-{name}", "tools/call",
+                {"name": name, "arguments": copy.deepcopy(arguments)},
+            ),
+            status=expected_status,
+        )
+
+    stat = _validate_measurement_payload(
+        client.request(
+            "measurement-stat", "tools/call",
+            {
+                "name": "jackal_stat",
+                "arguments": {"sample": [0, 4, 6, 2], "include_stddev": True},
+            },
+        ),
+        status="exact",
+    )
+    variance = direct_call(
+        "jackal_exact",
+        {"expression": "((0-3)^2+(4-3)^2+(6-3)^2+(2-3)^2)/4"},
+    ).get("fields", {}).get("exact")
+    sqrt_traces = [
+        item for item in stat.get("delegated_to", [])
+        if isinstance(item, dict) and item.get("tool") == "jackal_sqrt_rat_bound"
+    ]
+    if (
+        not isinstance(variance, str)
+        or stat.get("fields", {}).get("population_variance") != variance
+        or stat.get("fields", {}).get("field_status", {}).get(
+            "population_stddev_enclosure"
+        ) != "formal-bounded"
+        or not sqrt_traces
+        or sqrt_traces[-1].get("parsed")
+        != f"sqrt(x) on [{variance},{variance}]"
+        or "/1" in sqrt_traces[-1].get("parsed", "")
+    ):
+        raise AcceptanceError("integer-variance measurement regression returned")
+
+    scan_text = "Bounds: 10^-12, 2e-12, and 1×10⁻¹²."
+    scan = _validate_measurement_payload(
+        client.request(
+            "measurement-scan", "tools/call",
+            {"name": "jackal_scan", "arguments": {"text": scan_text}},
+        ),
+        status="checked",
+        delegated=False,
+    )
+    if [item.get("text") for item in scan.get("fields", {}).get("numerals", [])] != [
+        "10^-12", "2e-12", "1×10⁻¹²"
+    ]:
+        raise AcceptanceError("scientific notation was split by the lexical scanner")
+
+    measurement_refusal = _validate_measurement_refusal(
+        client.request(
+            "measurement-refusal", "tools/call",
+            {
+                "name": "jackal_rate_apply",
+                "arguments": {"value": "1", "rate": "2"},
+            },
+        ),
+        reason="undeclared-datum",
+    )
+
+    cas_direct = direct_call("jackal_exact", copy.deepcopy(EXACT_ARGUMENTS))
+    cas = _validate_cas_payload(
+        client.request(
+            "advanced-cas", "tools/call",
+            {
+                "name": "jackal_cas",
+                "arguments": {
+                    "operation": "exact",
+                    "arguments": copy.deepcopy(EXACT_ARGUMENTS),
+                },
+            },
+        ),
+        cas_direct,
+    )
+    graph = _validate_graph_payload(
+        client.request(
+            "advanced-graph", "tools/call",
+            {
+                "name": "jackal_graph",
+                "arguments": {
+                    "expression": "x^2-1",
+                    "x_min": "-2",
+                    "x_max": "2",
+                    "samples": "17",
+                },
+            },
+        )
+    )
+    hellgate = _validate_hellgate_payload(
+        client.request(
+            "advanced-hellgate", "tools/call",
+            {
+                "name": "jackal_hellgate_ground_state",
+                "arguments": {"problem_id": "hellgate-v1"},
+            },
+        )
+    )
+
+    matrix = _validate_stem_payload(
+        client.request(
+            "stem-matrix",
+            "tools/call",
+            {
+                "name": "jackal_matrix",
+                "arguments": {
+                    "operation": "determinant",
+                    "matrix": [["1", "2"], ["3", "4"]],
+                },
+            },
+        ),
+        status="exact",
+    )
+    if matrix.get("field_status", {}).get("determinant") != "exact":
+        raise AcceptanceError("matrix exact-field status is missing")
+    matrix_branch_arguments = (
+        {"operation": "add", "matrix": [["1", "2"], ["3", "4"]], "second_matrix": [["5", "6"], ["7", "8"]]},
+        {"operation": "multiply", "matrix": [["1", "2"], ["3", "4"]], "second_matrix": [["5", "6"], ["7", "8"]]},
+        {"operation": "transpose", "matrix": [["1", "2", "3"], ["4", "5", "6"]]},
+        {"operation": "rref", "matrix": [["1", "2"], ["2", "4"]]},
+        {"operation": "inverse", "matrix": [["1", "2"], ["3", "5"]]},
+        {"operation": "solve", "matrix": [["1", "0"], ["0", "1"]], "vector": ["7", "9"]},
+    )
+    for index, arguments in enumerate(matrix_branch_arguments):
+        _validate_stem_payload(
+            client.request(
+                f"stem-matrix-branch-{index}",
+                "tools/call",
+                {"name": "jackal_matrix", "arguments": copy.deepcopy(arguments)},
+            ),
+            status="exact",
+        )
+
+    regression = _validate_stem_payload(
+        client.request(
+            "stem-regression",
+            "tools/call",
+            {
+                "name": "jackal_regression",
+                "arguments": {
+                    "model": "polynomial_ols",
+                    "degree": "1",
+                    "x": ["0", "1", "2"],
+                    "y": ["1", "3", "5"],
+                },
+            },
+        ),
+        status="model-based",
+    )
+    if regression.get("field_status", {}).get("coefficients_ascending") != "exact":
+        raise AcceptanceError("regression exact-field status is missing")
+
+    probability = _validate_stem_payload(
+        client.request(
+            "stem-probability",
+            "tools/call",
+            {
+                "name": "jackal_probability",
+                "arguments": {
+                    "operation": "binomial_cdf",
+                    "n": "3",
+                    "k": "1",
+                    "p": "1/2",
+                },
+            },
+        ),
+        status="model-based",
+    )
+    if probability.get("field_status", {}).get("probability") != "exact":
+        raise AcceptanceError("probability exact-field status is missing")
+    for index, arguments in enumerate(
+        (
+            {"operation": "binomial_pmf", "n": "3", "k": "2", "p": "1/2"},
+            {"operation": "normal_cdf", "z": "0", "tail_cutoff": "6", "tolerance": "1e-8"},
+        )
+    ):
+        _validate_stem_payload(
+            client.request(
+                f"stem-probability-branch-{index}",
+                "tools/call",
+                {"name": "jackal_probability", "arguments": copy.deepcopy(arguments)},
+            ),
+            status="model-based",
+        )
+
+    hypothesis = _validate_stem_payload(
+        client.request(
+            "stem-hypothesis",
+            "tools/call",
+            {
+                "name": "jackal_hypothesis",
+                "arguments": {
+                    "operation": "exact_binomial_tail",
+                    "alternative": "greater",
+                    "n": "3",
+                    "k": "2",
+                    "p0": "1/2",
+                },
+            },
+        ),
+        status="model-based",
+        consequence_ceiling="advisory",
+    )
+    if hypothesis.get("field_status", {}).get("p_value") != "exact":
+        raise AcceptanceError("hypothesis exact-field status is missing")
+    for alternative in ("less", "greater", "two_sided"):
+        _validate_stem_payload(
+            client.request(
+                f"stem-hypothesis-{alternative}",
+                "tools/call",
+                {
+                    "name": "jackal_hypothesis",
+                    "arguments": {
+                        "operation": "one_sample_z",
+                        "alternative": alternative,
+                        "sample_mean": "1",
+                        "null_mean": "1",
+                        "population_sd": "2",
+                        "n": "4",
+                        "tail_cutoff": "6",
+                        "tolerance": "1e-8",
+                    },
+                },
+            ),
+            status="model-based",
+            consequence_ceiling="advisory",
+        )
+
+    sensor = _validate_stem_payload(
+        client.request(
+            "stem-sensor",
+            "tools/call",
+            {
+                "name": "jackal_sensor",
+                "arguments": {
+                    "operation": "ingest_batch",
+                    "sensor_id": "acceptance-imu",
+                    "channel": "accel-x",
+                    "quantity": "acceleration",
+                    "unit": "m/s2",
+                    "samples": ["1", "2", "3"],
+                    "source": "acceptance supplied fixture",
+                    "observed_at": "2026-08-28T00:00:00Z",
+                },
+            },
+        ),
+        status="exact-given",
+    )
+    if (
+        sensor.get("given", {}).get("input_provenance") != "supplied"
+        or sensor.get("field_status", {}).get("population_stddev_enclosure")
+        != "formal-bounded"
+    ):
+        raise AcceptanceError("sensor provenance or formal scalar field is invalid")
+    _validate_stem_payload(
+        client.request(
+            "stem-sensor-calibration",
+            "tools/call",
+            {
+                "name": "jackal_sensor",
+                "arguments": {
+                    "operation": "linear_calibration",
+                    "sensor_id": "acceptance-imu",
+                    "channel": "accel-x",
+                    "quantity": "acceleration",
+                    "unit": "m/s2",
+                    "samples": ["1", "2", "3"],
+                    "source": "acceptance supplied fixture",
+                    "observed_at": "2026-08-28T00:00:00Z",
+                    "scale": "2",
+                    "offset": "1",
+                    "calibration_source": "acceptance calibration fixture",
+                    "calibration_as_of": "2026-08-28",
+                },
+            },
+        ),
+        status="exact-given",
+    )
+
+    aerospace = _validate_stem_payload(
+        client.request(
+            "stem-aerospace",
+            "tools/call",
+            {
+                "name": "jackal_aerospace",
+                "arguments": {
+                    "operation": "vis_viva",
+                    "parameters": {"mu": "10", "radius": "2", "semi_major_axis": "3"},
+                },
+            },
+        ),
+        status="model-based",
+        consequence_ceiling="advisory",
+    )
+    if aerospace.get("field_status", {}).get("speed_enclosure") != "formal-bounded":
+        raise AcceptanceError("aerospace formal scalar field is missing")
+    aerospace_branch_arguments = (
+        {"operation": "circular_orbit", "parameters": {"mu": "10", "radius": "2"}},
+        {"operation": "rocket_equation", "parameters": {"exhaust_velocity": "3", "initial_mass": "5", "final_mass": "2"}},
+        {"operation": "hohmann_transfer", "parameters": {"mu": "10", "r1": "2", "r2": "3"}},
+        {"operation": "plane_change", "parameters": {"velocity": "7", "angle_degrees": "30"}},
+    )
+    for index, arguments in enumerate(aerospace_branch_arguments):
+        _validate_stem_payload(
+            client.request(
+                f"stem-aerospace-branch-{index}",
+                "tools/call",
+                {"name": "jackal_aerospace", "arguments": copy.deepcopy(arguments)},
+            ),
+            status="model-based",
+            consequence_ceiling="advisory",
+        )
+
+    workspace = _validate_linked_workspace_payload(
+        client.request(
+            "stem-workspace",
+            "tools/call",
+            {
+                "name": "jackal_linked_workspace",
+                "arguments": {
+                    "expression": "x^2-1",
+                    "x_min": "-2",
+                    "x_max": "2",
+                    "samples": "17",
+                },
+            },
+        )
     )
 
     claim_response = client.request(
@@ -1667,7 +2304,7 @@ def run_acceptance(
         "receipt-verify-1", "tools/call",
         {"name": "jackal_verify_receipt",
          "arguments": receipt_verification_arguments(receipt)},
-    ), receipt)
+    ), receipt, expected_formal_identities)
 
     return {
         "discovered_tool_count": len(discovered),
@@ -1675,6 +2312,26 @@ def run_acceptance(
             "exact": exact["status"],
             "formal": formal["status"],
             "unsupported_formal": refused["reason"],
+            "measurement": {
+                **{name: result["status"] for name, result in measurement_results.items()},
+                "jackal_stat": stat["status"],
+                "jackal_scan": scan["status"],
+                "refusal": measurement_refusal["reason"],
+            },
+            "advanced": {
+                "cas": cas["status"],
+                "graph": graph["status"],
+                "hellgate": hellgate["status"],
+            },
+            "stem": {
+                "matrix": matrix["status"],
+                "regression": regression["status"],
+                "probability": probability["status"],
+                "hypothesis": hypothesis["status"],
+                "sensor": sensor["status"],
+                "aerospace": aerospace["status"],
+                "linked_workspace": workspace["status"],
+            },
             "claim_bundle": bundle_verified["status"],
             "formal_receipt": receipt_verified["status"],
         },
@@ -1760,7 +2417,11 @@ class MCPClient:
         if response.get("jsonrpc") != "2.0" or response.get("id") != request_id:
             raise AcceptanceError("MCP response correlation failed")
         if "error" in response:
-            raise AcceptanceError("MCP request returned a protocol error")
+            error = response.get("error")
+            code = error.get("code") if isinstance(error, dict) else None
+            raise AcceptanceError(
+                f"MCP request {request_id!r} returned protocol error code {code!r}"
+            )
         return response
 
     def notification(self, method: str, params: dict[str, Any]) -> None:
@@ -1870,6 +2531,62 @@ def load_runtime_document(runtime_root: Path | str) -> dict[str, Any]:
     return document
 
 
+def load_runtime_formal_identities(runtime_root: Path | str) -> dict[str, str]:
+    """Load int-cert expectations from the independently package-bound manifest."""
+    runtime = Path(runtime_root)
+    if not runtime.is_absolute():
+        raise AcceptanceError("formal identity source requires an absolute runtime root")
+    try:
+        release_pins = effective_runtime_pins()
+        expected_tree = release_pins["sha256sums_sha256"]
+        if not isinstance(expected_tree, str):
+            raise AcceptanceError("runtime tree pin is not a digest")
+        records = provisioner.verify_sha256sums(
+            runtime, expected_manifest_sha256=expected_tree,
+        )
+        expected_manifest = records.get("MANIFEST.sha256")
+        if not isinstance(expected_manifest, str):
+            raise AcceptanceError("runtime package omitted its formal identity manifest")
+        raw = identity._read_regular_file_nofollow(
+            runtime / "MANIFEST.sha256", "runtime formal identity manifest",
+            byte_limit=provisioner.MAX_RUNTIME_MANIFEST_BYTES,
+        )
+    except (identity.ManifestError, OSError, KeyError,
+            provisioner.ProvisionError) as error:
+        raise AcceptanceError("runtime formal identity manifest is untrusted") from error
+    if not secrets.compare_digest(hashlib.sha256(raw).hexdigest(), expected_manifest):
+        raise AcceptanceError("runtime formal identity manifest changed after validation")
+    if not raw or not raw.endswith(b"\n"):
+        raise AcceptanceError("runtime formal identity manifest is not canonical")
+    try:
+        lines = raw.decode("utf-8").splitlines()
+    except UnicodeDecodeError as error:
+        raise AcceptanceError("runtime formal identity manifest is not UTF-8") from error
+
+    rows: dict[str, list[str]] = {}
+    for line in lines:
+        if line.startswith("#"):
+            continue
+        parts = line.split(" ")
+        if not parts or any(not part for part in parts) \
+                or re.fullmatch(r"[a-z0-9_]+", parts[0], re.ASCII) is None:
+            raise AcceptanceError("runtime formal identity manifest row is malformed")
+        if parts[0] in rows:
+            raise AcceptanceError("runtime formal identity manifest has a duplicate key")
+        rows[parts[0]] = parts
+
+    selected: dict[str, str] = {}
+    for row_name, (identity_name, expected_fields) in \
+            FORMAL_IDENTITY_MANIFEST_ROWS.items():
+        parts = rows.get(row_name)
+        if parts is None or len(parts) != expected_fields \
+                or re.fullmatch(r"[0-9a-f]{64}", parts[-1], re.ASCII) is None:
+            raise AcceptanceError("runtime formal identity manifest omitted a pinned row")
+        selected[identity_name] = parts[-1]
+    selected["evaluator_sha256"] = selected["producer_sha256"]
+    return _validated_formal_identities(selected)
+
+
 def runtime_acceptance_environment(
     runtime_root: Path | str,
     caller_environment: Mapping[str, str] | None = None,
@@ -1908,14 +2625,29 @@ def direct_backend_call(
     return value
 
 
+def effective_runtime_pins() -> dict[str, object]:
+    try:
+        pins = provisioner.effective_release_pins()
+    except (KeyError, TypeError, provisioner.ProvisionError) as error:
+        raise AcceptanceError("host-effective runtime pins are unavailable") from error
+    if not isinstance(pins, dict) or any(
+        not isinstance(pins.get(key), str)
+        or re.fullmatch(r"[0-9a-f]{64}", pins[key], re.ASCII) is None
+        for key in ("package_sha256", "sha256sums_sha256")
+    ):
+        raise AcceptanceError("host-effective runtime digest pin is invalid")
+    return dict(pins)
+
+
 def verify_runtime(runtime_root: Path | str) -> None:
     try:
+        release_pins = effective_runtime_pins()
         provisioner.validate_runtime(
             Path(runtime_root), timeout=provisioner.SELFTEST_TIMEOUT,
             output_limit=provisioner.SELFTEST_OUTPUT_LIMIT,
-            expected_tree_sha256=provisioner.SHA256SUMS_SHA256,
+            expected_tree_sha256=release_pins["sha256sums_sha256"],
         )
-    except provisioner.ProvisionError as error:
+    except (KeyError, TypeError, provisioner.ProvisionError) as error:
         raise AcceptanceError("pinned runtime validation refused") from error
 
 
@@ -1935,6 +2667,9 @@ def dry_run_document(
         "mcp_tools": [
             "jackal_exact", "jackal_integrate_bound_cert",
             "jackal_claim", "jackal_verify_bundle", "jackal_verify_receipt",
+            *MEASUREMENT_TOOLS,
+            *ADVANCED_TOOLS,
+            *STEM_TOOLS,
         ],
         "caller_pins": {
             "claim_release_epoch": CLAIM_RELEASE_EPOCH,
@@ -1984,6 +2719,7 @@ def _live(runtime_root: Path, codex_binary: Path) -> dict[str, Any]:
     source_aggregate = verify_wrapper(PLUGIN_ROOT)
     verify_runtime(runtime_root)
     runtime_document = load_runtime_document(runtime_root)
+    formal_identities = load_runtime_formal_identities(runtime_root)
     with tempfile.TemporaryDirectory(
         prefix="jackel-codex-live-", dir=_isolated_codex_temp_parent()
     ) as directory:
@@ -2000,15 +2736,17 @@ def _live(runtime_root: Path, codex_binary: Path) -> dict[str, Any]:
         with installed_mcp_client(installed, environment) as client:
             report = run_acceptance(
                 client=client, runtime_document=runtime_document,
+                formal_identities=formal_identities,
                 direct_call=lambda tool, arguments: direct_backend_call(
                     runtime_root, tool, arguments, environment=environment
                 ),
             )
+    runtime_pins = effective_runtime_pins()
     return {
         "status": "accepted",
         "wrapper_aggregate_sha256": source_aggregate,
-        "runtime_package_sha256": provisioner.PACKAGE_SHA256,
-        "runtime_tree_sha256": provisioner.SHA256SUMS_SHA256,
+        "runtime_package_sha256": runtime_pins["package_sha256"],
+        "runtime_tree_sha256": runtime_pins["sha256sums_sha256"],
         **report,
     }
 

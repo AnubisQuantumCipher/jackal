@@ -85,7 +85,7 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
         result = DRIFT.verify_surface(ROOT)
         self.assertEqual(result["tool_count"], 41)
         self.assertEqual(result["unique_tool_count"], 41)
-        self.assertEqual(result["codex_tool_count"], 41)
+        self.assertEqual(result["codex_tool_count"], 58)
         self.assertEqual(result["package_epoch"], "v1.7.3")
 
     def test_historical_34_tool_fact_outside_current_contract_is_allowed(self) -> None:
@@ -106,6 +106,10 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
     def test_skill_tool_parser_returns_only_real_current_names(self) -> None:
         inventory = read_json(ROOT / ARTIFACT_PATH)
         known = {row["name"] for row in inventory["tools"]}
+        _unified_count, additive = DRIFT._verify_codex_adapter(
+            ROOT, inventory["tool_count"], known
+        )
+        known.update(additive)
         skill = (ROOT / "plugins/jackel/skills/jackel/SKILL.md").read_text(
             encoding="utf-8"
         )
@@ -130,7 +134,7 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3",
+            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=58 package=v1.7.3",
         )
 
 
@@ -210,6 +214,66 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
                 server.read_text(encoding="utf-8"),
                 "EXPECTED_TOOL_COUNT = 41",
                 "EXPECTED_TOOL_COUNT = 40",
+            )
+            server.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(DRIFT.DriftError, "codex-tool-count"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
+    def test_refuses_codex_unified_count_mismatch(self) -> None:
+        fixture = DriftFixture()
+        try:
+            server = fixture.root / "plugins/jackel/mcp/server.py"
+            source = self.replace_once(
+                server.read_text(encoding="utf-8"),
+                "EXPECTED_UNIFIED_TOOL_COUNT = 58",
+                "EXPECTED_UNIFIED_TOOL_COUNT = 57",
+            )
+            server.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(DRIFT.DriftError, "codex-tool-count"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
+    def test_refuses_structured_content_copy_mechanism_drift(self) -> None:
+        fixture = DriftFixture()
+        try:
+            server = fixture.root / "plugins/jackel/mcp/server.py"
+            source = self.replace_once(
+                server.read_text(encoding="utf-8"),
+                "structured = copy.deepcopy(value)",
+                "structured = value",
+            )
+            server.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(DRIFT.DriftError, "adapter-mechanism"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
+    def test_refuses_structured_content_envelope_drift(self) -> None:
+        fixture = DriftFixture()
+        try:
+            server = fixture.root / "plugins/jackel/mcp/server.py"
+            source = self.replace_once(
+                server.read_text(encoding="utf-8"),
+                'structured.pop("_mcp_content", None)',
+                'structured.pop("content", None)',
+            )
+            server.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(DRIFT.DriftError, "adapter-mechanism"):
+                DRIFT.verify_surface(fixture.root)
+        finally:
+            fixture.cleanup()
+
+    def test_refuses_additive_name_collision_with_runtime(self) -> None:
+        fixture = DriftFixture()
+        try:
+            server = fixture.root / "plugins/jackel/mcp/server.py"
+            source = self.replace_once(
+                server.read_text(encoding="utf-8"),
+                '"jackal_compare",',
+                '"jackal_exact",',
             )
             server.write_text(source, encoding="utf-8")
             with self.assertRaisesRegex(DRIFT.DriftError, "codex-tool-count"):

@@ -1,3 +1,4 @@
+import ctypes
 import errno
 import hashlib
 import io
@@ -42,6 +43,15 @@ class FakeResponse:
 class RuntimeProvisionerTests(unittest.TestCase):
     def sha(self, data):
         return hashlib.sha256(data).hexdigest()
+
+    def write_snapshot_owner(self, parent, name, identity):
+        root = parent / name
+        root.mkdir(mode=0o700)
+        provisioner._write_snapshot_owner(root, identity)
+        runtime = root / provisioner.SNAPSHOT_RUNTIME_DIRECTORY
+        runtime.mkdir(mode=0o700)
+        (runtime / "payload").write_bytes(b"fixture\n")
+        return root
 
     def add_bytes(self, archive, name, data=b"", mode=0o644, kind=tarfile.REGTYPE, linkname=""):
         info = tarfile.TarInfo(name)
@@ -836,6 +846,13 @@ class RuntimeProvisionerTests(unittest.TestCase):
             snapshot_root = snapshot.root
 
             self.assertNotEqual(snapshot_root, source)
+            self.assertEqual(snapshot_root.parent, snapshot.owner_root)
+            self.assertEqual(snapshot_root.name, provisioner.SNAPSHOT_RUNTIME_DIRECTORY)
+            self.assertTrue(snapshot.owner_root.name.startswith(provisioner.SNAPSHOT_PREFIX))
+            self.assertEqual(
+                provisioner._load_snapshot_owner(snapshot.owner_root),
+                provisioner._current_snapshot_owner(),
+            )
             self.assertEqual(snapshot_root.stat().st_mode & 0o777, 0o700)
             self.assertEqual(
                 (snapshot_root / "payload.txt").read_bytes(), b"payload\n"
@@ -863,6 +880,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
 
             snapshot.close()
             self.assertFalse(snapshot_root.exists())
+            self.assertFalse(snapshot.owner_root.exists())
 
     def test_runtime_snapshot_cleanup_failure_remains_retryable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -877,6 +895,170 @@ class RuntimeProvisionerTests(unittest.TestCase):
             snapshot.close()
             self.assertTrue(snapshot._closed)
             self.assertEqual(cleanup.call_count, 2)
+
+    def test_linux_process_stat_parser_handles_spaces_and_closing_parentheses(self):
+        fields = [b"S"] + ([b"0"] * 18) + [b"9876"]
+        self.assertEqual(
+            provisioner._parse_linux_process_stat(
+                b"123 (worker ) with spaces) " + b" ".join(fields) + b"\n",
+                expected_pid=123,
+            ),
+            (123, "9876"),
+        )
+
+    def test_darwin_process_identity_uses_kernel_start_timeval_and_detects_gone(self):
+        class FakeProcPIDInfo:
+            argtypes = None
+            restype = None
+
+            def __init__(self, *, present):
+                self.present = present
+
+            def __call__(self, pid, flavor, unused_argument, buffer, size):
+                self.assertions = (pid, flavor, unused_argument)
+                if not self.present:
+                    return 0
+                info = ctypes.cast(
+                    buffer, ctypes.POINTER(provisioner._DarwinBSDInfo)
+                ).contents
+                info.pbi_pid = pid
+                info.pbi_start_tvsec = 1_700_000_000
+                info.pbi_start_tvusec = 123_456
+                return size
+
+        available = FakeProcPIDInfo(present=True)
+        with mock.patch.object(
+            provisioner.ctypes,
+            "CDLL",
+            return_value=types.SimpleNamespace(proc_pidinfo=available),
+        ):
+            self.assertEqual(
+                provisioner._darwin_process_identity(321),
+                (321, "1700000000:123456"),
+            )
+        self.assertEqual(
+            available.assertions, (321, provisioner.DARWIN_PROC_PIDTBSDINFO, 0)
+        )
+
+        gone = FakeProcPIDInfo(present=False)
+        with (
+            mock.patch.object(
+                provisioner.ctypes,
+                "CDLL",
+                return_value=types.SimpleNamespace(proc_pidinfo=gone),
+            ),
+            mock.patch.object(provisioner.os, "kill", side_effect=ProcessLookupError),
+            self.assertRaises(provisioner._ProcessGone),
+        ):
+            provisioner._darwin_process_identity(322)
+
+    def test_snapshot_reaper_is_exact_for_live_gone_reused_and_ambiguous_owners(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            boot_id = "linux:test-boot"
+            live = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}live",
+                provisioner.SnapshotOwnerIdentity(101, "live-start", boot_id),
+            )
+            reused = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}reused",
+                provisioner.SnapshotOwnerIdentity(102, "old-start", boot_id),
+            )
+            gone = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}gone",
+                provisioner.SnapshotOwnerIdentity(103, "gone-start", boot_id),
+            )
+            foreign_boot = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}foreign",
+                provisioner.SnapshotOwnerIdentity(104, "foreign-start", "linux:other"),
+            )
+            missing_stamp = parent / f"{provisioner.SNAPSHOT_PREFIX}missing"
+            missing_stamp.mkdir(mode=0o700)
+            malformed = parent / f"{provisioner.SNAPSHOT_PREFIX}malformed"
+            malformed.mkdir(mode=0o700)
+            (malformed / provisioner.SNAPSHOT_OWNER_FILE).write_text("not-json\n")
+            unstamped_identity = provisioner.SnapshotOwnerIdentity(
+                105, "unstamped-start", boot_id
+            )
+            unstamped = parent / (
+                provisioner._snapshot_owner_directory_prefix(unstamped_identity)
+                + "fixture"
+            )
+            unstamped.mkdir(mode=0o700)
+            partial_identity = provisioner.SnapshotOwnerIdentity(
+                106, "partial-start", boot_id
+            )
+            partial = parent / (
+                provisioner._snapshot_owner_directory_prefix(partial_identity)
+                + "fixture"
+            )
+            partial.mkdir(mode=0o700)
+            (partial / provisioner.SNAPSHOT_OWNER_FILE).write_text("partial")
+            named_identity = provisioner.SnapshotOwnerIdentity(
+                107, "named-start", boot_id
+            )
+            mismatch = self.write_snapshot_owner(
+                parent,
+                provisioner._snapshot_owner_directory_prefix(named_identity)
+                + "fixture",
+                provisioner.SnapshotOwnerIdentity(108, "other-start", boot_id),
+            )
+
+            observed = []
+
+            def process_start(pid):
+                observed.append(pid)
+                if pid == 101:
+                    return "live-start"
+                if pid == 102:
+                    return "new-start"
+                if pid == 103:
+                    raise provisioner._ProcessGone("fixture gone")
+                if pid == 105:
+                    raise provisioner._ProcessGone("fixture gone before stamp")
+                if pid == 106:
+                    raise provisioner._ProcessGone("fixture gone during stamp")
+                raise AssertionError(f"ambiguous owner was inspected: {pid}")
+
+            removed = provisioner.reap_orphaned_runtime_snapshots(
+                parent,
+                current_boot_id=boot_id,
+                process_start_reader=process_start,
+            )
+
+            self.assertEqual(set(removed), {reused, gone, unstamped, partial})
+            self.assertEqual(set(observed), {101, 102, 103, 105, 106})
+            self.assertTrue(live.exists())
+            self.assertFalse(reused.exists())
+            self.assertFalse(gone.exists())
+            self.assertTrue(foreign_boot.exists())
+            self.assertTrue(missing_stamp.exists())
+            self.assertTrue(malformed.exists())
+            self.assertFalse(unstamped.exists())
+            self.assertFalse(partial.exists())
+            self.assertTrue(mismatch.exists())
+
+    def test_default_snapshot_parent_canonicalizes_the_platform_tmp_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            physical = Path(directory) / "private-tmp"
+            physical.mkdir()
+            lexical = Path(directory) / "tmp"
+            lexical.symlink_to(physical, target_is_directory=True)
+            with mock.patch.object(
+                provisioner.tempfile, "gettempdir", return_value=str(lexical)
+            ):
+                self.assertEqual(provisioner._snapshot_parent_path(None), physical)
+                self.assertEqual(
+                    provisioner.reap_orphaned_runtime_snapshots(
+                        current_boot_id="fixture-boot",
+                        process_start_reader=mock.Mock(),
+                    ),
+                    (),
+                )
 
     def test_runtime_snapshot_preflights_file_size_against_remaining_budget(self):
         with tempfile.TemporaryDirectory() as directory:

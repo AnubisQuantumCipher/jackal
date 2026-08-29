@@ -36,6 +36,11 @@ Qalculate!, Soulver and SpeedCrunch. JACKAL does **not** claim parity with a gen
 arbitrary-precision-float engine, or interactive graphing system. Its differentiated implemented
 surface is claim-aware and measurement-aware computation.
 
+For an honest path from research kernel to an externally reviewable engineering
+pilot, see [`docs/AEROSPACE_READINESS_GAP_LEDGER.md`](docs/AEROSPACE_READINESS_GAP_LEDGER.md).
+It separates implemented evidence from the qualification, refinement,
+independent-verification, safety, security, and operations work that remains.
+
 ## Why a calculator, in the age of frontier AI
 
 Language models are demonstrably unreliable at the arithmetic layer. OpenAI's own GSM8K

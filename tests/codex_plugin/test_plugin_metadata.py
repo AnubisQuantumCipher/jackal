@@ -35,8 +35,10 @@ PLAN_PATH = (
     / "2026-08-17-jackel-codex-plugin.md"
 )
 APPROVED_SKILL_DESCRIPTION = (
-    "Route claim-aware computation, domain-pack, and Anubis program evidence "
-    "through JACKAL without overstating assurance."
+    "Route evidence-aware CAS, graphing, THOTH measurement, exact-field "
+    "matrices, statistical models, sensors, aerospace workflows, linked views, "
+    "claim bundles, nonlinear certificates, and Anubis program evidence through "
+    "JACKAL without overstating assurance."
 )
 
 
@@ -106,7 +108,7 @@ class PluginMetadataTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "jackel")
-        self.assertEqual(manifest["interface"]["displayName"], "JACKAL")
+        self.assertEqual(manifest["interface"]["displayName"], "JACKAL + THOTH")
         self.assertIn("JACKAL", manifest["description"])
         self.assertIn("JACKAL", manifest["interface"]["longDescription"])
         self.assertIn("JACKAL", manifest["interface"]["defaultPrompt"][0])
@@ -127,7 +129,7 @@ class PluginMetadataTests(unittest.TestCase):
         )
         self.assertEqual(set(mcp["mcpServers"]), {"jackel"})
         self.assertEqual(self.parse_skill_frontmatter(skill)["name"], "jackel")
-        self.assertIn("# JACKAL numerical-trust operator", skill)
+        self.assertIn("# JACKAL + THOTH numerical-trust operator", skill)
         self.assertNotIn("JACKEL", skill)
         server = SERVER_PATH.read_text(encoding="utf-8")
         self.assertIn("Preserve JACKAL status", server)
@@ -217,46 +219,85 @@ class PluginMetadataTests(unittest.TestCase):
         self.assertEqual(marketplace["interface"]["displayName"], "Anubis Quantum Cipher")
 
         interface = manifest["interface"]
-        self.assertEqual(interface["displayName"], "JACKAL")
-        self.assertEqual(interface["shortDescription"], "Claim-aware computation with explicit evidence classes")
+        self.assertEqual(interface["displayName"], "JACKAL + THOTH")
+        self.assertEqual(
+            interface["shortDescription"],
+            "Evidence-aware CAS, linked STEM views, and THOTH measurement",
+        )
         self.assertEqual(interface["developerName"], "Anubis Quantum Cipher")
         self.assertEqual(interface["category"], "Productivity")
         self.assertEqual(interface["capabilities"], ["Interactive"])
         self.assertEqual(interface["websiteURL"], "https://github.com/AnubisQuantumCipher/jackal")
+        self.assertEqual(interface["brandColor"], "#00E0B8")
+        self.assertEqual(
+            interface["screenshots"],
+            [
+                "./assets/jackal-thoth-hellgate-graph.png",
+                "./assets/jackal-linked-evidence-workspace.png",
+            ],
+        )
         self.assertEqual(
             interface["defaultPrompt"],
             [
-                "Classify and verify this numerical claim with JACKAL.",
-                "Find the strongest supported bound and refuse any silent downgrade.",
-                "Verify this receipt or claim bundle against my pinned expectations.",
-                "Verify this Anubis Safe program-evidence package without executing its artifact.",
+                "Use JACKAL + THOTH to solve and classify this calculation.",
+                "Graph this expression and separate visualization from evidence.",
+                "Open a linked symbolic, numeric, graph, table, and evidence workspace for this expression.",
+                "Solve this matrix or regression workflow while preserving exact fields and model assumptions.",
+                "Analyze this supplied sensor batch or aerospace model without upgrading its provenance or physical assumptions.",
+                "Replay the HELLGATE nonlinear ground-state certificate without promoting its assurance.",
             ],
         )
         expected_long_description = (
-            "Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. "
-            "The MCP adapter copies the parsed runtime result object into "
-            "structuredContent unchanged; its only adapter-local tool result is "
-            "status=refused reason=plugin-busy. Runtime result and assurance "
-            "vocabulary: ok, exact, structural-exact, formal-bounded, bounded, "
-            "checked, estimated, model-based, verified, "
+            "Expose one unified 58-tool JACKAL surface through Codex: the sealed "
+            "41-tool v1.7.3 release runtime, seven identity-pinned THOTH "
+            "measurement/provenance tools, three identity-pinned CAS, graph, and "
+            "nonlinear-certificate tools, and seven identity-pinned STEM workflows "
+            "for matrices, regression, probability, hypothesis testing, supplied "
+            "sensor batches, aerospace models, and a professional linked evidence "
+            "workspace. THOTH is a named JACKAL subsystem, never a separate server "
+            "or arithmetic authority. Every reported numeric field in the additive "
+            "workflows delegates to an admitted JACKAL lane; wrapper orchestration "
+            "and UI rendering add no mathematical assurance. The adapter copies each "
+            "parsed sealed-runtime result object into structuredContent unchanged. "
+            "For additive results it deep-copies the result and removes only the "
+            "identity-validated _mcp_content transport envelope before returning "
+            "structuredContent; its only transport-local refusal is status=refused "
+            "reason=plugin-busy. Graph coordinates are exact rational JACKAL results, "
+            "sampled values and pixels remain estimated visualization, and refused "
+            "samples break the curve. The fixed HELLGATE lane replays an independent "
+            "exact-rational certificate as bounded, never formal-bounded. Result "
+            "vocabulary: ok, exact, exact-given, structural-exact, formal-bounded, "
+            "bounded, checked, estimated, model-based, verified, "
             "verified-program-evidence, verified-program-receipt, indeterminate, "
-            "and refused. Formal-bounded is limited to checker-admitted fragments; "
-            "program evidence leaves construct-totality, source, and runtime "
-            "residuals open. Requires Apple Silicon macOS and Python >=3.10 at "
-            "/opt/homebrew/bin/python3 (install with brew install python)."
+            "refused. Field statuses, assumptions, identities, route traces, refusal "
+            "reasons, consequence ceilings, and non-claims remain first-class. "
+            "Requires a host-admitted pinned runtime and Python >=3.10 at a fixed "
+            "launcher-approved path."
         )
         self.assertEqual(interface["longDescription"], expected_long_description)
-        self.assertIn(f"- `interface.longDescription`: `{expected_long_description}`", DESIGN_PATH.read_text(encoding="utf-8"))
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        self.assertIn("unified 58-tool surface", design)
+        self.assertIn("graph visualization", design)
 
         self.assertRegex(manifest["version"], r"^0\.1\.0\+codex\.\d{14}$")
-        self.assertEqual(manifest["description"], "Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.")
+        self.assertEqual(
+            manifest["description"],
+            "Expose JACKAL's evidence-aware CAS, professional linked graphing, "
+            "integrated THOTH measurement, matrices, statistical models, sensors, "
+            "aerospace workflows, nonlinear certificates, and program evidence to Codex.",
+        )
         self.assertEqual(manifest["author"], {"name": "Anubis Quantum Cipher", "url": "https://github.com/AnubisQuantumCipher"})
         self.assertEqual(manifest["homepage"], "https://github.com/AnubisQuantumCipher/jackal")
         self.assertEqual(manifest["repository"], "https://github.com/AnubisQuantumCipher/jackal")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(
             manifest["keywords"],
-            ["jackel", "mathematics", "numerical-trust", "formal-verification", "evidence", "mcp"],
+            [
+                "jackel", "thoth", "mathematics", "computer-algebra",
+                "graphing", "linked-views", "matrices", "regression",
+                "probability", "sensors", "aerospace", "symbolic-algebra",
+                "numerical-trust", "formal-verification", "evidence", "mcp",
+            ],
         )
         self.assertEqual(manifest["skills"], "./skills/")
         self.assertEqual(manifest["mcpServers"], "./.mcp.json")
@@ -269,11 +310,9 @@ class PluginMetadataTests(unittest.TestCase):
         for forbidden in (
             "privacyPolicyURL",
             "termsOfServiceURL",
-            "brandColor",
             "composerIcon",
             "logo",
             "logoDark",
-            "screenshots",
         ):
             self.assertNotIn(forbidden, interface)
 
@@ -318,9 +357,10 @@ class PluginMetadataTests(unittest.TestCase):
             "error estimate is not a bound",
             "Source-to-native refinement remains open and unclaimed",
             "Run a weaker lane only when the caller explicitly requests one",
-            "Darwin/arm64 and Linux/aarch64",
+            "Darwin/arm64, Linux/aarch64, and Linux/x86_64",
             "Do not bypass the host guard",
-            "no published release asset for host linux-aarch64",
+            "Linux/aarch64 has an exact host-specific pin",
+            "Linux/x86_64 has no",
             "Python >=3.10",
             "brew install python",
         ):
@@ -337,9 +377,17 @@ class PluginMetadataTests(unittest.TestCase):
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]
         referenced = {
             "README.md",
+            "assets/jackal-thoth-hellgate-graph.png",
+            "assets/jackal-linked-evidence-workspace.png",
             ".codex-plugin/plugin.json",
             manifest["mcpServers"].removeprefix("./"),
             "mcp/server.py",
+            "mcp/measurement.py",
+            "mcp/advanced.py",
+            "mcp/stem.py",
+            "mcp/hellgate_verify.py",
+            "mcp/certificates/README.md",
+            "mcp/certificates/hellgate_v1.json.zlib",
             "scripts/provision_runtime.py",
             "scripts/launch_mcp.sh",
             "scripts/launch_mcp.zsh",
@@ -365,6 +413,16 @@ class PluginMetadataTests(unittest.TestCase):
         text = README_PATH.read_text(encoding="utf-8")
         for required in (
             "41-tool",
+            "58-tool",
+            "THOTH",
+            "jackal_graph",
+            "jackal_hellgate_ground_state",
+            "jackal_matrix",
+            "jackal_regression",
+            "jackal_sensor",
+            "jackal_aerospace",
+            "jackal_linked_workspace",
+            "plugin-card screenshot",
             "v1.7.3 release",
             "release/capability_inventory_v1.json",
             "/bin/sh scripts/launch_mcp.sh provision",

@@ -33,7 +33,15 @@ CODEX_PLUGIN_IDENTITY_FILES = (
     ".codex-plugin/plugin.json",
     ".mcp.json",
     "README.md",
+    "assets/jackal-linked-evidence-workspace.png",
+    "assets/jackal-thoth-hellgate-graph.png",
+    "mcp/advanced.py",
+    "mcp/certificates/README.md",
+    "mcp/certificates/hellgate_v1.json.zlib",
+    "mcp/hellgate_verify.py",
+    "mcp/measurement.py",
     "mcp/server.py",
+    "mcp/stem.py",
     "scripts/launch_mcp.sh",
     "scripts/launch_mcp.zsh",
     "scripts/provision_runtime.py",
@@ -46,13 +54,16 @@ CODEX_PLUGIN_IDENTITY_PATH = CODEX_PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
 CURRENT_SURFACE_BEGIN = "<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->"
 CURRENT_SURFACE_END = "<!-- JACKAL_CURRENT_SURFACE_V1_END -->"
 TOOL_REFERENCE = re.compile(r"`(jackal_[a-z0-9_]+)`")
+TOOL_NAME = re.compile(r"jackal_[a-z0-9_]+\Z")
 STATUS_ASSIGNMENT = re.compile(r"\bstatus\s*(?:=|:)\s*`?([a-z][a-z0-9-]*)")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 
 NEUTRAL_METADATA_CLAUSES = (
-    "copies the parsed runtime result object into structuredContent unchanged",
-    "only adapter-local tool result is status=refused reason=plugin-busy",
+    "copies each parsed sealed-runtime result object into structuredContent unchanged",
+    "removes only the identity-validated _mcp_content transport envelope",
+    "only transport-local refusal is status=refused reason=plugin-busy",
 )
+WRAPPER_ONLY_STATUSES = frozenset({"exact-given"})
 FORBIDDEN_PROMOTIONAL_CLAIMS = (
     "statuses pass through verbatim",
     "statuses pass through unchanged and never inflate",
@@ -200,6 +211,142 @@ def _python_constants(path: Path, required: set[str]) -> dict[str, object]:
     return values
 
 
+def _python_frozenset_constants(
+    path: Path, required: set[str]
+) -> dict[str, frozenset[str]]:
+    try:
+        tree = ast.parse(_read_text(path), filename=str(path))
+    except SyntaxError as error:
+        refuse("python-parse", f"{path}: {error}")
+    values: dict[str, frozenset[str]] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if not isinstance(target, ast.Name) or target.id not in required:
+                continue
+            if target.id in values:
+                refuse("python-constant", f"{path} repeats {target.id}")
+            call = node.value
+            if (
+                not isinstance(call, ast.Call)
+                or not isinstance(call.func, ast.Name)
+                or call.func.id != "frozenset"
+                or len(call.args) != 1
+                or call.keywords
+                or not isinstance(call.args[0], (ast.Set, ast.List, ast.Tuple))
+            ):
+                refuse(
+                    "python-constant",
+                    f"{path} {target.id} is not a literal frozenset",
+                )
+            items = call.args[0].elts
+            strings = [
+                item.value
+                for item in items
+                if isinstance(item, ast.Constant) and isinstance(item.value, str)
+            ]
+            if len(strings) != len(items) or len(strings) != len(set(strings)):
+                refuse(
+                    "python-constant",
+                    f"{path} {target.id} has non-string or duplicate members",
+                )
+            invalid = sorted(value for value in strings if TOOL_NAME.fullmatch(value) is None)
+            if invalid:
+                refuse(
+                    "python-constant",
+                    f"{path} {target.id} has invalid tool names {invalid}",
+                )
+            values[target.id] = frozenset(strings)
+    missing = sorted(required - set(values))
+    if missing:
+        refuse("python-constant", f"{path} lacks constants {missing}")
+    return values
+
+
+def _verify_backend_result_mechanism(path: Path, source: str) -> None:
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as error:
+        refuse("python-parse", f"{path}: {error}")
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "backend_result"
+    ]
+    if len(functions) != 1:
+        refuse("adapter-mechanism", "Codex adapter must define backend_result once")
+    function = functions[0]
+
+    def assigned_name(node: ast.stmt, name: str) -> ast.expr | None:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            return None
+        target = node.targets[0]
+        return node.value if isinstance(target, ast.Name) and target.id == name else None
+
+    deep_copy_indices: list[int] = []
+    pop_indices: list[int] = []
+    return_indices: list[int] = []
+    for index, node in enumerate(function.body):
+        structured_value = assigned_name(node, "structured")
+        if (
+            isinstance(structured_value, ast.Call)
+            and isinstance(structured_value.func, ast.Attribute)
+            and isinstance(structured_value.func.value, ast.Name)
+            and structured_value.func.value.id == "copy"
+            and structured_value.func.attr == "deepcopy"
+            and len(structured_value.args) == 1
+            and isinstance(structured_value.args[0], ast.Name)
+            and structured_value.args[0].id == "value"
+            and not structured_value.keywords
+        ):
+            deep_copy_indices.append(index)
+
+        content_value = assigned_name(node, "raw_content")
+        if (
+            isinstance(content_value, ast.Call)
+            and isinstance(content_value.func, ast.Attribute)
+            and isinstance(content_value.func.value, ast.Name)
+            and content_value.func.value.id == "structured"
+            and content_value.func.attr == "pop"
+            and len(content_value.args) == 2
+            and isinstance(content_value.args[0], ast.Constant)
+            and content_value.args[0].value == "_mcp_content"
+            and isinstance(content_value.args[1], ast.Constant)
+            and content_value.args[1].value is None
+            and not content_value.keywords
+        ):
+            pop_indices.append(index)
+
+        if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
+            pairs = {
+                key.value: value
+                for key, value in zip(node.value.keys, node.value.values)
+                if isinstance(key, ast.Constant) and isinstance(key.value, str)
+            }
+            if (
+                set(pairs) == {"content", "structuredContent"}
+                and isinstance(pairs["content"], ast.Name)
+                and pairs["content"].id == "content"
+                and isinstance(pairs["structuredContent"], ast.Name)
+                and pairs["structuredContent"].id == "structured"
+            ):
+                return_indices.append(index)
+    if (
+        len(deep_copy_indices) != 1
+        or len(pop_indices) != 1
+        or len(return_indices) != 1
+        or not deep_copy_indices[0] < pop_indices[0] < return_indices[0]
+    ):
+        refuse(
+            "adapter-mechanism",
+            "backend_result must deep-copy the result, extract only _mcp_content, "
+            "and return the remaining object as structuredContent",
+        )
+
+
 def _current_surface_block(path: Path) -> str:
     text = _read_text(path)
     if text.count(CURRENT_SURFACE_BEGIN) != 1 or text.count(CURRENT_SURFACE_END) != 1:
@@ -256,27 +403,72 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
     return constants
 
 
-def _verify_codex_adapter(root: Path, expected_count: int) -> int:
+def _verify_codex_adapter(
+    root: Path, expected_count: int, runtime_names: set[str]
+) -> tuple[int, set[str]]:
     server_path = root / CODEX_SERVER_PATH
-    constants = _python_constants(server_path, {"EXPECTED_TOOL_COUNT"})
+    constants = _python_constants(
+        server_path,
+        {
+            "EXPECTED_TOOL_COUNT",
+            "EXPECTED_MEASUREMENT_TOOL_COUNT",
+            "EXPECTED_ADVANCED_TOOL_COUNT",
+            "EXPECTED_STEM_TOOL_COUNT",
+            "EXPECTED_UNIFIED_TOOL_COUNT",
+        },
+    )
     observed = constants["EXPECTED_TOOL_COUNT"]
     if observed != expected_count:
         refuse(
             "codex-tool-count",
             f"wrapper EXPECTED_TOOL_COUNT={observed!r} inventory={expected_count}",
         )
+    groups = _python_frozenset_constants(
+        server_path,
+        {"MEASUREMENT_TOOL_NAMES", "ADVANCED_TOOL_NAMES", "STEM_TOOL_NAMES"},
+    )
+    count_bindings = {
+        "MEASUREMENT_TOOL_NAMES": "EXPECTED_MEASUREMENT_TOOL_COUNT",
+        "ADVANCED_TOOL_NAMES": "EXPECTED_ADVANCED_TOOL_COUNT",
+        "STEM_TOOL_NAMES": "EXPECTED_STEM_TOOL_COUNT",
+    }
+    additive_names: set[str] = set()
+    for group_name, count_name in count_bindings.items():
+        names = groups[group_name]
+        if len(names) != constants[count_name]:
+            refuse(
+                "codex-tool-count",
+                f"{group_name} has {len(names)} names but {count_name}="
+                f"{constants[count_name]!r}",
+            )
+        overlap = sorted(additive_names & names)
+        if overlap:
+            refuse("codex-tool-count", f"additive tool groups overlap at {overlap}")
+        additive_names.update(names)
+    runtime_overlap = sorted(runtime_names & additive_names)
+    if runtime_overlap:
+        refuse("codex-tool-count", f"runtime and additive tools overlap at {runtime_overlap}")
+    unified_names = runtime_names | additive_names
+    unified_count = constants["EXPECTED_UNIFIED_TOOL_COUNT"]
+    if len(unified_names) != unified_count:
+        refuse(
+            "codex-tool-count",
+            f"wrapper EXPECTED_UNIFIED_TOOL_COUNT={unified_count!r} "
+            f"but the disjoint roster has {len(unified_names)} names",
+        )
     source = _read_text(server_path)
-    for required in (
-        '"structuredContent": copy.deepcopy(value)',
-        'return backend_result({"status": "refused", "reason": "plugin-busy"})',
-    ):
-        if required not in source:
-            refuse("adapter-mechanism", f"Codex adapter lacks {required!r}")
-    return int(observed)
+    _verify_backend_result_mechanism(server_path, source)
+    busy_refusal = 'return backend_result({"status": "refused", "reason": "plugin-busy"})'
+    if busy_refusal not in source:
+        refuse("adapter-mechanism", f"Codex adapter lacks {busy_refusal!r}")
+    return int(unified_count), additive_names
 
 
 def _verify_plugin_metadata(
-    root: Path, expected_count: int, status_vocabulary: set[str]
+    root: Path,
+    expected_count: int,
+    unified_count: int,
+    status_vocabulary: set[str],
 ) -> str:
     manifest = _load_json(root / PLUGIN_MANIFEST_PATH)
     interface = manifest.get("interface")
@@ -285,10 +477,15 @@ def _verify_plugin_metadata(
     description = interface.get("longDescription")
     if not isinstance(description, str):
         refuse("plugin-metadata", "plugin longDescription is not a string")
-    if f"{expected_count}-tool" not in description:
+    if f"sealed {expected_count}-tool" not in description:
         refuse(
             "current-tool-count",
-            f"plugin longDescription does not state {expected_count}-tool",
+            f"plugin longDescription does not state sealed {expected_count}-tool",
+        )
+    if f"unified {unified_count}-tool" not in description:
+        refuse(
+            "current-tool-count",
+            f"plugin longDescription does not state unified {unified_count}-tool",
         )
     if "v1.7.3 release runtime" not in description:
         refuse("current-release-state", "plugin metadata does not identify release state")
@@ -330,10 +527,10 @@ def _verify_current_surfaces(root: Path, expected_count: int) -> list[tuple[Path
                 "current-tool-count",
                 f"{relative} current block does not state {expected_count}-tool",
             )
-        if "v1.7.3 release" not in block:
+        if "v1.7.3" not in block or "release" not in block:
             refuse(
                 "current-release-state",
-                f"{relative} current block does not state v1.7.3 release",
+                f"{relative} current block does not state the v1.7.3 release",
             )
         if "release/capability_inventory_v1.json" not in block:
             refuse(
@@ -369,13 +566,18 @@ def verify_surface(root: Path | str) -> dict[str, object]:
     names = [row.get("name") for row in records if isinstance(row, dict)]
     if len(names) != expected_count or len(set(names)) != expected_count:
         refuse("inventory-contract", "inventory tool names are missing or duplicated")
-    known_names = set(names)
-    status_vocabulary = set(vocabulary)
+    runtime_names = set(names)
+    status_vocabulary = set(vocabulary) | set(WRAPPER_ONLY_STATUSES)
 
     package = _verify_package_pin(root_path, str(release["version"]))
-    codex_count = _verify_codex_adapter(root_path, expected_count)
+    codex_count, additive_names = _verify_codex_adapter(
+        root_path, expected_count, runtime_names
+    )
+    known_names = runtime_names | additive_names
     blocks = _verify_current_surfaces(root_path, expected_count)
-    description = _verify_plugin_metadata(root_path, expected_count, status_vocabulary)
+    description = _verify_plugin_metadata(
+        root_path, expected_count, codex_count, status_vocabulary
+    )
 
     skill_text = _read_text(root_path / SKILL_PATH)
     unknown_skill_names = sorted(skill_tool_names(skill_text) - known_names)

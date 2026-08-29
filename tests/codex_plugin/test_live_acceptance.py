@@ -22,6 +22,12 @@ from tests.codex_plugin import live_acceptance as live
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_TOOLS = REPOSITORY_ROOT / "plugin" / "hermes" / "tools.json"
+TEST_FORMAL_IDENTITIES = {
+    "evaluator_sha256": "b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4",
+    "producer_sha256": "b4240fdac3c77b2abd751595303b2b3a0e4bebd492b2ae57fa5ccf052cd50af4",
+    "checker_sha256": "f2e26f506f921b577fd8609a095b69789b3b76cce65d8c293d1a11f3007a8078",
+    "plugin_sha256": "6943891086bde13e48dbc9bbde9c8c9fed90d0e78a7d8c29b8be32a92502711a",
+}
 
 
 def mcp_response(request_id, payload):
@@ -64,10 +70,7 @@ def formal_payload(emitted_at):
             "sha256": hashlib.sha256(certificate).hexdigest(),
         },
         "identities": {
-            "evaluator_sha256": live.INT_CERT_PRODUCER_SHA256,
-            "producer_sha256": live.INT_CERT_PRODUCER_SHA256,
-            "checker_sha256": live.INT_CERT_CHECKER_SHA256,
-            "plugin_sha256": live.HERMES_BUNDLE_SHA256,
+            **TEST_FORMAL_IDENTITIES,
         },
         "theorem": {"id": "int_cert_sound"},
         "checker": {"verdict": "ACCEPT"},
@@ -77,19 +80,89 @@ def formal_payload(emitted_at):
 
 
 class IdentityAndInstallPlanTests(unittest.TestCase):
-    def test_formal_receipt_oracle_matches_current_hermes_bundle_pin(self):
-        row = next(
-            (
-                line.split()
-                for line in (REPOSITORY_ROOT / "release/MANIFEST.sha256")
-                .read_text(encoding="utf-8")
-                .splitlines()
-                if line.startswith("plugin_hermes ")
-            ),
-            None,
+    def test_runtime_formal_identities_come_from_package_bound_manifest(self):
+        manifest = (
+            "# fixture runtime manifest\n"
+            f"plugin_hermes {TEST_FORMAL_IDENTITIES['plugin_sha256']}\n"
+            "int_cert_producer producer.py "
+            f"{TEST_FORMAL_IDENTITIES['producer_sha256']}\n"
+            "int_cert_checker checker "
+            f"{TEST_FORMAL_IDENTITIES['checker_sha256']}\n"
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "MANIFEST.sha256").write_bytes(manifest)
+            with (
+                mock.patch.object(
+                    live.provisioner, "effective_release_pins",
+                    return_value={
+                        "package_sha256": "d" * 64,
+                        "sha256sums_sha256": "a" * 64,
+                    },
+                ),
+                mock.patch.object(
+                    live.provisioner, "verify_sha256sums",
+                    return_value={
+                        "MANIFEST.sha256": hashlib.sha256(manifest).hexdigest(),
+                    },
+                ) as verify,
+            ):
+                actual = live.load_runtime_formal_identities(root)
+        self.assertEqual(actual, TEST_FORMAL_IDENTITIES)
+        verify.assert_called_once_with(
+            root, expected_manifest_sha256="a" * 64,
         )
-        self.assertIsNotNone(row, "release manifest has no plugin_hermes row")
-        self.assertEqual(live.HERMES_BUNDLE_SHA256, row[-1])
+
+    def test_runtime_formal_identity_manifest_rejects_duplicate_rows(self):
+        manifest = (
+            f"plugin_hermes {TEST_FORMAL_IDENTITIES['plugin_sha256']}\n"
+            f"plugin_hermes {TEST_FORMAL_IDENTITIES['plugin_sha256']}\n"
+            "int_cert_producer producer.py "
+            f"{TEST_FORMAL_IDENTITIES['producer_sha256']}\n"
+            "int_cert_checker checker "
+            f"{TEST_FORMAL_IDENTITIES['checker_sha256']}\n"
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "MANIFEST.sha256").write_bytes(manifest)
+            with (
+                mock.patch.object(
+                    live.provisioner, "effective_release_pins",
+                    return_value={
+                        "package_sha256": "d" * 64,
+                        "sha256sums_sha256": "a" * 64,
+                    },
+                ),
+                mock.patch.object(
+                    live.provisioner, "verify_sha256sums",
+                    return_value={
+                        "MANIFEST.sha256": hashlib.sha256(manifest).hexdigest(),
+                    },
+                ),
+            ):
+                with self.assertRaisesRegex(live.AcceptanceError, "duplicate key"):
+                    live.load_runtime_formal_identities(root)
+
+    def test_runtime_formal_identity_manifest_rejects_post_validation_change(self):
+        manifest = b"plugin_hermes " + b"a" * 64 + b"\n"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "MANIFEST.sha256").write_bytes(manifest)
+            with (
+                mock.patch.object(
+                    live.provisioner, "effective_release_pins",
+                    return_value={
+                        "package_sha256": "d" * 64,
+                        "sha256sums_sha256": "b" * 64,
+                    },
+                ),
+                mock.patch.object(
+                    live.provisioner, "verify_sha256sums",
+                    return_value={"MANIFEST.sha256": "c" * 64},
+                ),
+            ):
+                with self.assertRaisesRegex(live.AcceptanceError, "changed after validation"):
+                    live.load_runtime_formal_identities(root)
 
     def test_dry_run_lists_each_mcp_tool_once(self):
         document = live.dry_run_document(
@@ -427,7 +500,9 @@ class AcceptanceValidationTests(unittest.TestCase):
     def test_formal_result_verifies_identities_digests_and_only_normalizes_time(self):
         mcp = formal_payload(10)
         direct = formal_payload(11)
-        live.validate_formal_int_cert(mcp_response("formal", mcp), direct)
+        live.validate_formal_int_cert(
+            mcp_response("formal", mcp), direct, TEST_FORMAL_IDENTITIES,
+        )
 
         tampered = formal_payload(11)
         tampered["receipt"]["certificate"]["sha256"] = "0" * 64
@@ -435,7 +510,19 @@ class AcceptanceValidationTests(unittest.TestCase):
             tampered["receipt"]
         )
         with self.assertRaisesRegex(live.AcceptanceError, "certificate digest"):
-            live.validate_formal_int_cert(mcp_response("formal", mcp), tampered)
+            live.validate_formal_int_cert(
+                mcp_response("formal", mcp), tampered, TEST_FORMAL_IDENTITIES,
+            )
+
+        self_signed = formal_payload(11)
+        self_signed["receipt"]["identities"]["checker_sha256"] = "d" * 64
+        self_signed["receipt"]["receipt_digest_sha256"] = live.receipt_digest(
+            self_signed["receipt"]
+        )
+        with self.assertRaisesRegex(live.AcceptanceError, "identity binding"):
+            live.validate_formal_int_cert(
+                mcp_response("formal", mcp), self_signed, TEST_FORMAL_IDENTITIES,
+            )
 
     def test_named_formal_refusal_has_no_downgrade_shape(self):
         refused = {
@@ -1756,16 +1843,24 @@ class ScriptedClient:
                 "result": {
                     "protocolVersion": live.MCP_PROTOCOL_VERSION,
                     "serverInfo": {"name": "jackel-codex", "version": "0.1.0"},
-                    "capabilities": {"tools": {"listChanged": False}},
+                    "capabilities": {
+                        "tools": {"listChanged": False},
+                        "resources": {"subscribe": False, "listChanged": False},
+                    },
                 },
             }
         if method == "tools/list":
             return {
                 "jsonrpc": "2.0", "id": request_id,
-                "result": {"tools": [
-                    {"name": record["name"]}
-                    for record in self.runtime_document["tools"]
-                ]},
+                "result": {
+                    "tools": [
+                        {"name": record["name"]}
+                        for record in self.runtime_document["tools"]
+                    ]
+                    + [{"name": name} for name in live.MEASUREMENT_TOOLS]
+                    + [{"name": name} for name in live.ADVANCED_TOOLS]
+                    + [{"name": name} for name in live.STEM_TOOLS]
+                },
             }
         self.assert_tools_call(method)
         name = params["name"]
@@ -1783,6 +1878,211 @@ class ScriptedClient:
                 "status": "refused", "reason": "producer-refused",
                 "detail": "outside fragment",
             }
+        elif name in live.MEASUREMENT_TOOLS:
+            measurement_statuses = {
+                "jackal_convert": "exact",
+                "jackal_rate_apply": "exact-given",
+                "jackal_percent": "exact",
+                "jackal_date_delta": "exact-given",
+                "jackal_stat": "exact",
+                "jackal_compare": "exact",
+                "jackal_scan": "checked",
+            }
+            if name == "jackal_rate_apply" and "rate_source" not in params["arguments"]:
+                payload = {
+                    "status": "refused",
+                    "reason": "undeclared-datum",
+                    "detail": "fixture missing provenance",
+                    "consequence_ceiling": "informational",
+                    "non_claims": ["fixture refusal"],
+                }
+            else:
+                status = measurement_statuses[name]
+                fields = {"fixture": name}
+                trace = [{"tool": "jackal_exact", "status": "exact"}]
+                if name == "jackal_stat":
+                    fields = {
+                        "population_variance": "5",
+                        "field_status": {
+                            "population_stddev_enclosure": "formal-bounded",
+                        },
+                    }
+                    trace.append({
+                        "tool": "jackal_sqrt_rat_bound",
+                        "status": "formal-bounded",
+                        "parsed": "sqrt(x) on [5,5]",
+                    })
+                elif name == "jackal_scan":
+                    fields = {
+                        "numerals": [
+                            {"text": "10^-12"},
+                            {"text": "2e-12"},
+                            {"text": "1×10⁻¹²"},
+                        ],
+                    }
+                    trace = []
+                payload = {
+                    "status": status,
+                    "lane": "fixture-measurement",
+                    "parsed": name,
+                    "fields": fields,
+                    "delegated_to": trace,
+                    "consequence_ceiling": "informational",
+                    "non_claims": ["fixture non-claim"],
+                    "identities": {"jackal_measurement_sha256": "c" * 64},
+                }
+                if status == "exact-given":
+                    payload["given"] = {
+                        "source": "fixture source",
+                        "as_of": "fixture as-of",
+                    }
+        elif name == "jackal_cas":
+            delegated = {
+                "status": "exact",
+                "lane": "rat",
+                "formal": False,
+                "fields": {"exact": "3/10"},
+            }
+            payload = {
+                "status": "exact",
+                "lane": "cas-route",
+                "formal": False,
+                "parsed": {
+                    "operation": "exact",
+                    "delegated_tool": "jackal_exact",
+                },
+                "result": delegated,
+                "delegated_to": [
+                    {"tool": "jackal_exact", "status": "exact"}
+                ],
+                "identities": {"jackal_advanced_sha256": "d" * 64},
+                "non_claims": ["fixture router adds no assurance"],
+            }
+        elif name == "jackal_graph":
+            payload = {
+                "status": "estimated",
+                "lane": "graph-delegated-f64-v1",
+                "formal": False,
+                "consequence_ceiling": "informational",
+                "fields": {"finite_sample_count": 17},
+                "delegated_to": [
+                    {"tool": "jackal_exact", "status": "exact"},
+                    {"tool": "jackal_evaluate", "status": "estimated"},
+                ],
+                "identities": {"jackal_advanced_sha256": "d" * 64},
+                "non_claims": ["fixture graph visualization only"],
+            }
+            png = b"\x89PNG\r\n\x1a\nfixture"
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {"type": "text", "text": "fixture graph"},
+                        {
+                            "type": "image",
+                            "data": base64.b64encode(png).decode("ascii"),
+                            "mimeType": "image/png",
+                        },
+                    ],
+                    "structuredContent": copy.deepcopy(payload),
+                },
+            }
+        elif name == "jackal_hellgate_ground_state":
+            payload = {
+                "status": "bounded",
+                "lane": "nonlinear-barta-exact-rational-v1",
+                "formal": False,
+                "checker_verdict": "ACCEPT",
+                "fields": {
+                    "eigenvalue_interval": ["-5", "-4"],
+                    "eigenvalue_decimal_interval": ["-5", "-4"],
+                    "interval_width": "1",
+                    "trial_diagnostics": {
+                        "schema": "jackal-hellgate-trial-diagnostics-v1",
+                        "status": "bounded",
+                        "subject": "normalized-certificate-trial-phi",
+                        "non_claims": ["not the exact ground state u0"],
+                    },
+                    "ground_state_transfer": {
+                        "schema": "jackal-hellgate-ground-transfer-v1",
+                        "status": "bounded",
+                        "subject": "positive-normalized-ground-state-u0",
+                        "method": "lambda-strong-convexity-density-transfer-v1",
+                        "non_claims": ["does not enclose polynomial moments"],
+                    },
+                },
+                "identities": {
+                    "jackal_advanced_sha256": "d" * 64,
+                    "hellgate_checker_sha256": "e" * 64,
+                    "hellgate_certificate_file_sha256": "f" * 64,
+                },
+                "theorem": {"name": "fixture comparison"},
+                "assumptions": ["fixture assumption"],
+                "non_claims": ["bounded is not formal-bounded"],
+            }
+        elif name in live.STEM_TOOLS:
+            statuses = {
+                "jackal_matrix": "exact",
+                "jackal_regression": "model-based",
+                "jackal_probability": "model-based",
+                "jackal_hypothesis": "model-based",
+                "jackal_sensor": "exact-given",
+                "jackal_aerospace": "model-based",
+                "jackal_linked_workspace": "checked",
+            }
+            field_statuses = {
+                "jackal_matrix": {"determinant": "exact"},
+                "jackal_regression": {"coefficients_ascending": "exact"},
+                "jackal_probability": {"probability": "exact"},
+                "jackal_hypothesis": {"p_value": "exact"},
+                "jackal_sensor": {"population_stddev_enclosure": "formal-bounded"},
+                "jackal_aerospace": {"speed_enclosure": "formal-bounded"},
+                "jackal_linked_workspace": {"points.y": "estimated"},
+            }
+            payload = {
+                "status": statuses[name],
+                "lane": "fixture-stem",
+                "formal": False,
+                "consequence_ceiling": (
+                    "advisory"
+                    if name in {"jackal_hypothesis", "jackal_aerospace"}
+                    else "informational"
+                ),
+                "parsed": {"fixture": name},
+                "fields": {"fixture": name},
+                "field_status": field_statuses[name],
+                "delegated_to": [{"tool": "jackal_exact", "status": "exact"}],
+                "identities": {"jackal_stem_sha256": "1" * 64},
+                "non_claims": ["fixture STEM non-claim"],
+            }
+            if name == "jackal_sensor":
+                payload["given"] = {"input_provenance": "supplied"}
+            if name == "jackal_linked_workspace":
+                resource_text = "<!doctype html><title>Pixels are not proof</title>"
+                resource_uri = (
+                    "ui://jackal/linked-workspace/"
+                    + hashlib.sha256(resource_text.encode("utf-8")).hexdigest()
+                )
+                payload["fields"]["resource_uri"] = resource_uri
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [
+                            {"type": "text", "text": "fixture workspace"},
+                            {
+                                "type": "resource",
+                                "resource": {
+                                    "uri": resource_uri,
+                                    "mimeType": "text/html",
+                                    "text": resource_text,
+                                },
+                            },
+                        ],
+                        "structuredContent": copy.deepcopy(payload),
+                    },
+                }
         elif name == "jackal_claim":
             payload = {
                 "status": "ok", "root": "root-node",
@@ -1805,9 +2105,9 @@ class ScriptedClient:
                 "status": "verified", "verdict": "ACCEPT",
                 "receipt_digest_sha256": receipt["receipt_digest_sha256"],
                 "certificate_sha256": receipt["certificate"]["sha256"],
-                "checker_sha256": live.INT_CERT_CHECKER_SHA256,
-                "evaluator_sha256": live.INT_CERT_PRODUCER_SHA256,
-                "plugin_sha256": live.HERMES_BUNDLE_SHA256,
+                "checker_sha256": TEST_FORMAL_IDENTITIES["checker_sha256"],
+                "evaluator_sha256": TEST_FORMAL_IDENTITIES["evaluator_sha256"],
+                "plugin_sha256": TEST_FORMAL_IDENTITIES["plugin_sha256"],
                 "enclosure": ["0", "1"],
             }
         else:
@@ -1830,6 +2130,10 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
             "PATH": "/fixed/python:/usr/bin:/bin:/usr/sbin:/sbin",
             "JACKAL_HOME": str(runtime),
         }
+        runtime_pins = {
+            "package_sha256": "e" * 64,
+            "sha256sums_sha256": "f" * 64,
+        }
         client = mock.Mock()
         client_context = mock.Mock()
         client_context.__enter__ = mock.Mock(return_value=client)
@@ -1841,8 +2145,9 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
         )
         temporary.__exit__ = mock.Mock(return_value=False)
 
-        def acceptance(*, client, runtime_document, direct_call):
+        def acceptance(*, client, runtime_document, direct_call, formal_identities):
             self.assertEqual(runtime_document, {"tools": []})
+            self.assertEqual(formal_identities, TEST_FORMAL_IDENTITIES)
             direct_call("jackal_exact", {"expression": "1+1"})
             return {"sequence": "accepted"}
 
@@ -1850,6 +2155,13 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
             mock.patch.object(live, "verify_wrapper", return_value="a" * 64),
             mock.patch.object(live, "verify_runtime"),
             mock.patch.object(live, "load_runtime_document", return_value={"tools": []}),
+            mock.patch.object(
+                live, "load_runtime_formal_identities",
+                return_value=TEST_FORMAL_IDENTITIES,
+            ),
+            mock.patch.object(
+                live, "effective_runtime_pins", return_value=runtime_pins,
+            ),
             mock.patch.object(
                 live.tempfile, "TemporaryDirectory", return_value=temporary
             ) as temporary_directory,
@@ -1880,6 +2192,8 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
             environment=environment,
         )
         self.assertEqual(report["sequence"], "accepted")
+        self.assertEqual(report["runtime_package_sha256"], runtime_pins["package_sha256"])
+        self.assertEqual(report["runtime_tree_sha256"], runtime_pins["sha256sums_sha256"])
 
     def test_full_strict_sequence_has_no_weaker_fallback(self):
         runtime_document = json.loads(RUNTIME_TOOLS.read_text(encoding="utf-8"))
@@ -1889,9 +2203,15 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
         def direct(tool, arguments):
             direct_calls.append((tool, copy.deepcopy(arguments)))
             if tool == "jackal_exact":
+                exact_value = (
+                    "5"
+                    if arguments["expression"]
+                    == "((0-3)^2+(4-3)^2+(6-3)^2+(2-3)^2)/4"
+                    else "3/10"
+                )
                 return {
                     "status": "exact", "lane": "rat", "formal": False,
-                    "fields": {"exact": "3/10"},
+                    "fields": {"exact": exact_value},
                 }
             if arguments["expression"] == "sin(x)":
                 return formal_payload(11)
@@ -1903,30 +2223,77 @@ class AcceptanceOrchestrationTests(unittest.TestCase):
         report = live.run_acceptance(
             client=client, runtime_document=runtime_document,
             direct_call=direct,
+            formal_identities=TEST_FORMAL_IDENTITIES,
         )
         tool_calls = [name for name, _ in client.calls if not name.startswith("notifications/")]
         self.assertEqual(
             tool_calls,
             [
                 "jackal_exact", "jackal_integrate_bound_cert",
-                "jackal_integrate_bound_cert", "jackal_claim",
+                "jackal_integrate_bound_cert",
+                "jackal_convert", "jackal_rate_apply", "jackal_percent",
+                "jackal_date_delta", "jackal_compare", "jackal_stat",
+                "jackal_scan", "jackal_rate_apply", "jackal_cas",
+                "jackal_graph", "jackal_hellgate_ground_state",
+                "jackal_matrix", "jackal_matrix", "jackal_matrix",
+                "jackal_matrix", "jackal_matrix", "jackal_matrix",
+                "jackal_matrix", "jackal_regression",
+                "jackal_probability", "jackal_probability",
+                "jackal_probability", "jackal_hypothesis",
+                "jackal_hypothesis", "jackal_hypothesis",
+                "jackal_hypothesis", "jackal_sensor", "jackal_sensor",
+                "jackal_aerospace", "jackal_aerospace", "jackal_aerospace",
+                "jackal_aerospace", "jackal_aerospace",
+                "jackal_linked_workspace", "jackal_claim",
                 "jackal_verify_bundle", "jackal_verify_receipt",
             ],
         )
         self.assertNotIn("jackal_integrate_bound", tool_calls)
         self.assertEqual(
             [name for name, _ in direct_calls],
-            ["jackal_exact", "jackal_integrate_bound_cert", "jackal_integrate_bound_cert"],
+            [
+                "jackal_exact", "jackal_integrate_bound_cert",
+                "jackal_integrate_bound_cert", "jackal_exact", "jackal_exact",
+            ],
         )
         # Exact against the catalog actually fed in — this test feeds the repo
         # `plugin/hermes/tools.json`, so retyping its size here would go stale
         # on every surface addition while checking nothing extra.
         self.assertEqual(report["discovered_tool_count"],
-                         len(runtime_document["tools"]))
-        self.assertGreaterEqual(report["discovered_tool_count"], live.MIN_TOOL_COUNT)
+                         len(runtime_document["tools"])
+                         + len(live.MEASUREMENT_TOOLS)
+                         + len(live.ADVANCED_TOOLS)
+                         + len(live.STEM_TOOLS))
+        self.assertGreaterEqual(
+            len(runtime_document["tools"]), live.MIN_RUNTIME_TOOL_COUNT
+        )
         self.assertEqual(report["gates"], {
             "exact": "exact", "formal": "formal-bounded",
             "unsupported_formal": "producer-refused",
+            "measurement": {
+                "jackal_convert": "exact",
+                "jackal_rate_apply": "exact-given",
+                "jackal_percent": "exact",
+                "jackal_date_delta": "exact-given",
+                "jackal_compare": "exact",
+                "jackal_stat": "exact",
+                "jackal_scan": "checked",
+                "refusal": "undeclared-datum",
+            },
+            "advanced": {
+                "cas": "exact",
+                "graph": "estimated",
+                "hellgate": "bounded",
+            },
+            "stem": {
+                "matrix": "exact",
+                "regression": "model-based",
+                "probability": "model-based",
+                "hypothesis": "model-based",
+                "sensor": "exact-given",
+                "aerospace": "model-based",
+                "linked_workspace": "checked",
+            },
             "claim_bundle": "verified", "formal_receipt": "verified",
         })
 

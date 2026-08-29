@@ -99,7 +99,8 @@
       ],
       "verification": [
         "proofs/spark/claim_policy/prove.sh",
-        "tests/claim_policy_conformance_test.py"
+        "tests/claim_policy_conformance_test.py",
+        "tests/claim_policy_verifier_bridge.py"
       ],
       "residuals": []
     },
@@ -113,7 +114,8 @@
       ],
       "verification": [
         "proofs/spark/claim_policy/prove.sh",
-        "tests/claim_policy_conformance_test.py"
+        "tests/claim_policy_conformance_test.py",
+        "tests/claim_policy_verifier_bridge.py"
       ],
       "residuals": []
     },
@@ -127,7 +129,8 @@
       ],
       "verification": [
         "proofs/spark/claim_policy/prove.sh",
-        "tests/claim_policy_conformance_test.py"
+        "tests/claim_policy_conformance_test.py",
+        "tests/claim_policy_verifier_bridge.py"
       ],
       "residuals": []
     }

@@ -1,25 +1,17 @@
-import os
+import json
 import shutil
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-
-if not (sys.flags.isolated and sys.flags.no_site):
-    os.execv(
-        sys.executable,
-        [sys.executable, "-I", "-S", "-B", __file__],
-    )
-
-
 ROOT = Path(__file__).resolve().parents[1]
 SPARK_ROOT = ROOT / "proofs/spark/claim_policy"
 VECTORS = SPARK_ROOT / "bin/jackal_claim_policy_vectors"
+VERIFIER_BRIDGE = ROOT / "tests/claim_policy_verifier_bridge.py"
 
-sys.path.insert(0, str(ROOT / "tools"))
-import claim_bundle_verify as verifier  # noqa: E402
-import claim_kernel as producer  # noqa: E402
+sys.path.insert(0, str(ROOT))
+from tools import claim_kernel as producer  # noqa: E402
 
 
 def normalized(value: str, prefix: str = "") -> str:
@@ -110,26 +102,11 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
 
-        self.assertEqual(producer.PROV_ORDER, verifier.PROV_ORDER)
-        self.assertEqual(producer.MODEL_ORDER, verifier.MODEL_ORDER)
-        self.assertEqual(producer.MODEL_IDENTITY, verifier.MODEL_IDENTITY)
-        self.assertEqual(producer.MATH_ORDER, verifier.MATH_ORDER)
-        self.assertEqual(producer.MATH_RANKS, verifier.MATH_RANKS)
-        self.assertEqual(producer.IMPL_ORDER, verifier.IMPL_ORDER)
-        self.assertEqual(producer.ARTIFACT_FLAGS, verifier.ARTIFACT_FLAGS)
-        self.assertEqual(producer.MATH_CAPS, verifier.MATH_CAPS)
-        self.assertEqual(producer.PRESERVE_RULES, verifier.PRESERVE_RULES)
-        self.assertEqual(producer.IMPL_CAP_DEFAULT, verifier.IMPL_CAP_DEFAULT)
-
-        engine = verifier.RuleEngine(None, {})
         seen: set[str] = set()
         rule_vectors: dict[tuple[str, str, str], tuple[str, str]] = {}
 
         def integrated_axes(rule_id: str, parents: list[dict]) -> dict:
-            produced = producer.computed_axes(rule_id, parents)
-            checked = engine.computed_axes({"rule": {"id": rule_id}}, parents)
-            self.assertEqual(checked, produced)
-            return produced
+            return producer.computed_axes(rule_id, parents)
 
         for raw_line in completed.stdout.splitlines():
             fields = [field.strip() for field in raw_line.split("|")]
@@ -141,11 +118,6 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
                 self.assertEqual(
                     producer._meet([left, right], producer.MATH_ORDER,
                                    producer.MATH_RANKS),
-                    expected,
-                )
-                self.assertEqual(
-                    verifier.meet_ordered([left, right], verifier.MATH_ORDER,
-                                          verifier.MATH_RANKS),
                     expected,
                 )
                 axes = integrated_axes(
@@ -161,9 +133,6 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
                 self.assertEqual(
                     producer._meet([left, right], producer.PROV_ORDER), expected
                 )
-                self.assertEqual(
-                    verifier.meet_ordered([left, right], verifier.PROV_ORDER), expected
-                )
                 axes = integrated_axes(
                     "model_condition",
                     [
@@ -177,7 +146,6 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
                     normalized(item, "model-") for item in fields[1:]
                 )
                 self.assertEqual(producer._meet_model([left, right]), expected)
-                self.assertEqual(verifier.meet_model([left, right]), expected)
                 axes = integrated_axes(
                     "model_condition",
                     [
@@ -192,9 +160,6 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     producer._meet([left, right], producer.IMPL_ORDER), expected
-                )
-                self.assertEqual(
-                    verifier.meet_ordered([left, right], verifier.IMPL_ORDER), expected
                 )
                 axes = integrated_axes(
                     "model_condition",
@@ -230,10 +195,41 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
             {"MATH", "PROVENANCE", "MODEL", "IMPLEMENTATION", "RULE", "ARTIFACT"},
         )
 
-        for rule_id in verifier.RULE_IDS:
-            if rule_id in verifier.PRESERVE_RULES:
+        bridge = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                str(VERIFIER_BRIDGE),
+                str(VECTORS),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(bridge.returncode, 0, bridge.stdout + bridge.stderr)
+        bridge_result = json.loads(bridge.stdout)
+        self.assertEqual(bridge_result["status"], "pass")
+        self.assertEqual(producer.PROV_ORDER, bridge_result["PROV_ORDER"])
+        self.assertEqual(producer.MODEL_ORDER, bridge_result["MODEL_ORDER"])
+        self.assertEqual(producer.MODEL_IDENTITY, bridge_result["MODEL_IDENTITY"])
+        self.assertEqual(producer.MATH_ORDER, bridge_result["MATH_ORDER"])
+        self.assertEqual(producer.MATH_RANKS, bridge_result["MATH_RANKS"])
+        self.assertEqual(producer.IMPL_ORDER, bridge_result["IMPL_ORDER"])
+        self.assertEqual(producer.ARTIFACT_FLAGS, bridge_result["ARTIFACT_FLAGS"])
+        self.assertEqual(producer.MATH_CAPS, bridge_result["MATH_CAPS"])
+        self.assertEqual(
+            sorted(producer.PRESERVE_RULES), bridge_result["PRESERVE_RULES"]
+        )
+        self.assertEqual(producer.IMPL_CAP_DEFAULT, bridge_result["IMPL_CAP_DEFAULT"])
+
+        for rule_id in bridge_result["RULE_IDS"]:
+            if rule_id in producer.PRESERVE_RULES:
                 behavior = "preserve-axes"
-            elif rule_id in verifier.MATH_CAPS:
+            elif rule_id in producer.MATH_CAPS:
                 behavior = "interval-arithmetic"
             else:
                 behavior = "derived-default"

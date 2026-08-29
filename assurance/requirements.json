@@ -1,0 +1,104 @@
+{
+  "schema": "jackal-assurance-requirements-v1",
+  "system": "JACKAL deterministic mathematical evidence kernel",
+  "target": "Requirements-complete universal functional correctness within every declared input domain",
+  "product_claim": {
+    "status": "in-progress",
+    "reason": "The public surface still contains tested runtime, parser, adapter, orchestration, numerical-model, operating-system, compiler, and hardware boundaries that do not yet have universal refinement proofs."
+  },
+  "component_claims": [
+    {
+      "component": "proofs/spark/hellgate_interval/src/jackal_interval_envelope",
+      "target": "SPARK Platinum",
+      "status": "proved-local",
+      "requirement_ids": [
+        "JCK-INT-001",
+        "JCK-INT-002",
+        "JCK-INT-003",
+        "JCK-INT-004"
+      ],
+      "boundary": "Total fixed-scale nonnegative interval decision kernel; certificate parsing, rational-to-fixed-scale conversion, nonlinear analysis, compiler, runtime, operating system, and hardware are outside this component."
+    }
+  ],
+  "requirements": [
+    {
+      "id": "JCK-INT-001",
+      "shall": "The SPARK interval kernel shall return the exact upper-minus-lower width for every ordered fixed-scale interval and shall be free of run-time errors over its declared precondition.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/hellgate_interval/src/jackal_interval_envelope.ads"
+      ],
+      "verification": [
+        "proofs/spark/hellgate_interval/prove.sh",
+        "tests/codex_plugin/test_spark_interval.py"
+      ],
+      "residuals": []
+    },
+    {
+      "id": "JCK-INT-002",
+      "shall": "The SPARK interval kernel shall return midpoint and ceiling-radius values that cover both endpoints of every ordered fixed-scale interval without overflow or range failure.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/hellgate_interval/src/jackal_interval_envelope.ads"
+      ],
+      "verification": [
+        "proofs/spark/hellgate_interval/prove.sh",
+        "tests/codex_plugin/test_spark_interval.py"
+      ],
+      "residuals": []
+    },
+    {
+      "id": "JCK-INT-003",
+      "shall": "The SPARK interval kernel shall admit an envelope exactly when it is ordered, its target width is positive, and its exact width is strictly less than the target.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/hellgate_interval/src/jackal_interval_envelope.ads"
+      ],
+      "verification": [
+        "proofs/spark/hellgate_interval/prove.sh",
+        "tests/codex_plugin/test_spark_interval.py"
+      ],
+      "residuals": []
+    },
+    {
+      "id": "JCK-INT-004",
+      "shall": "The SPARK interval kernel shall evaluate every value of its public input types with the specified rejection precedence, zero all rejected derived outputs, and return exact width plus a covering midpoint-radius pair on admission.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/hellgate_interval/src/jackal_interval_envelope.ads",
+        "proofs/spark/hellgate_interval/src/jackal_interval_envelope.adb"
+      ],
+      "verification": [
+        "proofs/spark/hellgate_interval/prove.sh",
+        "tests/codex_plugin/test_spark_interval.py"
+      ],
+      "residuals": []
+    }
+  ],
+  "surface_closure": {
+    "sealed_dependency_families": {
+      "lean-range": "formal-mathematics-open-refinement",
+      "lean-gaussian": "formal-mathematics-open-refinement",
+      "lean-int-cert": "formal-mathematics-open-refinement",
+      "lean-receipt-registry": "formal-mathematics-open-refinement",
+      "runtime-only": "tested-open-proof",
+      "exact-cert-verifier": "independently-checked-open-proof",
+      "claim-router": "tested-open-proof",
+      "claim-verifier": "independently-checked-open-proof",
+      "structural-checker": "independently-checked-open-proof",
+      "decision-checker": "independently-checked-open-proof",
+      "program-verifier": "anubis-evidence-open-refinement"
+    },
+    "additive_groups": {
+      "measurement": "tested-open-proof",
+      "advanced": "tested-open-proof",
+      "stem": "tested-open-proof"
+    },
+    "closed_status": "proved-universal",
+    "rule": "A whole-product claim is permitted only when every discovered sealed dependency family and additive group has closed_status and every allocated requirement is proved."
+  }
+}

@@ -1,8 +1,21 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -eq 0 ]; then
-    echo "refused: no SPARK source roots were supplied" >&2
+if [ "$#" -lt 2 ]; then
+    echo "refused: a GNATprove report and SPARK source roots are required" >&2
+    exit 1
+fi
+
+PROOF_REPORT=$1
+shift
+
+[ -f "$PROOF_REPORT" ] || {
+    echo "refused: the GNATprove report is not a regular file" >&2
+    exit 1
+}
+
+if grep -Eq '\([1-9][0-9]* pragma Assume statements?\)' "$PROOF_REPORT"; then
+    echo "refused: GNATprove reports one or more proof assumptions" >&2
     exit 1
 fi
 

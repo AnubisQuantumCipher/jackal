@@ -35,12 +35,17 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw_directory:
             directory = Path(raw_directory)
             source = directory / "guard_probe.adb"
+            report = directory / "gnatprove.out"
+            report.write_text(
+                "Guard_Probe (0 pragma Assume statements)\n",
+                encoding="utf-8",
+            )
             source.write_text(
                 "procedure Guard_Probe is begin null; end Guard_Probe;\n",
                 encoding="utf-8",
             )
             accepted = subprocess.run(
-                [str(ASSUMPTION_GUARD), str(directory)],
+                [str(ASSUMPTION_GUARD), str(report), str(directory)],
                 cwd=REPO_ROOT,
                 check=False,
                 capture_output=True,
@@ -58,7 +63,7 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
                 with self.subTest(forbidden=forbidden):
                     source.write_text(forbidden + "\n", encoding="utf-8")
                     refused = subprocess.run(
-                        [str(ASSUMPTION_GUARD), str(directory)],
+                        [str(ASSUMPTION_GUARD), str(report), str(directory)],
                         cwd=REPO_ROOT,
                         check=False,
                         capture_output=True,
@@ -70,6 +75,28 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
                         "proof assumptions or justifications are forbidden",
                         transcript,
                     )
+
+            source.write_text(
+                "procedure Guard_Probe is begin null; end Guard_Probe;\n",
+                encoding="utf-8",
+            )
+            report.write_text(
+                "Guard_Probe (1 pragma Assume statement)\n",
+                encoding="utf-8",
+            )
+            refused_report = subprocess.run(
+                [str(ASSUMPTION_GUARD), str(report), str(directory)],
+                cwd=REPO_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            report_transcript = refused_report.stdout + refused_report.stderr
+            self.assertNotEqual(refused_report.returncode, 0, report_transcript)
+            self.assertIn(
+                "GNATprove reports one or more proof assumptions",
+                report_transcript,
+            )
 
     @unittest.skipUnless(
         shutil.which("gprbuild") and shutil.which("gnatprove") and shutil.which("rg"),

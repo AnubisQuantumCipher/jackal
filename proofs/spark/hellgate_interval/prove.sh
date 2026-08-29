@@ -46,6 +46,6 @@ grep -q 'unit jackal_interval_envelope' "$PROOF_REPORT" || {
 }
 
 "$SCRIPT_DIR/../reject_assumptions.sh" \
-    "$SCRIPT_DIR/src" "$SCRIPT_DIR/tests"
+    "$PROOF_REPORT" "$SCRIPT_DIR/src" "$SCRIPT_DIR/tests"
 
 echo "SPARK_PLATINUM_INTERVAL_COMPONENT_PROOF_PASS"

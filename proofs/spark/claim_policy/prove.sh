@@ -45,6 +45,6 @@ grep -q 'unit jackal_claim_policy' "$PROOF_REPORT" || {
 }
 
 "$SCRIPT_DIR/../reject_assumptions.sh" \
-    "$SCRIPT_DIR/src" "$SCRIPT_DIR/tests"
+    "$PROOF_REPORT" "$SCRIPT_DIR/src" "$SCRIPT_DIR/tests"
 
 echo "SPARK_PLATINUM_CLAIM_POLICY_COMPONENT_PROOF_PASS"

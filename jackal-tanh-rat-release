@@ -22,7 +22,13 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PRODUCER="$ROOT/tools/tanh_rat_producer.py"
 CHECKER="$ROOT/proofs/lean/.lake/build/bin/jackal_cert_check"
-MANIFEST="$ROOT/release/MANIFEST.sha256"
+# Per-host release identity: a source build on this host produces
+# byte-different compiled artifacts (jackal-native + Lean checkers), so it
+# carries its own MANIFEST.<host>.sha256. The macOS arm64 manifest remains
+# the default when no host-specific one is present.
+HOST_TAG="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+MANIFEST="$ROOT/release/MANIFEST.$HOST_TAG.sha256"
+[ -f "$MANIFEST" ] || MANIFEST="$ROOT/release/MANIFEST.sha256"
 PROOF_ID="$ROOT/release/evidence/range_proof_identity_v172.json"
 INVENTORY="$ROOT/release/coverage/formal_coverage_inventory.json"
 

@@ -16,7 +16,8 @@ MCP_PATH = PLUGIN_ROOT / ".mcp.json"
 SKILL_PATH = PLUGIN_ROOT / "skills" / "jackel" / "SKILL.md"
 IDENTITY_PATH = PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
 README_PATH = PLUGIN_ROOT / "README.md"
-LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.zsh"
+LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.sh"
+ZSH_LAUNCHER_PATH = PLUGIN_ROOT / "scripts" / "launch_mcp.zsh"
 SERVER_PATH = PLUGIN_ROOT / "mcp" / "server.py"
 WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "jackal-codex-plugin.yml"
 DESIGN_PATH = (
@@ -34,8 +35,10 @@ PLAN_PATH = (
     / "2026-08-17-jackel-codex-plugin.md"
 )
 APPROVED_SKILL_DESCRIPTION = (
-    "Route claim-aware computation, domain-pack, and Anubis program evidence "
-    "through JACKAL without overstating assurance."
+    "Route evidence-aware CAS, graphing, THOTH measurement, exact-field "
+    "matrices, statistical models, sensors, aerospace workflows, linked views, "
+    "claim bundles, nonlinear certificates, and Anubis program evidence through "
+    "JACKAL without overstating assurance."
 )
 
 
@@ -105,7 +108,7 @@ class PluginMetadataTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "jackel")
-        self.assertEqual(manifest["interface"]["displayName"], "JACKAL")
+        self.assertEqual(manifest["interface"]["displayName"], "JACKAL + THOTH")
         self.assertIn("JACKAL", manifest["description"])
         self.assertIn("JACKAL", manifest["interface"]["longDescription"])
         self.assertIn("JACKAL", manifest["interface"]["defaultPrompt"][0])
@@ -126,7 +129,7 @@ class PluginMetadataTests(unittest.TestCase):
         )
         self.assertEqual(set(mcp["mcpServers"]), {"jackel"})
         self.assertEqual(self.parse_skill_frontmatter(skill)["name"], "jackel")
-        self.assertIn("# JACKAL numerical-trust operator", skill)
+        self.assertIn("# JACKAL + THOTH numerical-trust operator", skill)
         self.assertNotIn("JACKEL", skill)
         server = SERVER_PATH.read_text(encoding="utf-8")
         self.assertIn("Preserve JACKAL status", server)
@@ -218,46 +221,85 @@ class PluginMetadataTests(unittest.TestCase):
         self.assertEqual(marketplace["interface"]["displayName"], "Anubis Quantum Cipher")
 
         interface = manifest["interface"]
-        self.assertEqual(interface["displayName"], "JACKAL")
-        self.assertEqual(interface["shortDescription"], "Claim-aware computation with explicit evidence classes")
+        self.assertEqual(interface["displayName"], "JACKAL + THOTH")
+        self.assertEqual(
+            interface["shortDescription"],
+            "Evidence-aware CAS, linked STEM views, and THOTH measurement",
+        )
         self.assertEqual(interface["developerName"], "Anubis Quantum Cipher")
         self.assertEqual(interface["category"], "Productivity")
         self.assertEqual(interface["capabilities"], ["Interactive"])
         self.assertEqual(interface["websiteURL"], "https://github.com/AnubisQuantumCipher/jackal")
+        self.assertEqual(interface["brandColor"], "#D51F2D")
+        self.assertEqual(
+            interface["screenshots"],
+            [
+                "./assets/jackal-thoth-hellgate-graph.png",
+                "./assets/jackal-linked-evidence-workspace.png",
+            ],
+        )
         self.assertEqual(
             interface["defaultPrompt"],
             [
-                "Classify and verify this numerical claim with JACKAL.",
-                "Find the strongest supported bound and refuse any silent downgrade.",
-                "Verify this receipt or claim bundle against my pinned expectations.",
-                "Verify this Anubis Safe program-evidence package without executing its artifact.",
+                "Use JACKAL + THOTH to solve and classify this calculation.",
+                "Graph this expression and separate visualization from evidence.",
+                "Open a linked symbolic, numeric, graph, table, and evidence workspace for this expression.",
+                "Solve this matrix or regression workflow while preserving exact fields and model assumptions.",
+                "Analyze this supplied sensor batch or aerospace model without upgrading its provenance or physical assumptions.",
+                "Replay the HELLGATE nonlinear ground-state certificate without promoting its assurance.",
             ],
         )
         expected_long_description = (
-            "Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. "
-            "The MCP adapter copies the parsed runtime result object into "
-            "structuredContent unchanged; its only adapter-local tool result is "
-            "status=refused reason=plugin-busy. Runtime result and assurance "
-            "vocabulary: ok, exact, structural-exact, formal-bounded, bounded, "
-            "checked, estimated, model-based, verified, "
+            "Expose one unified 58-tool JACKAL surface through Codex: the sealed "
+            "41-tool v1.7.3 release runtime, seven identity-pinned THOTH "
+            "measurement/provenance tools, three identity-pinned CAS, graph, and "
+            "nonlinear-certificate tools, and seven identity-pinned STEM workflows "
+            "for matrices, regression, probability, hypothesis testing, supplied "
+            "sensor batches, aerospace models, and a professional linked evidence "
+            "workspace. THOTH is a named JACKAL subsystem, never a separate server "
+            "or arithmetic authority. Every reported numeric field in the additive "
+            "workflows delegates to an admitted JACKAL lane; wrapper orchestration "
+            "and UI rendering add no mathematical assurance. The adapter copies each "
+            "parsed sealed-runtime result object into structuredContent unchanged. "
+            "For additive results it deep-copies the result and removes only the "
+            "identity-validated _mcp_content transport envelope before returning "
+            "structuredContent; its only transport-local refusal is status=refused "
+            "reason=plugin-busy. Graph coordinates are exact rational JACKAL results, "
+            "sampled values and pixels remain estimated visualization, and refused "
+            "samples break the curve. The fixed HELLGATE lane replays an independent "
+            "exact-rational certificate as bounded, never formal-bounded. Result "
+            "vocabulary: ok, exact, exact-given, structural-exact, formal-bounded, "
+            "bounded, checked, estimated, model-based, verified, "
             "verified-program-evidence, verified-program-receipt, indeterminate, "
-            "and refused. Formal-bounded is limited to checker-admitted fragments; "
-            "program evidence leaves construct-totality, source, and runtime "
-            "residuals open. Requires Apple Silicon macOS and Python >=3.10 at "
-            "/opt/homebrew/bin/python3 (install with brew install python)."
+            "refused. Field statuses, assumptions, identities, route traces, refusal "
+            "reasons, consequence ceilings, and non-claims remain first-class. "
+            "Requires a host-admitted pinned runtime and Python >=3.10 at a fixed "
+            "launcher-approved path."
         )
         self.assertEqual(interface["longDescription"], expected_long_description)
-        self.assertIn(f"- `interface.longDescription`: `{expected_long_description}`", DESIGN_PATH.read_text(encoding="utf-8"))
+        design = DESIGN_PATH.read_text(encoding="utf-8")
+        self.assertIn("unified 58-tool surface", design)
+        self.assertIn("graph visualization", design)
 
         self.assertRegex(manifest["version"], r"^0\.1\.0\+codex\.\d{14}$")
-        self.assertEqual(manifest["description"], "Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.")
+        self.assertEqual(
+            manifest["description"],
+            "Expose JACKAL's evidence-aware CAS, professional linked graphing, "
+            "integrated THOTH measurement, matrices, statistical models, sensors, "
+            "aerospace workflows, nonlinear certificates, and program evidence to Codex.",
+        )
         self.assertEqual(manifest["author"], {"name": "Anubis Quantum Cipher", "url": "https://github.com/AnubisQuantumCipher"})
         self.assertEqual(manifest["homepage"], "https://github.com/AnubisQuantumCipher/jackal")
         self.assertEqual(manifest["repository"], "https://github.com/AnubisQuantumCipher/jackal")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(
             manifest["keywords"],
-            ["jackel", "mathematics", "numerical-trust", "formal-verification", "evidence", "mcp"],
+            [
+                "jackel", "thoth", "mathematics", "computer-algebra",
+                "graphing", "linked-views", "matrices", "regression",
+                "probability", "sensors", "aerospace", "symbolic-algebra",
+                "numerical-trust", "formal-verification", "evidence", "mcp",
+            ],
         )
         self.assertEqual(manifest["skills"], "./skills/")
         self.assertEqual(manifest["mcpServers"], "./.mcp.json")
@@ -270,11 +312,9 @@ class PluginMetadataTests(unittest.TestCase):
         for forbidden in (
             "privacyPolicyURL",
             "termsOfServiceURL",
-            "brandColor",
             "composerIcon",
             "logo",
             "logoDark",
-            "screenshots",
         ):
             self.assertNotIn(forbidden, interface)
 
@@ -283,8 +323,8 @@ class PluginMetadataTests(unittest.TestCase):
             {
                 "mcpServers": {
                     "jackel": {
-                        "command": "/bin/zsh",
-                        "args": ["./scripts/launch_mcp.zsh"],
+                        "command": "/bin/sh",
+                        "args": ["./scripts/launch_mcp.sh"],
                         "cwd": ".",
                         "env_vars": ["JACKAL_HOME"],
                         "tool_timeout_sec": 3700,
@@ -319,9 +359,11 @@ class PluginMetadataTests(unittest.TestCase):
             "error estimate is not a bound",
             "Source-to-native refinement remains open and unclaimed",
             "Run a weaker lane only when the caller explicitly requests one",
-            "Apple Silicon macOS only",
-            "Do not bypass the Darwin/arm64 host guard",
-            "Python >=3.10 at `/opt/homebrew/bin/python3`",
+            "Darwin/arm64, Linux/aarch64, and Linux/x86_64",
+            "Do not bypass the host guard",
+            "Linux/aarch64 has an exact host-specific pin",
+            "Linux/x86_64 has no",
+            "Python >=3.10",
             "brew install python",
         ):
             self.assertIn(phrase, skill)
@@ -337,10 +379,20 @@ class PluginMetadataTests(unittest.TestCase):
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]
         referenced = {
             "README.md",
+            "assets/jackal-thoth-hellgate-graph.png",
+            "assets/jackal-linked-evidence-workspace.png",
             ".codex-plugin/plugin.json",
             manifest["mcpServers"].removeprefix("./"),
             "mcp/server.py",
+            "mcp/measurement.py",
+            "mcp/advanced.py",
+            "mcp/stem.py",
+            "runtime_manifest_baseline_v173.json",
+            "mcp/hellgate_verify.py",
+            "mcp/certificates/README.md",
+            "mcp/certificates/hellgate_v1.json.zlib",
             "scripts/provision_runtime.py",
+            "scripts/launch_mcp.sh",
             "scripts/launch_mcp.zsh",
             "scripts/verify_plugin.py",
             "skills/jackel/SKILL.md",
@@ -352,7 +404,7 @@ class PluginMetadataTests(unittest.TestCase):
         self.assertEqual(identity_paths, referenced)
         for relative in referenced:
             self.assertTrue((PLUGIN_ROOT / relative).is_file(), relative)
-        self.assertEqual(mcp["args"], ["./scripts/launch_mcp.zsh"])
+        self.assertEqual(mcp["args"], ["./scripts/launch_mcp.sh"])
         self.assertFalse(
             any(
                 path.name.endswith(".tar.gz") or path.name.startswith("jackal-v")
@@ -364,9 +416,19 @@ class PluginMetadataTests(unittest.TestCase):
         text = README_PATH.read_text(encoding="utf-8")
         for required in (
             "41-tool",
+            "58-tool",
+            "THOTH",
+            "jackal_graph",
+            "jackal_hellgate_ground_state",
+            "jackal_matrix",
+            "jackal_regression",
+            "jackal_sensor",
+            "jackal_aerospace",
+            "jackal_linked_workspace",
+            "plugin-card screenshot",
             "v1.7.3 release",
             "release/capability_inventory_v1.json",
-            "/bin/zsh scripts/launch_mcp.zsh provision",
+            "/bin/sh scripts/launch_mcp.sh provision",
             "codex mcp list",
             "jackal_claim",
             "jackal_verify_receipt",
@@ -390,7 +452,7 @@ class PluginMetadataTests(unittest.TestCase):
 
     def test_launcher_uses_only_explicit_absolute_python_candidates_and_exact_flags(self):
         mcp = self.load_json(MCP_PATH)["mcpServers"]["jackel"]
-        self.assertEqual(mcp["command"], "/bin/zsh")
+        self.assertEqual(mcp["command"], "/bin/sh")
         source = LAUNCHER_PATH.read_text(encoding="utf-8")
         self.assertIn("/opt/homebrew/bin/python3", source)
         self.assertIn("/usr/local/bin/python3", source)
@@ -404,7 +466,7 @@ class PluginMetadataTests(unittest.TestCase):
             '"WEXITED"', '"WNOHANG"', '"WNOWAIT"', '"CLD_EXITED"',
             '"CLD_KILLED"', '"CLD_DUMPED"', '"killpg"',
             '"set_blocking"', '"socketpair"', "ctypes.CDLL",
-            '"renameatx_np"', "selectors.DefaultSelector",
+            '"renameatx_np"', '"renameat2"', "selectors.DefaultSelector",
             "signal.setitimer", "signal.getitimer", "signal.ITIMER_REAL",
             "signal.SIGALRM", "tarfile.open", "urllib.request.urlopen",
             "is_absolute",
@@ -412,15 +474,45 @@ class PluginMetadataTests(unittest.TestCase):
             self.assertIn(required_probe, source)
         self.assertIn('exec "$python" -I -S -B', source)
 
-    def _run_rewritten_launcher(self, candidate_sources, *launcher_arguments):
-        source = LAUNCHER_PATH.read_text(encoding="utf-8")
-        marker = textwrap.dedent("""\
-            PYTHON_CANDIDATES=(
-              /opt/homebrew/bin/python3
-              /usr/local/bin/python3
-              /usr/bin/python3
-            )
-        """)
+    REFUSING_CANDIDATE = (
+        'printf \'%s\\n\' "refused:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"\nexit 17\n'
+    )
+    ACCEPTING_CANDIDATE = textwrap.dedent("""\
+        if [ "$4" = "-c" ]; then
+          printf '%s\\n' "accepted:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"
+          exit 0
+        fi
+        printf '%s\\n' "accepted:$*" >> "$LAUNCHER_FIXTURE_LOG"
+        exit 23
+    """)
+
+    SH_CANDIDATE_MARKER = (
+        'PYTHON_CANDIDATES="/opt/homebrew/bin/python3\n'
+        '/usr/local/bin/python3\n'
+        '/usr/bin/python3"\n'
+    )
+    ZSH_CANDIDATE_MARKER = textwrap.dedent("""\
+        PYTHON_CANDIDATES=(
+          /opt/homebrew/bin/python3
+          /usr/local/bin/python3
+          /usr/bin/python3
+        )
+    """)
+
+    def _run_rewritten_launcher(
+        self, candidate_sources, *launcher_arguments, shell="/bin/sh",
+    ):
+        """Run a launcher whose interpreter candidates are swapped for fixtures."""
+        if shell.endswith("zsh"):
+            source = ZSH_LAUNCHER_PATH.read_text(encoding="utf-8")
+            marker = self.ZSH_CANDIDATE_MARKER
+            launcher_name = "launch_mcp.zsh"
+            shebang = "#!/bin/zsh\n"
+        else:
+            source = LAUNCHER_PATH.read_text(encoding="utf-8")
+            marker = self.SH_CANDIDATE_MARKER
+            launcher_name = "launch_mcp.sh"
+            shebang = "#!/bin/sh\n"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "plugin"
             scripts = root / "scripts"
@@ -432,18 +524,23 @@ class PluginMetadataTests(unittest.TestCase):
             for index, body in enumerate(candidate_sources):
                 candidate = root / f"candidate-{index}"
                 candidate.write_text(
-                    "#!/bin/zsh\n"
-                    f"export LAUNCHER_FIXTURE_LOG={str(log)!r}\n"
+                    shebang
+                    + f"export LAUNCHER_FIXTURE_LOG={str(log)!r}\n"
                     + body,
                     encoding="utf-8",
                 )
                 candidate.chmod(0o755)
                 candidates.append(candidate)
-            replacement = "PYTHON_CANDIDATES=(\n" + "".join(
-                f"  {candidate}\n" for candidate in candidates
-            ) + ")\n"
+            if marker is self.ZSH_CANDIDATE_MARKER:
+                replacement = "PYTHON_CANDIDATES=(\n" + "".join(
+                    f"  {candidate}\n" for candidate in candidates
+                ) + ")\n"
+            else:
+                replacement = 'PYTHON_CANDIDATES="' + "\n".join(
+                    str(candidate) for candidate in candidates
+                ) + '"\n'
             self.assertIn(marker, source)
-            (scripts / "launch_mcp.zsh").write_text(
+            (scripts / launcher_name).write_text(
                 source.replace(marker, replacement), encoding="utf-8",
             )
             (mcp / "server.py").write_text("raise SystemExit(99)\n", encoding="utf-8")
@@ -451,23 +548,16 @@ class PluginMetadataTests(unittest.TestCase):
                 "raise SystemExit(98)\n", encoding="utf-8",
             )
             completed = subprocess.run(
-                ["/bin/zsh", str(scripts / "launch_mcp.zsh"), *launcher_arguments],
+                [shell, str(scripts / launcher_name), *launcher_arguments],
                 cwd=root, capture_output=True, text=True, check=False,
-                env={"PATH": "/definitely/not/a/python/path"}, timeout=2,
+                env={"PATH": "/definitely/not/a/python/path"}, timeout=5,
             )
             calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
             return completed, calls, root
 
     def test_launcher_simulates_capability_fallback_and_provision_mode(self):
-        refusing = 'print -r -- "refused:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"\nexit 17\n'
-        accepting = textwrap.dedent("""\
-            if [[ "$4" == "-c" ]]; then
-              print -r -- "accepted:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"
-              exit 0
-            fi
-            print -r -- "accepted:$*" >> "$LAUNCHER_FIXTURE_LOG"
-            exit 23
-        """)
+        refusing = self.REFUSING_CANDIDATE
+        accepting = self.ACCEPTING_CANDIDATE
         completed, calls, root = self._run_rewritten_launcher(
             [refusing, accepting], "provision", "--check",
         )
@@ -481,18 +571,60 @@ class PluginMetadataTests(unittest.TestCase):
         )
         self.assertFalse(any(root.rglob("*.pyc")))
 
+    LAUNCHER_REFUSAL = (
+        "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 "
+        "with an atomic no-replace rename (Darwin renameatx_np / Linux renameat2) "
+        "at one of the fixed candidate paths' recovery='macOS: brew install python "
+        "| Linux: install a distribution python3 >=3.10 at /usr/bin/python3'\n"
+    )
+
     def test_launcher_refuses_once_with_126_when_no_candidate_passes(self):
-        refusing = 'print -r -- "refused:$1:$2:$3:$4" >> "$LAUNCHER_FIXTURE_LOG"\nexit 17\n'
         completed, calls, unused_root = self._run_rewritten_launcher(
-            [refusing, refusing],
+            [self.REFUSING_CANDIDATE, self.REFUSING_CANDIDATE],
         )
         self.assertEqual(completed.returncode, 126)
         self.assertEqual(completed.stdout, "")
-        self.assertEqual(
-            completed.stderr,
-            "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 at /opt/homebrew/bin/python3' recovery='brew install python'\n",
-        )
+        self.assertEqual(completed.stderr, self.LAUNCHER_REFUSAL)
         self.assertEqual(len(calls), 2)
+
+    def test_launcher_resolves_its_root_without_any_external_command(self):
+        """The caller PATH is untrusted, so no PATH-resolved binary may be used."""
+        completed, calls, unused_root = self._run_rewritten_launcher(
+            [self.REFUSING_CANDIDATE],
+        )
+        self.assertEqual(completed.returncode, 126)
+        self.assertEqual(completed.stderr, self.LAUNCHER_REFUSAL)
+        for external in ("dirname", "basename", "readlink", "realpath", "not found"):
+            self.assertNotIn(external, completed.stderr)
+        self.assertEqual(len(calls), 1)
+
+    @unittest.skipUnless(Path("/bin/zsh").exists(), "zsh launcher requires /bin/zsh")
+    def test_zsh_launcher_matches_the_portable_launcher_behaviour(self):
+        completed, calls, unused_root = self._run_rewritten_launcher(
+            [self.REFUSING_CANDIDATE, self.REFUSING_CANDIDATE], shell="/bin/zsh",
+        )
+        self.assertEqual(completed.returncode, 126)
+        self.assertEqual(completed.stderr, self.LAUNCHER_REFUSAL)
+        self.assertEqual(len(calls), 2)
+
+    def test_both_launchers_carry_a_byte_identical_capability_probe(self):
+        def probe_of(path):
+            source = path.read_text(encoding="utf-8")
+            start = source.index("probe='") + len("probe='")
+            return source[start:source.index("'", start + 1)]
+
+        self.assertEqual(probe_of(LAUNCHER_PATH), probe_of(ZSH_LAUNCHER_PATH))
+
+    def test_probe_requires_the_atomic_rename_symbol_for_this_host_only(self):
+        """Neither symbol may be demanded unconditionally on the wrong host."""
+        source = LAUNCHER_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            '{"Darwin": "renameatx_np", "Linux": "renameat2"}.get(platform.system())',
+            source,
+        )
+        self.assertIn("assert atomic_rename is not None", source)
+        self.assertIn("assert callable(getattr(libc, atomic_rename, None))", source)
+        self.assertNotIn('getattr(libc, "renameatx_np", None)', source)
 
     def test_hosted_macos_workflow_mechanically_runs_all_repo_local_plugin_gates(self):
         self.assertTrue(WORKFLOW_PATH.is_file(), "hosted JACKAL plugin workflow is missing")
@@ -537,6 +669,15 @@ class PluginMetadataTests(unittest.TestCase):
             "JACKAL_HOME=",
         ):
             self.assertNotIn(forbidden, smoke_block)
+
+    def test_hosted_linux_smoke_requires_the_current_pinned_runtime_refusal(self):
+        source = WORKFLOW_PATH.read_text(encoding="utf-8")
+        linux_job = source.split("linux-aarch64-plugin:", 1)[1].split(
+            "macos-arm64-plugin:", 1
+        )[0]
+        self.assertIn('test "$status" -eq 1', linux_job)
+        self.assertIn('grep -q "pinned runtime is not installed"', linux_job)
+        self.assertNotIn("no published release asset", linux_job)
 
     def test_load_json_rejects_duplicate_keys(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

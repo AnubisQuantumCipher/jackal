@@ -489,13 +489,17 @@ def _release_tuple(value: object, context: str) -> tuple[int, int, int]:
     return int(major), int(minor), int(patch)
 
 
+SUPPORTED_HOSTS = {("Darwin", "arm64"), ("Linux", "aarch64")}
+
+
 def validate_host() -> None:
     system = platform.system()
     machine = platform.machine()
-    if system != "Darwin" or machine != "arm64":
+    if (system, machine) not in SUPPORTED_HOSTS:
+        supported = ", ".join(f"{s}/{m}" for s, m in sorted(SUPPORTED_HOSTS))
         refuse(
             "unsupported host: domain-pack protocol v1 requires "
-            f"Apple Silicon macOS, got {system}/{machine}"
+            f"one of {supported}, got {system}/{machine}"
         )
 
 
@@ -806,7 +810,7 @@ def verify_repository(root: Path | str) -> dict[str, Any]:
         "schema": schema["registry_schema"],
         "protocol_version": "1",
         "authority": "anubis-safe-mode",
-        "host": "darwin-arm64",
+        "host": f"{platform.system().lower()}-{platform.machine().lower()}",
         "verification_scope": "metadata-identity-and-policy-only",
         "anubis_execution_status": "NOT_EXECUTED",
         "assurance_status": "NOT_MINTED",

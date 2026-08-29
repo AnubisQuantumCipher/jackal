@@ -26,7 +26,9 @@ required_os = ("CLD_DUMPED", "CLD_EXITED", "CLD_KILLED", "O_CREAT", "O_DIRECTORY
 assert all(hasattr(os, name) for name in required_os)
 assert hasattr(socket, "socketpair")
 libc = ctypes.CDLL(None)
-assert callable(getattr(libc, "renameatx_np", None))
+atomic_rename = {"Darwin": "renameatx_np", "Linux": "renameat2"}.get(platform.system())
+assert atomic_rename is not None
+assert callable(getattr(libc, atomic_rename, None))
 platform.system(); platform.machine(); Path("/").is_absolute()
 selector = selectors.DefaultSelector(); selector.close()
 assert callable(signal.setitimer) and callable(signal.getitimer)
@@ -41,5 +43,5 @@ for python in "${PYTHON_CANDIDATES[@]}"; do
   fi
 done
 
-print -u2 -r -- "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 at /opt/homebrew/bin/python3' recovery='brew install python'"
+print -u2 -r -- "jackal_mcp=refused reason=no-compatible-python requirement='Python >=3.10 with an atomic no-replace rename (Darwin renameatx_np / Linux renameat2) at one of the fixed candidate paths' recovery='macOS: brew install python | Linux: install a distribution python3 >=3.10 at /usr/bin/python3'"
 exit 126

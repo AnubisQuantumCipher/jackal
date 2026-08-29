@@ -1,0 +1,91 @@
+{
+  "schema": "anubis-program-dogfood-linux-aarch64-v1",
+  "application": "OMARCHY JACKAL native check-compiler designation",
+  "designation": "architect sign-off",
+  "signed_off": {
+    "authority": "architect",
+    "by": "khephri.labs@proton.me",
+    "date_utc": "2026-08-24",
+    "statement": "The clean-source Linux/aarch64 Anubis check compiler is designated the approved check compiler for jackal_anubis_check_program on Linux/aarch64.",
+    "scope": "Linux/aarch64 only. Does NOT reuse or supersede the historical macOS candidate 0d6a8f89 (whose exact source is irrecoverable); does NOT weaken the frozen inventory-safe-v1 policy body."
+  },
+  "compiler": {
+    "authority": "architect signed-off; clean-source Linux/aarch64 designation (2026-08-24)",
+    "binary_sha256": "6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a",
+    "supersedes_pre_emitter_candidate_sha256": "d8c7d38b6d376ee46ecf97817852b40c122df4711a561ec1c33ffa546816abff",
+    "clean_source": {
+      "repo": "github.com/AnubisQuantumCipher/anubis-lang",
+      "local_branch": "omarchy/linux-host-ergonomics",
+      "commit": "0ad40aaf1f0e (6aa6fd92 v3-emitter + doctor host-honesty, tools/anubis/src/main.rs only)",
+      "change": "Added emit_program_evidence_v3() + canonical_json() to compiler/src/evidence/mod.rs (sealed into MANIFEST.sha256); emits anubis.program-evidence.v3 assembled from the sealed bundle files; recomputes function/obligation digests with a canonical JSON byte-matching Python json.dumps(sort_keys,separators,ensure_ascii=False). Committed clean source, NOT an uncommitted worktree diff."
+    },
+    "reproducible_double_build": {
+      "recipe": "SOURCE_DATE_EPOCH=1700000000 LC_ALL=C TZ=UTC CARGO_INCREMENTAL=0 remap-path-prefix -Cdebuginfo=0 ; cargo build --release -p anubis --no-default-features --locked",
+      "build1_sha256": "6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a",
+      "build2_sha256": "6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a",
+      "byte_identical": true
+    },
+    "supersedes_prior_signed_sha256": "7cdafb305f3b8df53e66e037433803d5154b4f5872758d9b15f7eeedc9670398",
+    "supersession_reason": "host-honest `anubis doctor` (0ad40aaf); prior 7cdafb30 printed a false Apple-Silicon host line"
+  },
+  "verifier": {
+    "authority": "unmodified frozen contract; architecture-qualified host-aware anchor only",
+    "tool": "tools/anubis_program_verify.py",
+    "sha256": "100c51dbe5a84fb7120117d7f76cef14d8089cda7f2d5ee54baad706b5ddc4e2",
+    "linux_aarch64_anchor_sha256": "6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a",
+    "program_policy_sha256": "1b94350a6d23e9d76a917f05f0a53ae9e0ccf861bc6aee71342967ce1dccb090",
+    "program_policy_file_sha256": "361979bf89b7c71a4b2c692d64756548833a2c363c269511b037726cab3ebacb"
+  },
+  "package": {
+    "alignment_state": "aligned-41-tool-linux-aarch64",
+    "basename": "jackal-v1.7.3-linux-aarch64.tar.gz",
+    "bytes": 204082823,
+    "sha256": "0b239bc7a96d75537706ab1aebbc271150c663048f49711107ffe1b93f7d743d",
+    "sha256sums_root": "bbbb7aa97368232580caa7914b00b577bc2601c41f38d4cd78b9a34178563671",
+    "file_count": 108,
+    "shipped_check_compiler_sha256": "7cdafb305f3b8df53e66e037433803d5154b4f5872758d9b15f7eeedc9670398",
+    "shipped_capability_inventory_sha256": "e7bbdce00d6a6de9d562ed39025855c00d0281e2f9a5fa148594bd04051a4678",
+    "double_build_cmp_exit": 0,
+    "approved_anchor_check_compiler_sha256": "6c3ae920aaaa668b3ec1857b162997c8cd1471949604e6909b898f357683479a",
+    "shipped_vs_approved_note": "APPROVED (live source-of-truth anchor) = 6c3ae920. The v1.7.3 tarball + provisioned runtime still SHIP 7cdafb30 and re-provision to 6c3ae920 at the V111 repackage (which regenerates the hermes bundle identity). Source-ahead-of-deployment by design."
+  },
+  "observed": {
+    "sample_source": "examples/showcase/verified_loop.anb",
+    "repo_cli": "verified-program-evidence",
+    "package_plugin": "verified-program-evidence",
+    "proofs_verified": 4,
+    "proof_steps": 4,
+    "policy_function_count": 2,
+    "policy_consumer_count": 6,
+    "independent_replay": "each obligation independently RUP-replayed by the verifier + replayed unsat by architecture-approved Z3 4.15.4 (b6fcd93b...)",
+    "negative_controls": {
+      "wrong_compiler": "refused:compiler-not-approved",
+      "source_tamper": "refused:source-pin-mismatch",
+      "policy_tamper": "refused:policy-pin-mismatch",
+      "compiler_sha_lie": "refused:compiler-not-approved"
+    }
+  },
+  "compat_floor_rationale": {
+    "file": "release/compat/v173_floor.json",
+    "approved_check_compiler_sha256": "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6",
+    "approved_z3_sha256": "ae6c8df33db9c9ae9a80b6044e77cd66529a141d8b25f0620f1e89b409594f48",
+    "note": "The compatibility floor is a FROZEN macOS baseline reference and is left unchanged by this designation. It names macOS values for BOTH the check compiler and Z3 by design; it is not a per-host live pin. Per-host approval is enforced by the host-aware anchors in tools/anubis_program_verify.py (Linux/aarch64 check compiler 7cdafb30..., Linux Z3 b6fcd93b...), which is what jackal_anubis_check_program actually gates on. The capability inventory's approved_program_compiler dependency points at this floor value as a baseline reference, not as a claim about the running host's compiler."
+  },
+  "preserved_sentinels": {
+    "macos_check_anchor_sha256": "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6",
+    "macos_z3_anchor_sha256": "ae6c8df33db9c9ae9a80b6044e77cd66529a141d8b25f0620f1e89b409594f48",
+    "linux_z3_anchor_sha256": "b6fcd93b2ccec9aa848ac148c4d9b4270577ad046601f211784586eb9f0135c4",
+    "host_aware_selection": "Darwin -> macOS anchor; Linux/aarch64 -> Linux anchor; other -> refuse",
+    "inventory_safe_v1_body_byte_frozen": true
+  },
+  "non_claims": [
+    "no-source-to-vc-proof",
+    "no-smt-to-cnf-proof",
+    "no-source-native-refinement",
+    "no-universal-language-soundness",
+    "policy-semantics-producer-attested",
+    "runtime-not-observed",
+    "derived-confinement-is-not-os-enforcement",
+    "policy-construct-totality-not-established"
+  ]
+}

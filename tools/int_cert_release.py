@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 import os
 import re
 import subprocess
@@ -247,7 +248,10 @@ def release(args: argparse.Namespace) -> dict[str, Any]:
         if args.release_epoch == CURRENT_PROOF_RELEASE_EPOCH
         else "int_cert_proof_identity.json"
     )
+    _host_tag = f"{platform.system().lower()}-{platform.machine().lower()}"
+    _host_proof_name = proof_name[:-5] + f".{_host_tag}.json"
     proof_candidates = [
+        here.parent / "release" / "evidence" / _host_proof_name,
         here.parent / "release" / "evidence" / proof_name,
         here / proof_name,
     ]

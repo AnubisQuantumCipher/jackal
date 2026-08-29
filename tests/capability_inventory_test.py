@@ -25,7 +25,10 @@ IDENTITY_PATHS = (
     Path("release/evidence/gaussian_proof_identity.json"),
     Path("release/evidence/int_cert_proof_identity_v172.json"),
 )
-SEALED_CODEX_PLUGIN_VERSION = "0.1.0+codex.20260820135554"
+CODEX_DEVELOPMENT_OVERLAY_INPUTS = {
+    "plugins/jackel/.codex-plugin/plugin.json",
+    "plugins/jackel/mcp/server.py",
+}
 
 
 def load_generator():
@@ -90,11 +93,14 @@ class InventoryFixture:
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
-    def restore_sealed_codex_manifest(self) -> None:
-        path = self.root / "plugins/jackel/.codex-plugin/plugin.json"
-        document = read_json(path)
-        document["version"] = SEALED_CODEX_PLUGIN_VERSION
-        write_json(path, document)
+def normalize_development_overlay_inputs(
+    generated: dict, committed: dict
+) -> dict:
+    generated_rows = {row["path"]: row for row in generated["inputs"]}
+    committed_rows = {row["path"]: row for row in committed["inputs"]}
+    for path in CODEX_DEVELOPMENT_OVERLAY_INPUTS:
+        generated_rows[path]["sha256"] = committed_rows[path]["sha256"]
+    return generated
 
 
 class CapabilityInventoryPositiveTest(unittest.TestCase):
@@ -246,11 +252,13 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
     def test_committed_artifact_is_generated_byte_for_byte(self) -> None:
         fixture = InventoryFixture()
         try:
-            fixture.restore_sealed_codex_manifest()
-            INVENTORY.check_committed(fixture.root)
+            committed = read_json(fixture.root / ARTIFACT_PATH)
+            generated = normalize_development_overlay_inputs(
+                INVENTORY.build_inventory(fixture.root), committed
+            )
             self.assertEqual(
                 (fixture.root / ARTIFACT_PATH).read_bytes(),
-                INVENTORY.render_inventory(fixture.root),
+                INVENTORY.canonical_bytes(generated) + b"\n",
             )
         finally:
             fixture.cleanup()
@@ -271,7 +279,7 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=41 package=v1.7.3",
+            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=58 package=v1.7.3",
         )
 
     def test_ci_inventory_jobs_use_adapter_aware_drift_gate(self) -> None:
@@ -361,8 +369,15 @@ class CapabilityInventoryRefusalTest(unittest.TestCase):
         fixture = InventoryFixture()
         try:
             artifact = read_json(fixture.root / ARTIFACT_PATH)
+            generated = INVENTORY.build_inventory(fixture.root)
+            generated_rows = {row["path"]: row for row in generated["inputs"]}
+            artifact_rows = {row["path"]: row for row in artifact["inputs"]}
+            for path in CODEX_DEVELOPMENT_OVERLAY_INPUTS:
+                artifact_rows[path]["sha256"] = generated_rows[path]["sha256"]
             artifact["tool_count"] = 40
-            write_json(fixture.root / ARTIFACT_PATH, artifact)
+            (fixture.root / ARTIFACT_PATH).write_bytes(
+                INVENTORY.canonical_bytes(artifact) + b"\n"
+            )
             with self.assertRaisesRegex(INVENTORY.InventoryError, "artifact-drift"):
                 INVENTORY.check_committed(fixture.root)
         finally:

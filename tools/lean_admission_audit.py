@@ -34,20 +34,33 @@ COMMAND_TIMEOUT_ENV = "JACKAL_LEAN_AUDIT_TIMEOUT_SECONDS"
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 180.0
 MAX_COMMAND_TIMEOUT_SECONDS = 3600.0
 
+
+def _host_tag() -> str:
+    import platform
+    return f"{platform.system().lower()}-{platform.machine().lower()}"
+
+
+def _host_identity(rel: Path) -> Path:
+    """Prefer a host-suffixed proof identity that binds locally built checker
+    bytes; fall back to the committed macOS record."""
+    host = rel.with_name(rel.stem + f".{_host_tag()}.json")
+    return host if (DEFAULT_ROOT / host).is_file() else rel
+
+
 IDENTITY_CONFIGS = (
     (
         "range",
-        Path("release/evidence/range_proof_identity_v172.json"),
+        _host_identity(Path("release/evidence/range_proof_identity_v172.json")),
         "jackal-range-proof-identity-v2",
     ),
     (
         "gaussian",
-        Path("release/evidence/gaussian_proof_identity.json"),
+        _host_identity(Path("release/evidence/gaussian_proof_identity.json")),
         "jackal-gaussian-proof-identity-v1",
     ),
     (
         "int-cert",
-        Path("release/evidence/int_cert_proof_identity_v172.json"),
+        _host_identity(Path("release/evidence/int_cert_proof_identity_v172.json")),
         "jackal-int-cert-proof-identity-v2",
     ),
 )
@@ -897,7 +910,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.write:
-        write_atomic(root / ARTIFACT_REL, render_audit(root))
+        artifact = ARTIFACT_REL
+        import platform
+        if platform.system() != "Darwin":
+            artifact = ARTIFACT_REL.with_name(
+                ARTIFACT_REL.stem + f".{_host_tag()}.json")
+        write_atomic(root / artifact, render_audit(root))
+        print(f"LEAN_ADMISSION_AUDIT_WROTE {artifact}")
     else:
         check_committed(root)
     document = strict_json(root / ARTIFACT_REL)

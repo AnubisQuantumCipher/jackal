@@ -22,6 +22,9 @@ from unittest import mock
 sys.dont_write_bytecode = True
 
 from plugins.jackel.mcp import server as adapter
+from plugins.jackel.mcp import advanced
+from plugins.jackel.mcp import measurement
+from plugins.jackel.mcp import stem
 from plugins.jackel.scripts import provision_runtime as real_provisioner
 
 
@@ -259,21 +262,42 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                 import sys
                 import time
 
-                if len(sys.argv) != 4 or sys.argv[1] != "call":
+                stdio_mode = len(sys.argv) == 2 and sys.argv[1] == "stdio"
+                request_id = None
+                if stdio_mode:
+                    raw = sys.stdin.buffer.readline()
+                    trailing = sys.stdin.buffer.read()
+                    if not raw or trailing:
+                        raise SystemExit(64)
+                    request = json.loads(raw)
+                    request_id = request.get("id")
+                    name = request.get("method")
+                    arguments = request.get("params")
+                elif len(sys.argv) == 4 and sys.argv[1] == "call":
+                    name = sys.argv[2]
+                    arguments = json.loads(sys.argv[3])
+                else:
                     raise SystemExit(64)
-                name = sys.argv[2]
-                arguments = json.loads(sys.argv[3])
                 allowed = {{"payload", "mode", "pid_file", "release_file"}}
                 if (
+                    not isinstance(arguments, dict)
+                    or
                     "payload" not in arguments
                     or not isinstance(arguments.get("payload"), dict)
                     or any(key not in allowed for key in arguments)
                 ):
-                    print(json.dumps({{
+                    refusal = {{
                         "status": "refused",
                         "reason": "plugin-args-schema",
                         "arguments": arguments,
-                    }}, sort_keys=True), flush=True)
+                    }}
+                    if stdio_mode:
+                        refusal = {{
+                            "jsonrpc": "2.0", "id": request_id, "result": refusal,
+                        }}
+                        print(json.dumps(refusal, sort_keys=True), flush=True)
+                        raise SystemExit(0)
+                    print(json.dumps(refusal, sort_keys=True), flush=True)
                     raise SystemExit(1)
                 mode = arguments.get("mode", "echo")
                 payload = arguments.get("payload", {{}})
@@ -403,14 +427,20 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                     print(json.dumps({{"status": "checked", "blob": "x" * 8192}}), flush=True)
                     raise SystemExit(0)
 
-                if mode == "refused":
+                if mode == "accept-large":
+                    result = {{"status": "checked", "accepted": True}}
+                elif mode == "refused":
                     result = {{"status": "refused", "reason": "fixture-refusal", "input": payload}}
                 elif mode == "indeterminate":
                     result = {{"status": "indeterminate", "reason": "fixture-indeterminate", "input": payload}}
                 else:
                     result = payload
+                if stdio_mode:
+                    result = {{"jsonrpc": "2.0", "id": request_id, "result": result}}
                 print(json.dumps(result, ensure_ascii=False, sort_keys=False), flush=True)
-                if mode in ("refused", "indeterminate", "ok-rc1", "unknown-rc1"):
+                if stdio_mode and mode == "unknown-rc1":
+                    raise SystemExit(1)
+                if not stdio_mode and mode in ("refused", "indeterminate", "ok-rc1", "unknown-rc1"):
                     raise SystemExit(1)
                 """
             ),
@@ -487,8 +517,10 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
         fake_python.chmod(0o755)
         entry = Path(self.temporary.name) / "legitimate-backend.py"
         entry.write_text(
-            "import json\n"
-            "print(json.dumps({'status': 'checked', 'origin': 'selected-python'}))\n",
+            "import json, sys\n"
+            "request = json.loads(sys.stdin.buffer.read())\n"
+            "print(json.dumps({'jsonrpc': '2.0', 'id': request['id'], "
+            "'result': {'status': 'checked', 'origin': 'selected-python'}}))\n",
             encoding="utf-8",
         )
         launcher = Path(self.temporary.name) / "bare-python-launcher"
@@ -519,6 +551,35 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
             {"status": "checked", "origin": "selected-python"},
         )
         self.assertFalse(attacked.exists())
+
+    async def test_one_request_can_launch_multiple_serial_backend_processes(self):
+        state = adapter._CallState(request_id="multi-delegation")
+        first = self.server._invoke_backend_sync(
+            state, "jackal_echo", {"payload": {"delegation": "first"}},
+        )
+        second = self.server._invoke_backend_sync(
+            state, "jackal_echo", {"payload": {"delegation": "second"}},
+        )
+
+        self.assertEqual(first, {"delegation": "first"})
+        self.assertEqual(second, {"delegation": "second"})
+        self.assertTrue(state.reaped)
+        self.assertIsNone(state.process)
+        self.assertIsNone(state.runner)
+
+    async def test_replay_sized_backend_arguments_are_streamed_over_stdin(self):
+        response = await self.server.handle_message(
+            self._call(
+                "large-backend-input",
+                payload={"receipt": "x" * adapter.MAX_CATALOG_BYTES},
+                mode="accept-large",
+            )
+        )
+
+        self.assertEqual(
+            response["result"]["structuredContent"],
+            {"status": "checked", "accepted": True},
+        )
 
     async def test_active_call_flood_refuses_ordinary_busy_and_recovers(self):
         limited = adapter.MCPServer(
@@ -850,7 +911,13 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(initialized["jsonrpc"], "2.0")
         self.assertEqual(initialized["id"], "init-1")
         self.assertEqual(initialized["result"]["protocolVersion"], adapter.LATEST_PROTOCOL_VERSION)
-        self.assertEqual(initialized["result"]["capabilities"], {"tools": {"listChanged": False}})
+        self.assertEqual(
+            initialized["result"]["capabilities"],
+            {
+                "tools": {"listChanged": False},
+                "resources": {"subscribe": False, "listChanged": False},
+            },
+        )
         self.assertEqual(initialized["result"]["serverInfo"]["name"], "jackel-codex")
 
         self.assertIsNone(
@@ -928,8 +995,11 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
                     arguments, ensure_ascii=False, allow_nan=False,
                     sort_keys=True, separators=(",", ":"),
                 )
-                direct_process = await asyncio.to_thread(
-                    subprocess.run,
+                # Keep this tiny fixture invocation synchronous.  The host's
+                # current asyncio global executor does not reliably shut down,
+                # and the production adapter intentionally owns its worker
+                # threads instead of depending on that global executor.
+                direct_process = subprocess.run(
                     [str(self.launcher), "call", "jackal_echo", compact],
                     cwd=self.runtime, capture_output=True, text=True, check=False,
                 )
@@ -1036,6 +1106,22 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(unterminated["error"]["code"], -32600)
         self.assertIsNone(unterminated["id"])
+
+        replay_sized = (
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 10,
+                    "method": "ping",
+                    "params": {"_meta": {"receipt_fixture": "x" * adapter.MAX_CATALOG_BYTES}},
+                },
+                separators=(",", ":"),
+            ).encode("utf-8")
+            + b"\n"
+        )
+        self.assertLess(len(replay_sized), adapter.MAX_REQUEST_LINE_BYTES)
+        replay_response = await self.server.handle_line(replay_sized)
+        self.assertEqual(replay_response["result"], {})
 
     async def test_deep_json_and_recursion_failure_are_bounded_parse_errors(self):
         expected_depth_limit = getattr(adapter, "MAX_JSON_DEPTH", 64)
@@ -1617,7 +1703,7 @@ class MCPAdapterProtocolTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch.object(adapter.subprocess, "Popen", return_value=setup_process),
-            mock.patch.object(adapter.socket, "socketpair", side_effect=OSError("fixture")),
+            mock.patch.object(adapter.os, "pipe", side_effect=OSError("fixture")),
             mock.patch.object(
                 setup_runner,
                 "_terminate_and_reap",
@@ -1885,8 +1971,19 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             SHA256SUMS_SHA256="f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28",
             SELFTEST_TIMEOUT=30.0,
             SELFTEST_OUTPUT_LIMIT=65536,
+            effective_release_pins=lambda *a, **k: {
+                "epoch": "v1.7.0",
+                "asset": "jackal-v1.7.0-macos-arm64.tar.gz",
+                "package_size": 118862060,
+                "package_sha256":
+                    "21c7ede586f30a58772f321f7dbb36ab66213e199785489f99133710ac56096e",
+                "package_directory": "jackal-v1.7.0-macos-arm64",
+                "sha256sums_sha256":
+                    "f1f794ccd2ba331e6188840cfc089180cdcd744f23c1880f8364a81b230c1a28",
+            },
             default_locator_path=lambda: self.root / "locator.json",
             validate_host=mock.Mock(return_value=None),
+            reap_orphaned_runtime_snapshots=mock.Mock(return_value=()),
             runtime_subprocess_environment=mock.Mock(
                 return_value=real_provisioner.runtime_subprocess_environment({})
             ),
@@ -1975,6 +2072,7 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             plugin_root, plugin_root / "PLUGIN_IDENTITY.sha256"
         )
         self.provisioner.validate_host.assert_called_once_with()
+        self.provisioner.reap_orphaned_runtime_snapshots.assert_called_once_with()
         self.provisioner.runtime_subprocess_environment.assert_called_once_with(
             {"JACKAL_HOME": str(self.runtime)}
         )
@@ -1999,6 +2097,130 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         )
         asyncio.run(server.close())
         self.snapshot_owners[0].close.assert_called_once_with()
+
+    def test_production_builder_passes_only_an_explicit_private_snapshot_parent(self):
+        plugin_root = self.root / "private-parent-plugin"
+        plugin_root.mkdir()
+        (plugin_root / "PLUGIN_IDENTITY.sha256").write_text("fixture\n")
+        private_parent = self.root / "private-tmpfs"
+
+        server = adapter.build_production_server(
+            plugin_root=plugin_root,
+            environ={"JACKAL_HOME": str(self.runtime)},
+            snapshot_parent=private_parent,
+            provisioner=self.provisioner,
+            identity_verifier=mock.Mock(return_value=()),
+            runtime_validator=mock.Mock(return_value={}),
+        )
+
+        self.provisioner.create_runtime_snapshot.assert_called_once_with(
+            self.runtime,
+            timeout=self.provisioner.SELFTEST_TIMEOUT,
+            output_limit=self.provisioner.SELFTEST_OUTPUT_LIMIT,
+            expected_tree_sha256=self.provisioner.SHA256SUMS_SHA256,
+            temporary_parent=os.fspath(private_parent),
+        )
+        asyncio.run(server.close())
+
+    def test_production_builder_refuses_orphan_cleanup_failure_before_runtime_copy(self):
+        plugin_root = self.root / "reaper-failure-plugin"
+        plugin_root.mkdir()
+        (plugin_root / "PLUGIN_IDENTITY.sha256").write_text("fixture\n")
+        self.provisioner.reap_orphaned_runtime_snapshots.side_effect = OSError(
+            "fixture cleanup failure"
+        )
+        runtime_validator = mock.Mock(return_value={})
+
+        with self.assertRaisesRegex(adapter.StartupError, "orphaned runtime snapshot"):
+            adapter.build_production_server(
+                plugin_root=plugin_root,
+                environ={"JACKAL_HOME": str(self.runtime)},
+                provisioner=self.provisioner,
+                identity_verifier=mock.Mock(return_value=()),
+                runtime_validator=runtime_validator,
+            )
+
+        runtime_validator.assert_not_called()
+        self.provisioner.create_runtime_snapshot.assert_not_called()
+
+    def test_linux_namespace_wrapper_execs_mount_and_pid_isolation_after_probe(self):
+        probe = mock.Mock(returncode=0)
+        with (
+            mock.patch.object(adapter.sys, "platform", "linux"),
+            mock.patch.object(
+                adapter,
+                "_fixed_executable",
+                side_effect=("/usr/bin/unshare", "/usr/bin/true"),
+            ),
+            mock.patch.object(
+                adapter, "_mount_namespace_identity", return_value="mnt:[123]"
+            ),
+            mock.patch.object(adapter.subprocess, "run", return_value=probe) as run,
+            mock.patch.object(adapter.os, "execv", side_effect=OSError("fixture")) as execv,
+        ):
+            self.assertFalse(adapter._exec_in_private_snapshot_namespace())
+
+        probe_command = run.call_args.args[0]
+        command = execv.call_args.args[1]
+        self.assertEqual(probe_command[-1], "/usr/bin/true")
+        self.assertIn("--mount", command)
+        self.assertIn("--pid", command)
+        self.assertIn("--fork", command)
+        self.assertIn("--kill-child=SIGKILL", command)
+        self.assertIn("--forward-signals", command)
+        self.assertIn(adapter.PRIVATE_NAMESPACE_FLAG, command)
+
+    def test_linux_namespace_probe_or_private_mount_failure_uses_exact_reaper_fallback(self):
+        with (
+            mock.patch.object(adapter.sys, "platform", "linux"),
+            mock.patch.object(
+                adapter,
+                "_fixed_executable",
+                side_effect=("/usr/bin/unshare", "/usr/bin/true"),
+            ),
+            mock.patch.object(
+                adapter, "_mount_namespace_identity", return_value="mnt:[123]"
+            ),
+            mock.patch.object(
+                adapter.subprocess, "run", return_value=mock.Mock(returncode=1)
+            ),
+            mock.patch.object(adapter.os, "execv") as execv,
+        ):
+            self.assertFalse(adapter._exec_in_private_snapshot_namespace())
+        execv.assert_not_called()
+
+        with (
+            mock.patch.object(
+                adapter.sys,
+                "argv",
+                [adapter.__file__, adapter.PRIVATE_NAMESPACE_FLAG, "mnt:[123]"],
+            ),
+            mock.patch.object(
+                adapter,
+                "_prepare_private_snapshot_parent",
+                side_effect=adapter.StartupError("fixture mount refusal"),
+            ),
+            mock.patch.object(adapter, "_run_production_server", return_value=17) as run,
+            mock.patch.object(adapter, "_exec_in_private_snapshot_namespace") as enter,
+        ):
+            self.assertEqual(adapter.main(), 17)
+        run.assert_called_once_with(None)
+        enter.assert_not_called()
+
+    def test_private_namespace_child_arguments_are_exact(self):
+        self.assertEqual(
+            adapter._parse_namespace_child(
+                [adapter.PRIVATE_NAMESPACE_FLAG, "mnt:[123]"]
+            ),
+            "mnt:[123]",
+        )
+        for arguments in (
+            ["--other", "mnt:[123]"],
+            [adapter.PRIVATE_NAMESPACE_FLAG, "forged"],
+            [adapter.PRIVATE_NAMESPACE_FLAG, "mnt:[123]", "extra"],
+        ):
+            with self.subTest(arguments=arguments), self.assertRaises(adapter.StartupError):
+                adapter._parse_namespace_child(arguments)
 
     def test_production_builder_refuses_unsupported_host_before_any_runtime_access(self):
         plugin_root = self.root / "host-guard-plugin"
@@ -2025,11 +2247,16 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             catalog.assert_not_called()
             validator.assert_not_called()
 
-    def test_production_bootstraps_both_wrapper_modules_from_pinned_bytes(self):
+    def test_production_bootstraps_all_wrapper_modules_from_pinned_bytes(self):
         plugin_root = self.root / "verified-wrapper-plugin"
         plugin_root.mkdir()
         (plugin_root / "PLUGIN_IDENTITY.sha256").write_text("fixture\n")
         inventory = {
+            "mcp/advanced.py": "d" * 64,
+            "mcp/certificates/hellgate_v1.json.zlib": "f" * 64,
+            "mcp/hellgate_verify.py": "e" * 64,
+            "mcp/measurement.py": "c" * 64,
+            "mcp/stem.py": "1" * 64,
             "scripts/provision_runtime.py": "a" * 64,
             "scripts/verify_plugin.py": "b" * 64,
         }
@@ -2041,13 +2268,53 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             verify_manifest=mock.Mock(return_value=records)
         )
         runtime_validator = mock.Mock(return_value={})
+        checker_module = types.SimpleNamespace(
+            VerificationRefusal=type("FixtureRefusal", (Exception,), {}),
+            verify_bytes=mock.Mock(
+                return_value={
+                    "status": "bounded",
+                    "checker_verdict": "ACCEPT",
+                    "formal": False,
+                    "fields": {
+                        "trial_diagnostics": {
+                            "schema": "jackal-hellgate-trial-diagnostics-v1",
+                            "status": "bounded",
+                            "subject": "normalized-certificate-trial-phi",
+                            "non_claims": ["not the exact ground state u0"],
+                        },
+                        "ground_state_transfer": {
+                            "schema": "jackal-hellgate-ground-transfer-v1",
+                            "status": "bounded",
+                            "subject": "positive-normalized-ground-state-u0",
+                            "method": "lambda-strong-convexity-density-transfer-v1",
+                            "non_claims": ["does not enclose polynomial moments"],
+                        },
+                    },
+                }
+            ),
+        )
 
         with (
             mock.patch.object(adapter, "_read_identity_inventory", return_value=inventory),
             mock.patch.object(
                 adapter, "_load_verified_module",
-                side_effect=(verifier_module, self.provisioner),
+                side_effect=(
+                    verifier_module,
+                    measurement,
+                    advanced,
+                    checker_module,
+                    stem,
+                    self.provisioner,
+                ),
             ) as loader,
+            mock.patch.object(
+                adapter,
+                "_read_verified_plugin_blob",
+                return_value=(b"compressed-fixture", "f" * 64),
+            ),
+            mock.patch.object(
+                adapter, "_decompress_certificate", return_value=b"certificate-fixture"
+            ),
         ):
             server = adapter.build_production_server(
                 plugin_root=plugin_root,
@@ -2063,6 +2330,22 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
                     "jackel_codex_verify_plugin", inventory,
                 ),
                 mock.call(
+                    plugin_root, "mcp/measurement.py",
+                    "jackel_codex_measurement", inventory,
+                ),
+                mock.call(
+                    plugin_root, "mcp/advanced.py",
+                    "jackel_codex_advanced", inventory,
+                ),
+                mock.call(
+                    plugin_root, "mcp/hellgate_verify.py",
+                    "jackel_codex_hellgate_verify", inventory,
+                ),
+                mock.call(
+                    plugin_root, "mcp/stem.py",
+                    "jackel_codex_stem", inventory,
+                ),
+                mock.call(
                     plugin_root, "scripts/provision_runtime.py",
                     "jackel_codex_provision_runtime", inventory,
                 ),
@@ -2071,7 +2354,13 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         verifier_module.verify_manifest.assert_called_once_with(
             plugin_root, plugin_root / "PLUGIN_IDENTITY.sha256"
         )
-        self.assertEqual(len(server.tool_definitions), RUNTIME_TOOL_COUNT)
+        self.assertEqual(
+            len(server.tool_definitions),
+            RUNTIME_TOOL_COUNT
+            + adapter.EXPECTED_MEASUREMENT_TOOL_COUNT
+            + adapter.EXPECTED_ADVANCED_TOOL_COUNT
+            + adapter.EXPECTED_STEM_TOOL_COUNT,
+        )
         asyncio.run(server.close())
 
     def test_snapshot_is_cleaned_when_post_copy_startup_refuses(self):
@@ -2130,7 +2419,9 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         )
         backend_bytes = (
             b"#!/bin/sh\n"
-            b"echo '{\"status\":\"checked\",\"origin\":\"snapshot\"}'\n"
+            b"IFS= read -r request\n"
+            b"echo '{\"jsonrpc\":\"2.0\",\"id\":\"jackal-adapter-backend\","
+            b"\"result\":{\"status\":\"checked\",\"origin\":\"snapshot\"}}'\n"
         )
         files = {
             "MANIFEST.sha256": b"fixture manifest\n",
@@ -2165,8 +2456,15 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             EPOCH="v1.7.0", ASSET="fixture.tar.gz", PACKAGE_SIZE=123,
             PACKAGE_SHA256="c" * 64,
             SHA256SUMS_SHA256=hashlib.sha256(checksums).hexdigest(),
+            effective_release_pins=lambda *a, **k: {
+                "epoch": "v1.7.0", "asset": "fixture.tar.gz",
+                "package_size": 123, "package_sha256": "c" * 64,
+                "package_directory": "fixture",
+                "sha256sums_sha256": hashlib.sha256(checksums).hexdigest(),
+            },
             SELFTEST_TIMEOUT=2.0, SELFTEST_OUTPUT_LIMIT=65536,
             validate_host=mock.Mock(return_value=None),
+            reap_orphaned_runtime_snapshots=real_provisioner.reap_orphaned_runtime_snapshots,
             validate_runtime=real_provisioner.validate_runtime,
             create_runtime_snapshot=real_provisioner.create_runtime_snapshot,
             runtime_subprocess_environment=real_provisioner.runtime_subprocess_environment,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the one pinned JACKAL macOS arm64 runtime, fail closed."""
+"""Install the one pinned JACKAL runtime for a supported host, fail closed."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ import tempfile
 import time
 import unicodedata
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping
 
@@ -36,6 +37,45 @@ PACKAGE_SHA256 = "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505
 EXTRACTED_SIZE = 555511970
 SHA256SUMS_SHA256 = "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a"
 PACKAGE_DIRECTORY = "jackal-v1.7.3-macos-arm64"
+
+# A host is supported only when its atomic no-replace install primitive and its
+# release pin are both known. Adding a row is not enough to make a runtime
+# exist: RELEASE_PINS decides whether an asset has actually been published.
+SUPPORTED_HOSTS = {
+    ("Darwin", "arm64"): "macos-arm64",
+    ("Linux", "aarch64"): "linux-aarch64",
+    ("Linux", "x86_64"): "linux-x86_64",
+}
+
+# ``None`` means "this host is supported by the installer but no release asset
+# has been published for it yet". It must refuse, never fall back to another
+# host's bytes.
+RELEASE_PINS: dict[str, dict[str, object] | None] = {
+    "macos-arm64": {
+        "asset": ASSET,
+        "url": URL,
+        "package_size": PACKAGE_SIZE,
+        "package_sha256": PACKAGE_SHA256,
+        "extracted_size": EXTRACTED_SIZE,
+        "sha256sums_sha256": SHA256SUMS_SHA256,
+        "package_directory": PACKAGE_DIRECTORY,
+    },
+    "linux-aarch64": {
+        # Locally built runtime (source build on this host). No published
+        # upstream asset — install with `provision --tarball <path>`.
+        "asset": "jackal-v1.7.3-linux-aarch64.tar.gz",
+        "url": None,
+        "package_size": 204082823,
+        "package_sha256": "0b239bc7a96d75537706ab1aebbc271150c663048f49711107ffe1b93f7d743d",
+        "extracted_size": 778795307,
+        "sha256sums_sha256": "bbbb7aa97368232580caa7914b00b577bc2601c41f38d4cd78b9a34178563671",
+        "package_directory": "jackal-v1.7.3-linux-aarch64",
+    },
+    # Gate declared for the planned bare-metal Linux x86_64 (iMac Pro). No pin
+    # and no function claimed until a native package is built and OBSERVED on
+    # x86_64 hardware or an explicitly authorized x86_64 substrate.
+    "linux-x86_64": None,
+}
 MAX_ARCHIVE_MEMBERS = 8192
 MAX_RUNTIME_RECORDS = MAX_ARCHIVE_MEMBERS
 MAX_RUNTIME_ENTRIES = MAX_ARCHIVE_MEMBERS + 2
@@ -48,13 +88,37 @@ NETWORK_TIMEOUT = 30.0
 DOWNLOAD_TOTAL_TIMEOUT = 300.0
 SELFTEST_TIMEOUT = 30.0
 SELFTEST_OUTPUT_LIMIT = 64 * 1024
-SNAPSHOT_BYTE_LIMIT = EXTRACTED_SIZE + 1024 * 1024
-MAX_RUNTIME_FILE_BYTES = EXTRACTED_SIZE
+# Byte caps bound extraction/verification against zip-bomb inputs. They must fit
+# the LARGEST supported runtime (RELEASE_PINS is defined above), not only macOS;
+# exact integrity stays pinned by each host's extracted_size and SHA256SUMS.
+_MAX_SUPPORTED_EXTRACTED = max(
+    [EXTRACTED_SIZE] + [pin["extracted_size"] for pin in RELEASE_PINS.values() if pin]
+)
+SNAPSHOT_BYTE_LIMIT = _MAX_SUPPORTED_EXTRACTED + 1024 * 1024
+MAX_RUNTIME_FILE_BYTES = _MAX_SUPPORTED_EXTRACTED
 MAX_RUNTIME_TOTAL_BYTES = SNAPSHOT_BYTE_LIMIT
 RUNTIME_ENV_ALLOWLIST = ("JACKAL_HOME",)
 FIXED_SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+SNAPSHOT_PREFIX = "jackal-codex-runtime-"
+SNAPSHOT_OWNER_FILE = ".owner"
+SNAPSHOT_RUNTIME_DIRECTORY = "runtime"
+SNAPSHOT_OWNER_SCHEMA = "jackal-runtime-snapshot-owner-v1"
+MAX_SNAPSHOT_OWNER_BYTES = 1024
+MAX_SNAPSHOT_NAME_BYTES = 240
 
 _CHECKSUM_LINE = re.compile(r"([0-9a-f]{64})  \./([^\n]+)", re.ASCII)
+_LINUX_BOOT_ID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.ASCII,
+)
+_DARWIN_BOOT_TIME = re.compile(r"\bsec = ([0-9]+), usec = ([0-9]+)\b", re.ASCII)
+_SNAPSHOT_OWNER_NAME = re.compile(
+    re.escape(SNAPSHOT_PREFIX)
+    + r"v1\.([1-9][0-9]*)\.([0-9a-f]+)\.([0-9a-f]+)\.[a-z0-9_]+",
+    re.ASCII,
+)
+DARWIN_PROC_PIDTBSDINFO = 3
+DARWIN_MAXCOMLEN = 16
 
 
 class ProvisionError(RuntimeError):
@@ -65,21 +129,124 @@ class _LeaderAnchorLost(ProvisionError):
     pass
 
 
-def default_runtime_target(home: Path | None = None) -> Path:
-    root = Path.home() if home is None else Path(home)
-    return root / "Library/Application Support/JACKAL/runtimes" / EPOCH
+@dataclass(frozen=True)
+class SnapshotOwnerIdentity:
+    """Exact process incarnation that owns one private runtime snapshot."""
+
+    pid: int
+    start_time: str
+    boot_id: str
 
 
-def default_locator_path(home: Path | None = None) -> Path:
+class _DarwinBSDInfo(ctypes.Structure):
+    """Public `proc_bsdinfo` layout from Darwin's sys/proc_info.h."""
+
+    _fields_ = [
+        ("pbi_flags", ctypes.c_uint32),
+        ("pbi_status", ctypes.c_uint32),
+        ("pbi_xstatus", ctypes.c_uint32),
+        ("pbi_pid", ctypes.c_uint32),
+        ("pbi_ppid", ctypes.c_uint32),
+        ("pbi_uid", ctypes.c_uint32),
+        ("pbi_gid", ctypes.c_uint32),
+        ("pbi_ruid", ctypes.c_uint32),
+        ("pbi_rgid", ctypes.c_uint32),
+        ("pbi_svuid", ctypes.c_uint32),
+        ("pbi_svgid", ctypes.c_uint32),
+        ("rfu_1", ctypes.c_uint32),
+        ("pbi_comm", ctypes.c_char * DARWIN_MAXCOMLEN),
+        ("pbi_name", ctypes.c_char * (2 * DARWIN_MAXCOMLEN)),
+        ("pbi_nfiles", ctypes.c_uint32),
+        ("pbi_pgid", ctypes.c_uint32),
+        ("pbi_pjobc", ctypes.c_uint32),
+        ("e_tdev", ctypes.c_uint32),
+        ("e_tpgid", ctypes.c_uint32),
+        ("pbi_nice", ctypes.c_int32),
+        ("pbi_start_tvsec", ctypes.c_uint64),
+        ("pbi_start_tvusec", ctypes.c_uint64),
+    ]
+
+
+def _data_home(root: Path, system: str | None = None) -> Path:
+    """Per-host application data root.
+
+    Fixed by platform, never read from the environment: the launcher sanitizes
+    the environment down to RUNTIME_ENV_ALLOWLIST, so an installer path that
+    honoured XDG_DATA_HOME would be attacker-influenced on exactly the hosts
+    that need it least.
+    """
+    actual_system = platform.system() if system is None else system
+    if actual_system == "Darwin":
+        return root / "Library/Application Support"
+    return root / ".local/share"
+
+
+def default_runtime_target(home: Path | None = None, system: str | None = None) -> Path:
     root = Path.home() if home is None else Path(home)
-    return root / "Library/Application Support/JACKAL/codex-plugin/runtime.json"
+    return _data_home(root, system) / "JACKAL/runtimes" / EPOCH
+
+
+def default_locator_path(home: Path | None = None, system: str | None = None) -> Path:
+    root = Path.home() if home is None else Path(home)
+    return _data_home(root, system) / "JACKAL/codex-plugin/runtime.json"
+
+
+def resolve_host(system: str | None = None, machine: str | None = None) -> str:
+    """Return the release host tag, or refuse. Never guesses a nearby host."""
+    actual_system = platform.system() if system is None else system
+    actual_machine = platform.machine() if machine is None else machine
+    tag = SUPPORTED_HOSTS.get((actual_system, actual_machine))
+    if tag is None:
+        supported = ", ".join(
+            f"{key[0]}/{key[1]}" for key in sorted(SUPPORTED_HOSTS)
+        )
+        raise ProvisionError(
+            f"unsupported host: {actual_system}/{actual_machine}; requires one of {supported}"
+        )
+    return tag
 
 
 def validate_host(system: str | None = None, machine: str | None = None) -> None:
-    actual_system = platform.system() if system is None else system
-    actual_machine = platform.machine() if machine is None else machine
-    if actual_system != "Darwin" or actual_machine != "arm64":
-        raise ProvisionError(f"unsupported host: {actual_system}/{actual_machine}; requires Darwin/arm64")
+    resolve_host(system, machine)
+
+
+def effective_release_pins(system: str | None = None, machine: str | None = None) -> dict[str, object]:
+    """The (epoch, asset, size, sha256, directory) this host installs/serves.
+
+    Falls back to the built-in macOS constants when the host has a published
+    pin identical to them; otherwise returns the host's own release pin values.
+    Used by the MCP server so its locator/metadata checks match whatever the
+    provisioner actually installed on this host.
+    """
+    host_tag = resolve_host(system, machine)
+    pin = RELEASE_PINS.get(host_tag)
+    if not pin:
+        return {
+            "epoch": EPOCH, "asset": ASSET,
+            "package_size": PACKAGE_SIZE, "package_sha256": PACKAGE_SHA256,
+            "package_directory": PACKAGE_DIRECTORY,
+            "sha256sums_sha256": SHA256SUMS_SHA256,
+        }
+    return {
+        "epoch": EPOCH, "asset": pin["asset"],
+        "package_size": pin["package_size"], "package_sha256": pin["package_sha256"],
+        "package_directory": pin["package_directory"],
+        "sha256sums_sha256": pin["sha256sums_sha256"],
+    }
+
+
+def release_pin(host_tag: str) -> dict[str, object]:
+    """Return the published release pin for a host, or refuse."""
+    try:
+        pin = RELEASE_PINS[host_tag]
+    except KeyError:
+        raise ProvisionError(f"no release pin table entry for host {host_tag}") from None
+    if pin is None:
+        raise ProvisionError(
+            f"no published release asset for host {host_tag}; "
+            "supply a locally built runtime and its pins instead"
+        )
+    return pin
 
 
 def runtime_subprocess_environment(
@@ -1028,13 +1195,495 @@ def validate_runtime(
     return records
 
 
-class RuntimeSnapshot:
-    """Own one private runtime copy until the MCP server has reaped its workers."""
+class _ProcessGone(ProvisionError):
+    pass
 
-    def __init__(self, owner: tempfile.TemporaryDirectory[str]) -> None:
+
+class _SnapshotOwnerStampIncomplete(ProvisionError):
+    pass
+
+
+def _read_kernel_file(path: Path | str, *, byte_limit: int) -> bytes:
+    """Read one kernel metadata file whose reported size may be zero."""
+    if byte_limit < 1:
+        raise ProvisionError("invalid kernel metadata byte limit")
+    try:
+        fd = os.open(os.fspath(path), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except FileNotFoundError as error:
+        raise _ProcessGone("process identity is absent") from error
+    except OSError as error:
+        raise ProvisionError("process identity metadata is unavailable") from error
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ProvisionError("process identity metadata is not a regular file")
+        chunks: list[bytes] = []
+        count = 0
+        while chunk := os.read(fd, min(DOWNLOAD_CHUNK_SIZE, byte_limit - count + 1)):
+            count += len(chunk)
+            if count > byte_limit:
+                raise ProvisionError("process identity metadata exceeds byte limit")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def _parse_linux_process_stat(raw: bytes, *, expected_pid: int | None = None) -> tuple[int, str]:
+    """Return the procfs PID and field-22 start token without parsing `comm`."""
+    try:
+        text = raw.decode("ascii").strip()
+    except UnicodeDecodeError as error:
+        raise ProvisionError("process stat is not ASCII") from error
+    left = text.find("(")
+    right = text.rfind(")")
+    if left < 1 or right <= left or right + 2 >= len(text):
+        raise ProvisionError("process stat has an invalid shape")
+    pid_text = text[:left].strip()
+    fields = text[right + 1 :].strip().split()
+    if not pid_text.isdecimal() or len(fields) <= 19 or not fields[19].isdecimal():
+        raise ProvisionError("process stat omits an exact start token")
+    pid = int(pid_text)
+    if pid < 1 or (expected_pid is not None and pid != expected_pid):
+        raise ProvisionError("process stat PID does not match its path")
+    return pid, fields[19]
+
+
+def _linux_process_identity(pid: int | None = None) -> tuple[int, str]:
+    path = Path("/proc/self/stat") if pid is None else Path("/proc") / str(pid) / "stat"
+    return _parse_linux_process_stat(
+        _read_kernel_file(path, byte_limit=MAX_SNAPSHOT_OWNER_BYTES),
+        expected_pid=pid,
+    )
+
+
+def _identity_command(command: list[str]) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="ascii",
+            errors="strict",
+            timeout=2.0,
+            check=False,
+            env={"PATH": FIXED_SYSTEM_PATH, "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+        raise ProvisionError("process identity command is unavailable") from error
+    output = result.stdout.strip()
+    if result.returncode != 0 or not output or len(output.encode("ascii")) > MAX_SNAPSHOT_OWNER_BYTES:
+        raise ProvisionError("process identity command refused")
+    return output
+
+
+def _darwin_process_identity(pid: int | None = None) -> tuple[int, str]:
+    actual_pid = os.getpid() if pid is None else pid
+    if actual_pid < 1:
+        raise ProvisionError("invalid process PID")
+    try:
+        libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+        proc_pidinfo = libproc.proc_pidinfo
+        proc_pidinfo.argtypes = [
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_void_p,
+            ctypes.c_int,
+        ]
+        proc_pidinfo.restype = ctypes.c_int
+        info = _DarwinBSDInfo()
+        size = ctypes.sizeof(info)
+        ctypes.set_errno(0)
+        result = proc_pidinfo(
+            actual_pid,
+            DARWIN_PROC_PIDTBSDINFO,
+            0,
+            ctypes.byref(info),
+            size,
+        )
+    except (AttributeError, OSError) as error:
+        raise ProvisionError("Darwin process identity API is unavailable") from error
+    if result != size:
+        try:
+            os.kill(actual_pid, 0)
+        except ProcessLookupError as error:
+            raise _ProcessGone("process identity is absent") from error
+        except PermissionError as error:
+            raise ProvisionError("process identity is not inspectable") from error
+        raise ProvisionError("Darwin process identity API refused")
+    if (
+        info.pbi_pid != actual_pid
+        or info.pbi_start_tvsec < 1
+        or info.pbi_start_tvusec >= 1_000_000
+    ):
+        raise ProvisionError("Darwin process identity has an invalid shape")
+    return actual_pid, f"{info.pbi_start_tvsec}:{info.pbi_start_tvusec}"
+
+
+def _boot_identity(system: str | None = None) -> str:
+    actual_system = platform.system() if system is None else system
+    if actual_system == "Linux":
+        try:
+            token = _read_kernel_file(
+                "/proc/sys/kernel/random/boot_id",
+                byte_limit=MAX_SNAPSHOT_OWNER_BYTES,
+            ).decode("ascii").strip()
+        except _ProcessGone as error:
+            raise ProvisionError("Linux boot identity is unavailable") from error
+        except UnicodeDecodeError as error:
+            raise ProvisionError("Linux boot identity is not ASCII") from error
+        if _LINUX_BOOT_ID.fullmatch(token) is None:
+            raise ProvisionError("Linux boot identity has an invalid shape")
+        return f"linux:{token}"
+    if actual_system == "Darwin":
+        output = _identity_command(["/usr/sbin/sysctl", "-n", "kern.boottime"])
+        match = _DARWIN_BOOT_TIME.search(output)
+        if match is None:
+            raise ProvisionError("Darwin boot identity has an invalid shape")
+        return f"darwin:{match.group(1)}:{match.group(2)}"
+    raise ProvisionError(f"snapshot ownership is unsupported on {actual_system}")
+
+
+def _current_snapshot_owner() -> SnapshotOwnerIdentity:
+    system = platform.system()
+    if system == "Linux":
+        pid, start_time = _linux_process_identity()
+    elif system == "Darwin":
+        pid, start_time = _darwin_process_identity()
+    else:
+        raise ProvisionError(f"snapshot ownership is unsupported on {system}")
+    return SnapshotOwnerIdentity(pid=pid, start_time=start_time, boot_id=_boot_identity(system))
+
+
+def _process_start_time(pid: int) -> str:
+    system = platform.system()
+    if system == "Linux":
+        unused_pid, start_time = _linux_process_identity(pid)
+        return start_time
+    if system == "Darwin":
+        unused_pid, start_time = _darwin_process_identity(pid)
+        return start_time
+    raise ProvisionError(f"snapshot ownership is unsupported on {system}")
+
+
+def _snapshot_owner_bytes(identity: SnapshotOwnerIdentity) -> bytes:
+    if (
+        isinstance(identity.pid, bool)
+        or not isinstance(identity.pid, int)
+        or identity.pid < 1
+        or not isinstance(identity.start_time, str)
+        or not identity.start_time
+        or not isinstance(identity.boot_id, str)
+        or not identity.boot_id
+    ):
+        raise ProvisionError("snapshot owner identity is invalid")
+    for value in (identity.start_time, identity.boot_id):
+        try:
+            encoded_value = value.encode("ascii")
+        except UnicodeEncodeError as error:
+            raise ProvisionError("snapshot owner identity is not bounded ASCII") from error
+        if len(encoded_value) > MAX_SNAPSHOT_OWNER_BYTES or any(
+            ord(character) < 32 or ord(character) == 127 for character in value
+        ):
+            raise ProvisionError("snapshot owner identity is not bounded ASCII")
+    document = {
+        "boot_id": identity.boot_id,
+        "pid": identity.pid,
+        "schema": SNAPSHOT_OWNER_SCHEMA,
+        "start_time": identity.start_time,
+    }
+    encoded = (
+        json.dumps(document, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("ascii")
+    if len(encoded) > MAX_SNAPSHOT_OWNER_BYTES:
+        raise ProvisionError("snapshot owner stamp exceeds byte limit")
+    return encoded
+
+
+def _snapshot_owner_directory_prefix(identity: SnapshotOwnerIdentity) -> str:
+    """Encode ownership into the atomically created directory name."""
+    _snapshot_owner_bytes(identity)
+    prefix = (
+        f"{SNAPSHOT_PREFIX}v1.{identity.pid}."
+        f"{identity.boot_id.encode('ascii').hex()}."
+        f"{identity.start_time.encode('ascii').hex()}."
+    )
+    if len(prefix.encode("ascii")) >= MAX_SNAPSHOT_NAME_BYTES:
+        raise ProvisionError("snapshot owner directory name exceeds byte limit")
+    return prefix
+
+
+def _snapshot_owner_from_directory_name(path: Path) -> SnapshotOwnerIdentity:
+    match = _SNAPSHOT_OWNER_NAME.fullmatch(path.name)
+    if match is None or len(path.name.encode("ascii", "ignore")) > MAX_SNAPSHOT_NAME_BYTES:
+        raise ProvisionError("snapshot owner directory name is not stamped")
+    try:
+        boot_id = bytes.fromhex(match.group(2)).decode("ascii")
+        start_time = bytes.fromhex(match.group(3)).decode("ascii")
+    except (UnicodeDecodeError, ValueError) as error:
+        raise ProvisionError("snapshot owner directory name is invalid") from error
+    identity = SnapshotOwnerIdentity(
+        pid=int(match.group(1)), start_time=start_time, boot_id=boot_id
+    )
+    _snapshot_owner_bytes(identity)
+    if not path.name.startswith(_snapshot_owner_directory_prefix(identity)):
+        raise ProvisionError("snapshot owner directory name is not canonical")
+    return identity
+
+
+def _write_snapshot_owner(owner_root: Path, identity: SnapshotOwnerIdentity) -> None:
+    root_fd = os.open(owner_root, _directory_flags())
+    fd = -1
+    try:
+        fd = os.open(
+            SNAPSHOT_OWNER_FILE,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=root_fd,
+        )
+        view = memoryview(_snapshot_owner_bytes(identity))
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise ProvisionError("snapshot owner stamp write made no progress")
+            view = view[written:]
+        os.fchmod(fd, 0o600)
+        os.fsync(fd)
+        os.fsync(root_fd)
+    except OSError as error:
+        raise ProvisionError("snapshot owner stamp could not be written safely") from error
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(root_fd)
+
+
+def _load_snapshot_owner(owner_root: Path) -> SnapshotOwnerIdentity:
+    try:
+        root_fd = os.open(owner_root, _directory_flags())
+    except FileNotFoundError as error:
+        raise _SnapshotOwnerStampIncomplete("snapshot owner stamp is absent") from error
+    except OSError as error:
+        raise ProvisionError("snapshot owner directory is unreadable") from error
+    fd = -1
+    try:
+        fd = os.open(SNAPSHOT_OWNER_FILE, _file_read_flags(), dir_fd=root_fd)
+        raw = _read_fd(fd, byte_limit=MAX_SNAPSHOT_OWNER_BYTES)
+    except FileNotFoundError as error:
+        raise _SnapshotOwnerStampIncomplete("snapshot owner stamp is absent") from error
+    except OSError as error:
+        raise ProvisionError("snapshot owner stamp is unreadable") from error
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(root_fd)
+
+    def reject_duplicate_keys(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise _SnapshotOwnerStampIncomplete(
+                    "snapshot owner stamp has duplicate keys"
+                )
+            result[key] = value
+        return result
+
+    try:
+        document = json.loads(raw.decode("ascii"), object_pairs_hook=reject_duplicate_keys)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise _SnapshotOwnerStampIncomplete("snapshot owner stamp is invalid") from error
+    if not isinstance(document, dict) or set(document) != {
+        "boot_id", "pid", "schema", "start_time"
+    } or document.get("schema") != SNAPSHOT_OWNER_SCHEMA:
+        raise _SnapshotOwnerStampIncomplete(
+            "snapshot owner stamp has an invalid shape"
+        )
+    identity = SnapshotOwnerIdentity(
+        pid=document.get("pid"),
+        start_time=document.get("start_time"),
+        boot_id=document.get("boot_id"),
+    )
+    try:
+        canonical = _snapshot_owner_bytes(identity)
+    except ProvisionError as error:
+        raise _SnapshotOwnerStampIncomplete(
+            "snapshot owner stamp has invalid values"
+        ) from error
+    if raw != canonical:
+        raise _SnapshotOwnerStampIncomplete("snapshot owner stamp is not canonical")
+    return identity
+
+
+def _private_owner_info(path: Path) -> os.stat_result:
+    info = path.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or path.is_symlink()
+        or info.st_uid != os.geteuid()
+        or info.st_mode & 0o077
+    ):
+        raise ProvisionError("snapshot owner directory is not private")
+    return info
+
+
+def _owner_identity_for_reaping(path: Path) -> SnapshotOwnerIdentity:
+    try:
+        named_owner = _snapshot_owner_from_directory_name(path)
+    except ProvisionError:
+        named_owner = None
+    try:
+        stamped_owner = _load_snapshot_owner(path)
+    except _SnapshotOwnerStampIncomplete:
+        if named_owner is None:
+            raise ProvisionError("snapshot owner identity is unavailable")
+        return named_owner
+    if named_owner is not None and stamped_owner != named_owner:
+        raise ProvisionError("snapshot owner name and stamp disagree")
+    return stamped_owner
+
+
+def _remove_orphaned_snapshot(
+    path: Path,
+    expected_info: os.stat_result,
+    expected_owner: SnapshotOwnerIdentity,
+) -> None:
+    try:
+        current_info = _private_owner_info(path)
+        current_owner = _owner_identity_for_reaping(path)
+    except FileNotFoundError:
+        return
+    if _file_signature(current_info) != _file_signature(expected_info) or current_owner != expected_owner:
+        raise ProvisionError("orphaned snapshot changed before cleanup")
+    parent_fd = os.open(path.parent, _directory_flags())
+    root_fd = -1
+    try:
+        root_fd = os.open(path.name, _directory_flags(), dir_fd=parent_fd)
+        opened_info = os.fstat(root_fd)
+        if _file_signature(opened_info) != _file_signature(expected_info):
+            raise ProvisionError("orphaned snapshot changed before cleanup")
+        entry_count = [0]
+
+        def remove_contents(directory_fd: int, depth: int) -> None:
+            if depth > MAX_RUNTIME_DEPTH + 1:
+                raise ProvisionError("orphaned snapshot exceeds cleanup depth")
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    entry_count[0] += 1
+                    if entry_count[0] > MAX_RUNTIME_ENTRIES + 2:
+                        raise ProvisionError("orphaned snapshot exceeds cleanup entry limit")
+                    info = entry.stat(follow_symlinks=False)
+                    if stat.S_ISDIR(info.st_mode):
+                        child_fd = os.open(
+                            entry.name, _directory_flags(), dir_fd=directory_fd
+                        )
+                        try:
+                            if _file_signature(os.fstat(child_fd)) != _file_signature(info):
+                                raise ProvisionError(
+                                    "orphaned snapshot changed during cleanup"
+                                )
+                            remove_contents(child_fd, depth + 1)
+                        finally:
+                            os.close(child_fd)
+                        os.rmdir(entry.name, dir_fd=directory_fd)
+                    elif stat.S_ISREG(info.st_mode):
+                        os.unlink(entry.name, dir_fd=directory_fd)
+                    else:
+                        raise ProvisionError(
+                            "orphaned snapshot contains a link or special entry"
+                        )
+
+        remove_contents(root_fd, 0)
+        os.rmdir(path.name, dir_fd=parent_fd)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise ProvisionError("orphaned snapshot cleanup failed") from error
+    finally:
+        if root_fd >= 0:
+            os.close(root_fd)
+        os.close(parent_fd)
+
+
+def _snapshot_parent_path(temporary_parent: Path | str | None) -> Path:
+    if temporary_parent is not None:
+        return Path(temporary_parent)
+    try:
+        return Path(tempfile.gettempdir()).resolve(strict=True)
+    except OSError as error:
+        raise ProvisionError("system snapshot parent is unavailable") from error
+
+
+def reap_orphaned_runtime_snapshots(
+    temporary_parent: Path | str | None = None,
+    *,
+    current_boot_id: str | None = None,
+    process_start_reader: Callable[[int], str] | None = None,
+    remover: Callable[[Path, os.stat_result, SnapshotOwnerIdentity], None] | None = None,
+) -> tuple[Path, ...]:
+    """Remove only snapshots whose exact stamped process incarnation is dead."""
+    parent = _snapshot_parent_path(temporary_parent)
+    if not parent.exists():
+        return ()
+    try:
+        parent_info = parent.lstat()
+    except OSError as error:
+        raise ProvisionError("snapshot parent cannot be inspected safely") from error
+    if not stat.S_ISDIR(parent_info.st_mode) or parent.is_symlink():
+        raise ProvisionError("snapshot parent is not a safe directory")
+    boot_id = _boot_identity() if current_boot_id is None else current_boot_id
+    read_start = _process_start_time if process_start_reader is None else process_start_reader
+    remove = _remove_orphaned_snapshot if remover is None else remover
+    removed: list[Path] = []
+    try:
+        entries = tuple(os.scandir(parent))
+    except OSError as error:
+        raise ProvisionError("snapshot parent cannot be scanned safely") from error
+    for entry in entries:
+        if not entry.name.startswith(SNAPSHOT_PREFIX):
+            continue
+        path = parent / entry.name
+        try:
+            info = _private_owner_info(path)
+            owner = _owner_identity_for_reaping(path)
+        except (OSError, ProvisionError):
+            continue
+        if owner.boot_id != boot_id:
+            continue
+        try:
+            current_start = read_start(owner.pid)
+        except _ProcessGone:
+            orphaned = True
+        except (OSError, ProvisionError):
+            continue
+        else:
+            orphaned = current_start != owner.start_time
+        if not orphaned:
+            continue
+        remove(path, info, owner)
+        removed.append(path)
+    return tuple(removed)
+
+
+class RuntimeSnapshot:
+    """Own one stamped private runtime copy until the server reaps its workers."""
+
+    def __init__(
+        self,
+        owner: tempfile.TemporaryDirectory[str],
+        identity: SnapshotOwnerIdentity | None = None,
+    ) -> None:
         self._owner = owner
-        self.root = Path(owner.name).resolve(strict=True)
+        self.owner_root = Path(owner.name).resolve(strict=True)
         self._closed = False
+        os.chmod(self.owner_root, 0o700)
+        _write_snapshot_owner(
+            self.owner_root,
+            _current_snapshot_owner() if identity is None else identity,
+        )
+        self.root = self.owner_root / SNAPSHOT_RUNTIME_DIRECTORY
+        self.root.mkdir(mode=0o700)
 
     def close(self) -> None:
         if self._closed:
@@ -1168,21 +1817,27 @@ def create_runtime_snapshot(
     records = verify_sha256sums(
         source, expected_manifest_sha256=expected_tree_sha256
     )
-    parent: Path | None = None
-    if temporary_parent is not None:
-        parent = Path(temporary_parent)
-        try:
-            parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        except OSError as error:
-            raise ProvisionError("runtime snapshot parent is unavailable") from error
+    parent = _snapshot_parent_path(temporary_parent)
     try:
+        parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        reap_orphaned_runtime_snapshots(parent)
+    except (OSError, ProvisionError) as error:
+        raise ProvisionError("runtime snapshot parent is unavailable") from error
+    try:
+        identity = _current_snapshot_owner()
         owner = tempfile.TemporaryDirectory(
-            prefix="jackal-codex-runtime-",
-            dir=None if parent is None else os.fspath(parent),
+            prefix=_snapshot_owner_directory_prefix(identity),
+            dir=os.fspath(parent),
         )
-    except OSError as error:
+    except (OSError, ProvisionError) as error:
         raise ProvisionError("cannot create private runtime snapshot") from error
-    snapshot = RuntimeSnapshot(owner)
+    try:
+        snapshot = RuntimeSnapshot(owner, identity)
+    except Exception as error:
+        owner.cleanup()
+        if isinstance(error, ProvisionError):
+            raise
+        raise ProvisionError("cannot initialize private runtime snapshot") from error
     try:
         os.chmod(snapshot.root, 0o700)
         source_root_fd = os.open(source, _directory_flags())
@@ -1352,6 +2007,18 @@ def _verify_outer_file(path: Path, expected_size: int, expected_sha256: str):
         raise
 
 
+# macOS renameatx_np(2) flag; Linux renameat2(2) flag. Both mean the same
+# thing: rename atomically and fail with EEXIST rather than clobber the target.
+_RENAME_EXCL = 0x00000004
+_RENAME_NOREPLACE = 0x00000001
+
+
+def _raise_rename_error(error_number: int, target_name: str) -> None:
+    if error_number == errno.EEXIST:
+        raise FileExistsError(error_number, os.strerror(error_number), target_name)
+    raise OSError(error_number, os.strerror(error_number), target_name)
+
+
 def _renameatx_np_exclusive(
     source_parent_fd: int,
     source_name: str,
@@ -1364,18 +2031,68 @@ def _renameatx_np_exclusive(
     renameatx = libc.renameatx_np
     renameatx.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
     renameatx.restype = ctypes.c_int
+    ctypes.set_errno(0)
     result = renameatx(
         source_parent_fd,
         os.fsencode(source_name),
         target_parent_fd,
         os.fsencode(target_name),
-        0x00000004,
+        _RENAME_EXCL,
     )
     if result != 0:
-        error_number = ctypes.get_errno()
-        if error_number == errno.EEXIST:
-            raise FileExistsError(error_number, os.strerror(error_number), target_name)
-        raise OSError(error_number, os.strerror(error_number), target_name)
+        _raise_rename_error(ctypes.get_errno(), target_name)
+
+
+def _renameat2_noreplace(
+    source_parent_fd: int,
+    source_name: str,
+    target_parent_fd: int,
+    target_name: str,
+) -> None:
+    """Linux equivalent of renameatx_np(..., RENAME_EXCL).
+
+    RENAME_NOREPLACE carries the same guarantee: the rename is atomic and fails
+    with EEXIST rather than replacing an existing target. Filesystems that do
+    not implement the flag report EINVAL or ENOSYS, which propagates as a
+    refusal -- there is deliberately no fallback to a clobbering rename.
+    """
+    if platform.system() != "Linux":
+        raise ProvisionError("renameat2 no-replace installation requires Linux")
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise ProvisionError(
+            "atomic no-replace installation requires glibc renameat2 (glibc >= 2.28)"
+        )
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameat2(
+        source_parent_fd,
+        os.fsencode(source_name),
+        target_parent_fd,
+        os.fsencode(target_name),
+        _RENAME_NOREPLACE,
+    )
+    if result != 0:
+        _raise_rename_error(ctypes.get_errno(), target_name)
+
+
+_RENAME_EXCLUSIVE_BY_SYSTEM = {
+    "Darwin": _renameatx_np_exclusive,
+    "Linux": _renameat2_noreplace,
+}
+
+
+def rename_exclusive_for_host(system: str | None = None) -> Callable:
+    """Select the atomic no-replace primitive for this host, or refuse."""
+    actual_system = platform.system() if system is None else system
+    operation = _RENAME_EXCLUSIVE_BY_SYSTEM.get(actual_system)
+    if operation is None:
+        raise ProvisionError(
+            f"atomic no-replace installation is unsupported on {actual_system}"
+        )
+    return operation
 
 
 def _install_no_replace(
@@ -1386,7 +2103,7 @@ def _install_no_replace(
 ) -> None:
     source_path = Path(source)
     target_path = Path(target)
-    operation = _renameatx_np_exclusive if rename_exclusive is None else rename_exclusive
+    operation = rename_exclusive_for_host() if rename_exclusive is None else rename_exclusive
     source_parent_fd = -1
     target_parent_fd = -1
     try:
@@ -1428,7 +2145,26 @@ def provision(
     install_no_replace: Callable | None = None,
 ) -> Path:
     """Validate or atomically install the pinned runtime."""
-    validate_host(system, machine)
+    host_tag = resolve_host(system, machine)
+    relying_on_builtin_pins = (
+        asset == ASSET
+        and url == URL
+        and expected_size == PACKAGE_SIZE
+        and expected_sha256 == PACKAGE_SHA256
+    )
+    if relying_on_builtin_pins:
+        # The caller is relying on the built-in pins rather than supplying its
+        # own. Bind them to THIS host's published release pin (refusing when no
+        # asset exists for the host) instead of letting another host's bytes
+        # reach the hash check and surface as a confusing digest mismatch.
+        pin = release_pin(host_tag)
+        asset = pin["asset"]
+        url = pin["url"] if pin["url"] is not None else url
+        expected_size = pin["package_size"]
+        expected_sha256 = pin["package_sha256"]
+        expected_extracted_size = pin["extracted_size"]
+        expected_tree_sha256 = pin["sha256sums_sha256"]
+        expected_top_level = pin["package_directory"]
     if (
         expected_size < 0
         or expected_extracted_size < 0
@@ -1564,8 +2300,12 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:
         print("jackal_runtime=refused detail=unexpected provisioning failure", file=sys.stderr)
         return 1
+    try:
+        _sha = effective_release_pins()["package_sha256"]
+    except ProvisionError:
+        _sha = PACKAGE_SHA256
     print(
-        f"jackal_runtime=ready epoch={EPOCH} runtime={runtime} package_sha256={PACKAGE_SHA256}"
+        f"jackal_runtime=ready epoch={EPOCH} runtime={runtime} package_sha256={_sha}"
     )
     return 0
 

@@ -1,7 +1,7 @@
 {
   "name": "jackel",
-  "version": "0.1.0+codex.20260824183637",
-  "description": "Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.",
+  "version": "0.1.0+codex.20260828140726",
+  "description": "Expose JACKAL's evidence-aware CAS, professional linked graphing, integrated THOTH measurement, matrices, statistical models, sensors, aerospace workflows, nonlinear certificates, and program evidence to Codex.",
   "author": {
     "name": "Anubis Quantum Cipher",
     "url": "https://github.com/AnubisQuantumCipher"
@@ -11,7 +11,17 @@
   "license": "MIT",
   "keywords": [
     "jackel",
+    "thoth",
     "mathematics",
+    "computer-algebra",
+    "graphing",
+    "linked-views",
+    "matrices",
+    "regression",
+    "probability",
+    "sensors",
+    "aerospace",
+    "symbolic-algebra",
     "numerical-trust",
     "formal-verification",
     "evidence",
@@ -20,20 +30,27 @@
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "JACKAL",
-    "shortDescription": "Claim-aware computation with explicit evidence classes",
-    "longDescription": "Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).",
+    "displayName": "JACKAL + THOTH",
+    "shortDescription": "Evidence-aware CAS, linked STEM views, and THOTH measurement",
+    "longDescription": "Expose one unified 58-tool JACKAL surface through Codex: the sealed 41-tool v1.7.3 release runtime, seven identity-pinned THOTH measurement/provenance tools, three identity-pinned CAS, graph, and nonlinear-certificate tools, and seven identity-pinned STEM workflows for matrices, regression, probability, hypothesis testing, supplied sensor batches, aerospace models, and a professional linked evidence workspace. THOTH is a named JACKAL subsystem, never a separate server or arithmetic authority. Every reported numeric field in the additive workflows delegates to an admitted JACKAL lane; wrapper orchestration and UI rendering add no mathematical assurance. The adapter copies each parsed sealed-runtime result object into structuredContent unchanged. For additive results it deep-copies the result and removes only the identity-validated _mcp_content transport envelope before returning structuredContent; its only transport-local refusal is status=refused reason=plugin-busy. Graph coordinates are exact rational JACKAL results, sampled values and pixels remain estimated visualization, and refused samples break the curve. The fixed HELLGATE lane replays an independent exact-rational certificate as bounded, never formal-bounded. Result vocabulary: ok, exact, exact-given, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, refused. Field statuses, assumptions, identities, route traces, refusal reasons, consequence ceilings, and non-claims remain first-class. Requires a host-admitted pinned runtime and Python >=3.10 at a fixed launcher-approved path.",
     "developerName": "Anubis Quantum Cipher",
     "category": "Productivity",
     "capabilities": [
       "Interactive"
     ],
     "websiteURL": "https://github.com/AnubisQuantumCipher/jackal",
+    "brandColor": "#D51F2D",
+    "screenshots": [
+      "./assets/jackal-thoth-hellgate-graph.png",
+      "./assets/jackal-linked-evidence-workspace.png"
+    ],
     "defaultPrompt": [
-      "Classify and verify this numerical claim with JACKAL.",
-      "Find the strongest supported bound and refuse any silent downgrade.",
-      "Verify this receipt or claim bundle against my pinned expectations.",
-      "Verify this Anubis Safe program-evidence package without executing its artifact."
+      "Use JACKAL + THOTH to solve and classify this calculation.",
+      "Graph this expression and separate visualization from evidence.",
+      "Open a linked symbolic, numeric, graph, table, and evidence workspace for this expression.",
+      "Solve this matrix or regression workflow while preserving exact fields and model assumptions.",
+      "Analyze this supplied sensor batch or aerospace model without upgrading its provenance or physical assumptions.",
+      "Replay the HELLGATE nonlinear ground-state certificate without promoting its assurance."
     ]
   }
 }

@@ -12,13 +12,17 @@ Current publication base: `c3ec10f5b446b28a04f9bd19606fc8b329ac43f5`
 The current v1.7.3 release exposes the ordered 41-tool catalog recorded in
 `release/capability_inventory_v1.json`, with tool-containing implementation
 ref `d25bcd9818e0d106f337798f80527ae611cc3acc`. The annotated tag, GitHub
-release, package receipt, and downloaded asset must bind the same bytes.
+release, package receipt, and downloaded asset must bind the same bytes. The
+identity-pinned Codex wrapper adds seven THOTH measurement/provenance tools and
+three CAS/graph/certificate tools plus seven STEM workflow tools, yielding one
+unified 58-tool surface. THOTH is a named JACKAL subsystem and never a second
+service or arithmetic authority.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
 ## Objective
 
 Add a repo-local, publishable Codex plugin with migration-preserved package ID
-`jackel` and public display name JACKAL. It exposes JACKAL's complete
+`jackel` and public display name JACKAL + THOTH. It exposes JACKAL's complete
 mathematical evidence-kernel tool inventory on macOS. The plugin must make the
 full engine available without weakening JACKAL's epistemic classes, refusal
 semantics, checker boundaries, or pinned runtime identity.
@@ -40,6 +44,15 @@ unsupported until JACKAL publishes and seals a corresponding runtime.
   general structured claims while retaining every exact, checked, estimated,
   bounded, formal-bounded, model-based, and verification lane.
 - Preserve backend JSON values losslessly as structured MCP output.
+- Add one closed CAS router without changing the assurance of the delegated
+  runtime result.
+- Render graph PNGs from delegated exact rational x coordinates and estimated
+  y samples while marking pixels and interpolation as visualization only.
+- Replay the fixed HELLGATE nonlinear ground-state certificate only after an
+  independent identity-pinned exact-rational checker accepts it as `bounded`,
+  never `formal-bounded`.
+- Name THOTH in the user-facing plugin while keeping it inside the single
+  JACKAL process and tool surface.
 - Keep named refusals first-class. A refusal is a valid epistemic result, not a
   reason to retry silently through a weaker lane.
 - Add complete Codex plugin metadata and a repo-local marketplace entry.
@@ -51,15 +64,17 @@ unsupported until JACKAL publishes and seals a corresponding runtime.
 
 ## Non-goals
 
-- Reimplementing any JACKAL calculation, proof checker, claim router, receipt
-  verifier, or bundle verifier.
+- Reimplementing any sealed-runtime JACKAL calculation, proof checker, claim
+  router, receipt verifier, or bundle verifier. The wrapper's specialized
+  HELLGATE checker is separate identity-pinned code with an explicit theorem
+  assumption and never inherits the sealed runtime's formal status.
 - Copying `plugin/hermes` or any pinned runtime file into `plugins/jackel`.
 - Editing the load-bearing Hermes bundle, which would change its pinned bundle
   identity.
 - Presenting a checker-admitted formal fragment as whole-system formal
   assurance.
-- Adding a hosted connector, `.app.json`, HTTP service, hooks, branding assets,
-  screenshots, or an automatic first-run download in version 0.1.0.
+- Adding a hosted connector, `.app.json`, HTTP service, hooks, or an automatic
+  first-run download in version 0.1.0.
 - Supporting Linux, Windows, or Intel macOS in the initial release.
 
 ## Repository Layout
@@ -73,7 +88,12 @@ plugins/jackel/
   .mcp.json
   PLUGIN_IDENTITY.sha256
   README.md
+  assets/jackal-thoth-hellgate-graph.png
+  mcp/advanced.py
+  mcp/hellgate_verify.py
+  mcp/measurement.py
   mcp/server.py
+  mcp/certificates/hellgate_v1.json.zlib
   scripts/launch_mcp.zsh
   scripts/provision_runtime.py
   scripts/verify_plugin.py
@@ -94,7 +114,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 
 - `name`: `jackel`
 - `version`: `0.1.0+codex.<14-digit timestamp>`
-- `description`: `Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.`
+- `description`: `Expose JACKAL's evidence-aware CAS, graphing, integrated THOTH measurement, nonlinear certificates, and program evidence to Codex.`
 - `author.name`: `Anubis Quantum Cipher`
 - `author.url`: `https://github.com/AnubisQuantumCipher`
 - `homepage` and `repository`:
@@ -102,15 +122,23 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `license`: `MIT`
 - `skills`: `./skills/`
 - `mcpServers`: `./.mcp.json`
-- `interface.displayName`: `JACKAL`
-- `interface.shortDescription`: `Claim-aware computation with explicit evidence classes`
-- `interface.longDescription`: `Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).`
+- `interface.displayName`: `JACKAL + THOTH`
+- `interface.shortDescription`: `Evidence-aware CAS, graphing, and integrated measurement`
+- `interface.longDescription`: names the unified 58-tool surface, THOTH's
+  in-process identity, delegated CAS semantics, the graph visualization
+  boundary, the HELLGATE `bounded` boundary, and the requirement to preserve
+  statuses, assumptions, identities, route traces, consequence ceilings,
+  refusals, and non-claims.
 - `interface.developerName`: `Anubis Quantum Cipher`
 - `interface.category`: `Productivity`
 - `interface.capabilities`: `["Interactive"]`
 - `interface.websiteURL`: `https://github.com/AnubisQuantumCipher/jackal`
-- `keywords`: `jackel`, `mathematics`, `numerical-trust`, `formal-verification`,
-  `evidence`, `mcp`
+- `interface.brandColor`: `#00E0B8`
+- `interface.screenshots`: `./assets/jackal-thoth-hellgate-graph.png`, captured
+  from the installed `jackal_graph` tool and explicitly treated as estimated
+  visualization
+- `keywords`: `jackel`, `thoth`, `mathematics`, `computer-algebra`, `graphing`,
+  `symbolic-algebra`, `numerical-trust`, `formal-verification`, `evidence`, `mcp`
 
 The short description identifies JACKAL as an evidence kernel, not a generic
 calculator. The long description names the mathematical, domain-pack, and
@@ -121,10 +149,9 @@ rather than publishing broken paths or invented policies.
 
 Starter prompts:
 
-1. `Classify and verify this numerical claim with JACKAL.`
-2. `Find the strongest supported bound and refuse any silent downgrade.`
-3. `Verify this receipt or claim bundle against my pinned expectations.`
-4. `Verify this Anubis Safe program-evidence package without executing its artifact.`
+1. `Use JACKAL + THOTH to solve and classify this calculation.`
+2. `Graph this expression and separate visualization from evidence.`
+3. `Replay the HELLGATE nonlinear ground-state certificate without promoting its assurance.`
 
 ## Marketplace Entry
 
@@ -371,7 +398,11 @@ TCB, but they are part of the end-to-end Codex request/result fidelity TCB.
 `plugins/jackel/PLUGIN_IDENTITY.sha256` records a stable, sorted digest
 inventory for the plugin manifest, MCP manifest, installation/operation
 README, launcher, adapter, provisioner, verification script, and operational
-skill. The manifest excludes only itself. `scripts/verify_plugin.py` performs a bounded descriptor-relative,
+skill. It also binds `runtime_manifest_baseline_v173.json`, the retained exact
+metadata input from the published v1.7.3 capability inventory. The current
+manifest and MCP adapter are a separately identified additive overlay; they do
+not rewrite the historical inventory. The manifest excludes only itself.
+`scripts/verify_plugin.py` performs a bounded descriptor-relative,
 no-follow traversal and rejects every unlisted file, link, special entry,
 directory, bytecode cache, oversized manifest/file set, path-identity change,
 or parent-directory mutation before printing a deterministic

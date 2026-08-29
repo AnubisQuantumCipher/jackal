@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check JACKAL routing skills against the canonical capability inventory."""
+"""Check JACKAL routing skills against sealed and additive capabilities."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import json
 import re
 import unittest
 from pathlib import Path
+
+from plugins.jackel.mcp import server as codex_adapter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +54,14 @@ def inventory_names() -> set[str]:
     return {row["name"] for row in document["tools"]}
 
 
+def codex_additive_names() -> set[str]:
+    return set(
+        codex_adapter.MEASUREMENT_TOOL_NAMES
+        | codex_adapter.ADVANCED_TOOL_NAMES
+        | codex_adapter.STEM_TOOL_NAMES
+    )
+
+
 def profile_counts() -> dict[str, int]:
     document = json.loads(INVENTORY.read_text(encoding="utf-8"))
     counts = {"core": 0, "formal": 0, "full": 0}
@@ -72,11 +82,17 @@ def current_block(text: str) -> str:
 
 
 def assert_router_contract(
-    case: unittest.TestCase, path: Path, *, require_marker: bool = True
+    case: unittest.TestCase,
+    path: Path,
+    *,
+    require_marker: bool = True,
+    allow_codex_additions: bool = False,
 ) -> None:
     text = path.read_text(encoding="utf-8")
     lower = text.lower()
     names = inventory_names()
+    if allow_codex_additions:
+        names |= codex_additive_names()
     references = set(TOOL_REFERENCE.findall(text))
     case.assertTrue(REQUIRED_ROUTING <= references, (path, references))
     case.assertEqual(references - names, set(), (path, references - names))
@@ -87,13 +103,21 @@ def assert_router_contract(
         block = current_block(text)
         case.assertIn("41-tool", block)
         case.assertIn("release/capability_inventory_v1.json", block)
+        if allow_codex_additions:
+            case.assertIn("58-tool", block)
     for stale in STALE_CURRENT:
         case.assertNotIn(stale, lower, (path, stale))
 
 
 class JackalSkillContractTest(unittest.TestCase):
-    def test_repository_codex_router_uses_only_inventory_tools(self) -> None:
-        assert_router_contract(self, REPO_ROUTER)
+    def test_repository_codex_router_uses_only_unified_tools(self) -> None:
+        runtime = inventory_names()
+        additive = codex_additive_names()
+        self.assertFalse(runtime & additive)
+        self.assertEqual(
+            len(runtime | additive), codex_adapter.EXPECTED_UNIFIED_TOOL_COUNT
+        )
+        assert_router_contract(self, REPO_ROUTER, allow_codex_additions=True)
 
     def test_personal_codex_oracle_names_current_replay_front_doors(self) -> None:
         if not PERSONAL_CODEX_ORACLE.is_file():

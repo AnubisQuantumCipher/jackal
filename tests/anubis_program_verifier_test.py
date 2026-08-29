@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VERIFIER = ROOT / "tools/anubis_program_verify.py"
 POLICY_PATH = ROOT / "release/program/inventory_safe_v1.json"
+PLUGIN_DIR = ROOT / "plugin/hermes"
+sys.path.insert(0, str(PLUGIN_DIR))
+
+from bundle_hash import compute_bundle_hash, resolve_runtime_files  # noqa: E402
+
 VERIFY_TIME = "1787097600"
 APPROVED_CHECK_COMPILER_SHA256 = (
     "0d6a8f89355eb9ec5971749daf943567c204ed9f2d3001edbd46599f4540d7d6"
@@ -85,6 +91,59 @@ def compact(value: object) -> bytes:
 
 
 POLICY_SHA256 = sha(compact(POLICY_BODY))
+
+
+def materialize_current_hermes_test_repo(root: Path) -> Path:
+    """Build a self-consistent repository-layout package for plugin tests.
+
+    Development changes intentionally do not rewrite the immutable published
+    ``release/MANIFEST.sha256`` in the source tree.  A success-path plugin test
+    therefore has to exercise freshly assembled bytes with a package-local pin,
+    exactly as a release package builder does.  This helper never weakens the
+    launcher's startup gate and never edits the published manifest.
+    """
+    package_root = root / "current-hermes-test-package"
+    package_plugin = package_root / "plugin/hermes"
+    for source in resolve_runtime_files(PLUGIN_DIR).values():
+        relative = source.resolve().relative_to(ROOT)
+        destination = package_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+
+    required_artifacts = (
+        ROOT / "release/MANIFEST.sha256",
+        ROOT / "jackal-native",
+        ROOT / "jackal_calc.anb",
+        ROOT / "proofs/lean/.lake/build/bin/jackal_cert_check",
+        ROOT / "proofs/lean/.lake/build/bin/jackal_gaussian_check",
+        ROOT / "proofs/lean/.lake/build/bin/jackal_int_cert_check",
+        ROOT / "release/evidence/approved_z3.linux-aarch64",
+    )
+    for source in required_artifacts:
+        if not source.is_file():
+            raise RuntimeError(f"current Hermes test artifact missing: {source}")
+        relative = source.resolve().relative_to(ROOT)
+        destination = package_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+
+    package_hash = compute_bundle_hash(package_plugin)
+    package_manifest = package_root / "release/MANIFEST.sha256"
+    verifier_hash = sha(
+        (package_root / "tools/anubis_program_verify.py").read_bytes()
+    )
+    pinned_lines = []
+    for line in package_manifest.read_text(encoding="utf-8").splitlines():
+        if line.startswith("plugin_hermes "):
+            line = f"plugin_hermes {package_hash}"
+        elif line.startswith("anubis_program_verifier "):
+            fields = line.split()
+            line = f"{fields[0]} {fields[1]} {verifier_hash}"
+        pinned_lines.append(line)
+    package_manifest.write_text(
+        "\n".join(pinned_lines) + "\n", encoding="utf-8"
+    )
+    return package_plugin / "jackal_hermes"
 
 
 def dump(path: Path, value: object) -> None:
@@ -538,6 +597,10 @@ class AnubisProgramVerifierTest(unittest.TestCase):
                 verifier = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(verifier)
                 verifier.APPROVED_CHECK_COMPILER_SHA256 = {compiler_sha!r}
+                # Host-agnostic: check_program resolves the anchor via the host
+                # helper, so patch it directly (the macOS constant above is not
+                # consulted on a Linux/aarch64 host).
+                verifier._approved_check_compiler_sha256_for_host = lambda: {compiler_sha!r}
                 arguments = argparse.Namespace(
                     source={str(source)!r},
                     anubis_bin={str(compiler)!r},
@@ -799,9 +862,11 @@ class AnubisProgramVerifierTest(unittest.TestCase):
 
     def test_plugin_program_success_statuses_exit_zero(self) -> None:
         with tempfile.TemporaryDirectory(prefix="jackal-program-plugin-") as td:
+            test_root = Path(td)
             source, evidence, compiler_sha, artifact_sha, marker = make_v3_fixture(
-                Path(td)
+                test_root / "fixture"
             )
+            launcher = materialize_current_hermes_test_repo(test_root)
             arguments = {
                 "source_path": str(source),
                 "evidence_dir": str(evidence),
@@ -813,7 +878,6 @@ class AnubisProgramVerifierTest(unittest.TestCase):
                 "profile": "inventory-safe-v1",
                 "nonce": "plugin-exit",
             }
-            launcher = ROOT / "plugin/hermes/jackal_hermes"
             verified = subprocess.run(
                 [
                     str(launcher),
@@ -823,7 +887,7 @@ class AnubisProgramVerifierTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                cwd=ROOT,
+                cwd=launcher.parents[2],
                 timeout=30,
             )
             self.assertEqual(
@@ -840,7 +904,7 @@ class AnubisProgramVerifierTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                cwd=ROOT,
+                cwd=launcher.parents[2],
                 timeout=30,
             )
             self.assertEqual(replay.returncode, 0, replay.stdout + replay.stderr)

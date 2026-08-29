@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Fail-closed MCP bridge for the sealed JACKAL macOS runtime."""
+"""Fail-closed MCP bridge for the host-pinned sealed JACKAL runtime."""
 
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 from collections import deque
 import contextlib
 import copy
@@ -16,12 +18,12 @@ import os
 import re
 import selectors
 import signal
-import socket
 import stat
 import subprocess
 import sys
 import threading
 import time
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
@@ -38,12 +40,88 @@ SUPPORTED_PROTOCOL_VERSIONS = frozenset(
 )
 SUPPORTED_ARGUMENT_TYPES = frozenset({"string", "object"})
 EXPECTED_TOOL_COUNT = 41
+EXPECTED_MEASUREMENT_TOOL_COUNT = 7
+EXPECTED_ADVANCED_TOOL_COUNT = 3
+EXPECTED_STEM_TOOL_COUNT = 7
+EXPECTED_UNIFIED_TOOL_COUNT = 58
+MEASUREMENT_TOOL_NAMES = frozenset(
+    {
+        "jackal_compare",
+        "jackal_convert",
+        "jackal_date_delta",
+        "jackal_percent",
+        "jackal_rate_apply",
+        "jackal_scan",
+        "jackal_stat",
+    }
+)
+MEASUREMENT_KERNEL_TOOLS = frozenset({"jackal_exact", "jackal_sqrt_rat_bound"})
+ADVANCED_TOOL_NAMES = frozenset(
+    {"jackal_cas", "jackal_graph", "jackal_hellgate_ground_state"}
+)
+ADVANCED_KERNEL_TOOLS = frozenset(
+    {
+        "jackal_alg_cmp",
+        "jackal_alg_sign",
+        "jackal_atan_rat_bound",
+        "jackal_canon",
+        "jackal_cos_rat_bound",
+        "jackal_diff",
+        "jackal_evaluate",
+        "jackal_exact",
+        "jackal_exp_rat_bound",
+        "jackal_gaussian_integral",
+        "jackal_integrate",
+        "jackal_integrate_adaptive",
+        "jackal_integrate_bound",
+        "jackal_integrate_bound_cert",
+        "jackal_ln_rat_bound",
+        "jackal_poly_canon",
+        "jackal_poly_eq",
+        "jackal_poly_gcd",
+        "jackal_range_bound",
+        "jackal_ratfunc_canon",
+        "jackal_roots_isolate",
+        "jackal_sin_rat_bound",
+        "jackal_solve",
+        "jackal_sqrt_rat_bound",
+        "jackal_tanh_rat_bound",
+    }
+)
+STEM_TOOL_NAMES = frozenset(
+    {
+        "jackal_aerospace",
+        "jackal_hypothesis",
+        "jackal_linked_workspace",
+        "jackal_matrix",
+        "jackal_probability",
+        "jackal_regression",
+        "jackal_sensor",
+    }
+)
+STEM_KERNEL_TOOLS = frozenset(
+    {
+        "jackal_canon",
+        "jackal_diff",
+        "jackal_evaluate",
+        "jackal_exact",
+        "jackal_integrate_adaptive",
+        "jackal_ln_rat_bound",
+        "jackal_sqrt_rat_bound",
+    }
+)
 TOOL_TIMEOUT_SECONDS = 3600.0
 TERMINATE_GRACE_SECONDS = 0.5
 LEADER_POLL_SECONDS = 0.01
-MAX_REQUEST_LINE_BYTES = 1024 * 1024
+THREAD_WORKER_POLL_SECONDS = 0.01
 MAX_CATALOG_BYTES = 2 * 1024 * 1024
 MAX_WRAPPER_MODULE_BYTES = 2 * 1024 * 1024
+MAX_CERTIFICATE_COMPRESSED_BYTES = 2 * 1024 * 1024
+MAX_CERTIFICATE_BYTES = 4 * 1024 * 1024
+MAX_MCP_CONTENT_BLOCKS = 4
+MAX_MCP_CONTENT_TEXT_BYTES = 1024 * 1024
+MAX_MCP_IMAGE_BYTES = 4 * 1024 * 1024
+MAX_MCP_RESOURCE_TEXT_BYTES = 2 * 1024 * 1024
 MAX_STDOUT_BYTES = 16 * 1024 * 1024
 MAX_STDERR_BYTES = 1024 * 1024
 MAX_ERROR_RESPONSE_BYTES = 1024
@@ -51,11 +129,24 @@ MAX_ACTIVE_CALLS = 8
 MAX_TRANSPORT_TASKS = 16
 MAX_JSON_DEPTH = 64
 MAX_MCP_RESPONSE_BYTES = (2 * MAX_STDOUT_BYTES) + (2 * 1024 * 1024)
+# A full runtime payload at the stdout ceiling must fit back through the
+# request side for independent receipt replay, including its JSON-RPC envelope.
+MAX_REQUEST_LINE_BYTES = MAX_STDOUT_BYTES + MAX_CATALOG_BYTES
 MAX_RESPONSE_QUEUE_BYTES = 2 * MAX_MCP_RESPONSE_BYTES
+BACKEND_RPC_REQUEST_ID = "jackal-adapter-backend"
 STDIO_DRAIN_TIMEOUT = 0.5
 PROCESS_GROUP_OBSERVATION_BYTES = 64 * 1024
 PROCESS_GROUP_OBSERVATION_TIMEOUT = 0.5
+NAMESPACE_SETUP_TIMEOUT = 5.0
+PRIVATE_NAMESPACE_FLAG = "--jackal-private-runtime-namespace"
+PROCESS_GUARDIAN_FLAG = "--jackal-process-guardian"
+PRIVATE_SNAPSHOT_PARENT_PREFIX = ".jackal-codex-runtime-private-"
 _IDENTITY_LINE = re.compile(r"([0-9a-f]{64})  ([^\n]+)", re.ASCII)
+_MOUNT_NAMESPACE_IDENTITY = re.compile(r"mnt:\[[0-9]+\]", re.ASCII)
+_LINKED_WORKSPACE_RESOURCE = re.compile(
+    r"ui://jackal/linked-workspace/([0-9a-f]{64})\Z", re.ASCII
+)
+LINKED_WORKSPACE_SHELL_URI = "ui://jackal/linked-workspace"
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -107,6 +198,8 @@ class _ProvisionerAPI(Protocol):
     ASSET: str
     PACKAGE_SIZE: int
     PACKAGE_SHA256: str
+
+    def effective_release_pins(self) -> dict: ...
     SHA256SUMS_SHA256: str
     SELFTEST_TIMEOUT: float
     SELFTEST_OUTPUT_LIMIT: int
@@ -116,6 +209,8 @@ class _ProvisionerAPI(Protocol):
     def default_locator_path(self) -> Path: ...
 
     def validate_runtime(self, runtime: Path, **kwargs: Any) -> object: ...
+
+    def reap_orphaned_runtime_snapshots(self, temporary_parent: Path | str | None = None) -> object: ...
 
     def create_runtime_snapshot(self, runtime: Path, **kwargs: Any) -> object: ...
 
@@ -220,13 +315,215 @@ def build_tool_definitions(
     return definitions
 
 
+def _build_integrated_tool_definitions(
+    module: ModuleType,
+    *,
+    exported_name: str,
+    expected_names: frozenset[str],
+    expected_count: int,
+    label: str,
+) -> tuple[dict[str, Any], ...]:
+    """Validate one identity-pinned in-process surface before merging it."""
+    exported_names = getattr(module, exported_name, None)
+    exporter = getattr(module, "tool_definitions", None)
+    dispatcher = getattr(module, "dispatch_integrated", None)
+    refusal_type = getattr(module, "Refusal", None)
+    if (
+        exported_names != expected_names
+        or not callable(exporter)
+        or not callable(dispatcher)
+        or not isinstance(refusal_type, type)
+        or not issubclass(refusal_type, Exception)
+    ):
+        raise CatalogError(f"{label} module API is invalid")
+    try:
+        records = exporter()
+    except Exception as error:
+        raise CatalogError(f"{label} tool export failed") from error
+    if not isinstance(records, list) or len(records) != expected_count:
+        raise CatalogError(f"{label} tool count does not match the wrapper expectation")
+
+    definitions: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict) or set(record) != {
+            "name", "title", "description", "inputSchema", "annotations"
+        }:
+            raise CatalogError(f"{label} tool record has an unsupported shape")
+        name = record["name"]
+        title = record["title"]
+        description = record["description"]
+        schema = record["inputSchema"]
+        annotations = record["annotations"]
+        if (
+            not isinstance(name, str)
+            or name not in expected_names
+            or not isinstance(title, str)
+            or not title
+            or not isinstance(description, str)
+            or not description
+            or not isinstance(schema, dict)
+            or set(schema) != {
+                "$schema", "type", "properties", "required", "additionalProperties"
+            }
+            or schema.get("$schema") != DRAFT_07
+            or schema.get("type") != "object"
+            or not isinstance(schema.get("properties"), dict)
+            or not isinstance(schema.get("required"), list)
+            or schema.get("additionalProperties") is not False
+            or not isinstance(annotations, dict)
+            or set(annotations) != {
+                "readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"
+            }
+            or annotations != {
+                "readOnlyHint": True,
+                "destructiveHint": False,
+                "idempotentHint": True,
+                "openWorldHint": False,
+            }
+        ):
+            raise CatalogError(f"{label} tool definition is invalid: {name!r}")
+        properties = schema["properties"]
+        required = schema["required"]
+        if (
+            any(not isinstance(key, str) or not isinstance(value, dict)
+                for key, value in properties.items())
+            or any(not isinstance(key, str) or key not in properties for key in required)
+            or len(set(required)) != len(required)
+        ):
+            raise CatalogError(f"{label} schema is invalid: {name!r}")
+        try:
+            encoded = json.dumps(
+                record,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except (TypeError, ValueError, RecursionError) as error:
+            raise CatalogError(f"{label} definition is not strict JSON: {name!r}") from error
+        if len(encoded) > MAX_CATALOG_BYTES:
+            raise CatalogError(f"{label} definition exceeds byte limit: {name!r}")
+        definitions.append(copy.deepcopy(record))
+
+    names = [definition["name"] for definition in definitions]
+    if set(names) != expected_names or len(set(names)) != len(names):
+        raise CatalogError(f"{label} tool names are incomplete or duplicated")
+    return tuple(definitions)
+
+
+def build_measurement_tool_definitions(module: ModuleType) -> tuple[dict[str, Any], ...]:
+    """Validate THOTH's pinned in-process measurement surface."""
+    return _build_integrated_tool_definitions(
+        module,
+        exported_name="MEASUREMENT_TOOL_NAMES",
+        expected_names=MEASUREMENT_TOOL_NAMES,
+        expected_count=EXPECTED_MEASUREMENT_TOOL_COUNT,
+        label="measurement",
+    )
+
+
+def build_advanced_tool_definitions(module: ModuleType) -> tuple[dict[str, Any], ...]:
+    """Validate the pinned CAS, graph, and certificate surface."""
+    return _build_integrated_tool_definitions(
+        module,
+        exported_name="ADVANCED_TOOL_NAMES",
+        expected_names=ADVANCED_TOOL_NAMES,
+        expected_count=EXPECTED_ADVANCED_TOOL_COUNT,
+        label="advanced",
+    )
+
+
+def build_stem_tool_definitions(module: ModuleType) -> tuple[dict[str, Any], ...]:
+    """Validate the pinned additive STEM workflow and linked-view surface."""
+    return _build_integrated_tool_definitions(
+        module,
+        exported_name="STEM_TOOL_NAMES",
+        expected_names=STEM_TOOL_NAMES,
+        expected_count=EXPECTED_STEM_TOOL_COUNT,
+        label="stem",
+    )
+
+
+def _validated_mcp_content(value: object) -> list[dict[str, Any]]:
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > MAX_MCP_CONTENT_BLOCKS
+    ):
+        raise BackendFailure("backend MCP content block count is invalid")
+    result: list[dict[str, Any]] = []
+    text_bytes = 0
+    for block in value:
+        if not isinstance(block, dict) or not isinstance(block.get("type"), str):
+            raise BackendFailure("backend MCP content block is invalid")
+        if block["type"] == "text":
+            if set(block) != {"type", "text"} or not isinstance(block.get("text"), str):
+                raise BackendFailure("backend MCP text block is invalid")
+            text_bytes += len(block["text"].encode("utf-8"))
+            if text_bytes > MAX_MCP_CONTENT_TEXT_BYTES:
+                raise BackendFailure("backend MCP text content exceeds byte limit")
+            result.append({"type": "text", "text": block["text"]})
+            continue
+        if block["type"] == "image":
+            if (
+                set(block) != {"type", "data", "mimeType"}
+                or block.get("mimeType") != "image/png"
+                or not isinstance(block.get("data"), str)
+            ):
+                raise BackendFailure("backend MCP image block is invalid")
+            try:
+                decoded = base64.b64decode(block["data"], validate=True)
+            except (ValueError, binascii.Error) as error:
+                raise BackendFailure("backend MCP image is not canonical base64") from error
+            if (
+                not decoded
+                or len(decoded) > MAX_MCP_IMAGE_BYTES
+                or not decoded.startswith(b"\x89PNG\r\n\x1a\n")
+                or base64.b64encode(decoded).decode("ascii") != block["data"]
+            ):
+                raise BackendFailure("backend MCP image is not a bounded canonical PNG")
+            result.append(
+                {"type": "image", "data": block["data"], "mimeType": "image/png"}
+            )
+            continue
+        if block["type"] == "resource":
+            if set(block) != {"type", "resource"} or not isinstance(
+                block.get("resource"), dict
+            ):
+                raise BackendFailure("backend MCP resource block is invalid")
+            resource = block["resource"]
+            if (
+                set(resource) != {"uri", "mimeType", "text"}
+                or not isinstance(resource.get("uri"), str)
+                or resource.get("mimeType") != "text/html"
+                or not isinstance(resource.get("text"), str)
+            ):
+                raise BackendFailure("backend MCP resource contents are invalid")
+            matched = _LINKED_WORKSPACE_RESOURCE.fullmatch(resource["uri"])
+            encoded = resource["text"].encode("utf-8")
+            if (
+                matched is None
+                or not encoded
+                or len(encoded) > MAX_MCP_RESOURCE_TEXT_BYTES
+                or not resource["text"].startswith("<!doctype html>")
+                or not hmac.compare_digest(hashlib.sha256(encoded).hexdigest(), matched.group(1))
+            ):
+                raise BackendFailure("backend MCP resource identity is invalid")
+            result.append(copy.deepcopy(block))
+            continue
+        raise BackendFailure("backend MCP content type is unsupported")
+    return result
+
+
 def backend_result(value: object) -> dict[str, Any]:
     """Wrap one backend JSON object without changing its assurance semantics."""
     if not isinstance(value, dict):
         raise BackendFailure("backend result is not a JSON object")
+    structured = copy.deepcopy(value)
+    raw_content = structured.pop("_mcp_content", None)
     try:
         text = json.dumps(
-            value,
+            structured,
             ensure_ascii=False,
             allow_nan=False,
             sort_keys=True,
@@ -234,10 +531,12 @@ def backend_result(value: object) -> dict[str, Any]:
         )
     except (TypeError, ValueError) as error:
         raise BackendFailure("backend result is not strict JSON") from error
-    return {
-        "content": [{"type": "text", "text": text}],
-        "structuredContent": copy.deepcopy(value),
-    }
+    content = (
+        [{"type": "text", "text": text}]
+        if raw_content is None
+        else _validated_mcp_content(raw_content)
+    )
+    return {"content": content, "structuredContent": structured}
 
 
 def _object_pairs(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
@@ -378,6 +677,9 @@ class _AnchoredBackendRunner:
         stderr_limit: int,
         terminate_grace: float,
         leader_poll_interval: float,
+        process_guardian: Sequence[str] | None = None,
+        stdin_bytes: bytes | None = None,
+        stdio_request_id: str | None = None,
     ) -> None:
         if (
             not command
@@ -388,8 +690,27 @@ class _AnchoredBackendRunner:
             or stderr_limit < 1
             or terminate_grace <= 0
             or leader_poll_interval <= 0
+            or (stdin_bytes is None) != (stdio_request_id is None)
+            or (stdio_request_id is not None and (
+                not isinstance(stdio_request_id, str) or not stdio_request_id
+            ))
+            or (stdin_bytes is not None and (
+                not isinstance(stdin_bytes, bytes)
+                or not stdin_bytes
+                or len(stdin_bytes) > MAX_REQUEST_LINE_BYTES
+                or not stdin_bytes.endswith(b"\n")
+                or stdin_bytes.count(b"\n") != 1
+            ))
         ):
             raise ValueError("invalid anchored backend bounds")
+        if process_guardian is not None and (
+            not process_guardian
+            or any(
+                not isinstance(argument, str) or not argument or "\x00" in argument
+                for argument in process_guardian
+            )
+        ):
+            raise ValueError("invalid backend process guardian")
         self.state = state
         self.command = tuple(command)
         self.cwd = Path(cwd)
@@ -407,9 +728,14 @@ class _AnchoredBackendRunner:
         self.stderr_limit = int(stderr_limit)
         self.terminate_grace = float(terminate_grace)
         self.leader_poll_interval = float(leader_poll_interval)
+        self.process_guardian = (
+            None if process_guardian is None else tuple(process_guardian)
+        )
+        self.stdin_bytes = stdin_bytes
+        self.stdio_request_id = stdio_request_id
         self._cancelled = threading.Event()
         self._wake_lock = threading.Lock()
-        self._wake_writer: socket.socket | None = None
+        self._wake_writer: int | None = None
 
     def cancel(self) -> None:
         """Wake the runner and request cleanup; the caller never signals."""
@@ -418,7 +744,7 @@ class _AnchoredBackendRunner:
             writer = self._wake_writer
         if writer is not None:
             with contextlib.suppress(OSError):
-                writer.send(b"\0")
+                os.write(writer, b"\0")
 
     def _peek_leader_anchor(self, process: subprocess.Popen[bytes]) -> int | None:
         state = self.state
@@ -534,17 +860,19 @@ class _AnchoredBackendRunner:
         leader_deadline = time.monotonic() + max(1.0, self.terminate_grace * 4)
         status = self._peek_leader_anchor(process)
         while status is None:
-            if time.monotonic() >= leader_deadline:
+            remaining = leader_deadline - time.monotonic()
+            if remaining <= 0:
                 raise BackendFailure("backend leader did not exit within cleanup bounds")
-            time.sleep(self.leader_poll_interval)
+            time.sleep(min(self.leader_poll_interval, remaining))
             status = self._peek_leader_anchor(process)
 
         if state.kill_sent:
             group_deadline = time.monotonic() + max(1.0, self.terminate_grace * 4)
             while self._group_exists(process):
-                if time.monotonic() >= group_deadline:
+                remaining = group_deadline - time.monotonic()
+                if remaining <= 0:
                     raise BackendFailure("backend process group survived SIGKILL")
-                time.sleep(self.leader_poll_interval)
+                time.sleep(min(self.leader_poll_interval, remaining))
 
         try:
             reaped_status = process.wait()
@@ -558,10 +886,10 @@ class _AnchoredBackendRunner:
         return status
 
     @staticmethod
-    def _drain_wakeup(reader: socket.socket) -> None:
+    def _drain_wakeup(reader: int) -> None:
         while True:
             try:
-                if not reader.recv(4096):
+                if not os.read(reader, 4096):
                     return
             except BlockingIOError:
                 return
@@ -576,8 +904,9 @@ class _AnchoredBackendRunner:
         selector: selectors.BaseSelector,
         buffers: dict[str, bytearray],
         open_streams: set[str],
-        wake_reader: socket.socket,
+        wake_reader: int,
         timeout: float,
+        input_state: dict[str, Any] | None = None,
     ) -> None:
         try:
             events = selector.select(max(0.0, timeout))
@@ -587,6 +916,29 @@ class _AnchoredBackendRunner:
             stream, limit = cast(tuple[str, int], key.data)
             if stream == "wake":
                 self._drain_wakeup(wake_reader)
+                continue
+            if stream == "stdin":
+                if input_state is None or not input_state.get("open"):
+                    raise BackendFailure("backend stdin state is inconsistent")
+                payload = cast(bytes, input_state["payload"])
+                offset = cast(int, input_state["offset"])
+                try:
+                    written = os.write(key.fd, payload[offset:offset + 64 * 1024])
+                except BlockingIOError:
+                    continue
+                except OSError as error:
+                    raise BackendFailure("cannot write backend request") from error
+                if written <= 0:
+                    raise BackendFailure("backend request write made no progress")
+                offset += written
+                input_state["offset"] = offset
+                if offset == len(payload):
+                    self._close_selector_file(selector, key.fileobj)
+                    try:
+                        key.fileobj.close()
+                    except OSError as error:
+                        raise BackendFailure("cannot close backend request stream") from error
+                    input_state["open"] = False
                 continue
             try:
                 chunk = os.read(key.fd, min(64 * 1024, limit - len(buffers[stream]) + 1))
@@ -607,7 +959,7 @@ class _AnchoredBackendRunner:
         selector: selectors.BaseSelector,
         buffers: dict[str, bytearray],
         open_streams: set[str],
-        wake_reader: socket.socket,
+        wake_reader: int,
     ) -> None:
         deadline = time.monotonic() + max(1.0, self.terminate_grace * 4)
         while open_streams:
@@ -620,6 +972,7 @@ class _AnchoredBackendRunner:
                 open_streams,
                 wake_reader,
                 min(self.leader_poll_interval, remaining),
+                None,
             )
 
     @staticmethod
@@ -632,37 +985,77 @@ class _AnchoredBackendRunner:
             raise BackendFailure("backend stdout is not a JSON object")
         return value
 
+    @staticmethod
+    def _unwrap_stdio_result(
+        value: dict[str, Any], request_id: str,
+    ) -> dict[str, Any]:
+        if set(value) != {"jsonrpc", "id", "result"} \
+                or value.get("jsonrpc") != "2.0" \
+                or value.get("id") != request_id \
+                or not isinstance(value.get("result"), dict):
+            raise BackendFailure("backend stdio response envelope is invalid")
+        return cast(dict[str, Any], value["result"])
+
     def run(self) -> dict[str, Any]:
         """Run, bound, terminate, and reap one process group in one worker thread."""
+        guardian_reader = -1
+        guardian_writer = -1
+        command = list(self.command)
+        popen_arguments: dict[str, object] = {}
+        if self.process_guardian is not None:
+            try:
+                guardian_reader, guardian_writer = os.pipe()
+            except OSError as error:
+                raise BackendFailure("backend guardian pipe creation failed") from error
+            command = [
+                *self.process_guardian,
+                str(guardian_reader),
+                *command,
+            ]
+            popen_arguments["pass_fds"] = (guardian_reader,)
         try:
             process = subprocess.Popen(
-                list(self.command),
+                command,
                 cwd=str(self.cwd),
                 env=self.environment,
-                stdin=subprocess.DEVNULL,
+                stdin=(subprocess.PIPE if self.stdin_bytes is not None
+                       else subprocess.DEVNULL),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=True,
                 close_fds=True,
                 bufsize=0,
+                **popen_arguments,
             )
         except (OSError, ValueError) as error:
+            for descriptor in (guardian_reader, guardian_writer):
+                if descriptor >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(descriptor)
             raise BackendFailure("backend failed to start") from error
+        if guardian_reader >= 0:
+            os.close(guardian_reader)
+            guardian_reader = -1
 
         self.state.process = process
         selector: selectors.BaseSelector | None = None
-        wake_reader: socket.socket | None = None
-        wake_writer: socket.socket | None = None
+        wake_reader: int | None = None
+        wake_writer: int | None = None
         buffers = {"stdout": bytearray(), "stderr": bytearray()}
         open_streams = {"stdout", "stderr"}
+        input_state: dict[str, Any] | None = None
         cleanup_done = False
         try:
             try:
                 selector = selectors.DefaultSelector()
-                wake_reader, wake_writer = socket.socketpair()
-                wake_reader.setblocking(False)
-                wake_writer.setblocking(False)
+                wake_reader, wake_writer = os.pipe()
+                os.set_blocking(wake_reader, False)
+                os.set_blocking(wake_writer, False)
             except (OSError, ValueError) as error:
+                for descriptor in (wake_reader, wake_writer):
+                    if descriptor is not None:
+                        with contextlib.suppress(OSError):
+                            os.close(descriptor)
                 raise BackendFailure("backend monitor setup failed") from error
             if process.stdout is None or process.stderr is None:
                 raise BackendFailure("backend pipes unavailable")
@@ -675,11 +1068,23 @@ class _AnchoredBackendRunner:
             selector.register(
                 process.stderr, selectors.EVENT_READ, ("stderr", self.stderr_limit)
             )
+            if self.stdin_bytes is not None:
+                if process.stdin is None:
+                    raise BackendFailure("backend request pipe is unavailable")
+                os.set_blocking(process.stdin.fileno(), False)
+                input_state = {
+                    "payload": self.stdin_bytes,
+                    "offset": 0,
+                    "open": True,
+                }
+                selector.register(
+                    process.stdin, selectors.EVENT_WRITE, ("stdin", len(self.stdin_bytes))
+                )
             with self._wake_lock:
                 self._wake_writer = wake_writer
             if self._cancelled.is_set():
                 with contextlib.suppress(OSError):
-                    wake_writer.send(b"\0")
+                    os.write(wake_writer, b"\0")
 
             deadline = time.monotonic() + self.timeout
             outcome: BackendFailure | None = None
@@ -701,9 +1106,14 @@ class _AnchoredBackendRunner:
                             open_streams,
                             wake_reader,
                             min(self.leader_poll_interval, remaining),
+                            input_state,
                         )
                 except BackendFailure as error:
                     outcome = error
+
+            if outcome is None and input_state is not None \
+                    and input_state.get("offset") != len(self.stdin_bytes or b""):
+                outcome = BackendFailure("backend exited before reading its complete request")
 
             status = self._terminate_and_reap(process)
             cleanup_done = True
@@ -716,11 +1126,14 @@ class _AnchoredBackendRunner:
             if self._cancelled.is_set():
                 raise CallCancelled("request cancelled before backend result delivery")
             value = self._parse_backend_output(bytes(buffers["stdout"]))
+            if self.stdio_request_id is not None:
+                value = self._unwrap_stdio_result(value, self.stdio_request_id)
             if self._cancelled.is_set():
                 raise CallCancelled("request cancelled before backend result delivery")
             if status == 0:
                 return value
-            if status == 1 and value.get("status") in {"ok", "refused", "indeterminate"}:
+            if self.stdio_request_id is None and status == 1 \
+                    and value.get("status") in {"ok", "refused", "indeterminate"}:
                 return value
             raise BackendFailure("backend returned a non-domain failure")
         finally:
@@ -732,7 +1145,7 @@ class _AnchoredBackendRunner:
                     with self._wake_lock:
                         if self._wake_writer is wake_writer:
                             self._wake_writer = None
-                for file_object in (process.stdout, process.stderr):
+                for file_object in (process.stdin, process.stdout, process.stderr):
                     if file_object is not None:
                         if selector is not None:
                             self._close_selector_file(selector, file_object)
@@ -743,9 +1156,14 @@ class _AnchoredBackendRunner:
                         self._close_selector_file(selector, wake_reader)
                     selector.close()
                 if wake_reader is not None:
-                    wake_reader.close()
+                    with contextlib.suppress(OSError):
+                        os.close(wake_reader)
                 if wake_writer is not None:
-                    wake_writer.close()
+                    with contextlib.suppress(OSError):
+                        os.close(wake_writer)
+                if guardian_writer >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(guardian_writer)
                 self.state.process = None
 
 
@@ -856,13 +1274,14 @@ def resolve_runtime_path(
     expected_keys = {"schema", "epoch", "runtime_path", "package_size", "package_sha256"}
     if set(document) != expected_keys:
         raise StartupError("runtime locator has an unsupported shape")
+    _pins = provisioner.effective_release_pins()
     if (
         document["schema"] != "jackal-codex-plugin-runtime-v1"
-        or document["epoch"] != provisioner.EPOCH
-        or document["package_size"] != provisioner.PACKAGE_SIZE
-        or document["package_sha256"] != provisioner.PACKAGE_SHA256
+        or document["epoch"] != _pins["epoch"]
+        or document["package_size"] != _pins["package_size"]
+        or document["package_sha256"] != _pins["package_sha256"]
     ):
-        raise StartupError("runtime locator does not match wrapper-side release pins")
+        raise StartupError("runtime locator does not match this host's release pins")
     return _canonical_absolute_directory(document["runtime_path"], subject="located runtime")
 
 
@@ -872,12 +1291,13 @@ def _verify_package_metadata(runtime: Path, provisioner: _ProvisionerAPI) -> Non
         limit=16 * 1024,
         subject="runtime package metadata",
     )
+    _pins = provisioner.effective_release_pins()
     expected = {
         "schema": "jackal-runtime-package-v1",
-        "epoch": provisioner.EPOCH,
-        "asset": provisioner.ASSET,
-        "package_size": provisioner.PACKAGE_SIZE,
-        "package_sha256": provisioner.PACKAGE_SHA256,
+        "epoch": _pins["epoch"],
+        "asset": _pins["asset"],
+        "package_size": _pins["package_size"],
+        "package_sha256": _pins["package_sha256"],
     }
     if document != expected:
         raise StartupError("runtime package metadata does not match wrapper-side release pins")
@@ -981,6 +1401,78 @@ def _read_plugin_module_once(
         return b"".join(chunks), digest.hexdigest()
     finally:
         os.close(file_descriptor)
+
+
+def _read_verified_plugin_blob(
+    plugin_root: Path | str,
+    relative_path: str,
+    records: object,
+    *,
+    limit: int,
+) -> tuple[bytes, str]:
+    expected = _record_digest(records, relative_path)
+    raw, actual = _read_plugin_module_once(plugin_root, relative_path, limit=limit)
+    if not hmac.compare_digest(actual, expected):
+        raise StartupError("plugin data digest does not match inventory")
+    return raw, actual
+
+
+def _decompress_certificate(raw: bytes) -> bytes:
+    if not raw or len(raw) > MAX_CERTIFICATE_COMPRESSED_BYTES:
+        raise StartupError("compressed certificate exceeds byte limit")
+    decompressor = zlib.decompressobj()
+    try:
+        result = decompressor.decompress(raw, MAX_CERTIFICATE_BYTES + 1)
+        if len(result) > MAX_CERTIFICATE_BYTES or decompressor.unconsumed_tail:
+            raise StartupError("decompressed certificate exceeds byte limit")
+        result += decompressor.flush(MAX_CERTIFICATE_BYTES - len(result) + 1)
+    except zlib.error as error:
+        raise StartupError("certificate compression stream is invalid") from error
+    if (
+        len(result) > MAX_CERTIFICATE_BYTES
+        or not decompressor.eof
+        or decompressor.unused_data
+        or decompressor.unconsumed_tail
+    ):
+        raise StartupError("certificate compression stream is not canonical")
+    return result
+
+
+def _hellgate_result_satisfies_startup_gate(value: object) -> bool:
+    """Pin the additive certificate result envelope before exposing the tool."""
+    if not isinstance(value, dict):
+        return False
+    fields = value.get("fields")
+    if not isinstance(fields, dict):
+        return False
+    trial = fields.get("trial_diagnostics")
+    ground = fields.get("ground_state_transfer")
+    if not isinstance(trial, dict) or not isinstance(ground, dict):
+        return False
+    trial_nonclaims = trial.get("non_claims")
+    ground_nonclaims = ground.get("non_claims")
+    return bool(
+        value.get("status") == "bounded"
+        and value.get("checker_verdict") == "ACCEPT"
+        and value.get("formal") is False
+        and trial.get("schema") == "jackal-hellgate-trial-diagnostics-v1"
+        and trial.get("status") == "bounded"
+        and trial.get("subject") == "normalized-certificate-trial-phi"
+        and isinstance(trial_nonclaims, list)
+        and any(
+            isinstance(item, str) and "not the exact ground state u0" in item
+            for item in trial_nonclaims
+        )
+        and ground.get("schema") == "jackal-hellgate-ground-transfer-v1"
+        and ground.get("status") == "bounded"
+        and ground.get("subject") == "positive-normalized-ground-state-u0"
+        and ground.get("method") == "lambda-strong-convexity-density-transfer-v1"
+        and isinstance(ground_nonclaims, list)
+        and any(
+            isinstance(item, str) and "does not enclose polynomial moments" in item
+            for item in ground_nonclaims
+        )
+    )
 
 
 def _record_digest(records: object, relative_path: str) -> str:
@@ -1158,6 +1650,13 @@ class MCPServer:
         terminate_grace: float = TERMINATE_GRACE_SECONDS,
         leader_poll_interval: float = LEADER_POLL_SECONDS,
         runtime_owner: object | None = None,
+        process_guardian: Sequence[str] | None = None,
+        measurement_module: ModuleType | None = None,
+        measurement_identity: str | None = None,
+        advanced_module: ModuleType | None = None,
+        advanced_identity: str | None = None,
+        stem_module: ModuleType | None = None,
+        stem_identity: str | None = None,
     ) -> None:
         if (
             tool_timeout <= 0
@@ -1172,6 +1671,14 @@ class MCPServer:
             or leader_poll_interval <= 0
         ):
             raise ValueError("invalid MCP process bounds")
+        if process_guardian is not None and (
+            not process_guardian
+            or any(
+                not isinstance(argument, str) or not argument or "\x00" in argument
+                for argument in process_guardian
+            )
+        ):
+            raise ValueError("invalid MCP process guardian")
         self.runtime_root = Path(runtime_root)
         self.launcher = Path(launcher)
         self.tool_definitions = tuple(copy.deepcopy(tuple(tool_definitions)))
@@ -1193,6 +1700,74 @@ class MCPServer:
         self.stderr_limit = int(stderr_limit)
         self.terminate_grace = float(terminate_grace)
         self.leader_poll_interval = float(leader_poll_interval)
+        self.process_guardian = (
+            None if process_guardian is None else tuple(process_guardian)
+        )
+        if measurement_module is None:
+            if measurement_identity is not None:
+                raise ValueError("measurement identity has no module")
+            self._measurement_tools = frozenset()
+        else:
+            if (
+                not isinstance(measurement_identity, str)
+                or re.fullmatch(r"[0-9a-f]{64}", measurement_identity) is None
+            ):
+                raise ValueError("measurement module identity is invalid")
+            module_names = getattr(measurement_module, "MEASUREMENT_TOOL_NAMES", None)
+            if module_names != MEASUREMENT_TOOL_NAMES:
+                raise ValueError("measurement module names are invalid")
+            self._measurement_tools = MEASUREMENT_TOOL_NAMES
+        if self._measurement_tools - set(self._tools):
+            raise ValueError("measurement module definitions are missing")
+        if measurement_module is None and set(self._tools) & MEASUREMENT_TOOL_NAMES:
+            raise ValueError("measurement definitions have no pinned dispatcher")
+        self.measurement_module = measurement_module
+        self.measurement_identity = measurement_identity
+        if advanced_module is None:
+            if advanced_identity is not None:
+                raise ValueError("advanced identity has no module")
+            self._advanced_tools = frozenset()
+        else:
+            if (
+                not isinstance(advanced_identity, str)
+                or re.fullmatch(r"[0-9a-f]{64}", advanced_identity) is None
+            ):
+                raise ValueError("advanced module identity is invalid")
+            module_names = getattr(advanced_module, "ADVANCED_TOOL_NAMES", None)
+            module_routes = getattr(advanced_module, "CAS_ROUTES", None)
+            if (
+                module_names != ADVANCED_TOOL_NAMES
+                or not isinstance(module_routes, dict)
+                or set(module_routes.values()) - ADVANCED_KERNEL_TOOLS
+            ):
+                raise ValueError("advanced module routes or names are invalid")
+            self._advanced_tools = ADVANCED_TOOL_NAMES
+        if self._advanced_tools - set(self._tools):
+            raise ValueError("advanced module definitions are missing")
+        if advanced_module is None and set(self._tools) & ADVANCED_TOOL_NAMES:
+            raise ValueError("advanced definitions have no pinned dispatcher")
+        self.advanced_module = advanced_module
+        self.advanced_identity = advanced_identity
+        if stem_module is None:
+            if stem_identity is not None:
+                raise ValueError("STEM identity has no module")
+            self._stem_tools = frozenset()
+        else:
+            if (
+                not isinstance(stem_identity, str)
+                or re.fullmatch(r"[0-9a-f]{64}", stem_identity) is None
+            ):
+                raise ValueError("STEM module identity is invalid")
+            module_names = getattr(stem_module, "STEM_TOOL_NAMES", None)
+            if module_names != STEM_TOOL_NAMES:
+                raise ValueError("STEM module names are invalid")
+            self._stem_tools = STEM_TOOL_NAMES
+        if self._stem_tools - set(self._tools):
+            raise ValueError("STEM module definitions are missing")
+        if stem_module is None and set(self._tools) & STEM_TOOL_NAMES:
+            raise ValueError("STEM definitions have no pinned dispatcher")
+        self.stem_module = stem_module
+        self.stem_identity = stem_identity
         self._backend_lock = asyncio.Lock()
         self._active: dict[str | int, _CallState] = {}
         self._closed = False
@@ -1303,11 +1878,21 @@ class MCPServer:
             negotiated = protocol if protocol in SUPPORTED_PROTOCOL_VERSIONS else LATEST_PROTOCOL_VERSION
             return {
                 "protocolVersion": negotiated,
-                "capabilities": {"tools": {"listChanged": False}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                    "resources": {"subscribe": False, "listChanged": False},
+                },
                 "serverInfo": {"name": "jackel-codex", "version": "0.1.0"},
                 "instructions": (
                     "Preserve JACKAL status and evidence class exactly. "
-                    "Unsupported strong claims refuse; never silently downgrade."
+                    "Unsupported strong claims refuse; never silently downgrade. "
+                    "THOTH is JACKAL's identity-pinned measurement/provenance subsystem, "
+                    "not a separate service; exact-given remains conditional on its given datum. "
+                    "CAS routing preserves delegated assurance. Graph pixels are visualization, "
+                    "never evidence. The HELLGATE lane returns bounded, not formal-bounded. "
+                    "Matrices, regression, probability, sensors, aerospace models, and linked "
+                    "views are additive identity-pinned workflows; field status, assumptions, "
+                    "non-claims, and consequence ceilings remain controlling."
                 ),
             }
         if method == "ping":
@@ -1322,6 +1907,58 @@ class MCPServer:
             if "cursor" in params and not isinstance(params["cursor"], str):
                 raise ProtocolError(INVALID_PARAMS, "tools/list cursor must be a string", request_id)
             return {"tools": list(copy.deepcopy(self.tool_definitions))}
+        if method == "resources/list":
+            if set(params) - {"cursor", "_meta"}:
+                raise ProtocolError(INVALID_PARAMS, "invalid resources/list params", request_id)
+            _validate_meta(params)
+            if "cursor" in params and not isinstance(params["cursor"], str):
+                raise ProtocolError(
+                    INVALID_PARAMS, "resources/list cursor must be a string", request_id
+                )
+            if self.stem_module is None:
+                return {"resources": []}
+            return {
+                "resources": [
+                    {
+                        "uri": LINKED_WORKSPACE_SHELL_URI,
+                        "name": "jackal-linked-evidence-workspace",
+                        "title": "JACKAL Linked Evidence Workspace",
+                        "description": (
+                            "Professional linked symbolic, numeric, graph, table, sensor, "
+                            "and evidence-route shell. Call jackal_linked_workspace to populate it."
+                        ),
+                        "mimeType": "text/html",
+                    }
+                ]
+            }
+        if method == "resources/read":
+            if set(params) - {"uri", "_meta"} or "uri" not in params:
+                raise ProtocolError(INVALID_PARAMS, "resources/read requires uri", request_id)
+            _validate_meta(params)
+            if params["uri"] != LINKED_WORKSPACE_SHELL_URI or self.stem_module is None:
+                raise ProtocolError(INVALID_PARAMS, "unknown resource uri", request_id)
+            shell = getattr(self.stem_module, "workspace_shell", None)
+            if not callable(shell):
+                raise BackendFailure("STEM resource API changed")
+            try:
+                resource_text = shell()
+            except Exception as error:
+                raise BackendFailure("STEM resource generation failed closed") from error
+            if (
+                not isinstance(resource_text, str)
+                or not resource_text.startswith("<!doctype html>")
+                or len(resource_text.encode("utf-8")) > MAX_MCP_RESOURCE_TEXT_BYTES
+            ):
+                raise BackendFailure("STEM resource contents are invalid")
+            return {
+                "contents": [
+                    {
+                        "uri": LINKED_WORKSPACE_SHELL_URI,
+                        "mimeType": "text/html",
+                        "text": resource_text,
+                    }
+                ]
+            }
         if method == "tools/call":
             if set(params) - {"name", "arguments", "_meta"} or not {
                 "name", "arguments"
@@ -1387,42 +2024,271 @@ class MCPServer:
         try:
             if state.cancelled.is_set():
                 raise CallCancelled("request was cancelled before launch")
+            if name in self._measurement_tools:
+                return await self._invoke_measurement(state, name, arguments)
+            if name in self._advanced_tools:
+                return await self._invoke_advanced(state, name, arguments)
+            if name in self._stem_tools:
+                return await self._invoke_stem(state, name, arguments)
             return await self._invoke_backend(state, name, arguments)
         finally:
             self._backend_lock.release()
 
-    async def _invoke_backend(
+    def _new_backend_runner(
         self, state: _CallState, name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
-        compact_arguments = json.dumps(
-            arguments,
+    ) -> _AnchoredBackendRunner:
+        request = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": BACKEND_RPC_REQUEST_ID,
+                "method": name,
+                "params": arguments,
+            },
             ensure_ascii=False,
             allow_nan=False,
             sort_keys=True,
             separators=(",", ":"),
-        )
-        runner = _AnchoredBackendRunner(
+        ).encode("utf-8") + b"\n"
+        if len(request) > MAX_REQUEST_LINE_BYTES:
+            raise BackendFailure("encoded backend request exceeds byte limit")
+        return _AnchoredBackendRunner(
             state=state,
-            command=(str(self.launcher), "call", name, compact_arguments),
+            command=(str(self.launcher), "stdio"),
             cwd=self.runtime_root,
             environment=self.runtime_environment,
             timeout=self.tool_timeout,
-            stdout_limit=self.stdout_limit,
+            stdout_limit=self.stdout_limit + MAX_ERROR_RESPONSE_BYTES,
             stderr_limit=self.stderr_limit,
             terminate_grace=self.terminate_grace,
             leader_poll_interval=self.leader_poll_interval,
+            process_guardian=self.process_guardian,
+            stdin_bytes=request,
+            stdio_request_id=BACKEND_RPC_REQUEST_ID,
         )
+
+    def _invoke_backend_sync(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        if state.cancelled.is_set():
+            raise CallCancelled("request was cancelled before backend launch")
+        if state.process is not None or state.runner is not None:
+            raise BackendFailure("backend process lifecycle overlaps another launch")
+        # Cancellation belongs to the whole MCP request; process observation
+        # does not.  Integrated measurement calls may legitimately delegate to
+        # the sealed runtime more than once, so each child starts with a fresh
+        # WNOWAIT/reap state instead of inheriting the preceding child's exit.
+        state.term_sent = False
+        state.kill_sent = False
+        state.anchor_lost = False
+        state.leader_status = None
+        state.reaped = False
+        runner = self._new_backend_runner(state, name, arguments)
         state.runner = runner
-        worker = asyncio.create_task(asyncio.to_thread(runner.run))
+        try:
+            return runner.run()
+        finally:
+            if state.runner is runner:
+                state.runner = None
+
+    def _invoke_measurement_sync(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        module = self.measurement_module
+        identity = self.measurement_identity
+        if module is None or identity is None:
+            raise BackendFailure("measurement dispatcher is unavailable")
+        dispatcher = getattr(module, "dispatch_integrated", None)
+        refusal_type = getattr(module, "Refusal", None)
+        if not callable(dispatcher) or not isinstance(refusal_type, type):
+            raise BackendFailure("measurement dispatcher API changed")
+
+        def kernel_call(tool: str, delegated_arguments: dict[str, Any]) -> dict[str, Any]:
+            if tool not in MEASUREMENT_KERNEL_TOOLS:
+                raise refusal_type(
+                    "kernel-tool-forbidden",
+                    f"measurement orchestration requested unauthorized runtime tool {tool!r}",
+                )
+            if not isinstance(delegated_arguments, dict):
+                raise refusal_type(
+                    "kernel-error", "measurement orchestration produced invalid arguments"
+                )
+            try:
+                return self._invoke_backend_sync(state, tool, delegated_arguments)
+            except CallCancelled:
+                raise
+            except BackendTimedOut as error:
+                raise refusal_type(
+                    "kernel-timeout",
+                    "the JACKAL runtime timed out; no measurement-side arithmetic was substituted",
+                ) from error
+            except BackendFailure as error:
+                raise refusal_type(
+                    "kernel-unavailable",
+                    "the JACKAL runtime failed closed; no measurement-side arithmetic was substituted",
+                ) from error
+
+        value = dispatcher(name, arguments, kernel_call, identity)
+        if not isinstance(value, dict):
+            raise BackendFailure("measurement dispatcher returned a non-object")
+        return value
+
+    def _invoke_advanced_sync(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        module = self.advanced_module
+        identity = self.advanced_identity
+        if module is None or identity is None:
+            raise BackendFailure("advanced dispatcher is unavailable")
+        dispatcher = getattr(module, "dispatch_integrated", None)
+        refusal_type = getattr(module, "Refusal", None)
+        if not callable(dispatcher) or not isinstance(refusal_type, type):
+            raise BackendFailure("advanced dispatcher API changed")
+
+        def kernel_call(tool: str, delegated_arguments: dict[str, Any]) -> dict[str, Any]:
+            if tool not in ADVANCED_KERNEL_TOOLS:
+                raise refusal_type(
+                    "kernel-tool-forbidden",
+                    f"advanced orchestration requested unauthorized runtime tool {tool!r}",
+                )
+            if not isinstance(delegated_arguments, dict):
+                raise refusal_type(
+                    "kernel-error", "advanced orchestration produced invalid arguments"
+                )
+            try:
+                return self._invoke_backend_sync(state, tool, delegated_arguments)
+            except CallCancelled:
+                raise
+            except BackendTimedOut as error:
+                raise refusal_type(
+                    "kernel-timeout",
+                    "the JACKAL runtime timed out; no advanced-side arithmetic was substituted",
+                ) from error
+            except BackendFailure as error:
+                raise refusal_type(
+                    "kernel-unavailable",
+                    "the JACKAL runtime failed closed; no advanced-side arithmetic was substituted",
+                ) from error
+
+        value = dispatcher(name, arguments, kernel_call, identity)
+        if not isinstance(value, dict):
+            raise BackendFailure("advanced dispatcher returned a non-object")
+        return value
+
+    def _invoke_stem_sync(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        module = self.stem_module
+        identity = self.stem_identity
+        if module is None or identity is None:
+            raise BackendFailure("STEM dispatcher is unavailable")
+        dispatcher = getattr(module, "dispatch_integrated", None)
+        refusal_type = getattr(module, "Refusal", None)
+        if not callable(dispatcher) or not isinstance(refusal_type, type):
+            raise BackendFailure("STEM dispatcher API changed")
+
+        def kernel_call(tool: str, delegated_arguments: dict[str, Any]) -> dict[str, Any]:
+            if tool not in STEM_KERNEL_TOOLS:
+                raise refusal_type(
+                    "kernel-tool-forbidden",
+                    f"STEM orchestration requested unauthorized runtime tool {tool!r}",
+                )
+            if not isinstance(delegated_arguments, dict):
+                raise refusal_type(
+                    "kernel-error", "STEM orchestration produced invalid arguments"
+                )
+            try:
+                return self._invoke_backend_sync(state, tool, delegated_arguments)
+            except CallCancelled:
+                raise
+            except BackendTimedOut as error:
+                raise refusal_type(
+                    "kernel-timeout",
+                    "the JACKAL runtime timed out; no STEM-side arithmetic was substituted",
+                ) from error
+            except BackendFailure as error:
+                raise refusal_type(
+                    "kernel-unavailable",
+                    "the JACKAL runtime failed closed; no STEM-side arithmetic was substituted",
+                ) from error
+
+        value = dispatcher(name, arguments, kernel_call, identity)
+        if not isinstance(value, dict):
+            raise BackendFailure("STEM dispatcher returned a non-object")
+        return value
+
+    async def _run_sync_worker(
+        self, operation: Callable[[], dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Run one process-owning operation without asyncio's global executor.
+
+        A dedicated joinable thread keeps lifetime ownership local to this
+        server.  The event loop polls a threading event at the existing leader
+        interval, so completion and cancellation do not depend on a platform's
+        cross-thread selector wakeup behavior.
+        """
+        completed = threading.Event()
+        outcome: dict[str, object] = {}
+
+        def run() -> None:
+            try:
+                outcome["value"] = operation()
+            except BaseException as error:
+                outcome["error"] = error
+            finally:
+                completed.set()
+
+        thread = threading.Thread(target=run, name="jackal-backend", daemon=False)
+        thread.start()
+        while not completed.is_set():
+            await asyncio.sleep(THREAD_WORKER_POLL_SECONDS)
+        thread.join()
+        error = outcome.get("error")
+        if isinstance(error, BaseException):
+            raise error
+        value = outcome.get("value")
+        if not isinstance(value, dict):
+            raise BackendFailure("backend worker returned a non-object")
+        return cast(dict[str, Any], value)
+
+    async def _await_worker_result(
+        self, worker: asyncio.Task[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Await a thread worker with a bounded event-loop wake interval.
+
+        Some supported Python/event-loop combinations can leave the selector
+        asleep after a thread-safe completion notification.  A short bounded
+        wait preserves prompt completion and cancellation without ever
+        cancelling the process-owning worker task.
+        """
+        while not worker.done():
+            await asyncio.wait(
+                {worker}, timeout=THREAD_WORKER_POLL_SECONDS,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        return worker.result()
+
+    async def _invoke_measurement(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        worker = asyncio.create_task(
+            self._run_sync_worker(
+                lambda: self._invoke_measurement_sync(state, name, arguments)
+            )
+        )
         state.worker = worker
         try:
-            return await asyncio.shield(worker)
+            return await self._await_worker_result(worker)
         except asyncio.CancelledError:
             state.cancelled.set()
-            runner.cancel()
+            runner = state.runner
+            if runner is not None:
+                runner.cancel()
             while not worker.done():
                 try:
-                    await asyncio.shield(worker)
+                    await asyncio.wait(
+                        {worker}, timeout=THREAD_WORKER_POLL_SECONDS,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
                 except asyncio.CancelledError:
                     continue
                 except Exception:
@@ -1430,7 +2296,96 @@ class MCPServer:
             raise
         finally:
             state.worker = None
-            state.runner = None
+
+    async def _invoke_advanced(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        worker = asyncio.create_task(
+            self._run_sync_worker(
+                lambda: self._invoke_advanced_sync(state, name, arguments)
+            )
+        )
+        state.worker = worker
+        try:
+            return await self._await_worker_result(worker)
+        except asyncio.CancelledError:
+            state.cancelled.set()
+            runner = state.runner
+            if runner is not None:
+                runner.cancel()
+            while not worker.done():
+                try:
+                    await asyncio.wait(
+                        {worker}, timeout=THREAD_WORKER_POLL_SECONDS,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            raise
+        finally:
+            state.worker = None
+
+    async def _invoke_stem(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        worker = asyncio.create_task(
+            self._run_sync_worker(
+                lambda: self._invoke_stem_sync(state, name, arguments)
+            )
+        )
+        state.worker = worker
+        try:
+            return await self._await_worker_result(worker)
+        except asyncio.CancelledError:
+            state.cancelled.set()
+            runner = state.runner
+            if runner is not None:
+                runner.cancel()
+            while not worker.done():
+                try:
+                    await asyncio.wait(
+                        {worker}, timeout=THREAD_WORKER_POLL_SECONDS,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            raise
+        finally:
+            state.worker = None
+
+    async def _invoke_backend(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        worker = asyncio.create_task(
+            self._run_sync_worker(
+                lambda: self._invoke_backend_sync(state, name, arguments)
+            )
+        )
+        state.worker = worker
+        try:
+            return await self._await_worker_result(worker)
+        except asyncio.CancelledError:
+            state.cancelled.set()
+            runner = state.runner
+            if runner is not None:
+                runner.cancel()
+            while not worker.done():
+                try:
+                    await asyncio.wait(
+                        {worker}, timeout=THREAD_WORKER_POLL_SECONDS,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            raise
+        finally:
+            state.worker = None
 
     def _cancel_request(self, request_id: str | int) -> None:
         state = self._active.get(request_id)
@@ -1480,6 +2435,7 @@ def build_production_server(
     plugin_root: Path | str | None = None,
     environ: Mapping[str, str] | None = None,
     locator_path: Path | str | None = None,
+    snapshot_parent: Path | str | None = None,
     provisioner: _ProvisionerAPI | None = None,
     identity_verifier: Callable[[Path, Path], object] | None = None,
     runtime_validator: Callable[..., object] | None = None,
@@ -1488,6 +2444,7 @@ def build_production_server(
     root = plugin_root_from_server() if plugin_root is None else Path(plugin_root)
     if not root.is_absolute():
         raise StartupError("plugin root must be absolute")
+    require_integrated_modules = identity_verifier is None
     inventory: dict[str, str] | None = None
     if identity_verifier is None:
         inventory = _read_identity_inventory(root)
@@ -1504,9 +2461,114 @@ def build_production_server(
         raise StartupError("plugin identity verification refused") from error
     if inventory is not None and _inventory_from_records(verified_records) != inventory:
         raise StartupError("plugin identity records changed during verification")
+    if inventory is None:
+        inventory = _inventory_from_records(verified_records)
+
+    measurement_module: ModuleType | None = None
+    measurement_identity: str | None = None
+    measurement_definitions: tuple[dict[str, Any], ...] = ()
+    if "mcp/measurement.py" in inventory:
+        measurement_module = _load_verified_module(
+            root,
+            "mcp/measurement.py",
+            "jackel_codex_measurement",
+            inventory,
+        )
+        measurement_identity = _record_digest(inventory, "mcp/measurement.py")
+        try:
+            measurement_definitions = build_measurement_tool_definitions(
+                measurement_module
+            )
+        except CatalogError as error:
+            raise StartupError("measurement tool surface refused") from error
+    elif require_integrated_modules:
+        raise StartupError("plugin identity omits the measurement module")
+
+    advanced_module: ModuleType | None = None
+    advanced_identity: str | None = None
+    advanced_definitions: tuple[dict[str, Any], ...] = ()
+    if "mcp/advanced.py" in inventory:
+        advanced_module = _load_verified_module(
+            root,
+            "mcp/advanced.py",
+            "jackel_codex_advanced",
+            inventory,
+        )
+        checker_module = _load_verified_module(
+            root,
+            "mcp/hellgate_verify.py",
+            "jackel_codex_hellgate_verify",
+            inventory,
+        )
+        certificate_path = "mcp/certificates/hellgate_v1.json.zlib"
+        compressed_certificate, certificate_file_identity = _read_verified_plugin_blob(
+            root,
+            certificate_path,
+            inventory,
+            limit=MAX_CERTIFICATE_COMPRESSED_BYTES,
+        )
+        certificate = _decompress_certificate(compressed_certificate)
+        verifier = getattr(checker_module, "verify_bytes", None)
+        refusal_type = getattr(checker_module, "VerificationRefusal", None)
+        if (
+            not callable(verifier)
+            or not isinstance(refusal_type, type)
+            or not issubclass(refusal_type, Exception)
+        ):
+            raise StartupError("HELLGATE checker API is invalid")
+        try:
+            hellgate_result = verifier(certificate)
+        except refusal_type as error:
+            raise StartupError("HELLGATE certificate verification refused") from error
+        except Exception as error:
+            raise StartupError("HELLGATE certificate checker failed closed") from error
+        if not _hellgate_result_satisfies_startup_gate(hellgate_result):
+            raise StartupError("HELLGATE certificate did not satisfy the startup gate")
+        advanced_identity = _record_digest(inventory, "mcp/advanced.py")
+        configure = getattr(advanced_module, "configure_hellgate", None)
+        if not callable(configure):
+            raise StartupError("advanced certificate configuration API is invalid")
+        try:
+            configure(
+                hellgate_result,
+                advanced_sha256=advanced_identity,
+                checker_sha256=_record_digest(inventory, "mcp/hellgate_verify.py"),
+                certificate_sha256=certificate_file_identity,
+            )
+            advanced_definitions = build_advanced_tool_definitions(advanced_module)
+        except Exception as error:
+            raise StartupError("advanced tool surface refused") from error
+    elif require_integrated_modules:
+        raise StartupError("plugin identity omits the advanced module")
+
+    stem_module: ModuleType | None = None
+    stem_identity: str | None = None
+    stem_definitions: tuple[dict[str, Any], ...] = ()
+    if "mcp/stem.py" in inventory:
+        stem_module = _load_verified_module(
+            root,
+            "mcp/stem.py",
+            "jackel_codex_stem",
+            inventory,
+        )
+        stem_identity = _record_digest(inventory, "mcp/stem.py")
+        try:
+            stem_definitions = build_stem_tool_definitions(stem_module)
+            shell = getattr(stem_module, "workspace_shell", None)
+            if not callable(shell):
+                raise CatalogError("STEM resource API is invalid")
+            shell_text = shell()
+            if (
+                not isinstance(shell_text, str)
+                or not shell_text.startswith("<!doctype html>")
+                or len(shell_text.encode("utf-8")) > MAX_MCP_RESOURCE_TEXT_BYTES
+            ):
+                raise CatalogError("STEM resource shell is invalid")
+        except Exception as error:
+            raise StartupError("STEM tool or resource surface refused") from error
+    elif require_integrated_modules:
+        raise StartupError("plugin identity omits the STEM module")
     if provisioner is None:
-        if inventory is None:
-            inventory = _inventory_from_records(verified_records)
         provisioner = cast(
             _ProvisionerAPI,
             _load_verified_module(
@@ -1520,6 +2582,10 @@ def build_production_server(
         provisioner.validate_host()
     except Exception as error:
         raise StartupError("unsupported production host") from error
+    try:
+        provisioner.reap_orphaned_runtime_snapshots()
+    except Exception as error:
+        raise StartupError("orphaned runtime snapshot cleanup refused") from error
 
     runtime = resolve_runtime_path(
         environ=environ,
@@ -1533,19 +2599,23 @@ def build_production_server(
             runtime,
             timeout=provisioner.SELFTEST_TIMEOUT,
             output_limit=provisioner.SELFTEST_OUTPUT_LIMIT,
-            expected_tree_sha256=provisioner.SHA256SUMS_SHA256,
+            expected_tree_sha256=provisioner.effective_release_pins()["sha256sums_sha256"],
         )
     except Exception as error:
         raise StartupError("pinned runtime validation refused") from error
 
     snapshot_owner: object | None = None
     try:
-        snapshot_owner = provisioner.create_runtime_snapshot(
-            runtime,
-            timeout=provisioner.SELFTEST_TIMEOUT,
-            output_limit=provisioner.SELFTEST_OUTPUT_LIMIT,
-            expected_tree_sha256=provisioner.SHA256SUMS_SHA256,
-        )
+        snapshot_arguments: dict[str, object] = {
+            "timeout": provisioner.SELFTEST_TIMEOUT,
+            "output_limit": provisioner.SELFTEST_OUTPUT_LIMIT,
+            "expected_tree_sha256": provisioner.effective_release_pins()[
+                "sha256sums_sha256"
+            ],
+        }
+        if snapshot_parent is not None:
+            snapshot_arguments["temporary_parent"] = os.fspath(snapshot_parent)
+        snapshot_owner = provisioner.create_runtime_snapshot(runtime, **snapshot_arguments)
         snapshot_value = getattr(snapshot_owner, "root", None)
         snapshot = _canonical_absolute_directory(
             os.fspath(snapshot_value) if isinstance(snapshot_value, (Path, str)) else None,
@@ -1556,7 +2626,34 @@ def build_production_server(
             raise StartupError("runtime snapshot is not private and independent")
         _verify_package_metadata(snapshot, provisioner)
         catalog = _load_catalog(snapshot / "plugin/hermes/tools.json")
-        definitions = build_tool_definitions(catalog, expected_count=EXPECTED_TOOL_COUNT)
+        runtime_definitions = build_tool_definitions(
+            catalog, expected_count=EXPECTED_TOOL_COUNT
+        )
+        definitions = (
+            runtime_definitions
+            + measurement_definitions
+            + advanced_definitions
+            + stem_definitions
+        )
+        expected_surface_count = EXPECTED_TOOL_COUNT
+        if measurement_module is not None:
+            expected_surface_count += EXPECTED_MEASUREMENT_TOOL_COUNT
+        if advanced_module is not None:
+            expected_surface_count += EXPECTED_ADVANCED_TOOL_COUNT
+        if stem_module is not None:
+            expected_surface_count += EXPECTED_STEM_TOOL_COUNT
+        if (
+            measurement_module is not None
+            and advanced_module is not None
+            and stem_module is not None
+            and expected_surface_count != EXPECTED_UNIFIED_TOOL_COUNT
+        ):
+            raise StartupError("unified tool surface constant is inconsistent")
+        if len(definitions) != expected_surface_count:
+            raise StartupError("unified tool surface count is inconsistent")
+        definition_names = [definition["name"] for definition in definitions]
+        if len(set(definition_names)) != len(definition_names):
+            raise StartupError("unified tool surface contains duplicate names")
         launcher = snapshot / "plugin/hermes/jackal_hermes"
         try:
             launcher_info = launcher.lstat()
@@ -1579,6 +2676,12 @@ def build_production_server(
             runtime_environment=runtime_environment,
             tool_timeout=TOOL_TIMEOUT_SECONDS,
             runtime_owner=snapshot_owner,
+            measurement_module=measurement_module,
+            measurement_identity=measurement_identity,
+            advanced_module=advanced_module,
+            advanced_identity=advanced_identity,
+            stem_module=stem_module,
+            stem_identity=stem_identity,
         )
     except Exception as error:
         cleanup_error: Exception | None = None
@@ -1849,9 +2952,496 @@ def _bounded_detail(error: Exception) -> str:
     return (" ".join(str(error).splitlines()).strip() or "startup failed")[:240]
 
 
-def main() -> int:
+class _GuardedProcessProxy:
+    """Keep the guardian liveness writer open for one delegated Popen."""
+
+    def __init__(self, process: subprocess.Popen, liveness_writer: int) -> None:
+        self._process = process
+        self._liveness_writer = liveness_writer
+
+    def close_liveness(self) -> None:
+        if self._liveness_writer < 0:
+            return
+        with contextlib.suppress(OSError):
+            os.close(self._liveness_writer)
+        self._liveness_writer = -1
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._process, name)
+
+
+def _guarded_popen_factory(
+    guardian_prefix: Sequence[str],
+    owners: list[_GuardedProcessProxy],
+) -> Callable:
+    def spawn(command: Sequence[str], **arguments: Any) -> _GuardedProcessProxy:
+        reader = -1
+        writer = -1
+        try:
+            reader, writer = os.pipe()
+            process = subprocess.Popen(
+                [*guardian_prefix, str(reader), *command],
+                pass_fds=(reader,),
+                **arguments,
+            )
+        except (OSError, ValueError, subprocess.SubprocessError):
+            for descriptor in (reader, writer):
+                if descriptor >= 0:
+                    with contextlib.suppress(OSError):
+                        os.close(descriptor)
+            raise
+        os.close(reader)
+        owner = _GuardedProcessProxy(process, writer)
+        owners.append(owner)
+        return owner
+
+    return spawn
+
+
+def _guarded_selftest_runner(
+    provisioner: _ProvisionerAPI,
+    guardian_prefix: Sequence[str] | None,
+) -> Callable | None:
+    if guardian_prefix is None:
+        return None
+    selftest = getattr(provisioner, "_run_selftest", None)
+    if not callable(selftest):
+        return None
+
+    def run(command: list[str], *, timeout: float, output_limit: int):
+        owners: list[_GuardedProcessProxy] = []
+        try:
+            return selftest(
+                command,
+                timeout=timeout,
+                output_limit=output_limit,
+                popen_factory=_guarded_popen_factory(guardian_prefix, owners),
+            )
+        finally:
+            for owner in owners:
+                owner.close_liveness()
+
+    return run
+
+
+def _process_guardian_prefix() -> tuple[str, ...]:
     try:
-        server = build_production_server()
+        python = os.fspath(Path(sys.executable).resolve(strict=True))
+        server_path = os.fspath(Path(__file__).resolve(strict=True))
+    except OSError as error:
+        raise StartupError("process guardian executable identity is unavailable") from error
+    return (
+        python,
+        "-I",
+        "-S",
+        "-B",
+        server_path,
+        PROCESS_GUARDIAN_FLAG,
+    )
+
+
+def _parse_process_guardian(
+    arguments: Sequence[str],
+) -> tuple[int, tuple[str, ...]] | None:
+    if not arguments or arguments[0] != PROCESS_GUARDIAN_FLAG:
+        return None
+    if len(arguments) < 3 or not arguments[1].isdecimal():
+        raise StartupError("invalid process guardian arguments")
+    liveness_fd = int(arguments[1])
+    command = tuple(arguments[2:])
+    if (
+        liveness_fd < 3
+        or not command
+        or not Path(command[0]).is_absolute()
+        or any(not argument or "\x00" in argument for argument in command)
+    ):
+        raise StartupError("invalid process guardian arguments")
+    return liveness_fd, command
+
+
+def _guarded_child_status(pid: int) -> int | None:
+    try:
+        result = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except (ChildProcessError, OSError) as error:
+        raise StartupError("guarded process anchor is unavailable") from error
+    if result is None:
+        return None
+    if result.si_pid != pid:
+        raise StartupError("guarded process observation is inconsistent")
+    if result.si_code == os.CLD_EXITED:
+        return result.si_status
+    if result.si_code in (os.CLD_KILLED, os.CLD_DUMPED):
+        return -result.si_status
+    raise StartupError("guarded process has an unsupported wait status")
+
+
+def _signal_guarded_group(process_group: int, requested_signal: int) -> None:
+    try:
+        os.killpg(process_group, requested_signal)
+    except ProcessLookupError:
+        return
+    except OSError as error:
+        if error.errno != errno.ESRCH:
+            raise StartupError("cannot signal guarded process group") from error
+
+
+def _stop_guarded_process(
+    process: subprocess.Popen[bytes],
+    status: int | None,
+    *,
+    graceful: bool,
+) -> int:
+    if graceful:
+        _signal_guarded_group(process.pid, signal.SIGTERM)
+        deadline = time.monotonic() + min(0.1, TERMINATE_GRACE_SECONDS / 2)
+        while status is None and time.monotonic() < deadline:
+            time.sleep(LEADER_POLL_SECONDS)
+            status = _guarded_child_status(process.pid)
+    _signal_guarded_group(process.pid, signal.SIGKILL)
+    deadline = time.monotonic() + max(1.0, TERMINATE_GRACE_SECONDS * 4)
+    while status is None:
+        if time.monotonic() >= deadline:
+            raise StartupError("guarded process did not exit after SIGKILL")
+        time.sleep(LEADER_POLL_SECONDS)
+        status = _guarded_child_status(process.pid)
+    try:
+        reaped = process.wait(timeout=max(1.0, TERMINATE_GRACE_SECONDS * 4))
+    except (ChildProcessError, OSError, subprocess.TimeoutExpired) as error:
+        raise StartupError("guarded process could not be reaped") from error
+    if reaped != status:
+        raise StartupError("guarded process status changed during reap")
+    return status
+
+
+def _run_process_guardian(liveness_fd: int, command: Sequence[str]) -> int:
+    if (
+        os.getpid() != os.getpgrp()
+        or os.getpid() != os.getsid(0)
+        or not stat.S_ISFIFO(os.fstat(liveness_fd).st_mode)
+    ):
+        raise StartupError("process guardian isolation is invalid")
+    executable = Path(command[0])
+    try:
+        executable_info = executable.lstat()
+    except OSError as error:
+        raise StartupError("guarded executable is unavailable") from error
+    if (
+        not stat.S_ISREG(executable_info.st_mode)
+        or executable.is_symlink()
+        or not os.access(executable, os.X_OK)
+    ):
+        raise StartupError("guarded executable is unsafe")
+
+    os.set_blocking(liveness_fd, False)
+    try:
+        initial = os.read(liveness_fd, 1)
+    except BlockingIOError:
+        initial = None
+    except OSError as error:
+        raise StartupError("process guardian liveness channel failed") from error
+    if initial is not None:
+        if initial:
+            raise StartupError("process guardian liveness protocol refused")
+        return 0
+
+    termination_requested = False
+
+    def request_termination(unused_signal, unused_frame) -> None:
+        nonlocal termination_requested
+        termination_requested = True
+
+    signal.signal(signal.SIGTERM, request_termination)
+    signal.signal(signal.SIGINT, request_termination)
+    try:
+        process = subprocess.Popen(
+            list(command),
+            stdin=subprocess.DEVNULL,
+            stdout=None,
+            stderr=None,
+            close_fds=True,
+            preexec_fn=os.setpgrp,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        raise StartupError("guarded process failed to start") from error
+
+    selector: selectors.BaseSelector | None = None
+    status: int | None = None
+    reaped = False
+    try:
+        selector = selectors.DefaultSelector()
+        selector.register(liveness_fd, selectors.EVENT_READ)
+        while True:
+            if termination_requested:
+                status = _stop_guarded_process(process, status, graceful=True)
+                reaped = True
+                return status
+            status = _guarded_child_status(process.pid)
+            if status is not None:
+                try:
+                    quiescent = _exited_group_has_only_zombie_members(process.pid)
+                except BackendFailure:
+                    quiescent = False
+                if quiescent:
+                    reaped_status = process.wait()
+                    reaped = True
+                    if reaped_status != status:
+                        raise StartupError(
+                            "guarded process status changed during final reap"
+                        )
+                    return status
+                status = _stop_guarded_process(process, status, graceful=True)
+                reaped = True
+                return status
+            if not selector.select(LEADER_POLL_SECONDS):
+                continue
+            try:
+                payload = os.read(liveness_fd, 1)
+            except BlockingIOError:
+                continue
+            if payload:
+                raise StartupError("process guardian liveness protocol refused")
+            status = _stop_guarded_process(process, status, graceful=False)
+            reaped = True
+            return 0
+    finally:
+        if selector is not None:
+            selector.close()
+        with contextlib.suppress(OSError):
+            os.close(liveness_fd)
+        if not reaped:
+            with contextlib.suppress(Exception):
+                _stop_guarded_process(process, status, graceful=False)
+
+
+def _read_namespace_metadata(path: Path | str, *, byte_limit: int) -> bytes:
+    if byte_limit < 1:
+        raise StartupError("invalid namespace metadata byte limit")
+    try:
+        fd = os.open(os.fspath(path), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except OSError as error:
+        raise StartupError("namespace metadata is unavailable") from error
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise StartupError("namespace metadata is not a regular file")
+        chunks: list[bytes] = []
+        count = 0
+        while chunk := os.read(fd, min(4096, byte_limit - count + 1)):
+            count += len(chunk)
+            if count > byte_limit:
+                raise StartupError("namespace metadata exceeds byte limit")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def _mount_namespace_identity() -> str:
+    try:
+        identity = os.readlink("/proc/self/ns/mnt")
+    except OSError as error:
+        raise StartupError("mount namespace identity is unavailable") from error
+    if _MOUNT_NAMESPACE_IDENTITY.fullmatch(identity) is None:
+        raise StartupError("mount namespace identity has an invalid shape")
+    return identity
+
+
+def _mapped_host_uid() -> int:
+    try:
+        text = _read_namespace_metadata(
+            "/proc/self/uid_map", byte_limit=4096
+        ).decode("ascii")
+    except UnicodeDecodeError as error:
+        raise StartupError("user namespace mapping is not ASCII") from error
+    rows = [line.split() for line in text.splitlines() if line.strip()]
+    if (
+        os.getuid() != 0
+        or os.geteuid() != 0
+        or len(rows) != 1
+        or len(rows[0]) != 3
+        or rows[0][0] != "0"
+        or rows[0][2] != "1"
+        or not rows[0][1].isdecimal()
+    ):
+        raise StartupError("private runtime requires an exact one-user mapping")
+    return int(rows[0][1])
+
+
+def _fixed_executable(candidates: Sequence[str]) -> str:
+    for candidate in candidates:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    raise StartupError("required namespace executable is unavailable")
+
+
+def _mountinfo_confirms_tmpfs(path: Path) -> bool:
+    try:
+        text = _read_namespace_metadata(
+            "/proc/self/mountinfo", byte_limit=MAX_REQUEST_LINE_BYTES
+        ).decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise StartupError("mount metadata is not UTF-8") from error
+    expected = os.fspath(path)
+    for line in text.splitlines():
+        fields = line.split()
+        try:
+            separator = fields.index("-")
+        except ValueError:
+            continue
+        if (
+            len(fields) > 5
+            and separator + 1 < len(fields)
+            and fields[4] == expected
+            and fields[separator + 1] == "tmpfs"
+        ):
+            return True
+    return False
+
+
+def _prepare_private_snapshot_parent(parent_namespace: str) -> Path:
+    if sys.platform != "linux" or _mount_namespace_identity() == parent_namespace:
+        raise StartupError("private mount namespace was not established")
+    host_uid = _mapped_host_uid()
+    temporary_root = Path("/tmp")
+    root_info = temporary_root.lstat()
+    if not stat.S_ISDIR(root_info.st_mode) or temporary_root.is_symlink():
+        raise StartupError("system temporary root is unsafe")
+    mountpoint = temporary_root / f"{PRIVATE_SNAPSHOT_PARENT_PREFIX}{host_uid}"
+    try:
+        mountpoint.mkdir(mode=0o700, exist_ok=True)
+        before = mountpoint.lstat()
+    except OSError as error:
+        raise StartupError("private snapshot mountpoint is unavailable") from error
+    if (
+        not stat.S_ISDIR(before.st_mode)
+        or mountpoint.is_symlink()
+        or before.st_uid != os.geteuid()
+        or before.st_mode & 0o077
+    ):
+        raise StartupError("private snapshot mountpoint is unsafe")
+    try:
+        if any(os.scandir(mountpoint)):
+            raise StartupError("private snapshot mountpoint is not empty")
+    except OSError as error:
+        raise StartupError("private snapshot mountpoint is unreadable") from error
+
+    mount = _fixed_executable(("/usr/bin/mount", "/bin/mount"))
+    try:
+        result = subprocess.run(
+            [
+                mount,
+                "-t",
+                "tmpfs",
+                "-o",
+                "mode=0700,nosuid,nodev",
+                "tmpfs",
+                os.fspath(mountpoint),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=NAMESPACE_SETUP_TIMEOUT,
+            check=False,
+            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise StartupError("private snapshot tmpfs mount failed") from error
+    if result.returncode != 0:
+        raise StartupError("private snapshot tmpfs mount refused")
+    mounted = mountpoint.lstat()
+    if (
+        not stat.S_ISDIR(mounted.st_mode)
+        or mounted.st_uid != os.geteuid()
+        or mounted.st_mode & 0o077
+        or mounted.st_dev == root_info.st_dev
+        or not _mountinfo_confirms_tmpfs(mountpoint)
+    ):
+        raise StartupError("private snapshot tmpfs verification refused")
+    return mountpoint
+
+
+def _parse_namespace_child(arguments: Sequence[str]) -> str | None:
+    if not arguments:
+        return None
+    if (
+        len(arguments) != 2
+        or arguments[0] != PRIVATE_NAMESPACE_FLAG
+        or _MOUNT_NAMESPACE_IDENTITY.fullmatch(arguments[1]) is None
+    ):
+        raise StartupError("invalid private namespace arguments")
+    return arguments[1]
+
+
+def _private_namespace_prefix(unshare: str) -> list[str]:
+    return [
+        unshare,
+        "--user",
+        "--map-root-user",
+        "--mount",
+        "--pid",
+        "--fork",
+        "--kill-child=SIGKILL",
+        "--forward-signals",
+        # A PID namespace without a procfs of its own is a trap: /proc still
+        # shows the HOST namespace, so every /proc-based observation made inside
+        # it answers about the wrong processes. `/bin/ps -g <pgid>` then lists
+        # host PIDs (or fails "fatal library error, lookup self"), the group
+        # reaper concludes "backend process group survived SIGKILL", and EVERY
+        # tool call fails closed with -32002 while plugin identity still
+        # verifies. Measured, not inferred: without this flag `ps` inside the
+        # namespace printed this user's own systemd PIDs; with it, `1 R`.
+        "--mount-proc",
+        "--propagation",
+        "private",
+    ]
+
+
+def _exec_in_private_snapshot_namespace() -> bool:
+    """Replace this process with a PID-namespace supervisor when available."""
+    if sys.platform != "linux":
+        return False
+    try:
+        unshare = _fixed_executable(("/usr/bin/unshare", "/bin/unshare"))
+        true = _fixed_executable(("/usr/bin/true", "/bin/true"))
+        python = os.fspath(Path(sys.executable).resolve(strict=True))
+        server_path = os.fspath(Path(__file__).resolve(strict=True))
+        parent_namespace = _mount_namespace_identity()
+    except (OSError, StartupError):
+        return False
+    prefix = _private_namespace_prefix(unshare)
+    try:
+        probe = subprocess.run(
+            [*prefix, true],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=NAMESPACE_SETUP_TIMEOUT,
+            check=False,
+            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if probe.returncode != 0:
+        return False
+    command = [
+        *prefix,
+        python,
+        "-I",
+        "-S",
+        "-B",
+        server_path,
+        PRIVATE_NAMESPACE_FLAG,
+        parent_namespace,
+    ]
+    try:
+        os.execv(unshare, command)
+    except OSError:
+        return False
+    raise StartupError("private namespace exec unexpectedly returned")
+
+
+def _run_production_server(snapshot_parent: Path | None) -> int:
+    try:
+        server = build_production_server(snapshot_parent=snapshot_parent)
         asyncio.run(_serve_stdio(server))
     except (AdapterError, OSError, RuntimeError) as error:
         print(f"jackel_mcp=refused detail={_bounded_detail(error)}", file=sys.stderr)
@@ -1860,6 +3450,25 @@ def main() -> int:
         print("jackel_mcp=refused detail=unexpected startup failure", file=sys.stderr)
         return 1
     return 0
+
+
+def main() -> int:
+    try:
+        child = _parse_namespace_child(sys.argv[1:])
+    except (AdapterError, OSError, RuntimeError) as error:
+        print(f"jackel_mcp=refused detail={_bounded_detail(error)}", file=sys.stderr)
+        return 1
+    if child is not None:
+        try:
+            snapshot_parent = _prepare_private_snapshot_parent(child)
+        except (AdapterError, OSError, RuntimeError):
+            # The exact PID/boot/start-time reaper remains the portable fallback
+            # if this kernel permits namespaces but refuses the private tmpfs.
+            snapshot_parent = None
+        return _run_production_server(snapshot_parent)
+
+    _exec_in_private_snapshot_namespace()
+    return _run_production_server(None)
 
 
 if __name__ == "__main__":

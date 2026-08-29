@@ -1,3 +1,4 @@
+import ctypes
 import errno
 import hashlib
 import io
@@ -42,6 +43,15 @@ class FakeResponse:
 class RuntimeProvisionerTests(unittest.TestCase):
     def sha(self, data):
         return hashlib.sha256(data).hexdigest()
+
+    def write_snapshot_owner(self, parent, name, identity):
+        root = parent / name
+        root.mkdir(mode=0o700)
+        provisioner._write_snapshot_owner(root, identity)
+        runtime = root / provisioner.SNAPSHOT_RUNTIME_DIRECTORY
+        runtime.mkdir(mode=0o700)
+        (runtime / "payload").write_bytes(b"fixture\n")
+        return root
 
     def add_bytes(self, archive, name, data=b"", mode=0o644, kind=tarfile.REGTYPE, linkname=""):
         info = tarfile.TarInfo(name)
@@ -139,10 +149,15 @@ class RuntimeProvisionerTests(unittest.TestCase):
         )
         return files
 
-    def test_validate_host_accepts_only_darwin_arm64(self):
-        provisioner.validate_host("Darwin", "arm64")
-        for system, machine in (("Linux", "arm64"), ("Darwin", "x86_64"), ("Linux", "x86_64")):
-            with self.subTest(system=system, machine=machine), self.assertRaises(provisioner.ProvisionError):
+    def test_validate_host_accepts_supported_hosts_and_refuses_others(self):
+        # Darwin/arm64 and the Linux/aarch64 Omarchy port are supported; Linux/x86_64
+        # is a declared host gate (its release pin is None, so provisioning still
+        # refuses without a published asset). Genuinely foreign hosts must refuse.
+        for system, machine in (("Darwin", "arm64"), ("Linux", "aarch64"), ("Linux", "x86_64")):
+            with self.subTest(accept=(system, machine)):
+                provisioner.validate_host(system, machine)
+        for system, machine in (("Linux", "arm64"), ("Darwin", "x86_64"), ("Darwin", "aarch64"), ("Windows", "AMD64")):
+            with self.subTest(refuse=(system, machine)), self.assertRaises(provisioner.ProvisionError):
                 provisioner.validate_host(system, machine)
 
     def test_runtime_subprocess_environment_is_minimal_and_preserves_only_jackal_home(self):
@@ -831,6 +846,13 @@ class RuntimeProvisionerTests(unittest.TestCase):
             snapshot_root = snapshot.root
 
             self.assertNotEqual(snapshot_root, source)
+            self.assertEqual(snapshot_root.parent, snapshot.owner_root)
+            self.assertEqual(snapshot_root.name, provisioner.SNAPSHOT_RUNTIME_DIRECTORY)
+            self.assertTrue(snapshot.owner_root.name.startswith(provisioner.SNAPSHOT_PREFIX))
+            self.assertEqual(
+                provisioner._load_snapshot_owner(snapshot.owner_root),
+                provisioner._current_snapshot_owner(),
+            )
             self.assertEqual(snapshot_root.stat().st_mode & 0o777, 0o700)
             self.assertEqual(
                 (snapshot_root / "payload.txt").read_bytes(), b"payload\n"
@@ -858,6 +880,7 @@ class RuntimeProvisionerTests(unittest.TestCase):
 
             snapshot.close()
             self.assertFalse(snapshot_root.exists())
+            self.assertFalse(snapshot.owner_root.exists())
 
     def test_runtime_snapshot_cleanup_failure_remains_retryable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -872,6 +895,173 @@ class RuntimeProvisionerTests(unittest.TestCase):
             snapshot.close()
             self.assertTrue(snapshot._closed)
             self.assertEqual(cleanup.call_count, 2)
+
+    def test_linux_process_stat_parser_handles_spaces_and_closing_parentheses(self):
+        fields = [b"S"] + ([b"0"] * 18) + [b"9876"]
+        self.assertEqual(
+            provisioner._parse_linux_process_stat(
+                b"123 (worker ) with spaces) " + b" ".join(fields) + b"\n",
+                expected_pid=123,
+            ),
+            (123, "9876"),
+        )
+
+    def test_darwin_process_identity_uses_kernel_start_timeval_and_detects_gone(self):
+        class FakeProcPIDInfo:
+            argtypes = None
+            restype = None
+
+            def __init__(self, *, present):
+                self.present = present
+
+            def __call__(self, pid, flavor, unused_argument, buffer, size):
+                self.assertions = (pid, flavor, unused_argument)
+                if not self.present:
+                    return 0
+                info = ctypes.cast(
+                    buffer, ctypes.POINTER(provisioner._DarwinBSDInfo)
+                ).contents
+                info.pbi_pid = pid
+                info.pbi_start_tvsec = 1_700_000_000
+                info.pbi_start_tvusec = 123_456
+                return size
+
+        available = FakeProcPIDInfo(present=True)
+        with mock.patch.object(
+            provisioner.ctypes,
+            "CDLL",
+            return_value=types.SimpleNamespace(proc_pidinfo=available),
+        ):
+            self.assertEqual(
+                provisioner._darwin_process_identity(321),
+                (321, "1700000000:123456"),
+            )
+        self.assertEqual(
+            available.assertions, (321, provisioner.DARWIN_PROC_PIDTBSDINFO, 0)
+        )
+
+        gone = FakeProcPIDInfo(present=False)
+        with (
+            mock.patch.object(
+                provisioner.ctypes,
+                "CDLL",
+                return_value=types.SimpleNamespace(proc_pidinfo=gone),
+            ),
+            mock.patch.object(provisioner.os, "kill", side_effect=ProcessLookupError),
+            self.assertRaises(provisioner._ProcessGone),
+        ):
+            provisioner._darwin_process_identity(322)
+
+    def test_snapshot_reaper_is_exact_for_live_gone_reused_and_ambiguous_owners(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            boot_id = "linux:test-boot"
+            live = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}live",
+                provisioner.SnapshotOwnerIdentity(101, "live-start", boot_id),
+            )
+            reused = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}reused",
+                provisioner.SnapshotOwnerIdentity(102, "old-start", boot_id),
+            )
+            gone = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}gone",
+                provisioner.SnapshotOwnerIdentity(103, "gone-start", boot_id),
+            )
+            foreign_boot = self.write_snapshot_owner(
+                parent,
+                f"{provisioner.SNAPSHOT_PREFIX}foreign",
+                provisioner.SnapshotOwnerIdentity(104, "foreign-start", "linux:other"),
+            )
+            missing_stamp = parent / f"{provisioner.SNAPSHOT_PREFIX}missing"
+            missing_stamp.mkdir(mode=0o700)
+            malformed = parent / f"{provisioner.SNAPSHOT_PREFIX}malformed"
+            malformed.mkdir(mode=0o700)
+            (malformed / provisioner.SNAPSHOT_OWNER_FILE).write_text("not-json\n")
+            unstamped_identity = provisioner.SnapshotOwnerIdentity(
+                105, "unstamped-start", boot_id
+            )
+            unstamped = parent / (
+                provisioner._snapshot_owner_directory_prefix(unstamped_identity)
+                + "fixture"
+            )
+            unstamped.mkdir(mode=0o700)
+            partial_identity = provisioner.SnapshotOwnerIdentity(
+                106, "partial-start", boot_id
+            )
+            partial = parent / (
+                provisioner._snapshot_owner_directory_prefix(partial_identity)
+                + "fixture"
+            )
+            partial.mkdir(mode=0o700)
+            (partial / provisioner.SNAPSHOT_OWNER_FILE).write_text("partial")
+            named_identity = provisioner.SnapshotOwnerIdentity(
+                107, "named-start", boot_id
+            )
+            mismatch = self.write_snapshot_owner(
+                parent,
+                provisioner._snapshot_owner_directory_prefix(named_identity)
+                + "fixture",
+                provisioner.SnapshotOwnerIdentity(108, "other-start", boot_id),
+            )
+
+            observed = []
+
+            def process_start(pid):
+                observed.append(pid)
+                if pid == 101:
+                    return "live-start"
+                if pid == 102:
+                    return "new-start"
+                if pid == 103:
+                    raise provisioner._ProcessGone("fixture gone")
+                if pid == 105:
+                    raise provisioner._ProcessGone("fixture gone before stamp")
+                if pid == 106:
+                    raise provisioner._ProcessGone("fixture gone during stamp")
+                raise AssertionError(f"ambiguous owner was inspected: {pid}")
+
+            removed = provisioner.reap_orphaned_runtime_snapshots(
+                parent,
+                current_boot_id=boot_id,
+                process_start_reader=process_start,
+            )
+
+            self.assertEqual(set(removed), {reused, gone, unstamped, partial})
+            self.assertEqual(set(observed), {101, 102, 103, 105, 106})
+            self.assertTrue(live.exists())
+            self.assertFalse(reused.exists())
+            self.assertFalse(gone.exists())
+            self.assertTrue(foreign_boot.exists())
+            self.assertTrue(missing_stamp.exists())
+            self.assertTrue(malformed.exists())
+            self.assertFalse(unstamped.exists())
+            self.assertFalse(partial.exists())
+            self.assertTrue(mismatch.exists())
+
+    def test_default_snapshot_parent_canonicalizes_the_platform_tmp_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            physical = Path(directory) / "private-tmp"
+            physical.mkdir()
+            lexical = Path(directory) / "tmp"
+            lexical.symlink_to(physical, target_is_directory=True)
+            with mock.patch.object(
+                provisioner.tempfile, "gettempdir", return_value=str(lexical)
+            ):
+                self.assertEqual(
+                    provisioner._snapshot_parent_path(None),
+                    physical.resolve(strict=True),
+                )
+                self.assertEqual(
+                    provisioner.reap_orphaned_runtime_snapshots(
+                        current_boot_id="fixture-boot",
+                        process_start_reader=mock.Mock(),
+                    ),
+                    (),
+                )
 
     def test_runtime_snapshot_preflights_file_size_against_remaining_budget(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1555,8 +1745,23 @@ class RuntimeProvisionerTests(unittest.TestCase):
             "a78fc05e2ebd56f31263d54ccdbf7fcc2ff92d270758720c3e235d5a3121568a",
         )
         self.assertEqual(
-            provisioner.default_runtime_target(Path("/Users/tester")),
+            provisioner.default_runtime_target(Path("/Users/tester"), "Darwin"),
             Path("/Users/tester/Library/Application Support/JACKAL/runtimes/v1.7.3"),
+        )
+        self.assertEqual(
+            provisioner.default_locator_path(Path("/Users/tester"), "Darwin"),
+            Path(
+                "/Users/tester/Library/Application Support/JACKAL"
+                "/codex-plugin/runtime.json"
+            ),
+        )
+        self.assertEqual(
+            provisioner.default_runtime_target(Path("/home/tester"), "Linux"),
+            Path("/home/tester/.local/share/JACKAL/runtimes/v1.7.3"),
+        )
+        self.assertEqual(
+            provisioner.default_locator_path(Path("/home/tester"), "Linux"),
+            Path("/home/tester/.local/share/JACKAL/codex-plugin/runtime.json"),
         )
 
     def test_cli_rejects_relative_tarball_with_one_bounded_line_and_no_traceback(self):
@@ -1578,6 +1783,157 @@ class RuntimeProvisionerTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertLessEqual(len(lines[0]), 320)
         self.assertNotIn("Traceback", lines[0])
+
+
+class HostPortabilityTests(unittest.TestCase):
+    """The host guard admits exactly the hosts whose primitives are implemented."""
+
+    def test_resolve_host_admits_supported_hosts(self):
+        self.assertEqual(provisioner.resolve_host("Darwin", "arm64"), "macos-arm64")
+        self.assertEqual(provisioner.resolve_host("Linux", "aarch64"), "linux-aarch64")
+        self.assertEqual(provisioner.resolve_host("Linux", "x86_64"), "linux-x86_64")
+
+    def test_resolve_host_refuses_near_misses_without_guessing(self):
+        # Linux/x86_64 is a recognized host tag (declared gate); the near-misses
+        # below are foreign hosts resolve_host must refuse rather than guess.
+        for system, machine in (
+            ("Darwin", "x86_64"),
+            ("Linux", "arm64"),
+            ("Darwin", "aarch64"),
+            ("Windows", "AMD64"),
+            ("FreeBSD", "aarch64"),
+        ):
+            with self.subTest(system=system, machine=machine):
+                with self.assertRaises(provisioner.ProvisionError) as caught:
+                    provisioner.resolve_host(system, machine)
+                detail = str(caught.exception)
+                self.assertIn(f"{system}/{machine}", detail)
+                self.assertIn("unsupported host", detail)
+
+    def test_release_pin_resolves_for_hosts_with_a_pin(self):
+        self.assertEqual(
+            provisioner.release_pin("macos-arm64")["asset"], provisioner.ASSET
+        )
+        # linux-aarch64 carries a locally built runtime pin
+        self.assertEqual(
+            provisioner.release_pin("linux-aarch64")["package_directory"],
+            "jackal-v1.7.3-linux-aarch64",
+        )
+
+    def test_release_pin_refuses_for_a_host_with_no_published_asset(self):
+        """A supported host with a None pin refuses rather than guessing bytes."""
+        with mock.patch.dict(provisioner.RELEASE_PINS, {"linux-aarch64": None}):
+            with self.assertRaises(provisioner.ProvisionError) as caught:
+                provisioner.release_pin("linux-aarch64")
+            self.assertIn("no published release asset", str(caught.exception))
+
+    def test_default_pin_provisioning_refuses_when_the_host_pin_is_absent(self):
+        """A supported host with no pin is not a published runtime."""
+        with mock.patch.dict(provisioner.RELEASE_PINS, {"linux-aarch64": None}):
+            with self.assertRaises(provisioner.ProvisionError) as caught:
+                provisioner.provision(
+                    check_only=True, system="Linux", machine="aarch64",
+                )
+            self.assertIn("no published release asset", str(caught.exception))
+
+    def test_caller_supplied_pins_bypass_the_release_table_not_the_host_guard(self):
+        with self.assertRaises(provisioner.ProvisionError) as caught:
+            provisioner.provision(
+                check_only=True,
+                system="Linux",
+                machine="riscv64",
+                expected_size=1,
+                expected_sha256="0" * 64,
+            )
+        self.assertIn("unsupported host", str(caught.exception))
+
+    def test_rename_primitive_is_selected_per_host_and_refuses_elsewhere(self):
+        self.assertIs(
+            provisioner.rename_exclusive_for_host("Darwin"),
+            provisioner._renameatx_np_exclusive,
+        )
+        self.assertIs(
+            provisioner.rename_exclusive_for_host("Linux"),
+            provisioner._renameat2_noreplace,
+        )
+        with self.assertRaises(provisioner.ProvisionError) as caught:
+            provisioner.rename_exclusive_for_host("Windows")
+        self.assertIn("unsupported on Windows", str(caught.exception))
+
+    def test_each_primitive_refuses_to_run_on_the_wrong_host(self):
+        wrong = (
+            (provisioner._renameatx_np_exclusive, "Linux"),
+            (provisioner._renameat2_noreplace, "Darwin"),
+        )
+        for operation, foreign_system in wrong:
+            with self.subTest(operation=operation.__name__):
+                with mock.patch.object(
+                    provisioner.platform, "system", return_value=foreign_system
+                ):
+                    with self.assertRaises(provisioner.ProvisionError):
+                        operation(-1, "a", -1, "b")
+
+    def test_supported_hosts_and_release_pins_describe_the_same_hosts(self):
+        self.assertEqual(
+            set(provisioner.SUPPORTED_HOSTS.values()),
+            set(provisioner.RELEASE_PINS),
+        )
+
+
+@unittest.skipUnless(sys.platform.startswith("linux"), "Linux rename primitive")
+class LinuxRenameNoReplaceTests(unittest.TestCase):
+    """renameat2(RENAME_NOREPLACE) must match renameatx_np(RENAME_EXCL) semantics."""
+
+    def _parents(self, root, source_name, target_name, *, payload=b"runtime"):
+        (root / source_name).write_bytes(payload)
+        return os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+
+    def test_rename_moves_into_a_free_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fd = self._parents(root, "src", "dst")
+            try:
+                provisioner._renameat2_noreplace(fd, "src", fd, "dst")
+            finally:
+                os.close(fd)
+            self.assertFalse((root / "src").exists())
+            self.assertEqual((root / "dst").read_bytes(), b"runtime")
+
+    def test_rename_refuses_to_clobber_an_existing_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "dst").write_bytes(b"installed")
+            fd = self._parents(root, "src", "dst", payload=b"attacker")
+            try:
+                with self.assertRaises(FileExistsError) as caught:
+                    provisioner._renameat2_noreplace(fd, "src", fd, "dst")
+            finally:
+                os.close(fd)
+            self.assertEqual(caught.exception.errno, errno.EEXIST)
+            self.assertEqual((root / "dst").read_bytes(), b"installed")
+            self.assertEqual((root / "src").read_bytes(), b"attacker")
+
+    def test_missing_source_reports_enoent_not_a_silent_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with self.assertRaises(OSError) as caught:
+                    provisioner._renameat2_noreplace(fd, "absent", fd, "dst")
+            finally:
+                os.close(fd)
+            self.assertEqual(caught.exception.errno, errno.ENOENT)
+            self.assertNotIsInstance(caught.exception, FileExistsError)
+
+    def test_install_no_replace_uses_the_host_primitive_end_to_end(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "staged").mkdir()
+            (root / "staged" / "marker").write_bytes(b"x")
+            provisioner._install_no_replace(root / "staged", root / "final")
+            self.assertTrue((root / "final" / "marker").is_file())
+            (root / "staged").mkdir()
+            with self.assertRaises(FileExistsError):
+                provisioner._install_no_replace(root / "staged", root / "final")
 
 
 if __name__ == "__main__":

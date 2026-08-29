@@ -146,6 +146,14 @@ The wrapper identity manifest is tamper evidence bound to a separately trusted
 Git revision or plugin snapshot. SHA-256 alone is not author authentication or
 mathematical proof.
 
+The published v1.7.3 capability inventory remains immutable. The additive
+wrapper is a separate development identity, not a repinning of that release.
+`runtime_manifest_baseline_v173.json` retains the exact sealed Codex metadata
+input, while `PLUGIN_IDENTITY.sha256` binds the expanded manifest, adapter,
+THOTH modules, STEM workflows, assets, launchers, skill, and that baseline.
+The capability drift gate permits only the declared presentation extension,
+preserves foundation fields, and refuses baseline or inventory mutation.
+
 The repository also contains a separate SPARK fixed-scale interval envelope at
 `proofs/spark/hellgate_interval`. GNATprove establishes its stated integer
 contracts and absence of run-time errors. That proof is not integrated into the

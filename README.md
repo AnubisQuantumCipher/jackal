@@ -20,6 +20,45 @@ tag, GitHub release, package receipt, and downloadable asset must bind the
 same exact release bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
+## Spacecraft finite-burn certificate
+
+**Published state:** [JACKAL v1.7.5](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5)
+is the observed public **Latest** release and is neither a draft nor a
+prerelease. Its qualified verdict is **CERTIFIED SAFE under the stated
+finite-burn ODE model, supplied input bounds, and machine-checked
+interval-certificate assumptions**. Fresh downloads reproduced all 12 uploaded
+release asset byte identities and all 11 `SHA256SUMS` payload rows; the committed
+[v1.7.5 readback receipt](release/evidence/spacecraft_burn_release_readback_v175.json)
+binds the PR, merge, annotated tag, release metadata, asset sizes and hashes,
+proof/checker/source/request/witness/review identities, hosted checks, plugin
+identity, protected checkout, and explicit non-claims.
+
+The v1.7.4 release, tag, assets, and
+[historical readback](release/evidence/spacecraft_burn_release_readback_v174.json)
+remain immutable historical evidence. v1.7.4 is not the publication-grade
+verifier bundle; v1.7.5 is the corrective published epoch.
+
+The published historical [v1.7.4 release](https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.4)
+added a repository/release formal certificate for the spacecraft finite-burn
+case. Its qualified release verdict was **CERTIFIED SAFE under the stated
+finite-burn ODE model, supplied input bounds, and machine-checked
+interval-certificate assumptions**. Independent review and the PR and
+master-branch hosted gates passed, and a fresh download of all 11 release
+assets is complete. The v1.7.4 tag full-certificate campaign was cancelled,
+not passed; the committed
+[readback receipt](release/evidence/spacecraft_burn_release_readback_v174.json)
+binds the exact tag, merge commit, asset hashes, proof identity, and installed
+plugin state. The Python producer remains candidate-only; the pinned Lean
+checker and outer verifier bind the 35.9 MB witness, theorem, proof identity,
+request, model, epoch, nonce, and receipt. See
+[`spacecraft_burn_cert/REPORT.md`](spacecraft_burn_cert/REPORT.md) for the exact
+assurance boundary and physical-model non-claims.
+
+This lane does not add an MCP command. The ordered agent catalog remains 41
+tools. Use either the repo-local CLI or the exact published v1.7.5 assets; the
+[public-download readback](release/evidence/spacecraft_burn_release_readback_v175.json)
+binds the release bytes without changing the plugin surface.
+
 JACKAL is written in **Anubis Safe mode**. It does not try to win by adding another wall of
 buttons. It treats a serious calculation as a bounded scientific claim: value, units,
 uncertainty, method, assumptions, sensitivity, residual, non-claims, and a reproducible

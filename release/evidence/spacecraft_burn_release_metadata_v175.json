@@ -1,0 +1,7 @@
+{
+  "notes_path": "release/spacecraft_burn_v175_release_notes.md",
+  "notes_sha256": "ae27adbb2447455326230682cf7c072e279036004bb67559a9532744a2522160",
+  "schema": "jackal-spacecraft-burn-release-metadata-v1",
+  "tag": "v1.7.5",
+  "title": "JACKAL v1.7.5 - Spacecraft finite-burn certification"
+}

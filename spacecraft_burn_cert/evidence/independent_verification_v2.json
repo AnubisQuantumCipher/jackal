@@ -1,0 +1,36 @@
+{
+  "binding": {
+    "checker_result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.5",
+    "checker_sha256": "2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59",
+    "epoch": "v1.7.5",
+    "formal_margin_hi": 97148190212754394888777802,
+    "formal_margin_lo": 51450379597827184853505075,
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "nonce": "spacecraft-burn-v2-publication-20260825",
+    "proof_identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
+    "proof_identity_file_sha256": "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876",
+    "receipt_sha256": "489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed",
+    "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+    "witness_byte_size": 35939138,
+    "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
+  },
+  "reasons": [],
+  "replay": {
+    "domain_lower_bounds": {
+      "mass_exact": "1382062217417427315736792485/1208925819614629174706176",
+      "radius_squared_exact": "53912371654328477687089108767263/1208925819614629174706176",
+      "speed_squared_exact": "72158111333449500373422077/1208925819614629174706176"
+    },
+    "exact_lower_bound": "51450379597827184853505075/1208925819614629174706176",
+    "formula_only_exact_lower_bound": "4684830994590880152455811/1208925819614629174706176",
+    "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe"
+  },
+  "status": "ACCEPT",
+  "symbolic_identities": {
+    "angular_momentum_lagrange_identity": true,
+    "apoapsis_plus_expansion": true,
+    "eccentricity_energy_momentum_identity": true,
+    "eccentricity_vector_reduction": true,
+    "vis_viva_cleared_denominator_identity": true
+  }
+}

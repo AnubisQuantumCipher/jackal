@@ -1,0 +1,330 @@
+{
+  "schema": "jackal-spacecraft-burn-release-readback-v1",
+  "observed_at": "2026-08-26T10:16:27Z",
+  "terminal_state": "PUBLISHED_READBACK_VERIFIED",
+  "terminal_reason": "The public v1.7.5 release, annotated tag, all twelve uploaded release asset identities downloaded into fresh storage, eleven checksum rows, extracted checker, authoritative outer replay, PR gates, exact-master workflows, and exact-tag workflows were independently read back and matched.",
+  "repository": "https://github.com/AnubisQuantumCipher/jackal",
+  "pull_request": {
+    "number": 17,
+    "url": "https://github.com/AnubisQuantumCipher/jackal/pull/17",
+    "title": "fix(spacecraft): publish review-cleared v1.7.5 certification",
+    "base": "9a0aaca36956d1f85540888c02c879d4480fd840",
+    "head": "eb69713918798f5828950d92f1003c66d2eb26ca",
+    "reviewed_commit": "54c9af66405c445d17735c92ee177cd652fc34b9",
+    "merge_commit": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+    "merged_at": "2026-08-26T00:53:44Z",
+    "state": "merged",
+    "hosted_contexts": {
+      "observed": 5,
+      "passed": 5,
+      "failed": 0,
+      "contexts": [
+        {
+          "name": "CodeRabbit",
+          "workflow": "CodeRabbit",
+          "event": "pull_request",
+          "state": "success",
+          "run_id": null,
+          "url": "",
+          "completed_at": null
+        },
+        {
+          "name": "Gaussian/range source closures and axiom audits",
+          "workflow": "Formal proof identity gate",
+          "event": "pull_request",
+          "state": "success",
+          "run_id": 32895064449,
+          "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32895064449/job/97955699232",
+          "completed_at": "2026-08-25T20:32:46Z"
+        },
+        {
+          "name": "claim-kernel admission and surface locks (engine-free)",
+          "workflow": "Formal proof identity gate",
+          "event": "pull_request",
+          "state": "success",
+          "run_id": 32895064449,
+          "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32895064449/job/97955699352",
+          "completed_at": "2026-08-25T20:23:43Z"
+        },
+        {
+          "name": "macOS arm64 plugin gates",
+          "workflow": "JACKAL Codex plugin",
+          "event": "pull_request",
+          "state": "success",
+          "run_id": 32895064437,
+          "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32895064437/job/97955699144",
+          "completed_at": "2026-08-25T20:23:58Z"
+        },
+        {
+          "name": "full-certificate-campaign",
+          "workflow": "Spacecraft burn formal certificate gate",
+          "event": "pull_request",
+          "state": "success",
+          "run_id": 32895064617,
+          "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32895064617/job/97955699372",
+          "completed_at": "2026-08-26T00:52:18Z",
+          "job_id": 97955699372,
+          "started_at": "2026-08-25T20:23:37Z",
+          "conclusion": "success"
+        }
+      ]
+    }
+  },
+  "release": {
+    "id": 377032844,
+    "name": "JACKAL v1.7.5 - Spacecraft finite-burn certification",
+    "url": "https://github.com/AnubisQuantumCipher/jackal/releases/tag/v1.7.5",
+    "tag": "v1.7.5",
+    "tag_object": "1369dacf60101c2d196d577b0319b6d5c0a72aa8",
+    "tag_commit": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+    "target_commitish": "master",
+    "created_at": "2026-08-26T05:28:03Z",
+    "published_at": "2026-08-26T09:57:14Z",
+    "latest": true,
+    "draft": false,
+    "prerelease": false,
+    "github_immutable_release_enabled": false,
+    "title_and_notes_byte_match": true,
+    "notes_sha256": "ae27adbb2447455326230682cf7c072e279036004bb67559a9532744a2522160",
+    "fresh_download_byte_matches": 12,
+    "fresh_download_checksum_rows_passed": 11,
+    "assets": [
+      {
+        "name": "SHA256SUMS",
+        "bytes": 1075,
+        "sha256": "c177a260d5cecf5cf9341cab658f234b619cb2b81caed0f081ca592aecc65ba1",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/SHA256SUMS"
+      },
+      {
+        "name": "VERIFICATION.md",
+        "bytes": 3429,
+        "sha256": "8e2ce70e223387ec297777e8e810d058a32cad4c6f94b44f9f595239b6b69c7a",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/VERIFICATION.md"
+      },
+      {
+        "name": "baseline_receipt_v2.json",
+        "bytes": 14299,
+        "sha256": "489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/baseline_receipt_v2.json"
+      },
+      {
+        "name": "baseline_witness_v2.cert",
+        "bytes": 35939138,
+        "sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/baseline_witness_v2.cert"
+      },
+      {
+        "name": "independent_verification_v2.json",
+        "bytes": 1960,
+        "sha256": "de716e84319e63ee2971e06586414df692e7f1d69da802917e7aa28895876246",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/independent_verification_v2.json"
+      },
+      {
+        "name": "instrument_validation_v2.json",
+        "bytes": 5937,
+        "sha256": "8cb4496d33b63123b4c5cc4ee8d8956a3ff767456f45aaf1299422fdd474628a",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/instrument_validation_v2.json"
+      },
+      {
+        "name": "jackal-spacecraft-burn-v1.7.5-verifier-macos-arm64.tar.gz",
+        "bytes": 39423959,
+        "sha256": "7eae30a674c0d82f52644125d17025ae8aad82a7eeaa5801afbee49c220f1abf",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/jackal-spacecraft-burn-v1.7.5-verifier-macos-arm64.tar.gz"
+      },
+      {
+        "name": "mutation_aba_v2.json",
+        "bytes": 13626,
+        "sha256": "542d0bb66359bb4960255c16bb9d8bf160f1d681e5960e630456d3995535ab35",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/mutation_aba_v2.json"
+      },
+      {
+        "name": "request_v2.json",
+        "bytes": 533,
+        "sha256": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/request_v2.json"
+      },
+      {
+        "name": "spacecraft_burn_independent_review_v175.md",
+        "bytes": 15026,
+        "sha256": "f7700a20d4ff86f010667e019de0dc62b39976e6290f76209bdedcc385144a51",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/spacecraft_burn_independent_review_v175.md"
+      },
+      {
+        "name": "spacecraft_burn_proof_identity_v1.json",
+        "bytes": 31944,
+        "sha256": "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/spacecraft_burn_proof_identity_v1.json"
+      },
+      {
+        "name": "spacecraft_burn_review_clearance_v175.json",
+        "bytes": 358,
+        "sha256": "c65e33f86e60200643972e8b4f70a81ced214affe23c9049e029e91ee928c51b",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/releases/download/v1.7.5/spacecraft_burn_review_clearance_v175.json"
+      }
+    ]
+  },
+  "hosted_checks": {
+    "post_merge_and_tag": [
+      {
+        "run_id": 32916885112,
+        "workflow": "Formal proof identity gate",
+        "event": "push",
+        "ref": "master",
+        "head_sha": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+        "conclusion": "success",
+        "created_at": "2026-08-26T00:53:47Z",
+        "completed_at": "2026-08-26T01:18:27Z",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32916885112"
+      },
+      {
+        "run_id": 32916885108,
+        "workflow": "JACKAL Codex plugin",
+        "event": "push",
+        "ref": "master",
+        "head_sha": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+        "conclusion": "success",
+        "created_at": "2026-08-26T00:53:47Z",
+        "completed_at": "2026-08-26T00:54:13Z",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32916885108"
+      },
+      {
+        "run_id": 32916885129,
+        "workflow": "Spacecraft burn formal certificate gate",
+        "event": "push",
+        "ref": "master",
+        "head_sha": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+        "conclusion": "success",
+        "created_at": "2026-08-26T00:53:47Z",
+        "completed_at": "2026-08-26T05:26:38Z",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32916885129",
+        "job_id": 98022337805,
+        "started_at": "2026-08-26T00:53:51Z"
+      },
+      {
+        "run_id": 32934182467,
+        "workflow": "Formal proof identity gate",
+        "event": "push",
+        "ref": "v1.7.5",
+        "head_sha": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+        "conclusion": "success",
+        "created_at": "2026-08-26T05:28:36Z",
+        "completed_at": "2026-08-26T05:37:39Z",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32934182467"
+      },
+      {
+        "run_id": 32934182499,
+        "workflow": "JACKAL Codex plugin",
+        "event": "push",
+        "ref": "v1.7.5",
+        "head_sha": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+        "conclusion": "success",
+        "created_at": "2026-08-26T05:28:36Z",
+        "completed_at": "2026-08-26T05:28:59Z",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32934182499"
+      },
+      {
+        "run_id": 32934182495,
+        "workflow": "Spacecraft burn formal certificate gate",
+        "event": "push",
+        "ref": "v1.7.5",
+        "head_sha": "9a49f70b65b20907df40be99ee83e61e18adc7c5",
+        "conclusion": "success",
+        "created_at": "2026-08-26T05:28:36Z",
+        "completed_at": "2026-08-26T09:53:10Z",
+        "url": "https://github.com/AnubisQuantumCipher/jackal/actions/runs/32934182495",
+        "job_id": 98072135748,
+        "started_at": "2026-08-26T05:28:38Z"
+      }
+    ],
+    "all_master_push_runs_successful": true,
+    "all_tag_push_runs_successful": true
+  },
+  "public_replay": {
+    "checksum_manifest_sha256": "c177a260d5cecf5cf9341cab658f234b619cb2b81caed0f081ca592aecc65ba1",
+    "checksum_rows_passed": 11,
+    "asset_byte_matches": 12,
+    "archive_safe_extraction_completed": true,
+    "checker_result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.5",
+    "outer_verifier_status": "ACCEPT",
+    "outer_verifier_reasons": [],
+    "outer_verifier_output_sha256": "de716e84319e63ee2971e06586414df692e7f1d69da802917e7aa28895876246",
+    "structured_claim_gate": "PASS"
+  },
+  "proof": {
+    "qualified_verdict": "CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions",
+    "assurance_class": "formal-bounded",
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "release_epoch": "v1.7.5",
+    "soundness_theorem": "JackalIv.Spacecraft.spacecraft_burn_certified_safe",
+    "observed_theorem_axioms": [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    "tracked_lean_files": 57,
+    "source_closure_files": 23,
+    "named_theorems": 29,
+    "logical_admissions": 0,
+    "checker_sha256": "2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59",
+    "proof_identity_file_sha256": "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876",
+    "proof_identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
+    "receipt_sha256": "489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed",
+    "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+    "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c",
+    "producer_source_sha256": "d6e98c03e74847b8aea05600c3bae3681e59579506f2a0661504f6ea96e1c38a",
+    "independent_review": {
+      "method": "internal independent code review with adversarial security, proof, packaging, claims, integration, and CodeRabbit passes; not external academic peer review",
+      "completed_passes": 37,
+      "resolved_findings": 17,
+      "invalid_findings": 1,
+      "unresolved_release_blocking": 0,
+      "asset_sha256": "f7700a20d4ff86f010667e019de0dc62b39976e6290f76209bdedcc385144a51",
+      "clearance_sha256": "c65e33f86e60200643972e8b4f70a81ced214affe23c9049e029e91ee928c51b"
+    }
+  },
+  "plugin": {
+    "impact": "none",
+    "reason": "The spacecraft certification correction changes no plugins/jackel bytes and introduces no new MCP tool; the installed 41-tool plugin remains byte-aligned with its source and cache.",
+    "version": "0.1.0+codex.20260824183637",
+    "tool_count": 41,
+    "unique_tool_count": 41,
+    "ordered_tool_names_sha256": "851a50fb7b82d23e2e4dc59d3617659e7f161ed4f2f9fb0bc572f6c939c459bd",
+    "full_definitions_sha256": "03279ea328d028371b336fe2eb9decf3caf500a21a8d988058e51696c3975df0",
+    "aggregate_identity_sha256": "b2d62d374a54ffdaf090df3a6ea24ef9f6a64f9dde8c5189c29d67bd3b12ece8",
+    "pinned_package_sha256": "68b0e7850fcb60358633908f70ffcf405cbbef103b04d3d93dd1298789e505ae",
+    "plugin_tests_passed": 220,
+    "capability_tests_passed": 35,
+    "source_cache_byte_match": true,
+    "verification_command": "diff -r plugins/jackel $HOME/.codex/plugins/cache/anubis-quantum-cipher/jackel/0.1.0+codex.20260824183637"
+  },
+  "protected_checkout": {
+    "path": "$HOME/Desktop/Projects/jackal-calc",
+    "branch": "feat/mathematical-evidence-kernel-v1.6.0",
+    "head": "57739317b24250ff62fd9b23f67c760d9066ab94",
+    "tracked_changes": [],
+    "untracked_roots": [
+      "jackal_calc.anb.zip",
+      "jackal_calc.md",
+      "spacecraft_burn_cert/",
+      "website/"
+    ],
+    "mutation_performed_by_publication_work": false
+  },
+  "corrective_release": {
+    "required": false,
+    "target": "v1.7.5",
+    "status": "published-and-readback-verified",
+    "preserve_v1_7_4_bytes": true,
+    "v1_7_4_overwritten": false
+  },
+  "nonclaims": [
+    "The qualified verdict is conditional on the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions; it is not a certification of physical spacecraft hardware, sensors, actuators, model fidelity, or mission operations.",
+    "The system does not establish that the supplied input bounds are true for any real mission.",
+    "The theorem and checker do not establish the correctness of the Lean compiler, linker, operating system, hardware, or software supply chain.",
+    "The Python Picard witness generator and its source are not formally verified; they remain outside the Lean mathematical soundness base.",
+    "The review is an internal independent engineering review, not external academic peer review or third-party certification.",
+    "The proof identity and release checksums are unsigned SHA-256 bindings, not signatures or builder authentication.",
+    "This spacecraft release adds no new JACKEL tool and changes no plugin byte; the plugin remains the same 41-tool v1.7.3 runtime surface.",
+    "The v1.7.4 tag, release, assets, and historical readback remain immutable history and were not overwritten."
+  ]
+}

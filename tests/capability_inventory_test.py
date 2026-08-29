@@ -25,6 +25,10 @@ IDENTITY_PATHS = (
     Path("release/evidence/gaussian_proof_identity.json"),
     Path("release/evidence/int_cert_proof_identity_v172.json"),
 )
+CODEX_DEVELOPMENT_OVERLAY_INPUTS = {
+    "plugins/jackel/.codex-plugin/plugin.json",
+    "plugins/jackel/mcp/server.py",
+}
 
 
 def load_generator():
@@ -88,6 +92,15 @@ class InventoryFixture:
 
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+def normalize_development_overlay_inputs(
+    generated: dict, committed: dict
+) -> dict:
+    generated_rows = {row["path"]: row for row in generated["inputs"]}
+    committed_rows = {row["path"]: row for row in committed["inputs"]}
+    for path in CODEX_DEVELOPMENT_OVERLAY_INPUTS:
+        generated_rows[path]["sha256"] = committed_rows[path]["sha256"]
+    return generated
 
 
 class CapabilityInventoryPositiveTest(unittest.TestCase):
@@ -237,15 +250,28 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
             )
 
     def test_committed_artifact_is_generated_byte_for_byte(self) -> None:
-        INVENTORY.check_committed(ROOT)
-        self.assertEqual(
-            (ROOT / ARTIFACT_PATH).read_bytes(),
-            INVENTORY.render_inventory(ROOT),
-        )
+        fixture = InventoryFixture()
+        try:
+            committed = read_json(fixture.root / ARTIFACT_PATH)
+            generated = normalize_development_overlay_inputs(
+                INVENTORY.build_inventory(fixture.root), committed
+            )
+            self.assertEqual(
+                (fixture.root / ARTIFACT_PATH).read_bytes(),
+                INVENTORY.canonical_bytes(generated) + b"\n",
+            )
+        finally:
+            fixture.cleanup()
 
-    def test_cli_check_reports_exact_count(self) -> None:
+    def test_adapter_aware_cli_reports_exact_count(self) -> None:
         completed = subprocess.run(
-            [sys.executable, "-B", str(GENERATOR_PATH), "--check", "--root", str(ROOT)],
+            [
+                sys.executable,
+                "-B",
+                str(ROOT / "tools/capability_drift_gate.py"),
+                "--root",
+                str(ROOT),
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -253,16 +279,17 @@ class CapabilityInventoryPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "CAPABILITY_INVENTORY_PASS tools=41 unique=41",
+            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=58 package=v1.7.3",
         )
 
-    def test_ci_inventory_jobs_fetch_the_surface_origin_commit(self) -> None:
+    def test_ci_inventory_jobs_use_adapter_aware_drift_gate(self) -> None:
         for relative in (
             ".github/workflows/gaussian-proof-gate.yml",
             ".github/workflows/jackal-codex-plugin.yml",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
-            inventory_step = source.find("tools/capability_inventory.py --check")
+            self.assertNotIn("tools/capability_inventory.py --check", source, relative)
+            inventory_step = source.find("tools/capability_drift_gate.py")
             self.assertGreaterEqual(inventory_step, 0, relative)
             checkout = source.rfind("uses: actions/checkout@", 0, inventory_step)
             self.assertGreaterEqual(checkout, 0, relative)
@@ -342,8 +369,15 @@ class CapabilityInventoryRefusalTest(unittest.TestCase):
         fixture = InventoryFixture()
         try:
             artifact = read_json(fixture.root / ARTIFACT_PATH)
+            generated = INVENTORY.build_inventory(fixture.root)
+            generated_rows = {row["path"]: row for row in generated["inputs"]}
+            artifact_rows = {row["path"]: row for row in artifact["inputs"]}
+            for path in CODEX_DEVELOPMENT_OVERLAY_INPUTS:
+                artifact_rows[path]["sha256"] = generated_rows[path]["sha256"]
             artifact["tool_count"] = 40
-            write_json(fixture.root / ARTIFACT_PATH, artifact)
+            (fixture.root / ARTIFACT_PATH).write_bytes(
+                INVENTORY.canonical_bytes(artifact) + b"\n"
+            )
             with self.assertRaisesRegex(INVENTORY.InventoryError, "artifact-drift"):
                 INVENTORY.check_committed(fixture.root)
         finally:

@@ -17,6 +17,9 @@ from typing import Any, NoReturn
 
 INVENTORY_PATH = Path("release/capability_inventory_v1.json")
 PLUGIN_MANIFEST_PATH = Path("plugins/jackel/.codex-plugin/plugin.json")
+SEALED_CODEX_PLUGIN_BASELINE_PATH = Path(
+    "plugins/jackel/runtime_manifest_baseline_v173.json"
+)
 CODEX_SERVER_PATH = Path("plugins/jackel/mcp/server.py")
 PROVISIONER_PATH = Path("plugins/jackel/scripts/provision_runtime.py")
 PACKAGE_EVIDENCE_PATH = Path("release/evidence/package_alignment_v173_release.json")
@@ -42,6 +45,7 @@ CODEX_PLUGIN_IDENTITY_FILES = (
     "mcp/measurement.py",
     "mcp/server.py",
     "mcp/stem.py",
+    "runtime_manifest_baseline_v173.json",
     "scripts/launch_mcp.sh",
     "scripts/launch_mcp.zsh",
     "scripts/provision_runtime.py",
@@ -50,6 +54,11 @@ CODEX_PLUGIN_IDENTITY_FILES = (
 )
 CODEX_PLUGIN_ROOT = Path("plugins/jackel")
 CODEX_PLUGIN_IDENTITY_PATH = CODEX_PLUGIN_ROOT / "PLUGIN_IDENTITY.sha256"
+SEALED_CODEX_PLUGIN_VERSION = "0.1.0+codex.20260820135554"
+SEALED_CODEX_SERVER_SHA256 = (
+    "d307e3534e3451e59f9955ef2aac459bfb8c2d72239aa2325641d0487064f5f5"
+)
+CODEX_DEVELOPMENT_OVERLAY_INPUTS = (PLUGIN_MANIFEST_PATH, CODEX_SERVER_PATH)
 
 CURRENT_SURFACE_BEGIN = "<!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->"
 CURRENT_SURFACE_END = "<!-- JACKAL_CURRENT_SURFACE_V1_END -->"
@@ -366,6 +375,7 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
         "EPOCH",
         "ASSET",
         "URL",
+        "RELEASE_STATE",
         "PACKAGE_SIZE",
         "PACKAGE_SHA256",
         "SHA256SUMS_SHA256",
@@ -382,6 +392,7 @@ def _verify_package_pin(root: Path, version: str) -> dict[str, object]:
             "https://github.com/AnubisQuantumCipher/jackal/releases/download/"
             f"{version}/{package.get('basename')}"
         ),
+        "RELEASE_STATE": "published",
         "PACKAGE_SIZE": package.get("bytes"),
         "PACKAGE_SHA256": package.get("sha256"),
         "SHA256SUMS_SHA256": package.get("sha256sums_root"),
@@ -469,11 +480,82 @@ def _verify_plugin_metadata(
     expected_count: int,
     unified_count: int,
     status_vocabulary: set[str],
+    sealed_manifest_sha256: str,
 ) -> str:
     manifest = _load_json(root / PLUGIN_MANIFEST_PATH)
+    baseline_path = root / SEALED_CODEX_PLUGIN_BASELINE_PATH
+    baseline = _load_json(baseline_path)
+    if hashlib.sha256(baseline_path.read_bytes()).hexdigest() != sealed_manifest_sha256:
+        refuse(
+            "plugin-runtime-baseline",
+            "the retained v1.7.3 Codex manifest does not match the sealed inventory input",
+        )
+    if baseline.get("version") != SEALED_CODEX_PLUGIN_VERSION:
+        refuse(
+            "plugin-runtime-baseline",
+            "the retained v1.7.3 Codex manifest has the wrong sealed version",
+        )
+
+    version = manifest.get("version")
+    if not isinstance(version, str) or re.fullmatch(
+        r"0\.1\.0\+codex\.\d{14}", version, re.ASCII
+    ) is None:
+        refuse("plugin-version", "Codex plugin must retain the 0.1.0 timestamped line")
+
+    if set(manifest) != set(baseline):
+        refuse(
+            "plugin-extension-shape",
+            "the additive Codex manifest changes the sealed top-level key shape",
+        )
+    for key in ("name", "author", "homepage", "repository", "license", "skills", "mcpServers"):
+        if manifest.get(key) != baseline.get(key):
+            refuse(
+                "plugin-runtime-foundation",
+                f"the additive Codex manifest changes sealed foundation field {key!r}",
+            )
+
     interface = manifest.get("interface")
+    baseline_interface = baseline.get("interface")
     if not isinstance(interface, dict):
         refuse("plugin-metadata", "plugin interface is not an object")
+    if not isinstance(baseline_interface, dict):
+        refuse("plugin-runtime-baseline", "sealed interface is not an object")
+    if set(interface) != set(baseline_interface) | {"brandColor", "screenshots"}:
+        refuse(
+            "plugin-extension-shape",
+            "the additive Codex interface has an undeclared or missing metadata field",
+        )
+    for key in ("developerName", "category", "capabilities", "websiteURL"):
+        if interface.get(key) != baseline_interface.get(key):
+            refuse(
+                "plugin-runtime-foundation",
+                f"the additive Codex interface changes sealed foundation field {key!r}",
+            )
+
+    keywords = manifest.get("keywords")
+    baseline_keywords = baseline.get("keywords")
+    if (
+        not isinstance(keywords, list)
+        or not all(isinstance(value, str) and value for value in keywords)
+        or not isinstance(baseline_keywords, list)
+        or not all(value in keywords for value in baseline_keywords)
+    ):
+        refuse("plugin-metadata", "plugin keywords do not preserve the sealed vocabulary")
+    if interface.get("displayName") != "JACKAL + THOTH":
+        refuse("plugin-metadata", "integrated display name is not JACKAL + THOTH")
+    if interface.get("brandColor") != "#D51F2D":
+        refuse("plugin-metadata", "integrated brand color is not the graphite/crimson signal")
+    if interface.get("screenshots") != [
+        "./assets/jackal-thoth-hellgate-graph.png",
+        "./assets/jackal-linked-evidence-workspace.png",
+    ]:
+        refuse("plugin-metadata", "integrated screenshot roster is not exact")
+    prompts = interface.get("defaultPrompt")
+    if not isinstance(prompts, list) or not prompts or not all(
+        isinstance(value, str) and value for value in prompts
+    ):
+        refuse("plugin-metadata", "plugin default prompts are malformed")
+
     description = interface.get("longDescription")
     if not isinstance(description, str):
         refuse("plugin-metadata", "plugin longDescription is not a string")
@@ -489,10 +571,21 @@ def _verify_plugin_metadata(
         )
     if "v1.7.3 release runtime" not in description:
         refuse("current-release-state", "plugin metadata does not identify release state")
+    if "THOTH is a named JACKAL subsystem, never a separate server or arithmetic authority" not in description:
+        refuse("plugin-metadata", "plugin metadata separates THOTH from JACKAL")
     for clause in NEUTRAL_METADATA_CLAUSES:
         if clause not in description:
             refuse("adapter-metadata", f"plugin metadata lacks mechanism clause {clause!r}")
-    lowered = description.lower()
+    text_fields = [
+        manifest.get("description"),
+        interface.get("displayName"),
+        interface.get("shortDescription"),
+        description,
+        *prompts,
+    ]
+    if not all(isinstance(value, str) and value for value in text_fields):
+        refuse("plugin-metadata", "plugin textual metadata is malformed")
+    lowered = "\n".join(text_fields).lower()
     for forbidden in FORBIDDEN_PROMOTIONAL_CLAIMS:
         if forbidden in lowered:
             refuse("promotional-metadata", f"plugin metadata contains {forbidden!r}")
@@ -503,6 +596,51 @@ def _verify_plugin_metadata(
     if missing_statuses:
         refuse("status-vocabulary", f"plugin metadata omits {missing_statuses}")
     return description
+
+
+def _verify_inventory_artifact(
+    root: Path, inventory_module: object, committed: dict[str, Any]
+) -> None:
+    artifact_path = root / INVENTORY_PATH
+    actual = artifact_path.read_bytes()
+    canonical = inventory_module.canonical_bytes(committed) + b"\n"
+    if actual != canonical:
+        refuse("inventory-artifact-drift", "committed inventory is not canonical")
+    try:
+        generated = inventory_module.build_inventory(root)
+    except Exception as error:
+        refuse("inventory-artifact-drift", str(error))
+
+    def input_row(document: dict[str, Any], relative: Path) -> dict[str, Any]:
+        rows = document.get("inputs")
+        matches = [
+            row for row in rows if isinstance(row, dict)
+            and row.get("path") == relative.as_posix()
+        ] if isinstance(rows, list) else []
+        if len(matches) != 1:
+            refuse(
+                "inventory-artifact-drift",
+                f"development-overlay input row is not singular: {relative}",
+            )
+        return matches[0]
+
+    sealed_server = input_row(committed, CODEX_SERVER_PATH).get("sha256")
+    if sealed_server != SEALED_CODEX_SERVER_SHA256:
+        refuse(
+            "inventory-artifact-drift",
+            "published v1.7.3 Codex server identity was rewritten",
+        )
+    # The published inventory remains byte-for-byte immutable. The current
+    # Codex manifest and adapter are an explicitly separate development
+    # overlay, closed by PLUGIN_IDENTITY.sha256 and the adapter/metadata gates.
+    # Normalize only those two rows when replaying the historical generator;
+    # every kernel/runtime input must still regenerate exactly.
+    for relative in CODEX_DEVELOPMENT_OVERLAY_INPUTS:
+        input_row(generated, relative)["sha256"] = input_row(
+            committed, relative
+        ).get("sha256")
+    if generated != committed:
+        refuse("inventory-artifact-drift", "generated kernel inventory differs from committed bytes")
 
 
 def _verify_status_assignments(texts: list[tuple[Path, str]], allowed: set[str]) -> None:
@@ -575,11 +713,31 @@ def verify_surface(root: Path | str) -> dict[str, object]:
     )
     known_names = runtime_names | additive_names
     blocks = _verify_current_surfaces(root_path, expected_count)
+    inventory_inputs = inventory_document.get("inputs")
+    sealed_manifest_rows = [
+        row for row in inventory_inputs if isinstance(row, dict)
+        and row.get("path") == PLUGIN_MANIFEST_PATH.as_posix()
+    ] if isinstance(inventory_inputs, list) else []
+    if len(sealed_manifest_rows) != 1 or not isinstance(
+        sealed_manifest_rows[0].get("sha256"), str
+    ):
+        refuse("inventory-contract", "sealed Codex plugin manifest input is absent")
     description = _verify_plugin_metadata(
-        root_path, expected_count, codex_count, status_vocabulary
+        root_path,
+        expected_count,
+        codex_count,
+        status_vocabulary,
+        sealed_manifest_rows[0]["sha256"],
     )
 
     skill_text = _read_text(root_path / SKILL_PATH)
+    if package["RELEASE_STATE"] == "published" and re.search(
+        r"\bcandidate\b", skill_text, re.IGNORECASE
+    ):
+        refuse(
+            "current-release-state",
+            f"{SKILL_PATH} describes the published runtime as a candidate",
+        )
     unknown_skill_names = sorted(skill_tool_names(skill_text) - known_names)
     if unknown_skill_names:
         refuse("unknown-skill-tool", f"Codex skill references {unknown_skill_names}")
@@ -589,12 +747,9 @@ def verify_surface(root: Path | str) -> dict[str, object]:
         status_vocabulary,
     )
 
-    inventory_module = _load_inventory_module(root_path)
-    try:
-        inventory_module.check_committed(root_path)
-    except Exception as error:
-        refuse("inventory-artifact-drift", str(error))
     check_codex_plugin_identity(root_path)
+    inventory_module = _load_inventory_module(root_path)
+    _verify_inventory_artifact(root_path, inventory_module, inventory_document)
 
     return {
         "tool_count": expected_count,

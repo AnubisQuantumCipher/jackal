@@ -89,6 +89,16 @@ and preserve the exact assurance boundary returned by the runtime.
   `jackal_anubis_check_program` only when the caller supplies the approved
   compiler and a new output root. None executes the compiled artifact.
 
+For an exact claim step, use JACKAL CLI command spelling and ordered string
+tokens, for example:
+
+```json
+{"id": "p", "op": "exact", "command": "mod-pow", "args": ["3", "100", "7"]}
+```
+
+Do not invent backend identifier spellings such as `mod_pow` or replace the
+ordered string tokens with a named-argument object.
+
 Verification expectations are authorization, not data discovery. Expected
 bundle and receipt values must come from the caller or separately trusted source, not evidence under review.
 Never copy an `expected_*` value from the bundle or receipt being verified. A
@@ -102,6 +112,20 @@ For receipt replay, the exact expected command depends on the receipt:
 
 Current formal range and composed-integral receipts use release epoch v1.7.2;
 the additive package/runtime epoch is v1.7.3.
+
+## Spacecraft finite-burn release certificate
+
+For the repository's spacecraft case, preserve the complete verdict:
+`CERTIFIED SAFE under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions`.
+Never shorten it to an unconditional safety statement.
+
+This certificate is a repo-local and release-asset workflow, not an MCP tool.
+Do not invent `jackal_spacecraft_*` tool calls or report a 42nd capability.
+Use `spacecraft_burn_cert/certify.py` only as the non-authoritative producer, require
+acceptance from the pinned Lean executable, then require
+`spacecraft_burn_cert/verify_receipt.py` with independent caller pins. Preserve
+the model assumptions, trusted checker/toolchain base, and physical-world
+non-claims from `spacecraft_burn_cert/REPORT.md`.
 
 ## Select the assurance lane
 

@@ -398,7 +398,11 @@ TCB, but they are part of the end-to-end Codex request/result fidelity TCB.
 `plugins/jackel/PLUGIN_IDENTITY.sha256` records a stable, sorted digest
 inventory for the plugin manifest, MCP manifest, installation/operation
 README, launcher, adapter, provisioner, verification script, and operational
-skill. The manifest excludes only itself. `scripts/verify_plugin.py` performs a bounded descriptor-relative,
+skill. It also binds `runtime_manifest_baseline_v173.json`, the retained exact
+metadata input from the published v1.7.3 capability inventory. The current
+manifest and MCP adapter are a separately identified additive overlay; they do
+not rewrite the historical inventory. The manifest excludes only itself.
+`scripts/verify_plugin.py` performs a bounded descriptor-relative,
 no-follow traversal and rejects every unlisted file, link, special entry,
 directory, bytecode cache, oversized manifest/file set, path-identity change,
 or parent-directory mutation before printing a deterministic
@@ -582,8 +586,11 @@ path, byte count, SHA-256, stable file/parent identities, and strict
 This tamper-evident path/version/digest record does not authenticate an official Codex binary;
 fresh-host acceptance therefore depends on the operator separately trusting
 the supplied executable anchor. It then generates an internal nonce,
-launches a new ephemeral read-only Codex task with a neutral prompt that names
-no plugin, server, or tool, and records a bounded no-overwrite JSONL transcript.
+launches a new ephemeral Codex task with `--sandbox danger-full-access` and a
+neutral prompt that names no plugin, server, or tool, and records a bounded
+no-overwrite JSONL transcript. This mode is required because the adapter creates
+a private runtime snapshot and starts the sealed backend outside the repository;
+the harness keeps `--ask-for-approval never` and does not bypass approvals.
 Acceptance requires the global event order thread-start, turn-start, claim-start, claim-complete, verify-start, verify-complete, turn-complete
 for exactly `jackal_claim` followed by `jackal_verify_bundle`, exact
 nonce/request/bundle/caller-pin binding, and a verified structured result. The

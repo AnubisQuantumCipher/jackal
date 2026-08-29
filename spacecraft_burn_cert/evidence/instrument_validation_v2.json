@@ -1,0 +1,151 @@
+{
+  "analytic_mass": {
+    "analytic_exact": [
+      "448476801/392266",
+      "64327657/56038"
+    ],
+    "certified_hull_exact": [
+      "1382062217417427315736792485/1208925819614629174706176",
+      "693930450374043282864501281/604462909807314587353088"
+    ],
+    "status": "PASS"
+  },
+  "answer_controls": {
+    "case_count": 4,
+    "cases": [
+      {
+        "case": "thrust-scale",
+        "true_answer_passed": true,
+        "wrong_answer_passed": false
+      },
+      {
+        "case": "mass-flow",
+        "true_answer_passed": true,
+        "wrong_answer_passed": false
+      },
+      {
+        "case": "kinetic-half",
+        "true_answer_passed": true,
+        "wrong_answer_passed": false
+      },
+      {
+        "case": "apoapsis-plus",
+        "true_answer_passed": true,
+        "wrong_answer_passed": false
+      }
+    ],
+    "status": "PASS",
+    "true_answer_pass_rate": "4/4",
+    "wrong_answer_pass_rate": "0/4"
+  },
+  "arithmetic_corpus": {
+    "deterministic_checks": 144,
+    "status": "PASS"
+  },
+  "baseline_receipt_sha256": "489eaffcdb5445262a07443c7d02421d2363f9a7e52fbc081e21a1ed29d5a8ed",
+  "corner_diagnostics": {
+    "certified_lower_margin_km": "42.55875651181649",
+    "classification": "deterministic corner samples; diagnostic only, not proof",
+    "minimum_sample_inputs": [
+      "6677.9995",
+      "0.0005",
+      "2e-05",
+      "7.7258",
+      "1201.5",
+      "1995",
+      "118.5"
+    ],
+    "minimum_sampled_margin_km": "43.68554532893995",
+    "rk4_step_exact": "1/32",
+    "sample_count": 128,
+    "status": "PASS"
+  },
+  "formal_checker_binding": {
+    "checker_sha256": "2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59",
+    "epoch": "v1.7.5",
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "nonce": "spacecraft-burn-v2-publication-20260825",
+    "proof_identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
+    "proof_identity_file_sha256": "dc786a6e73a01278b09b899abd54555a5d268a305d745f66c4bf5480527bf876",
+    "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+    "result_line": "ACCEPT theorem=spacecraft_burn_certified_safe status=formal-bounded margin_lo=51450379597827184853505075 margin_hi=97148190212754394888777802 model=jackal-spacecraft-finite-burn-ode-v2 epoch=v1.7.5",
+    "theorem": "spacecraft_burn_certified_safe",
+    "witness_sha256": "27d5b16e08dd9f1b39774adb455a43e129bb390b9c7462f87ba93cdade87204c"
+  },
+  "formal_checker_status": "ACCEPT",
+  "formal_decisive_margin": {
+    "hi_decimal": "80.3590994886042283211137996993",
+    "hi_exact": "48574095106377197444388901/604462909807314587353088",
+    "hi_scaled_integer": "97148190212754394888777802",
+    "lo_decimal": "42.5587565118164884375971897689",
+    "lo_exact": "51450379597827184853505075/1208925819614629174706176",
+    "lo_scaled_integer": "51450379597827184853505075",
+    "scale_bits": 80
+  },
+  "nominal_diagnostic": {
+    "classification": "numerically estimated diagnostic only",
+    "cutoff_state": [
+      "6614.208208105401",
+      "936.2929755636171",
+      "-1.082817074173849",
+      "7.855089015561424",
+      "1145.615135308472"
+    ],
+    "margin_km": "61.36001821035825",
+    "rk4_step_exact": "1/64"
+  },
+  "reconciliation": {
+    "expected_postprocess_count": 3072,
+    "expected_tube_count": 124416,
+    "postprocess_count": 3072,
+    "status": "PASS",
+    "tube_count": 124416
+  },
+  "schema": "spacecraft-finite-burn-instrument-validation-v2",
+  "status": "PASS",
+  "step_refinement": {
+    "classification": "rigorous step-size cross-check; not a formal convergence theorem",
+    "runs": [
+      {
+        "evidence_classification": "rigorously interval-bounded, not formal-bounded",
+        "formal_checker_status": "NOT_EXECUTED",
+        "formula_only_lower_exact": "-432326007546259997927907/302231454903657293676544",
+        "lower_decimal": "42.1568120515684803341452720023",
+        "lower_exact": "12741114640445575480510219/302231454903657293676544",
+        "producer_assurance": "candidate-only",
+        "step_exact": "1/16",
+        "trace_sha256": "5ae19a47fd23c9260839e06c604accd88c7acfdf81dfe2b6d59c6779cb187f8a",
+        "tube_count": 62208,
+        "verdict": "CERTIFIED SAFE",
+        "verdict_qualifier": "under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions"
+      },
+      {
+        "evidence_classification": "formal-bounded",
+        "formal_checker_status": "ACCEPT",
+        "formula_only_lower_exact": "4684830994590880152455811/1208925819614629174706176",
+        "lower_decimal": "42.5587565118164884375971897689",
+        "lower_exact": "51450379597827184853505075/1208925819614629174706176",
+        "producer_assurance": "candidate-only",
+        "step_exact": "1/32",
+        "trace_sha256": "f5b9684d0762eb6cb83dbfb20316b6cb166ea74b16b8ab151ccb7c70a23ce5fe",
+        "tube_count": 124416,
+        "verdict": "CERTIFIED SAFE",
+        "verdict_qualifier": "under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions"
+      },
+      {
+        "evidence_classification": "rigorously interval-bounded, not formal-bounded",
+        "formal_checker_status": "NOT_EXECUTED",
+        "formula_only_lower_exact": "6801868962405290352663293/1208925819614629174706176",
+        "lower_decimal": "42.6928138707786722015197496910",
+        "lower_exact": "51612445000385915414235875/1208925819614629174706176",
+        "producer_assurance": "candidate-only",
+        "step_exact": "1/48",
+        "trace_sha256": "2ec4f4efb602964954c1389baf667f4c14e08e7764149ef5c2cc5ef58dde21cb",
+        "tube_count": 186624,
+        "verdict": "CERTIFIED SAFE",
+        "verdict_qualifier": "under the stated finite-burn ODE model, supplied input bounds, and machine-checked interval-certificate assumptions"
+      }
+    ],
+    "status": "PASS"
+  }
+}

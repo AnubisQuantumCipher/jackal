@@ -155,6 +155,8 @@ class PluginMetadataTests(unittest.TestCase):
             "never reinterpret a permission error itself as proof of absence",
             "same provisioner-owned sanitized environment",
             "`--host-live`",
+            "`--sandbox danger-full-access`",
+            "does not bypass approvals",
             "`codex mcp list --json`",
             "exact active `jackel` MCP declaration and resolved cache cwd",
             "thread-start, turn-start, claim-start, claim-complete, verify-start, verify-complete, turn-complete",
@@ -228,7 +230,7 @@ class PluginMetadataTests(unittest.TestCase):
         self.assertEqual(interface["category"], "Productivity")
         self.assertEqual(interface["capabilities"], ["Interactive"])
         self.assertEqual(interface["websiteURL"], "https://github.com/AnubisQuantumCipher/jackal")
-        self.assertEqual(interface["brandColor"], "#00E0B8")
+        self.assertEqual(interface["brandColor"], "#D51F2D")
         self.assertEqual(
             interface["screenshots"],
             [
@@ -385,6 +387,7 @@ class PluginMetadataTests(unittest.TestCase):
             "mcp/measurement.py",
             "mcp/advanced.py",
             "mcp/stem.py",
+            "runtime_manifest_baseline_v173.json",
             "mcp/hellgate_verify.py",
             "mcp/certificates/README.md",
             "mcp/certificates/hellgate_v1.json.zlib",
@@ -434,6 +437,16 @@ class PluginMetadataTests(unittest.TestCase):
             "refused",
             "indeterminate",
             "No silent downgrade",
+        ):
+            self.assertIn(required, text, required)
+
+    def test_skill_documents_canonical_exact_claim_step_shape(self):
+        text = SKILL_PATH.read_text(encoding="utf-8")
+        for required in (
+            '"op": "exact"',
+            '"command": "mod-pow"',
+            '"args": ["3", "100", "7"]',
+            "ordered string tokens",
         ):
             self.assertIn(required, text, required)
 

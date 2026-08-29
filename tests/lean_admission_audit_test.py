@@ -79,7 +79,7 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
         )
         observed = [row["path"] for row in self.audit["source_inventory"]["files"]]
         self.assertEqual(observed, expected)
-        self.assertEqual(self.audit["source_inventory"]["file_count"], 42)
+        self.assertEqual(self.audit["source_inventory"]["file_count"], len(expected))
         self.assertEqual(
             self.audit["source_inventory"]["inventory_source"], "git-ls-files"
         )
@@ -171,7 +171,9 @@ class LeanAdmissionAuditPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "LEAN_ADMISSION_AUDIT_PASS files=42 theorems=27 admissions=0",
+            "LEAN_ADMISSION_AUDIT_PASS "
+            f"files={self.audit['source_inventory']['file_count']} "
+            f"theorems={self.audit['theorem_axiom_audit']['theorem_count']} admissions=0",
         )
 
 
@@ -266,6 +268,15 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
 
     def test_platform_neutral_source_cli_checks_all_tracked_files(self) -> None:
+        inventory = subprocess.run(
+            [
+                "git", "-C", str(ROOT), "ls-files", "-z", "--",
+                ":(glob)proofs/lean/**/*.lean",
+            ],
+            capture_output=True,
+            check=True,
+        ).stdout
+        tracked_count = sum(bool(path) for path in inventory.split(b"\0"))
         completed = subprocess.run(
             [
                 sys.executable,
@@ -282,7 +293,7 @@ class LeanAdmissionAuditMutationTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "LEAN_SOURCE_ADMISSION_PASS files=42 admissions=0",
+            f"LEAN_SOURCE_ADMISSION_PASS files={tracked_count} admissions=0",
         )
 
     def assert_refused(self, source: str, reason: str) -> None:

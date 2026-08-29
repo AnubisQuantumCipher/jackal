@@ -1,0 +1,907 @@
+{
+  "build_attestation": {
+    "attestation_digest_sha256": "416f27d04c872848ac563208a558b68af3530102306b163a5ed3e218c55326a8",
+    "authentication": {
+      "authenticated": false,
+      "scheme": "none",
+      "statement": "This deterministic record binds observed checker bytes to named inputs. It is not a signature and does not authenticate the builder or artifact."
+    },
+    "build_command": [
+      "lake",
+      "build",
+      "jackal_spacecraft_burn_check"
+    ],
+    "build_environment": {
+      "dependency_path_overrides": {
+        "definition": "Deterministic Lake path overrides that force every manifest-pinned Git dependency to load only from its already verified private tracked-blob snapshot.",
+        "package_count": 9,
+        "package_names": [
+          "Cli",
+          "LeanSearchClient",
+          "Qq",
+          "aesop",
+          "batteries",
+          "importGraph",
+          "mathlib",
+          "plausible",
+          "proofwidgets"
+        ],
+        "sha256": "e00ca6dc33d341fc31184125bb8778ac8a470d22cf2fe7c4481f1ee7933b2a3c"
+      },
+      "isolation_policy": "Publication generation copies an explicit local Lean source closure, every pinned dependency blob, and the complete pinned Lean toolchain regular-file tree into a private mode-0700 workspace. Deterministic path overrides make Lake consume only those verified dependency snapshots. Lake is invoked with the absolute pinned lakefile, rehashing, reconfiguration, no remote cache, and the private toolchain. macOS sandbox policy denies the build subprocess writes to source and toolchain bytes while permitting dedicated .lake build/configuration directories and one exact ProofWidgets hash sidecar that --rehash recomputes but never trusts as an input. That sidecar and exact source/dependency manifests are checked around every Lake command, and the complete toolchain tree is checked before and after the build. This boundary trusts the owning macOS kernel, sandbox facility, dyld, libSystem, hardware, and the invoking Python interpreter; it is not a proof of that platform supply chain.",
+      "lake_generated_bookkeeping": {
+        "definition": "Exact non-source Lake hash sidecars required to replay pinned dependency targets under --rehash; each is recomputed, never trusted as an input, and validated after every Lake command.",
+        "files": [
+          {
+            "bytes": 16,
+            "path": ".lake/packages/proofwidgets/widget/package-lock.json.hash",
+            "sha256": "971a4e08a78d3b185902cde49867376deb03135a517d4380eb1cb6604cfcb38b"
+          }
+        ]
+      },
+      "lean_launcher_binaries": [
+        {
+          "bytes": 51840,
+          "name": "lake",
+          "sha256": "58261a1a2fa1a362376c71e02ca854a093e71cc5e6ea64b287a931cb2565273d"
+        },
+        {
+          "bytes": 49968,
+          "name": "lean",
+          "sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554"
+        },
+        {
+          "bytes": 75008,
+          "name": "leanc",
+          "sha256": "cf593a5b9d1e64903c1f9883304f3ffbd62b80d222f0234bbea9dd4b5013ce0e"
+        }
+      ],
+      "lean_toolchain_tree": {
+        "aggregate_sha256": "49b96c567a6021958611d11ebadd65c21a4fe55465650374dace0e95fd56e1a5",
+        "definition": "SHA-256 aggregate over every relative directory path/mode and regular file path/mode/size/SHA-256 in the private Lean toolchain snapshot; symlinks and special files are forbidden.",
+        "directory_count": 606,
+        "directory_name": "leanprover--lean4---v4.32.0",
+        "entry_count": 15277,
+        "file_count": 14671,
+        "lean_toolchain": "leanprover/lean4:v4.32.0",
+        "total_bytes": 2790171986
+      },
+      "trusted_platform_launchers": [
+        {
+          "bytes": 118640,
+          "invocation_path": "/usr/bin/python3",
+          "invocation_symlink_target": null,
+          "resolved_path": "/usr/bin/python3",
+          "role": "python-launcher",
+          "sha256": "44a68ddc1983d6cff3fd35ba3f9ba5f82004216f1dcde69892b3d1b06e408698"
+        },
+        {
+          "bytes": 102352,
+          "invocation_path": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "invocation_symlink_target": "../../Library/Frameworks/Python3.framework/Versions/3.9/bin/python3",
+          "resolved_path": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+          "role": "python-interpreter",
+          "sha256": "271143990bc83af0fb2404a255038f5faafb96df1584ed7f085e5018c0f33ffb"
+        },
+        {
+          "bytes": 118640,
+          "invocation_path": "/usr/bin/git",
+          "invocation_symlink_target": null,
+          "resolved_path": "/usr/bin/git",
+          "role": "git-client",
+          "sha256": "44a68ddc1983d6cff3fd35ba3f9ba5f82004216f1dcde69892b3d1b06e408698"
+        },
+        {
+          "bytes": 102368,
+          "invocation_path": "/usr/bin/sandbox-exec",
+          "invocation_symlink_target": null,
+          "resolved_path": "/usr/bin/sandbox-exec",
+          "role": "sandbox-launcher",
+          "sha256": "e3d7a792c58a5d3783d2f7274c82d70062393830d8cb1ded713ca554a470bd2f"
+        }
+      ]
+    },
+    "checker": {
+      "bytes": 137832656,
+      "path": "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check",
+      "sha256": "2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59",
+      "target": "jackal_spacecraft_burn_check"
+    },
+    "claim_boundary": "This binds the complete private Lean toolchain regular-file tree, admitted source and dependency bytes, observed checker bytes, and named platform launchers. It is reproducibility/build-provenance evidence, not a proof of Python, Git, macOS, sandbox-exec, dyld, libSystem, the kernel, hardware, or supply-chain correctness.",
+    "compiler_observed_for_build_platform": {
+      "build": "Release",
+      "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "executable_bytes": 49968,
+      "executable_sha256": "1b370cfcbf44e80d1b004ab1b1ab9a4c73951f9f7c242140bcff9bc577576554",
+      "target": "arm64-apple-darwin24.6.0",
+      "version": "4.32.0"
+    },
+    "inputs": {
+      "lean_commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
+      "source_closure_sha256": "264a51f852da4ec959ef747aba00ccac42c9e72fc2ab71a1f8a02ea3d7247943",
+      "toolchain_configuration": [
+        {
+          "path": "proofs/lean/lakefile.toml",
+          "sha256": "48b4a93ddda8ea85bda3fe65ac2f94dc43d6629641cdaf7bead228ec26d90bfe"
+        },
+        {
+          "path": "proofs/lean/lake-manifest.json",
+          "sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4"
+        },
+        {
+          "path": "proofs/lean/lean-toolchain",
+          "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e"
+        }
+      ]
+    },
+    "kind": "unsigned-local-build-binding-v1",
+    "working_directory": "proofs/lean"
+  },
+  "checker": {
+    "bytes": 137832656,
+    "path": "proofs/lean/.lake/build/bin/jackal_spacecraft_burn_check",
+    "sha256": "2e08149b735ff70a1f1b6606aeca46c9e4dbf2a7d12db2cdc0e80d37f325fa59",
+    "target": "jackal_spacecraft_burn_check"
+  },
+  "fragment": {
+    "assurance": "formal-bounded",
+    "certificate_magic": "jackal-spacecraft-burn-cert v2",
+    "checker_boolean_definition": "JackalIv.Spacecraft.checkBurnCert",
+    "checker_build_cache_policy": "identity generation builds only open-once snapshots of local and pinned dependency source bytes in a private fresh workspace without live caches",
+    "checker_entrypoint_definition": "main (Spacecraft.CertMain)",
+    "checker_executable": "jackal_spacecraft_burn_check",
+    "checker_root_module": "JackalIv.Spacecraft.CertMain",
+    "family": "spacecraft-finite-burn-model-conditional-v2",
+    "lane": "spacecraft-burn",
+    "model_id": "jackal-spacecraft-finite-burn-ode-v2",
+    "parser_definition": "JackalIv.Spacecraft.parseBurnWitness",
+    "premises_not_discharged_by_checker": [],
+    "release_epoch": "v1.7.5",
+    "request_digest": "03bcad618ad60114007c74a384eb8c9432e3755b817e74bd5bdc9bd1ba6df3e7",
+    "runtime_alternate_implementation_boundary": "none in the local source closure; no native_decide or implemented_by",
+    "soundness_theorem": "JackalIv.Spacecraft.spacecraft_burn_certified_safe",
+    "theorem_premises": [
+      "checkBurnCert raw requestDigest modelId epoch = .ok accepted (runtime checked)"
+    ]
+  },
+  "generator": {
+    "definition": "Complete repository-local Python generator source closure used to construct and verify this identity. The interpreter and standard library remain in the explicit build-platform trusted base.",
+    "files": [
+      {
+        "path": "release/tools/spacecraft_burn_proof_identity.py",
+        "sha256": "72d376a1e382b9436718f2c98145d260ab9d0eb8030bbcc80cb8bf0dbb4455d7"
+      },
+      {
+        "path": "release/tools/gaussian_proof_identity.py",
+        "sha256": "05bfa1709b0968da37b95c3d80c619de003ee4ba6987f6cea2844293fa8e4ccd"
+      }
+    ]
+  },
+  "identity_digest_sha256": "418854abbb009a25b020be6cb3799dfd3ae75d6619ad4f26032cc64fead924be",
+  "proof": {
+    "axiom_audit_command": "lake env lean /dev/stdin with checked-in #print axioms set",
+    "axiom_policy": {
+      "allowed_exactly": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "forbidden": [
+        "sorryAx",
+        "any additional axiom"
+      ]
+    },
+    "theorems": [
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.spacecraft_burn_certified_safe"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.spacecraft_burn_universal_safe"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.spacecraft_burn_certificate_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBurnWitness_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBurnWitness_universal_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBurnWitness_margin_bound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBranchesCert_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBranchesCert_universal_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBranchesCert_margin_bound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBranchCert_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBranchCert_universal_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkBranchCert_margin_bound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkOrbitSteps_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkOrbitSteps_margin_bound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checked_chain_state_safe"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checked_chain_state_margin_bound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.chain_state_at_exists"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checked_steps_nonvacuous"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checked_steps_compose"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.exists_classicalSolution_of_checkStep"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.orbitPostprocess_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.orbitalEccentricityFormula_eq_vector"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.intersection_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.supplied_inputs_covered"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.supplied_cutoff_time_covered"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.checkCutoffCoverage_sound"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.fieldEnclosed"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.burnField_contDiffOn_of_domain"
+      },
+      {
+        "axioms": [
+          "propext",
+          "Classical.choice",
+          "Quot.sound"
+        ],
+        "theorem": "JackalIv.Spacecraft.burnField_locallyLipschitzOn_of_domain"
+      }
+    ]
+  },
+  "schema": "jackal-spacecraft-burn-proof-identity-v1",
+  "source_closure": {
+    "aggregate_sha256": "264a51f852da4ec959ef747aba00ccac42c9e72fc2ab71a1f8a02ea3d7247943",
+    "definition": "Every repository-local transitive Lean import reachable from root_modules; external imports are bound through lake-manifest.json and named here.",
+    "external_imports": [
+      "Mathlib",
+      "Mathlib.Analysis.Calculus.ContDiff.RCLike",
+      "Mathlib.Analysis.Complex.Exponential",
+      "Mathlib.Analysis.ODE.ExistUnique",
+      "Mathlib.Analysis.ODE.PicardLindelof",
+      "Mathlib.Analysis.Real.Pi.Bounds",
+      "Mathlib.Analysis.Real.Sqrt",
+      "Mathlib.Analysis.SpecialFunctions.Sqrt",
+      "Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan",
+      "Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds",
+      "Mathlib.Data.Fin.Basic",
+      "Mathlib.Data.Int.Sqrt",
+      "Mathlib.Data.Rat.Floor"
+    ],
+    "files": [
+      {
+        "bytes": 11165,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Arith",
+        "path": "proofs/lean/JackalIv/Arith.lean",
+        "sha256": "2bc091be9dd47acae8d4b8af7b272827a3cea7b5ec08773566ad8fe40a12bf83"
+      },
+      {
+        "bytes": 27102,
+        "imports": [
+          "JackalIv.CertTypes",
+          "JackalIv.Gaussian",
+          "JackalIv.Transcend"
+        ],
+        "module": "JackalIv.CertCheck",
+        "path": "proofs/lean/JackalIv/CertCheck.lean",
+        "sha256": "02cec1630ed5f822f226155e0d4b7c1b62acf056826b03e5e8b191544789b6de"
+      },
+      {
+        "bytes": 54454,
+        "imports": [
+          "JackalIv.CertCheck"
+        ],
+        "module": "JackalIv.CertCodec",
+        "path": "proofs/lean/JackalIv/CertCodec.lean",
+        "sha256": "66ac121b53dd12ec395dbd88ddf16f726bf3afdb4946f1f4deabee8af001cd9d"
+      },
+      {
+        "bytes": 16791,
+        "imports": [
+          "JackalIv.Syntax"
+        ],
+        "module": "JackalIv.CertTypes",
+        "path": "proofs/lean/JackalIv/CertTypes.lean",
+        "sha256": "0f241bce34f817a1f415d9722d0c34652cb4f312b7261d842b4000b23d7b4139"
+      },
+      {
+        "bytes": 17004,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad",
+          "JackalIv.Arith",
+          "JackalIv.Monotone",
+          "JackalIv.Pow"
+        ],
+        "module": "JackalIv.Exact",
+        "path": "proofs/lean/JackalIv/Exact.lean",
+        "sha256": "a4c0f493b0d69b1a9756205d7b61f5852bde225a5fe532140ec178b97576ce28"
+      },
+      {
+        "bytes": 7290,
+        "imports": [
+          "JackalIv.Taylor",
+          "Mathlib.Analysis.Complex.Exponential"
+        ],
+        "module": "JackalIv.Gaussian",
+        "path": "proofs/lean/JackalIv/Gaussian.lean",
+        "sha256": "2aaaaa895141dab699f6cd936639948976e9560c07d015708e02545b02a045fe"
+      },
+      {
+        "bytes": 3704,
+        "imports": [
+          "Mathlib"
+        ],
+        "module": "JackalIv.Model",
+        "path": "proofs/lean/JackalIv/Model.lean",
+        "sha256": "81b13207259c86ccd816cf3d93dd70f11cc042722f2b42320b61ec7a301cb306"
+      },
+      {
+        "bytes": 6837,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Monotone",
+        "path": "proofs/lean/JackalIv/Monotone.lean",
+        "sha256": "87f262d6f0fb7d60b7ea1fdc716c95625c6131830aee0e2d5a45d62397533a8e"
+      },
+      {
+        "bytes": 4695,
+        "imports": [
+          "JackalIv.Model"
+        ],
+        "module": "JackalIv.Pad",
+        "path": "proofs/lean/JackalIv/Pad.lean",
+        "sha256": "82cce18646e2522695fec7c68796f9a60a85abc20b6bfe1c45dac8070578c5d1"
+      },
+      {
+        "bytes": 11388,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad",
+          "JackalIv.Arith"
+        ],
+        "module": "JackalIv.Pow",
+        "path": "proofs/lean/JackalIv/Pow.lean",
+        "sha256": "0d80581069c3934274ca4992c6c07867e10821c8fedc43ec6c6fedd6e0971332"
+      },
+      {
+        "bytes": 3236,
+        "imports": [
+          "JackalIv.Spacecraft.CertCodec",
+          "JackalIv.Spacecraft.Orbit"
+        ],
+        "module": "JackalIv.Spacecraft.CertCheck",
+        "path": "proofs/lean/JackalIv/Spacecraft/CertCheck.lean",
+        "sha256": "82c35b17d9e3326157c67383f9fdf81aff7e570af863e321165abfbd9a323cb9"
+      },
+      {
+        "bytes": 9147,
+        "imports": [
+          "JackalIv.CertCodec",
+          "JackalIv.Spacecraft.Types"
+        ],
+        "module": "JackalIv.Spacecraft.CertCodec",
+        "path": "proofs/lean/JackalIv/Spacecraft/CertCodec.lean",
+        "sha256": "d48192a6c7dc30b629972e4791e8064fb7c17b776c23299cff5429f30ae63a95"
+      },
+      {
+        "bytes": 1200,
+        "imports": [
+          "JackalIv.Spacecraft.CertSound"
+        ],
+        "module": "JackalIv.Spacecraft.CertMain",
+        "path": "proofs/lean/JackalIv/Spacecraft/CertMain.lean",
+        "sha256": "b1a7549da41ef2c61ddf1cf96037af0e42bc553223117acc219c4ed8f08fd391"
+      },
+      {
+        "bytes": 38631,
+        "imports": [
+          "JackalIv.Spacecraft.CertCheck"
+        ],
+        "module": "JackalIv.Spacecraft.CertSound",
+        "path": "proofs/lean/JackalIv/Spacecraft/CertSound.lean",
+        "sha256": "b528d9dd098a2b3b1a585227ba6ae1c765db66737b6764f29808369b6da8ac6a"
+      },
+      {
+        "bytes": 22042,
+        "imports": [
+          "Mathlib.Data.Rat.Floor",
+          "Mathlib.Data.Int.Sqrt",
+          "Mathlib.Analysis.Real.Sqrt",
+          "JackalIv.Arith",
+          "JackalIv.Spacecraft.Types"
+        ],
+        "module": "JackalIv.Spacecraft.Interval",
+        "path": "proofs/lean/JackalIv/Spacecraft/Interval.lean",
+        "sha256": "9abc6888dc330d819ac0bbf2d286d76d6f2ed4101a8a43d8f599e462b25bb773"
+      },
+      {
+        "bytes": 29628,
+        "imports": [
+          "JackalIv.Spacecraft.Picard"
+        ],
+        "module": "JackalIv.Spacecraft.Orbit",
+        "path": "proofs/lean/JackalIv/Spacecraft/Orbit.lean",
+        "sha256": "19298c2dd0b5f6b5b5eedbddd7def1f9d962bdb924ebd9bf5f5d4165d87c34fd"
+      },
+      {
+        "bytes": 38408,
+        "imports": [
+          "Mathlib.Analysis.ODE.PicardLindelof",
+          "JackalIv.Spacecraft.VectorField"
+        ],
+        "module": "JackalIv.Spacecraft.Picard",
+        "path": "proofs/lean/JackalIv/Spacecraft/Picard.lean",
+        "sha256": "d1a4fc5aa48ef0e82398bdfcdcf854488985663e82e5307978632fd7754d0470"
+      },
+      {
+        "bytes": 708,
+        "imports": [
+          "Mathlib.Data.Fin.Basic"
+        ],
+        "module": "JackalIv.Spacecraft.Types",
+        "path": "proofs/lean/JackalIv/Spacecraft/Types.lean",
+        "sha256": "5d3b6b4fa81160f2a9ac48495a39242f7b1100a8abdffcfdd712417e863a5232"
+      },
+      {
+        "bytes": 14315,
+        "imports": [
+          "Mathlib.Analysis.ODE.ExistUnique",
+          "Mathlib.Analysis.Calculus.ContDiff.RCLike",
+          "Mathlib.Analysis.SpecialFunctions.Sqrt",
+          "JackalIv.Spacecraft.Interval"
+        ],
+        "module": "JackalIv.Spacecraft.VectorField",
+        "path": "proofs/lean/JackalIv/Spacecraft/VectorField.lean",
+        "sha256": "085998b458d7ec6f7106700048861a76c88e1e9f9ae6edde9e7c274e14043760"
+      },
+      {
+        "bytes": 17044,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad",
+          "JackalIv.Arith",
+          "JackalIv.Monotone",
+          "JackalIv.Exact",
+          "JackalIv.Pow",
+          "JackalIv.Trig"
+        ],
+        "module": "JackalIv.Syntax",
+        "path": "proofs/lean/JackalIv/Syntax.lean",
+        "sha256": "552bf222b26a615b779a5f0c8abf44beb258609551b158ee3141729dedcf7651"
+      },
+      {
+        "bytes": 25406,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Taylor",
+        "path": "proofs/lean/JackalIv/Taylor.lean",
+        "sha256": "b3a5c2bbb8374b845624f13fc66b7cb8ad0bf0ca987c6b923631f3ea275febd2"
+      },
+      {
+        "bytes": 20215,
+        "imports": [
+          "JackalIv.Gaussian",
+          "Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds",
+          "Mathlib.Analysis.SpecialFunctions.Trigonometric.Arctan",
+          "Mathlib.Analysis.Real.Pi.Bounds"
+        ],
+        "module": "JackalIv.Transcend",
+        "path": "proofs/lean/JackalIv/Transcend.lean",
+        "sha256": "2fce308fdf161d6fc1edb3d41cb0148e6d8544ab0954a17a7c29ae915a7f1569"
+      },
+      {
+        "bytes": 24529,
+        "imports": [
+          "JackalIv.Model",
+          "JackalIv.Pad"
+        ],
+        "module": "JackalIv.Trig",
+        "path": "proofs/lean/JackalIv/Trig.lean",
+        "sha256": "c65e6db19679c0081d833d4a15cf9d46b4f73e395ed7564505fc0c2e586078d4"
+      }
+    ],
+    "local_construct_policy": {
+      "allowed_exact_source_lines": [],
+      "forbidden_by_default": [
+        "admit",
+        "axiom_declaration",
+        "extern",
+        "implemented_by",
+        "native_decide",
+        "partial",
+        "sorry",
+        "unsafe"
+      ]
+    },
+    "root_modules": [
+      "JackalIv.Spacecraft.CertMain"
+    ]
+  },
+  "toolchain": {
+    "configuration_files": [
+      {
+        "path": "proofs/lean/lakefile.toml",
+        "sha256": "48b4a93ddda8ea85bda3fe65ac2f94dc43d6629641cdaf7bead228ec26d90bfe"
+      },
+      {
+        "path": "proofs/lean/lake-manifest.json",
+        "sha256": "f521808691ba1ab175c5cdeec098a76586d345fea93370a38c2d2b73645f69d4"
+      },
+      {
+        "path": "proofs/lean/lean-toolchain",
+        "sha256": "2773c517aa90b66ea8a2c52bddddf84393157797f8341be0df45294fff7fd32e"
+      }
+    ],
+    "lake_version": "Lake version 5.0.0-src+8c9756b (Lean version 4.32.0)",
+    "lean": {
+      "build": "Release",
+      "commit": "8c9756b28d64dab099da31a4c09229a9e6a2ef35",
+      "version": "4.32.0"
+    },
+    "lean_toolchain": "leanprover/lean4:v4.32.0",
+    "manifest_packages": [
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "v4.32.0",
+        "manifest_file": "lake-manifest.json",
+        "name": "Cli",
+        "revision": "88679d088c9720c27ebdf2ba4dafe17341747f94",
+        "scope": "leanprover",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover/lean4-cli"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "LeanSearchClient",
+        "revision": "c5d5b8fe6e5158def25cd28eb94e4141ad97c843",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/LeanSearchClient"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "master",
+        "manifest_file": "lake-manifest.json",
+        "name": "Qq",
+        "revision": "38d591e778f100aec9762bb582f9c7f55f50e9dc",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/quote4"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "master",
+        "manifest_file": "lake-manifest.json",
+        "name": "aesop",
+        "revision": "a7dbf0c63b694e47f425f3dcddbc0e178bb432d3",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/aesop"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "batteries",
+        "revision": "023ce7d62a0531e22a5331e20b587817a80d49ff",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/batteries"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "importGraph",
+        "revision": "7e9612bf0b9ee66db3cb5b9988a35afc706f5a12",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/import-graph"
+      },
+      {
+        "config_file": "lakefile.lean",
+        "inherited": false,
+        "input_revision": "v4.32.0",
+        "manifest_file": "lake-manifest.json",
+        "name": "mathlib",
+        "revision": "81a5d257c8e410db227a6665ed08f64fea08e997",
+        "scope": "",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/mathlib4"
+      },
+      {
+        "config_file": "lakefile.toml",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "plausible",
+        "revision": "e12c1910fe855cbfc38803cd4e55543906d5fa62",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/plausible"
+      },
+      {
+        "config_file": "lakefile.lean",
+        "inherited": true,
+        "input_revision": "main",
+        "manifest_file": "lake-manifest.json",
+        "name": "proofwidgets",
+        "revision": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+        "scope": "leanprover-community",
+        "subdirectory": null,
+        "type": "git",
+        "url": "https://github.com/leanprover-community/ProofWidgets4"
+      }
+    ],
+    "mathlib_commit": "81a5d257c8e410db227a6665ed08f64fea08e997",
+    "package_checkout_policy": "Every git dependency is pinned to a full commit; replacement refs, grafts, alternates, index hiding flags, object corruption, and tracked-byte drift are rejected. Tracked symlinks must remain lexically confined to real package paths. Identity generation admits only open-once snapshots of tracked dependency bytes into a private fresh workspace and rebuilds without live caches.",
+    "verified_package_trees": [
+      {
+        "entry_count": 12,
+        "name": "Cli",
+        "revision": "88679d088c9720c27ebdf2ba4dafe17341747f94",
+        "tree_sha1": "01e0610ddf9e54ca91da432fe581922e7a513574",
+        "verified_worktree_sha256": "36a67726113a4159314163fb7b2e7d0aa410159a9df9a78d5bc4ff749e258f7e"
+      },
+      {
+        "entry_count": 15,
+        "name": "LeanSearchClient",
+        "revision": "c5d5b8fe6e5158def25cd28eb94e4141ad97c843",
+        "tree_sha1": "d0224b6df6c90cc0b4ed2db6218037d31bfd6f52",
+        "verified_worktree_sha256": "c0370b48ebe5daff29cea5c9b7ee3450546f09c625981169172cf00cb629854d"
+      },
+      {
+        "entry_count": 35,
+        "name": "Qq",
+        "revision": "38d591e778f100aec9762bb582f9c7f55f50e9dc",
+        "tree_sha1": "ac63804ee60bfa047d95aa3e216108cd6e0c25b0",
+        "verified_worktree_sha256": "426e2d7a722444bcb7b936920b46508e90c4386d707387e3eedb52f3474e2f03"
+      },
+      {
+        "entry_count": 259,
+        "name": "aesop",
+        "revision": "a7dbf0c63b694e47f425f3dcddbc0e178bb432d3",
+        "tree_sha1": "942d19cef97fc177e3ddd90fc4d5ceaf0d4d8b31",
+        "verified_worktree_sha256": "1ed3a51779d515051147b10d6fd39b5a9fa3125071194765c033776b2476e508"
+      },
+      {
+        "entry_count": 284,
+        "name": "batteries",
+        "revision": "023ce7d62a0531e22a5331e20b587817a80d49ff",
+        "tree_sha1": "11ebf7815665b26fabf3ad8c4e530975f498d26c",
+        "verified_worktree_sha256": "89f98b4596d7d5493c08dd7856bec04a2ca2b7f26cee770ab1364ef172505e53"
+      },
+      {
+        "entry_count": 56,
+        "name": "importGraph",
+        "revision": "7e9612bf0b9ee66db3cb5b9988a35afc706f5a12",
+        "tree_sha1": "1043219185d8e3def8b957b342c2df86f38d058e",
+        "verified_worktree_sha256": "5ace433a4ace4d8a9fc08c29fa4d3ee79dc703382879daa282ea8f1017ae11ab"
+      },
+      {
+        "entry_count": 8972,
+        "name": "mathlib",
+        "revision": "81a5d257c8e410db227a6665ed08f64fea08e997",
+        "tree_sha1": "5ea66b811b8461daae82f14d356fed2a287d7c40",
+        "verified_worktree_sha256": "14adff632b0577611906ab09b499cddfb6d29859dc1de583730d0c2fd7e53b5e"
+      },
+      {
+        "entry_count": 35,
+        "name": "plausible",
+        "revision": "e12c1910fe855cbfc38803cd4e55543906d5fa62",
+        "tree_sha1": "b477789560b0cd76cf3177b9cffa3aaa5cd54e6b",
+        "verified_worktree_sha256": "633a489f9e9c74a1cb1f3e630e821a6cb12788214862d4080df501f3ecb148d5"
+      },
+      {
+        "entry_count": 111,
+        "name": "proofwidgets",
+        "revision": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+        "tree_sha1": "bec90bac5dd8afade168e76c5b508482f9043b26",
+        "verified_worktree_sha256": "efdf5352cf3419cc0204bf44dedb13f5ef4b0f01b091f50c56be8ba3233f5cbf"
+      }
+    ]
+  }
+}

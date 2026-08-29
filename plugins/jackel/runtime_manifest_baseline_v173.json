@@ -1,0 +1,39 @@
+{
+  "name": "jackel",
+  "version": "0.1.0+codex.20260820135554",
+  "description": "Expose JACKAL's claim-aware computation, domain-pack, and program-evidence kernel to Codex.",
+  "author": {
+    "name": "Anubis Quantum Cipher",
+    "url": "https://github.com/AnubisQuantumCipher"
+  },
+  "homepage": "https://github.com/AnubisQuantumCipher/jackal",
+  "repository": "https://github.com/AnubisQuantumCipher/jackal",
+  "license": "MIT",
+  "keywords": [
+    "jackel",
+    "mathematics",
+    "numerical-trust",
+    "formal-verification",
+    "evidence",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "JACKAL",
+    "shortDescription": "Claim-aware computation with explicit evidence classes",
+    "longDescription": "Expose JACKAL's 41-tool v1.7.3 release runtime through Codex. The MCP adapter copies the parsed runtime result object into structuredContent unchanged; its only adapter-local tool result is status=refused reason=plugin-busy. Runtime result and assurance vocabulary: ok, exact, structural-exact, formal-bounded, bounded, checked, estimated, model-based, verified, verified-program-evidence, verified-program-receipt, indeterminate, and refused. Formal-bounded is limited to checker-admitted fragments; program evidence leaves construct-totality, source, and runtime residuals open. Requires Apple Silicon macOS and Python >=3.10 at /opt/homebrew/bin/python3 (install with brew install python).",
+    "developerName": "Anubis Quantum Cipher",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/AnubisQuantumCipher/jackal",
+    "defaultPrompt": [
+      "Classify and verify this numerical claim with JACKAL.",
+      "Find the strongest supported bound and refuse any silent downgrade.",
+      "Verify this receipt or claim bundle against my pinned expectations.",
+      "Verify this Anubis Safe program-evidence package without executing its artifact."
+    ]
+  }
+}

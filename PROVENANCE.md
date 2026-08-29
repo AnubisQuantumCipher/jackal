@@ -15,6 +15,22 @@ The v1.7.3 release binds an ordered 41-tool surface through
 GitHub asset, and read-back receipt must match those exact bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
+## Branch record — feat/linux-aarch64-host-support, 2026-08-29 — UNSEALED — Number Theory 1.0
+
+This is not a seal. It records unsealed branch work: the additive
+Number Theory 1.0 surface (`plugins/jackel/mcp/numbertheory.py`) adds ten
+identity-pinned `jackal_nt_*` MCP workflows — factorization, lcm, valuation,
+square decision, congruence, modular square roots, linear Diophantine
+equations, Pell equations, modular obstructions, and Vieta-jumping descent
+(the IMO 1988 P6 schema). Discovery is untrusted by design; every reported
+arithmetic claim is verified through delegated sealed-runtime calls
+(`jackal_exact`, `jackal_divides`, `jackal_xgcd`, `jackal_prime_cert`,
+`jackal_mod_pow`). The sealed 41-tool runtime is unchanged; the unified
+adapter surface is 68 tools. Design record:
+`docs/NUMBER_THEORY_1_0_DESIGN.md`; behavior battery:
+`tests/codex_plugin/test_numbertheory.py`; benchmark scenarios:
+`evals/mcp/jackal_number_theory_v1.xml`.
+
 ## v1.7.3 — unified domain-pack and Anubis program evidence — 2026-08-20 to 2026-08-22
 
 This release line starts from merged PR #11 commit

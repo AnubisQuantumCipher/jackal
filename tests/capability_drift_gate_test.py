@@ -85,7 +85,7 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
         result = DRIFT.verify_surface(ROOT)
         self.assertEqual(result["tool_count"], 41)
         self.assertEqual(result["unique_tool_count"], 41)
-        self.assertEqual(result["codex_tool_count"], 58)
+        self.assertEqual(result["codex_tool_count"], 68)
         self.assertEqual(result["package_epoch"], "v1.7.3")
 
     def test_historical_34_tool_fact_outside_current_contract_is_allowed(self) -> None:
@@ -134,7 +134,7 @@ class CapabilityDriftPositiveTest(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(
             completed.stdout.strip(),
-            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=58 package=v1.7.3",
+            "CAPABILITY_DRIFT_PASS tools=41 unique=41 codex=68 package=v1.7.3",
         )
 
 
@@ -227,8 +227,8 @@ class CapabilityDriftRefusalTest(unittest.TestCase):
             server = fixture.root / "plugins/jackel/mcp/server.py"
             source = self.replace_once(
                 server.read_text(encoding="utf-8"),
-                "EXPECTED_UNIFIED_TOOL_COUNT = 58",
-                "EXPECTED_UNIFIED_TOOL_COUNT = 57",
+                "EXPECTED_UNIFIED_TOOL_COUNT = 68",
+                "EXPECTED_UNIFIED_TOOL_COUNT = 67",
             )
             server.write_text(source, encoding="utf-8")
             with self.assertRaisesRegex(DRIFT.DriftError, "codex-tool-count"):

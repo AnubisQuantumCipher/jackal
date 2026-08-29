@@ -36,9 +36,9 @@ PLAN_PATH = (
 )
 APPROVED_SKILL_DESCRIPTION = (
     "Route evidence-aware CAS, graphing, THOTH measurement, exact-field "
-    "matrices, statistical models, sensors, aerospace workflows, linked views, "
-    "claim bundles, nonlinear certificates, and Anubis program evidence through "
-    "JACKAL without overstating assurance."
+    "matrices, statistical models, sensors, aerospace workflows, certified "
+    "number theory, linked views, claim bundles, nonlinear certificates, and "
+    "Anubis program evidence through JACKAL without overstating assurance."
 )
 
 
@@ -248,13 +248,17 @@ class PluginMetadataTests(unittest.TestCase):
             ],
         )
         expected_long_description = (
-            "Expose one unified 58-tool JACKAL surface through Codex: the sealed "
+            "Expose one unified 68-tool JACKAL surface through Codex: the sealed "
             "41-tool v1.7.3 release runtime, seven identity-pinned THOTH "
             "measurement/provenance tools, three identity-pinned CAS, graph, and "
-            "nonlinear-certificate tools, and seven identity-pinned STEM workflows "
+            "nonlinear-certificate tools, seven identity-pinned STEM workflows "
             "for matrices, regression, probability, hypothesis testing, supplied "
             "sensor batches, aerospace models, and a professional linked evidence "
-            "workspace. THOTH is a named JACKAL subsystem, never a separate server "
+            "workspace, and ten identity-pinned certified number-theory workflows "
+            "for factorization, lcm, valuations, squares, congruences, modular "
+            "square roots, linear Diophantine equations, Pell equations, modular "
+            "obstructions, and Vieta-jumping descent. THOTH is a named JACKAL "
+            "subsystem, never a separate server "
             "or arithmetic authority. Every reported numeric field in the additive "
             "workflows delegates to an admitted JACKAL lane; wrapper orchestration "
             "and UI rendering add no mathematical assurance. The adapter copies each "
@@ -276,7 +280,7 @@ class PluginMetadataTests(unittest.TestCase):
         )
         self.assertEqual(interface["longDescription"], expected_long_description)
         design = DESIGN_PATH.read_text(encoding="utf-8")
-        self.assertIn("unified 58-tool surface", design)
+        self.assertIn("unified 68-tool surface", design)
         self.assertIn("graph visualization", design)
 
         self.assertRegex(manifest["version"], r"^0\.1\.0\+codex\.\d{14}$")
@@ -295,7 +299,8 @@ class PluginMetadataTests(unittest.TestCase):
             [
                 "jackel", "thoth", "mathematics", "computer-algebra",
                 "graphing", "linked-views", "matrices", "regression",
-                "probability", "sensors", "aerospace", "symbolic-algebra",
+                "probability", "sensors", "aerospace", "number-theory",
+                "diophantine", "symbolic-algebra",
                 "numerical-trust", "formal-verification", "evidence", "mcp",
             ],
         )
@@ -385,6 +390,7 @@ class PluginMetadataTests(unittest.TestCase):
             "mcp/measurement.py",
             "mcp/advanced.py",
             "mcp/stem.py",
+            "mcp/numbertheory.py",
             "mcp/hellgate_verify.py",
             "mcp/certificates/README.md",
             "mcp/certificates/hellgate_v1.json.zlib",
@@ -413,7 +419,9 @@ class PluginMetadataTests(unittest.TestCase):
         text = README_PATH.read_text(encoding="utf-8")
         for required in (
             "41-tool",
-            "58-tool",
+            "68-tool",
+            "jackal_nt_factor",
+            "jackal_nt_vieta_descent",
             "THOTH",
             "jackal_graph",
             "jackal_hellgate_ground_state",

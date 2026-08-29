@@ -43,7 +43,8 @@ EXPECTED_TOOL_COUNT = 41
 EXPECTED_MEASUREMENT_TOOL_COUNT = 7
 EXPECTED_ADVANCED_TOOL_COUNT = 3
 EXPECTED_STEM_TOOL_COUNT = 7
-EXPECTED_UNIFIED_TOOL_COUNT = 58
+EXPECTED_NUMBER_THEORY_TOOL_COUNT = 10
+EXPECTED_UNIFIED_TOOL_COUNT = 68
 MEASUREMENT_TOOL_NAMES = frozenset(
     {
         "jackal_compare",
@@ -108,6 +109,29 @@ STEM_KERNEL_TOOLS = frozenset(
         "jackal_integrate_adaptive",
         "jackal_ln_rat_bound",
         "jackal_sqrt_rat_bound",
+    }
+)
+NUMBER_THEORY_TOOL_NAMES = frozenset(
+    {
+        "jackal_nt_congruence",
+        "jackal_nt_factor",
+        "jackal_nt_is_square",
+        "jackal_nt_lcm",
+        "jackal_nt_linear_diophantine",
+        "jackal_nt_mod_obstruction",
+        "jackal_nt_pell",
+        "jackal_nt_sqrt_mod",
+        "jackal_nt_valuation",
+        "jackal_nt_vieta_descent",
+    }
+)
+NUMBER_THEORY_KERNEL_TOOLS = frozenset(
+    {
+        "jackal_divides",
+        "jackal_exact",
+        "jackal_mod_pow",
+        "jackal_prime_cert",
+        "jackal_xgcd",
     }
 )
 TOOL_TIMEOUT_SECONDS = 3600.0
@@ -441,6 +465,19 @@ def build_stem_tool_definitions(module: ModuleType) -> tuple[dict[str, Any], ...
         expected_names=STEM_TOOL_NAMES,
         expected_count=EXPECTED_STEM_TOOL_COUNT,
         label="stem",
+    )
+
+
+def build_number_theory_tool_definitions(
+    module: ModuleType,
+) -> tuple[dict[str, Any], ...]:
+    """Validate the pinned certified number-theory workflow surface."""
+    return _build_integrated_tool_definitions(
+        module,
+        exported_name="NUMBER_THEORY_TOOL_NAMES",
+        expected_names=NUMBER_THEORY_TOOL_NAMES,
+        expected_count=EXPECTED_NUMBER_THEORY_TOOL_COUNT,
+        label="number-theory",
     )
 
 
@@ -1657,6 +1694,8 @@ class MCPServer:
         advanced_identity: str | None = None,
         stem_module: ModuleType | None = None,
         stem_identity: str | None = None,
+        number_theory_module: ModuleType | None = None,
+        number_theory_identity: str | None = None,
     ) -> None:
         if (
             tool_timeout <= 0
@@ -1768,6 +1807,28 @@ class MCPServer:
             raise ValueError("STEM definitions have no pinned dispatcher")
         self.stem_module = stem_module
         self.stem_identity = stem_identity
+        if number_theory_module is None:
+            if number_theory_identity is not None:
+                raise ValueError("number-theory identity has no module")
+            self._number_theory_tools = frozenset()
+        else:
+            if (
+                not isinstance(number_theory_identity, str)
+                or re.fullmatch(r"[0-9a-f]{64}", number_theory_identity) is None
+            ):
+                raise ValueError("number-theory module identity is invalid")
+            module_names = getattr(
+                number_theory_module, "NUMBER_THEORY_TOOL_NAMES", None
+            )
+            if module_names != NUMBER_THEORY_TOOL_NAMES:
+                raise ValueError("number-theory module names are invalid")
+            self._number_theory_tools = NUMBER_THEORY_TOOL_NAMES
+        if self._number_theory_tools - set(self._tools):
+            raise ValueError("number-theory module definitions are missing")
+        if number_theory_module is None and set(self._tools) & NUMBER_THEORY_TOOL_NAMES:
+            raise ValueError("number-theory definitions have no pinned dispatcher")
+        self.number_theory_module = number_theory_module
+        self.number_theory_identity = number_theory_identity
         self._backend_lock = asyncio.Lock()
         self._active: dict[str | int, _CallState] = {}
         self._closed = False
@@ -2030,6 +2091,8 @@ class MCPServer:
                 return await self._invoke_advanced(state, name, arguments)
             if name in self._stem_tools:
                 return await self._invoke_stem(state, name, arguments)
+            if name in self._number_theory_tools:
+                return await self._invoke_number_theory(state, name, arguments)
             return await self._invoke_backend(state, name, arguments)
         finally:
             self._backend_lock.release()
@@ -2216,6 +2279,49 @@ class MCPServer:
             raise BackendFailure("STEM dispatcher returned a non-object")
         return value
 
+    def _invoke_number_theory_sync(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        module = self.number_theory_module
+        identity = self.number_theory_identity
+        if module is None or identity is None:
+            raise BackendFailure("number-theory dispatcher is unavailable")
+        dispatcher = getattr(module, "dispatch_integrated", None)
+        refusal_type = getattr(module, "Refusal", None)
+        if not callable(dispatcher) or not isinstance(refusal_type, type):
+            raise BackendFailure("number-theory dispatcher API changed")
+
+        def kernel_call(tool: str, delegated_arguments: dict[str, Any]) -> dict[str, Any]:
+            if tool not in NUMBER_THEORY_KERNEL_TOOLS:
+                raise refusal_type(
+                    "kernel-tool-forbidden",
+                    f"number-theory orchestration requested unauthorized runtime tool {tool!r}",
+                )
+            if not isinstance(delegated_arguments, dict):
+                raise refusal_type(
+                    "kernel-error",
+                    "number-theory orchestration produced invalid arguments",
+                )
+            try:
+                return self._invoke_backend_sync(state, tool, delegated_arguments)
+            except CallCancelled:
+                raise
+            except BackendTimedOut as error:
+                raise refusal_type(
+                    "kernel-timeout",
+                    "the JACKAL runtime timed out; no number-theory-side arithmetic was substituted",
+                ) from error
+            except BackendFailure as error:
+                raise refusal_type(
+                    "kernel-unavailable",
+                    "the JACKAL runtime failed closed; no number-theory-side arithmetic was substituted",
+                ) from error
+
+        value = dispatcher(name, arguments, kernel_call, identity)
+        if not isinstance(value, dict):
+            raise BackendFailure("number-theory dispatcher returned a non-object")
+        return value
+
     async def _run_sync_worker(
         self, operation: Callable[[], dict[str, Any]]
     ) -> dict[str, Any]:
@@ -2333,6 +2439,36 @@ class MCPServer:
         worker = asyncio.create_task(
             self._run_sync_worker(
                 lambda: self._invoke_stem_sync(state, name, arguments)
+            )
+        )
+        state.worker = worker
+        try:
+            return await self._await_worker_result(worker)
+        except asyncio.CancelledError:
+            state.cancelled.set()
+            runner = state.runner
+            if runner is not None:
+                runner.cancel()
+            while not worker.done():
+                try:
+                    await asyncio.wait(
+                        {worker}, timeout=THREAD_WORKER_POLL_SECONDS,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            raise
+        finally:
+            state.worker = None
+
+    async def _invoke_number_theory(
+        self, state: _CallState, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
+        worker = asyncio.create_task(
+            self._run_sync_worker(
+                lambda: self._invoke_number_theory_sync(state, name, arguments)
             )
         )
         state.worker = worker
@@ -2568,6 +2704,26 @@ def build_production_server(
             raise StartupError("STEM tool or resource surface refused") from error
     elif require_integrated_modules:
         raise StartupError("plugin identity omits the STEM module")
+
+    number_theory_module: ModuleType | None = None
+    number_theory_identity: str | None = None
+    number_theory_definitions: tuple[dict[str, Any], ...] = ()
+    if "mcp/numbertheory.py" in inventory:
+        number_theory_module = _load_verified_module(
+            root,
+            "mcp/numbertheory.py",
+            "jackel_codex_numbertheory",
+            inventory,
+        )
+        number_theory_identity = _record_digest(inventory, "mcp/numbertheory.py")
+        try:
+            number_theory_definitions = build_number_theory_tool_definitions(
+                number_theory_module
+            )
+        except Exception as error:
+            raise StartupError("number-theory tool surface refused") from error
+    elif require_integrated_modules:
+        raise StartupError("plugin identity omits the number-theory module")
     if provisioner is None:
         provisioner = cast(
             _ProvisionerAPI,
@@ -2634,6 +2790,7 @@ def build_production_server(
             + measurement_definitions
             + advanced_definitions
             + stem_definitions
+            + number_theory_definitions
         )
         expected_surface_count = EXPECTED_TOOL_COUNT
         if measurement_module is not None:
@@ -2642,10 +2799,13 @@ def build_production_server(
             expected_surface_count += EXPECTED_ADVANCED_TOOL_COUNT
         if stem_module is not None:
             expected_surface_count += EXPECTED_STEM_TOOL_COUNT
+        if number_theory_module is not None:
+            expected_surface_count += EXPECTED_NUMBER_THEORY_TOOL_COUNT
         if (
             measurement_module is not None
             and advanced_module is not None
             and stem_module is not None
+            and number_theory_module is not None
             and expected_surface_count != EXPECTED_UNIFIED_TOOL_COUNT
         ):
             raise StartupError("unified tool surface constant is inconsistent")
@@ -2682,6 +2842,8 @@ def build_production_server(
             advanced_identity=advanced_identity,
             stem_module=stem_module,
             stem_identity=stem_identity,
+            number_theory_module=number_theory_module,
+            number_theory_identity=number_theory_identity,
         )
     except Exception as error:
         cleanup_error: Exception | None = None

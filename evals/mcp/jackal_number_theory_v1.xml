@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evaluation>
+  <qa_pair>
+    <question>Run the Vieta-jumping descent workflow on the positive pair a = 30, b = 112. Require the verdict quotient-is-square, require every descent step's product and invariant checks to be the kernel zero, and report only the certified square root of the quotient (a^2+b^2)/(a*b+1).</question>
+    <answer>2</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Run the Vieta-jumping descent workflow on a = 8, b = 57. Report only the returned verdict token, exactly as the tool prints it.</question>
+    <answer>not-a-solution</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified factorization workflow on n = 561. Require a sealed-runtime Pratt certificate for every listed prime and a zero recomposition check, then report only the largest certified prime factor.</question>
+    <answer>17</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified lcm workflow on a = 462 and b = 1071. Require the Bezout gcd certificate and a zero gcd*lcm identity check, then report only the certified lcm.</question>
+    <answer>23562</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified p-adic valuation workflow to compute v_2(40320). Require the kernel-verified decomposition n = p^v * cofactor with a non-divisible cofactor, then report only the valuation.</question>
+    <answer>7</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified square-decision workflow on n = 1234567654321. If the verdict is square, report only the certified root.</question>
+    <answer>1111111</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified congruence workflow to decide whether 123456789 and 987654321 are congruent modulo 9. Report only the returned congruent field token.</question>
+    <answer>true</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified modular square-root workflow on a = 2, p = 7. Require a sealed-runtime square certificate for each root and report the two roots in ascending order separated by one comma.</question>
+    <answer>3,4</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified linear Diophantine workflow on 1027*x + 712*y = 1. Require the Bezout certificate, a zero particular-solution check, and a zero homogeneous-step check, then report only the returned verdict token.</question>
+    <answer>solvable</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified Pell workflow on d = 61. Require a zero kernel identity check for x^2 - 61*y^2 = 1 and report only the fundamental x. Preserve the checked (not exact) fundamentality labeling in your working; it must not be promoted.</question>
+    <answer>1766319049</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the modular obstruction workflow on the polynomial x^2 + y^2 - 3 with modulus 4 and variables x,y. Require all sixteen residue classes to be kernel-decided and report only the returned verdict token.</question>
+    <answer>obstruction</answer>
+  </qa_pair>
+</evaluation>

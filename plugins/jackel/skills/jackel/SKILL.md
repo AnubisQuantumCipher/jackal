@@ -1,6 +1,6 @@
 ---
 name: jackel
-description: Route evidence-aware CAS, graphing, THOTH measurement, exact-field matrices, statistical models, sensors, aerospace workflows, linked views, claim bundles, nonlinear certificates, and Anubis program evidence through JACKAL without overstating assurance.
+description: Route evidence-aware CAS, graphing, THOTH measurement, exact-field matrices, statistical models, sensors, aerospace workflows, certified number theory, linked views, claim bundles, nonlinear certificates, and Anubis program evidence through JACKAL without overstating assurance.
 ---
 
 # JACKAL + THOTH numerical-trust operator
@@ -8,9 +8,10 @@ description: Route evidence-aware CAS, graphing, THOTH measurement, exact-field 
 <!-- JACKAL_CURRENT_SURFACE_V1_BEGIN -->
 The v1.7.3 sealed runtime exposes the ordered 41-tool inventory recorded in
 `release/capability_inventory_v1.json`. The identity-pinned wrapper adds seven
-THOTH measurement/provenance tools, three CAS/graph/certificate tools, and
-seven additive STEM workflow tools, so clients see one 58-tool JACKAL MCP
-surface. THOTH is a named JACKAL subsystem, not a standalone entity or server.
+THOTH measurement/provenance tools, three CAS/graph/certificate tools, seven
+additive STEM workflow tools, and ten certified number-theory workflow tools,
+so clients see one 68-tool JACKAL MCP surface. THOTH is a named JACKAL
+subsystem, not a standalone entity or server.
 Treat the generated inventory as the
 sealed-runtime capability/status source and the identity-pinned wrapper modules
 as the source for their additions. The release tag, package receipt, and asset
@@ -72,6 +73,28 @@ and preserve the exact assurance boundary returned by the runtime.
   inspector, sensor-dock, and evidence-route views. The HTML resource is
   digest-bound, but SVG geometry, browser sensor display, sampling, and pixels
   are not mathematical or measurement evidence.
+- Use the `jackal_nt_*` number-theory workflows for certified Diophantine
+  work. Their discovery layer (trial division, Pollard rho, Tonelli-Shanks,
+  continued fractions, Vieta jumping, residue scans) is untrusted by design;
+  every reported arithmetic claim is verified by delegated sealed-runtime
+  calls, and refusals are answers:
+  - `jackal_nt_factor`: per-factor Pratt certificates plus a kernel-checked
+    recomposition identity; refuses on budget instead of guessing.
+  - `jackal_nt_lcm`, `jackal_nt_valuation`, `jackal_nt_is_square`,
+    `jackal_nt_congruence`: structured divisibility objects whose verdicts,
+    witnesses, and range checks are kernel-decided.
+  - `jackal_nt_sqrt_mod`: kernel-certified modular square roots or a
+    kernel-certified Euler non-residue witness over a certified prime.
+  - `jackal_nt_linear_diophantine`: Bezout-certified solvability with a
+    kernel-checked particular solution and homogeneous step, or a
+    kernel-verified gcd obstruction.
+  - `jackal_nt_pell`: kernel-checked Pell identity; fundamentality is `exact`
+    only when exhaustively verified, otherwise labeled `checked` cf-derived.
+  - `jackal_nt_mod_obstruction`: every residue class decided by the sealed
+    runtime, yielding a verified obstruction certificate or solvable witness.
+  - `jackal_nt_vieta_descent`: the IMO 1988 P6 schema; every descent state,
+    companion root, and the terminal square identity are kernel-checked. It
+    certifies the supplied instance, never the universal theorem.
 - Use `jackal_convert`, `jackal_rate_apply`, `jackal_percent`,
   `jackal_date_delta`, `jackal_stat`, `jackal_compare`, and `jackal_scan` for
   THOTH measurement/provenance work. They are part of JACKAL's single MCP

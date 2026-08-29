@@ -7,9 +7,9 @@ installed with `--tarball`; Linux/x86_64 remains unpinned and refuses rather
 than borrowing another host's bytes. Its sealed runtime contract is the ordered 41-tool inventory in
 `release/capability_inventory_v1.json`; the package receipt and downloaded
 release asset must bind the same exact bytes. The identity-pinned adapter adds
-seven THOTH measurement/provenance tools and three CAS/graph/certificate
-tools plus seven additive STEM workflow tools, producing one unified 58-tool
-JACKAL MCP surface. THOTH is a named
+seven THOTH measurement/provenance tools, three CAS/graph/certificate tools,
+seven additive STEM workflow tools, and ten certified number-theory workflow
+tools, producing one unified 68-tool JACKAL MCP surface. THOTH is a named
 JACKAL subsystem; there is no second entity, process, or measurement server.
 
 The MCP server is a transport adapter. It loads schemas from the admitted
@@ -59,9 +59,10 @@ cd /absolute/path/to/the/installed/jackel/plugin
 codex mcp list --json
 ```
 
-Require exactly 58 unique JACKAL tool names: 41 sealed-runtime tools, seven
-identity-pinned THOTH tools, three identity-pinned advanced tools, and seven
-identity-pinned STEM workflow tools. The MCP
+Require exactly 68 unique JACKAL tool names: 41 sealed-runtime tools, seven
+identity-pinned THOTH tools, three identity-pinned advanced tools, seven
+identity-pinned STEM workflow tools, and ten identity-pinned number-theory
+workflow tools. The MCP
 working directory must be bound to the installed plugin copy. Python 3.10 or newer at
 `/opt/homebrew/bin/python3` (macOS) or `/usr/bin/python3` (Linux) is the
 supported prerequisite; the launcher accepts any of its three fixed absolute
@@ -112,6 +113,19 @@ atomic no-replace rename symbol. It never searches caller `PATH`.
   table, inspector, sensor-dock, and evidence-route views. Its self-contained
   HTML is digest-bound and available through MCP resources. The UI, Web Serial
   display, sampled curve, and pixels add no assurance.
+- Use the `jackal_nt_*` certified number-theory workflows for structured
+  Diophantine work: `jackal_nt_factor` (per-factor Pratt certificates plus a
+  kernel-checked recomposition identity), `jackal_nt_lcm`,
+  `jackal_nt_valuation`, `jackal_nt_is_square`, `jackal_nt_congruence`
+  (kernel-decided divisibility objects), `jackal_nt_sqrt_mod`
+  (kernel-certified roots or Euler non-residue witnesses),
+  `jackal_nt_linear_diophantine` (Bezout-certified solvability or a
+  kernel-verified gcd obstruction), `jackal_nt_pell` (kernel-checked Pell
+  identities with honestly graded fundamentality), `jackal_nt_mod_obstruction`
+  (every residue class kernel-decided), and `jackal_nt_vieta_descent` (the
+  IMO 1988 P6 schema with every descent state kernel-checked). Discovery
+  (Pollard rho, Tonelli-Shanks, continued fractions, Vieta jumping) is
+  untrusted by design; a budget refusal is an answer, never a guess.
 - Use `jackal_convert`, `jackal_rate_apply`, `jackal_percent`,
   `jackal_date_delta`, `jackal_stat`, `jackal_compare`, and `jackal_scan` for
   THOTH measurement/provenance work. Preserve `exact-given` as exact arithmetic

@@ -40,6 +40,7 @@ CODEX_PLUGIN_IDENTITY_FILES = (
     "mcp/certificates/hellgate_v1.json.zlib",
     "mcp/hellgate_verify.py",
     "mcp/measurement.py",
+    "mcp/numbertheory.py",
     "mcp/server.py",
     "mcp/stem.py",
     "scripts/launch_mcp.sh",
@@ -414,6 +415,7 @@ def _verify_codex_adapter(
             "EXPECTED_MEASUREMENT_TOOL_COUNT",
             "EXPECTED_ADVANCED_TOOL_COUNT",
             "EXPECTED_STEM_TOOL_COUNT",
+            "EXPECTED_NUMBER_THEORY_TOOL_COUNT",
             "EXPECTED_UNIFIED_TOOL_COUNT",
         },
     )
@@ -425,12 +427,18 @@ def _verify_codex_adapter(
         )
     groups = _python_frozenset_constants(
         server_path,
-        {"MEASUREMENT_TOOL_NAMES", "ADVANCED_TOOL_NAMES", "STEM_TOOL_NAMES"},
+        {
+            "MEASUREMENT_TOOL_NAMES",
+            "ADVANCED_TOOL_NAMES",
+            "STEM_TOOL_NAMES",
+            "NUMBER_THEORY_TOOL_NAMES",
+        },
     )
     count_bindings = {
         "MEASUREMENT_TOOL_NAMES": "EXPECTED_MEASUREMENT_TOOL_COUNT",
         "ADVANCED_TOOL_NAMES": "EXPECTED_ADVANCED_TOOL_COUNT",
         "STEM_TOOL_NAMES": "EXPECTED_STEM_TOOL_COUNT",
+        "NUMBER_THEORY_TOOL_NAMES": "EXPECTED_NUMBER_THEORY_TOOL_COUNT",
     }
     additive_names: set[str] = set()
     for group_name, count_name in count_bindings.items():

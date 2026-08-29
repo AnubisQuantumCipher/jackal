@@ -544,6 +544,38 @@ divisor, never a probabilistic verdict labeled exact.  General symbolic
 simplification and equality outside these fragments remain refused, exactly
 as before.
 
+### Number Theory 1.0 — certified Diophantine workflows (additive MCP surface)
+
+The MCP adapter layers ten identity-pinned `jackal_nt_*` workflows over the
+sealed exact lanes (`plugins/jackel/mcp/numbertheory.py`; design record in
+`docs/NUMBER_THEORY_1_0_DESIGN.md`). The split is deliberate, following
+de Bruijn's criterion: an **untrusted discovery layer** (trial division,
+Pollard rho, Tonelli-Shanks, continued fractions, Vieta jumping, residue
+scans) proposes, and the **sealed runtime verifies** every reported claim
+through delegated `jackal_exact` / `jackal_divides` / `jackal_xgcd` /
+`jackal_prime_cert` / `jackal_mod_pow` calls — Python never becomes a second
+arithmetic authority.
+
+- `jackal_nt_factor` — per-factor Pratt certificates plus a kernel-checked
+  `n = sign * prod(p^e)` recomposition; budget refusals instead of guesses.
+- `jackal_nt_lcm`, `jackal_nt_valuation`, `jackal_nt_is_square`,
+  `jackal_nt_congruence` — structured divisibility objects with kernel-decided
+  verdicts, witnesses, and range checks.
+- `jackal_nt_sqrt_mod` — kernel-certified modular square roots, or a
+  kernel-certified Euler non-residue witness, over a certified prime.
+- `jackal_nt_linear_diophantine` — Bezout-certified solvability with a
+  kernel-checked particular solution and homogeneous step, or a kernel-verified
+  gcd obstruction.
+- `jackal_nt_pell` — kernel-checked `x^2 - d*y^2 = 1` with honestly graded
+  fundamentality (`exact` only after exhaustive kernel-checked minimality).
+- `jackal_nt_mod_obstruction` — every residue class decided by the sealed
+  runtime; an exhaustive obstruction certificate or a verified witness.
+- `jackal_nt_vieta_descent` — the IMO 1988 Problem 6 proof schema: the full
+  Vieta-jumping descent chain with every companion root, product identity,
+  state invariant, and the terminal `k = root^2` kernel-checked. One descent
+  certifies its instance; the universal theorem remains a schema, and the
+  result says so.
+
 ## v1.7.2: request-bound certified bound_step composition (additive)
 
 v1.7.0 introduced the composed-integral artifact checker, but that checker

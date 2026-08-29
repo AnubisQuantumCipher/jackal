@@ -59,6 +59,7 @@ def codex_additive_names() -> set[str]:
         codex_adapter.MEASUREMENT_TOOL_NAMES
         | codex_adapter.ADVANCED_TOOL_NAMES
         | codex_adapter.STEM_TOOL_NAMES
+        | codex_adapter.NUMBER_THEORY_TOOL_NAMES
     )
 
 
@@ -104,7 +105,7 @@ def assert_router_contract(
         case.assertIn("41-tool", block)
         case.assertIn("release/capability_inventory_v1.json", block)
         if allow_codex_additions:
-            case.assertIn("58-tool", block)
+            case.assertIn("68-tool", block)
     for stale in STALE_CURRENT:
         case.assertNotIn(stale, lower, (path, stale))
 

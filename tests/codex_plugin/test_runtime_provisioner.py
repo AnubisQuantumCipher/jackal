@@ -1051,7 +1051,10 @@ class RuntimeProvisionerTests(unittest.TestCase):
             with mock.patch.object(
                 provisioner.tempfile, "gettempdir", return_value=str(lexical)
             ):
-                self.assertEqual(provisioner._snapshot_parent_path(None), physical)
+                self.assertEqual(
+                    provisioner._snapshot_parent_path(None),
+                    physical.resolve(strict=True),
+                )
                 self.assertEqual(
                     provisioner.reap_orphaned_runtime_snapshots(
                         current_boot_id="fixture-boot",

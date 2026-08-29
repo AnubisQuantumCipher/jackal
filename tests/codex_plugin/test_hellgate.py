@@ -17,6 +17,7 @@ CERTIFICATE_PATH = (
     REPO_ROOT / "plugins/jackel/mcp/certificates/hellgate_v1.json.zlib"
 )
 CHECKER_PATH = REPO_ROOT / "plugins/jackel/mcp/hellgate_verify.py"
+PLUGIN_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/jackal-codex-plugin.yml"
 
 
 def canonical_bytes(value):
@@ -108,6 +109,17 @@ class HellgateCertificateTests(unittest.TestCase):
                 for item in self.oracle["non_claims"]
             )
         )
+
+    def test_hosted_oracle_dependency_is_content_pinned(self):
+        workflow = PLUGIN_WORKFLOW_PATH.read_text(encoding="utf-8")
+        for token in (
+            "mpmath-1.3.0-py3-none-any.whl",
+            "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c",
+            'MPMATH_WHEEL_SIZE: "536198"',
+            '--max-filesize "$MPMATH_WHEEL_SIZE"',
+            "mpmath wheel digest mismatch",
+        ):
+            self.assertIn(token, workflow)
 
     def test_ground_transfer_is_narrow_bounded_and_does_not_launder_moments(self):
         fields = self.result["fields"]

@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  spark-platinum-interval:
-    name: SPARK Platinum interval decision kernel
+  spark-platinum-components:
+    name: SPARK Platinum functional kernels
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -31,6 +31,11 @@ jobs:
         run: |
           proofs/spark/hellgate_interval/prove.sh
           python3 -B -m unittest tests.codex_plugin.test_spark_interval -v
+
+      - name: Prove and exhaustively refine the claim policy kernel
+        run: |
+          proofs/spark/claim_policy/prove.sh
+          python3 -B -m unittest tests.claim_policy_conformance_test -v
 
   lean-proof-and-axioms:
     name: Gaussian/range source closures and axiom audits

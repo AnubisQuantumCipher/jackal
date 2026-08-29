@@ -9,7 +9,7 @@ BASELINE = ROOT / "assurance/requirements.json"
 
 
 class AssuranceTraceabilityTests(unittest.TestCase):
-    """JCK-INT-001 through JCK-INT-004 and whole-surface closure regression."""
+    """JCK-INT and JCK-CLAIM bidirectional whole-surface closure regression."""
 
     def test_traceability_and_surface_closure_gate(self) -> None:
         completed = subprocess.run(

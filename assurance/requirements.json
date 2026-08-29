@@ -18,6 +18,17 @@
         "JCK-INT-004"
       ],
       "boundary": "Total fixed-scale nonnegative interval decision kernel; certificate parsing, rational-to-fixed-scale conversion, nonlinear analysis, compiler, runtime, operating system, and hardware are outside this component."
+    },
+    {
+      "component": "proofs/spark/claim_policy/src/jackal_claim_policy",
+      "target": "SPARK Platinum",
+      "status": "proved-local",
+      "requirement_ids": [
+        "JCK-CLAIM-001",
+        "JCK-CLAIM-002",
+        "JCK-CLAIM-003"
+      ],
+      "boundary": "Total finite assurance-axis and rule-category algebra; Python parsing, rule identifier classification, node construction, hashing, rendering, compiler, runtime, operating system, and hardware are outside this component. Exhaustive bridge tests cover the current finite Python registries but are not a formal Python refinement proof."
     }
   ],
   "requirements": [
@@ -75,6 +86,48 @@
       "verification": [
         "proofs/spark/hellgate_interval/prove.sh",
         "tests/codex_plugin/test_spark_interval.py"
+      ],
+      "residuals": []
+    },
+    {
+      "id": "JCK-CLAIM-001",
+      "shall": "The SPARK claim policy kernel shall return the registry-defined canonical meet for every pair of mathematical, provenance, model-validity, and implementation classes; the mathematical meet shall be commutative, associative, and idempotent.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/claim_policy/src/jackal_claim_policy.ads"
+      ],
+      "verification": [
+        "proofs/spark/claim_policy/prove.sh",
+        "tests/claim_policy_conformance_test.py"
+      ],
+      "residuals": []
+    },
+    {
+      "id": "JCK-CLAIM-002",
+      "shall": "The SPARK claim policy kernel shall apply the exact preservation, interval-arithmetic, and derived-rule behavior for every mathematical and implementation class without ever strengthening either input axis.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/claim_policy/src/jackal_claim_policy.ads"
+      ],
+      "verification": [
+        "proofs/spark/claim_policy/prove.sh",
+        "tests/claim_policy_conformance_test.py"
+      ],
+      "residuals": []
+    },
+    {
+      "id": "JCK-CLAIM-003",
+      "shall": "The SPARK claim policy kernel shall preserve each artifact-evidence flag exactly when both parent flags carry it for every pair of artifact flag records.",
+      "method": "spark-platinum",
+      "status": "proved",
+      "allocation": [
+        "proofs/spark/claim_policy/src/jackal_claim_policy.ads"
+      ],
+      "verification": [
+        "proofs/spark/claim_policy/prove.sh",
+        "tests/claim_policy_conformance_test.py"
       ],
       "residuals": []
     }

@@ -80,7 +80,7 @@ jobs:
           set -e
           printf '%s\n' "$output"
           test "$status" -eq 1
-          printf '%s\n' "$output" | grep -q "no published release asset for host linux-aarch64"
+          printf '%s\n' "$output" | grep -q "pinned runtime is not installed"
 
   macos-arm64-plugin:
     name: macOS arm64 plugin gates

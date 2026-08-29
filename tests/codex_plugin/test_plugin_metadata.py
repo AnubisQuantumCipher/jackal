@@ -670,6 +670,15 @@ class PluginMetadataTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, smoke_block)
 
+    def test_hosted_linux_smoke_requires_the_current_pinned_runtime_refusal(self):
+        source = WORKFLOW_PATH.read_text(encoding="utf-8")
+        linux_job = source.split("linux-aarch64-plugin:", 1)[1].split(
+            "macos-arm64-plugin:", 1
+        )[0]
+        self.assertIn('test "$status" -eq 1', linux_job)
+        self.assertIn('grep -q "pinned runtime is not installed"', linux_job)
+        self.assertNotIn("no published release asset", linux_job)
+
     def test_load_json_rejects_duplicate_keys(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             duplicate_json = Path(temporary_directory) / "duplicate.json"

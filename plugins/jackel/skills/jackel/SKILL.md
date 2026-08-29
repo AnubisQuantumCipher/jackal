@@ -9,9 +9,9 @@ description: Route evidence-aware CAS, graphing, THOTH measurement, exact-field 
 The v1.7.3 sealed runtime exposes the ordered 41-tool inventory recorded in
 `release/capability_inventory_v1.json`. The identity-pinned wrapper adds seven
 THOTH measurement/provenance tools, three CAS/graph/certificate tools, seven
-additive STEM workflow tools, and ten certified number-theory workflow tools,
-so clients see one 68-tool JACKAL MCP surface. THOTH is a named JACKAL
-subsystem, not a standalone entity or server.
+additive STEM workflow tools, ten certified number-theory workflow tools, and
+six engineering workflow tools, so clients see one 74-tool JACKAL MCP surface.
+THOTH is a named JACKAL subsystem, not a standalone entity or server.
 Treat the generated inventory as the
 sealed-runtime capability/status source and the identity-pinned wrapper modules
 as the source for their additions. The release tag, package receipt, and asset
@@ -95,6 +95,21 @@ and preserve the exact assurance boundary returned by the runtime.
   - `jackal_nt_vieta_descent`: the IMO 1988 P6 schema; every descent state,
     companion root, and the terminal square identity are kernel-checked. It
     certifies the supplied instance, never the universal theorem.
+- Use `jackal_complex` for exact Gaussian-rational arithmetic; the modulus
+  carries an exact square plus a Lean-checked formal-bounded enclosure.
+- Use `jackal_poly_solve` for certified equation solving over Q[x]:
+  kernel-verified rational roots, the sealed Sturm isolation certificate,
+  kernel-certified squarefreeness, and honestly graded rational-root-search
+  completeness. Unmatched intervals are claimed irrational only under a
+  complete enumeration.
+- Use `jackal_routh_stability` for Routh-Hurwitz tables with kernel-exact
+  entries. Marginal zero-pivot cases refuse; the verdict concerns the supplied
+  polynomial, never a physical system.
+- Use `jackal_circuit`, `jackal_beam`, and `jackal_chem` for ideal lumped
+  circuits, Euler-Bernoulli beam cases, and chemistry models (IUPAC 2021
+  molar masses, SI-exact ideal gas, dilution, pH enclosures). They are
+  model-based with declared assumptions and an advisory ceiling; exact fields
+  and formal-bounded enclosures never certify a physical design.
 - Use `jackal_convert`, `jackal_rate_apply`, `jackal_percent`,
   `jackal_date_delta`, `jackal_stat`, `jackal_compare`, and `jackal_scan` for
   THOTH measurement/provenance work. They are part of JACKAL's single MCP

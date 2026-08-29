@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evaluation>
+  <qa_pair>
+    <question>Use the exact complex workflow to multiply (3+4i) by (1-2i). Report the result as re,im with kernel-exact components.</question>
+    <answer>11,-2</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the exact complex workflow to compute the modulus of 3+4i. Require the exact modulus squared and report only that field.</question>
+    <answer>25</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified polynomial solver on (x^2-2)*(x-3). Require a complete rational-root search, then report only the single kernel-verified rational root.</question>
+    <answer>3</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the certified polynomial solver on (x^2-2)*(x-3). Under the complete rational-root enumeration, report only the certified count of irrational real roots.</question>
+    <answer>2</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Run Routh-Hurwitz stability on x^3+6*x^2+11*x+6. Every table entry must be kernel-exact. Report only the verdict token.</question>
+    <answer>stable</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Run Routh-Hurwitz stability on x^3+4*x^2+x-6. Report only the kernel-grounded count of right-half-plane roots.</question>
+    <answer>1</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Run Routh-Hurwitz stability on x^2+1. Report only the named refusal reason (marginal cases must refuse, never use an epsilon heuristic).</question>
+    <answer>routh-singular</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the ideal circuit workflow to combine 6 ohm and 3 ohm resistors in parallel. Report only the kernel-exact equivalent resistance in ohms.</question>
+    <answer>2</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the Euler-Bernoulli beam workflow for a cantilever with an end point load: length 3, elastic modulus 5, second moment 7, point load 2 (consistent units). Report only the exact maximum deflection as a reduced rational.</question>
+    <answer>18/35</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the chemistry workflow to compute the exact molar mass of H2O from the declared IUPAC 2021 table. Report only the exact rational value in g/mol.</question>
+    <answer>3603/200</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Use the chemistry pH-enclosure workflow with hydrogen-ion concentration 1/10000000 mol/L. Confirm both logarithm enclosures are checker-accepted formal-bounded receipts and that the composed bounded pH interval contains 7. Output True if all conditions hold; otherwise output False.</question>
+    <answer>True</answer>
+  </qa_pair>
+</evaluation>

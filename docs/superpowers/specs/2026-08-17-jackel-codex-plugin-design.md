@@ -14,8 +14,9 @@ The current v1.7.3 release exposes the ordered 41-tool catalog recorded in
 ref `d25bcd9818e0d106f337798f80527ae611cc3acc`. The annotated tag, GitHub
 release, package receipt, and downloaded asset must bind the same bytes. The
 identity-pinned Codex wrapper adds seven THOTH measurement/provenance tools,
-three CAS/graph/certificate tools, seven STEM workflow tools, and ten certified
-number-theory workflow tools, yielding one unified 68-tool surface. THOTH is a
+three CAS/graph/certificate tools, seven STEM workflow tools, ten certified
+number-theory workflow tools, and six engineering workflow tools, yielding one
+unified 74-tool surface. THOTH is a
 named JACKAL subsystem and never a second service or arithmetic authority.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
@@ -124,7 +125,7 @@ backend. It locates a separately sealed runtime and invokes the unchanged
 - `mcpServers`: `./.mcp.json`
 - `interface.displayName`: `JACKAL + THOTH`
 - `interface.shortDescription`: `Evidence-aware CAS, graphing, and integrated measurement`
-- `interface.longDescription`: names the unified 68-tool surface, THOTH's
+- `interface.longDescription`: names the unified 74-tool surface, THOTH's
   in-process identity, delegated CAS semantics, the graph visualization
   boundary, the HELLGATE `bounded` boundary, and the requirement to preserve
   statuses, assumptions, identities, route traces, consequence ceilings,

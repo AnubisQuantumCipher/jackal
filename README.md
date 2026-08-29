@@ -576,6 +576,33 @@ arithmetic authority.
   certifies its instance; the universal theorem remains a schema, and the
   result says so.
 
+### STEM engineering — certified workflows across mathematics and engineering (additive MCP surface)
+
+Six further identity-pinned workflows (`plugins/jackel/mcp/engineering.py`;
+design record in `docs/STEM_ENGINEERING_DESIGN.md`) extend the same
+discovery/verification split across engineering STEM:
+
+- `jackal_complex` — exact Gaussian-rational arithmetic; the modulus carries
+  an exact square plus a Lean-checked formal-bounded enclosure.
+- `jackal_poly_solve` — certified equation solving over Q[x]: kernel-verified
+  rational roots placed in sealed Sturm isolating intervals, kernel-certified
+  squarefreeness, and honestly graded rational-root-search completeness
+  (unmatched intervals are claimed irrational only under complete
+  enumeration).
+- `jackal_routh_stability` — Routh-Hurwitz tables with every entry
+  kernel-exact; marginal zero-pivot cases refuse instead of epsilon
+  heuristics; the verdict concerns the polynomial, never a physical system.
+- `jackal_circuit` — ideal lumped circuits: exact series/parallel/divider,
+  time constants, DC power; resonant omega and RLC impedance magnitude carry
+  Lean-checked sqrt enclosures and the phase a Lean-checked atan enclosure.
+- `jackal_beam` — closed-form Euler-Bernoulli cases with exact deflection,
+  moment, and reactions inside a declared idealized model (advisory ceiling,
+  never a design certification).
+- `jackal_chem` — kernel-exact molar masses over the declared IUPAC 2021
+  atomic-weight table, ideal-gas solving with the SI-exact gas constant,
+  dilution, and pH intervals composed from Lean-checked ln enclosures
+  (labeled `bounded`, never promoted).
+
 ## v1.7.2: request-bound certified bound_step composition (additive)
 
 v1.7.0 introduced the composed-integral artifact checker, but that checker

@@ -26,6 +26,7 @@ from plugins.jackel.mcp import advanced
 from plugins.jackel.mcp import measurement
 from plugins.jackel.mcp import stem
 from plugins.jackel.mcp import numbertheory
+from plugins.jackel.mcp import engineering
 from plugins.jackel.scripts import provision_runtime as real_provisioner
 
 
@@ -2255,6 +2256,7 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
         inventory = {
             "mcp/advanced.py": "d" * 64,
             "mcp/certificates/hellgate_v1.json.zlib": "f" * 64,
+            "mcp/engineering.py": "3" * 64,
             "mcp/hellgate_verify.py": "e" * 64,
             "mcp/measurement.py": "c" * 64,
             "mcp/numbertheory.py": "2" * 64,
@@ -2307,6 +2309,7 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
                     checker_module,
                     stem,
                     numbertheory,
+                    engineering,
                     self.provisioner,
                 ),
             ) as loader,
@@ -2353,6 +2356,10 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
                     "jackel_codex_numbertheory", inventory,
                 ),
                 mock.call(
+                    plugin_root, "mcp/engineering.py",
+                    "jackel_codex_engineering", inventory,
+                ),
+                mock.call(
                     plugin_root, "scripts/provision_runtime.py",
                     "jackel_codex_provision_runtime", inventory,
                 ),
@@ -2367,7 +2374,8 @@ class MCPAdapterProductionResolutionTests(unittest.TestCase):
             + adapter.EXPECTED_MEASUREMENT_TOOL_COUNT
             + adapter.EXPECTED_ADVANCED_TOOL_COUNT
             + adapter.EXPECTED_STEM_TOOL_COUNT
-            + adapter.EXPECTED_NUMBER_THEORY_TOOL_COUNT,
+            + adapter.EXPECTED_NUMBER_THEORY_TOOL_COUNT
+            + adapter.EXPECTED_ENGINEERING_TOOL_COUNT,
         )
         asyncio.run(server.close())
 

@@ -103,8 +103,9 @@ not claimed by any single computation.
   `plugins/jackel/PLUGIN_IDENTITY.sha256` and loaded only after digest
   verification.
 - Adapter: `NUMBER_THEORY_TOOL_NAMES` / `NUMBER_THEORY_KERNEL_TOOLS` /
-  `EXPECTED_NUMBER_THEORY_TOOL_COUNT = 10`; unified surface is 68 tools
-  (41 sealed + 7 measurement + 3 advanced + 7 STEM + 10 number theory).
+  `EXPECTED_NUMBER_THEORY_TOOL_COUNT = 10`; unified surface is 74 tools
+  (41 sealed + 7 measurement + 3 advanced + 7 STEM + 10 number theory +
+  6 engineering).
 - Gates: `tools/capability_drift_gate.py` binds the group constants, the
   identity roster, and the doc surfaces; `tests/codex_plugin/test_numbertheory.py`
   carries the behavior battery; `evals/mcp/jackal_number_theory_v1.xml` carries

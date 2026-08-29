@@ -8,8 +8,9 @@ than borrowing another host's bytes. Its sealed runtime contract is the ordered 
 `release/capability_inventory_v1.json`; the package receipt and downloaded
 release asset must bind the same exact bytes. The identity-pinned adapter adds
 seven THOTH measurement/provenance tools, three CAS/graph/certificate tools,
-seven additive STEM workflow tools, and ten certified number-theory workflow
-tools, producing one unified 68-tool JACKAL MCP surface. THOTH is a named
+seven additive STEM workflow tools, ten certified number-theory workflow
+tools, and six engineering workflow tools, producing one unified 74-tool
+JACKAL MCP surface. THOTH is a named
 JACKAL subsystem; there is no second entity, process, or measurement server.
 
 The MCP server is a transport adapter. It loads schemas from the admitted
@@ -59,10 +60,10 @@ cd /absolute/path/to/the/installed/jackel/plugin
 codex mcp list --json
 ```
 
-Require exactly 68 unique JACKAL tool names: 41 sealed-runtime tools, seven
+Require exactly 74 unique JACKAL tool names: 41 sealed-runtime tools, seven
 identity-pinned THOTH tools, three identity-pinned advanced tools, seven
-identity-pinned STEM workflow tools, and ten identity-pinned number-theory
-workflow tools. The MCP
+identity-pinned STEM workflow tools, ten identity-pinned number-theory
+workflow tools, and six identity-pinned engineering workflow tools. The MCP
 working directory must be bound to the installed plugin copy. Python 3.10 or newer at
 `/opt/homebrew/bin/python3` (macOS) or `/usr/bin/python3` (Linux) is the
 supported prerequisite; the launcher accepts any of its three fixed absolute
@@ -126,6 +127,17 @@ atomic no-replace rename symbol. It never searches caller `PATH`.
   IMO 1988 P6 schema with every descent state kernel-checked). Discovery
   (Pollard rho, Tonelli-Shanks, continued fractions, Vieta jumping) is
   untrusted by design; a budget refusal is an answer, never a guess.
+- Use `jackal_complex` for exact Gaussian-rational arithmetic with
+  formal-bounded modulus enclosures, `jackal_poly_solve` for certified Q[x]
+  equation solving (kernel-verified rational roots, sealed Sturm isolation,
+  kernel-certified squarefreeness, graded search completeness), and
+  `jackal_routh_stability` for Routh-Hurwitz tables whose entries are all
+  kernel-exact and whose marginal cases refuse.
+- Use `jackal_circuit`, `jackal_beam`, and `jackal_chem` for ideal circuit,
+  Euler-Bernoulli beam, and chemistry models (IUPAC 2021 molar masses,
+  SI-exact ideal gas constant, dilution, composed pH enclosures). Model-based
+  with declared assumptions and an advisory ceiling; never a design
+  certification.
 - Use `jackal_convert`, `jackal_rate_apply`, `jackal_percent`,
   `jackal_date_delta`, `jackal_stat`, `jackal_compare`, and `jackal_scan` for
   THOTH measurement/provenance work. Preserve `exact-given` as exact arithmetic

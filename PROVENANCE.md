@@ -15,7 +15,7 @@ The v1.7.3 release binds an ordered 41-tool surface through
 GitHub asset, and read-back receipt must match those exact bytes.
 <!-- JACKAL_CURRENT_SURFACE_V1_END -->
 
-## Branch record — feat/linux-aarch64-host-support, 2026-08-29 — UNSEALED — Number Theory 1.0
+## Branch record — feat/linux-aarch64-host-support, 2026-08-29 — UNSEALED — Number Theory 1.0 and STEM engineering
 
 This is not a seal. It records unsealed branch work: the additive
 Number Theory 1.0 surface (`plugins/jackel/mcp/numbertheory.py`) adds ten
@@ -25,8 +25,16 @@ equations, Pell equations, modular obstructions, and Vieta-jumping descent
 (the IMO 1988 P6 schema). Discovery is untrusted by design; every reported
 arithmetic claim is verified through delegated sealed-runtime calls
 (`jackal_exact`, `jackal_divides`, `jackal_xgcd`, `jackal_prime_cert`,
-`jackal_mod_pow`). The sealed 41-tool runtime is unchanged; the unified
-adapter surface is 68 tools. Design record:
+`jackal_mod_pow`). A second additive surface
+(`plugins/jackel/mcp/engineering.py`) adds six engineering workflows — exact
+complex arithmetic, a certified Q[x] polynomial solver, Routh-Hurwitz
+stability, ideal circuits, Euler-Bernoulli beams, and chemistry models over
+the declared IUPAC 2021 atomic-weight table — with the same delegation
+discipline plus Lean-checked sqrt/ln/atan enclosures where an admitted
+checker exists (`docs/STEM_ENGINEERING_DESIGN.md`,
+`tests/codex_plugin/test_engineering.py`,
+`evals/mcp/jackal_engineering_v1.xml`). The sealed 41-tool runtime is
+unchanged; the unified adapter surface is 74 tools. Design record:
 `docs/NUMBER_THEORY_1_0_DESIGN.md`; behavior battery:
 `tests/codex_plugin/test_numbertheory.py`; benchmark scenarios:
 `evals/mcp/jackal_number_theory_v1.xml`.

@@ -71,8 +71,9 @@ class ClaimPolicyConformanceTests(unittest.TestCase):
         self.assertIn("function Apply_Rule_Caps", text)
         self.assertIn("function Meet_Artifact", text)
         self.assertIn("Post =>", text)
-        self.assertNotIn("pragma Assume", text)
-        self.assertNotIn("pragma Annotate", text)
+        lowered = text.lower()
+        self.assertNotIn("pragma assume", lowered)
+        self.assertNotIn("pragma annotate", lowered)
 
     @unittest.skipUnless(
         shutil.which("gprbuild") and shutil.which("gnatprove") and shutil.which("rg"),

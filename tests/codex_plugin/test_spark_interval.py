@@ -1,11 +1,13 @@
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPARK_ROOT = REPO_ROOT / "proofs/spark/hellgate_interval"
+ASSUMPTION_GUARD = REPO_ROOT / "proofs/spark/reject_assumptions.sh"
 
 
 class SparkIntervalEnvelopeTests(unittest.TestCase):
@@ -24,8 +26,50 @@ class SparkIntervalEnvelopeTests(unittest.TestCase):
         self.assertIn("function Evaluate_Untrusted_Envelope", text)
         self.assertIn("Required_Verdict", text)
         self.assertIn("Post =>", text)
-        self.assertNotIn("pragma Assume", text)
-        self.assertNotIn("pragma Annotate", text)
+        lowered = text.lower()
+        self.assertNotIn("pragma assume", lowered)
+        self.assertNotIn("pragma annotate", lowered)
+
+    @unittest.skipUnless(shutil.which("rg"), "rg is not installed")
+    def test_assumption_guard_rejects_case_and_line_break_bypasses(self):
+        with tempfile.TemporaryDirectory() as raw_directory:
+            directory = Path(raw_directory)
+            source = directory / "guard_probe.adb"
+            source.write_text(
+                "procedure Guard_Probe is begin null; end Guard_Probe;\n",
+                encoding="utf-8",
+            )
+            accepted = subprocess.run(
+                [str(ASSUMPTION_GUARD), str(directory)],
+                cwd=REPO_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                accepted.returncode, 0, accepted.stdout + accepted.stderr
+            )
+
+            forbidden_pragmas = (
+                "pragma aSsUmE (True);",
+                "pragma\nAnNoTaTe (GNATprove, False_Positive, \"probe\");",
+            )
+            for forbidden in forbidden_pragmas:
+                with self.subTest(forbidden=forbidden):
+                    source.write_text(forbidden + "\n", encoding="utf-8")
+                    refused = subprocess.run(
+                        [str(ASSUMPTION_GUARD), str(directory)],
+                        cwd=REPO_ROOT,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                    transcript = refused.stdout + refused.stderr
+                    self.assertNotEqual(refused.returncode, 0, transcript)
+                    self.assertIn(
+                        "proof assumptions or justifications are forbidden",
+                        transcript,
+                    )
 
     @unittest.skipUnless(
         shutil.which("gprbuild") and shutil.which("gnatprove") and shutil.which("rg"),

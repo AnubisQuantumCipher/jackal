@@ -44,10 +44,7 @@ grep -q 'unit jackal_claim_policy' "$PROOF_REPORT" || {
     exit 1
 }
 
-if rg -n --glob '*.ad?' 'pragma[[:space:]]+(Assume|Annotate)' \
-    "$SCRIPT_DIR/src" "$SCRIPT_DIR/tests"; then
-    echo "refused: proof assumptions or justifications are forbidden" >&2
-    exit 1
-fi
+"$SCRIPT_DIR/../reject_assumptions.sh" \
+    "$SCRIPT_DIR/src" "$SCRIPT_DIR/tests"
 
 echo "SPARK_PLATINUM_CLAIM_POLICY_COMPONENT_PROOF_PASS"

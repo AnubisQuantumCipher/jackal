@@ -22,13 +22,15 @@ The artifact status class is pinned `bounded`: an accept never self-inflates —
 (request-commitment binding + TOCTOU executable identity), exactly like the
 existing range/gaussian checker lanes.
 -/
+import Lean.Data.Json.Parser
+import Lean.Data.Json.FromToJson
 import JackalIv.IntCertCodec
 import JackalIv.IntCertCheck
 import JackalIv.IntCertSound
 
 open JackalIv.IntCert
 
-def main (args : List String) : IO UInt32 := do
+def runArguments (args : List String) : IO UInt32 := do
   match args with
   | [path, rawExpr, rawLo, rawHi, rawTol] => do
       let text ← IO.FS.readFile path
@@ -52,3 +54,20 @@ def main (args : List String) : IO UInt32 := do
       IO.eprintln
         "usage: jackal_int_cert_check <artifact> <raw-expression> <lo> <hi> <tolerance>"
       return 2
+
+/-- A private file carries the same argument strings to the unchanged request
+binding decision. The legacy command-line interface remains available. -/
+def main (args : List String) : IO UInt32 := do
+  match args with
+  | ["--private-argv-json", path] =>
+      let text ← IO.FS.readFile path
+      let decoded : Except String (List String) := do
+        let value ← Lean.Json.parse text
+        let values ← value.getArr?
+        values.toList.mapM Lean.Json.getStr?
+      match decoded with
+      | .ok values => runArguments values
+      | .error _ =>
+          IO.eprintln "REFUSE reason=private-argv-schema"
+          pure 1
+  | _ => runArguments args

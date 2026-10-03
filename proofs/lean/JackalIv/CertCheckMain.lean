@@ -23,6 +23,8 @@ definitions — no `@[implemented_by]`, no `native_decide`, no re-implementation
 and release mode additionally runs the exact decision consumed by
 `request_bound_certified_release`.
 -/
+import Lean.Data.Json.Parser
+import Lean.Data.Json.FromToJson
 import JackalIv.CertRequest
 
 open JackalIv.Cert
@@ -56,7 +58,7 @@ def reject (e : String) : IO UInt32 := do
   (← IO.getStderr).putStrLn ("REJECT " ++ e)
   pure 1
 
-def main (args : List String) : IO UInt32 := do
+def runArguments (args : List String) : IO UInt32 := do
   match args with
   | [path, command, rawExpr, rawLo, rawHi] =>
       let input ← IO.FS.readFile path
@@ -85,3 +87,20 @@ def main (args : List String) : IO UInt32 := do
           pure 0
       | .error e => reject e
   | _ => reject "usage: jackal_cert_check <cert> range-bound-cert <expr> <canonical-lo> <canonical-hi>"
+
+/-- A private file carries the same argument strings to the unchanged request
+binding decision. The legacy command-line interface remains available. -/
+def main (args : List String) : IO UInt32 := do
+  match args with
+  | ["--private-argv-json", path] =>
+      let text ← IO.FS.readFile path
+      let decoded : Except String (List String) := do
+        let value ← Lean.Json.parse text
+        let values ← value.getArr?
+        values.toList.mapM Lean.Json.getStr?
+      match decoded with
+      | .ok values => runArguments values
+      | .error _ =>
+          IO.eprintln "REFUSE reason=private-argv-schema"
+          pure 1
+  | _ => runArguments args

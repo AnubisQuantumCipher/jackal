@@ -1055,11 +1055,6 @@ def dispatch_receipt(ctx: LegacyContext, payload: bytes,
                 selected.expected_proof_identity_digest]
         if "tolerance" in req:
             argv += ["--expected-tolerance", req["tolerance"]]
-        request_path = Path(td) / "request-argv.json"
-        request_path.write_text(json.dumps(argv[argv.index(str(ctx.receipt_verifier)) + 1:]), encoding="utf-8")
-        request_path.chmod(0o600)
-        argv = [sys.executable, "-I", "-S", "-B", str(ctx.receipt_verifier),
-                "--private-argv-json", str(request_path)]
         try:
             proc = subprocess.run(argv, capture_output=True, text=True,
                                   timeout=3600)
@@ -2449,21 +2444,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str]) -> int:
-    parser = build_parser()
-    if argv[:1] == ["--private-argv-json"]:
-        try:
-            if len(argv) != 2:
-                raise ValueError("private argv requires exactly one file")
-            with open(argv[1], "rb") as handle:
-                raw = handle.read(MAX_BUNDLE_BYTES + 1)
-            if len(raw) > MAX_BUNDLE_BYTES:
-                raise ValueError("private argv exceeds budget")
-            argv = strict_loads(raw, what="private argv")
-            if not isinstance(argv, list) or not all(isinstance(v, str) for v in argv):
-                raise ValueError("private argv must be a string array")
-        except (OSError, ValueError, Refusal):
-            parser.error("invalid private argument file")
-    args = parser.parse_args(argv)
+    args = build_parser().parse_args(argv)
     try:
         _root, lines = verify_bundle(args)
     except Refusal as refusal:

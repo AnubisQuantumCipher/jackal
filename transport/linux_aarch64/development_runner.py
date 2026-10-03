@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import fcntl
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -90,15 +91,16 @@ def call_guest(image: Path, selected: int, certificate: bytes, arguments: list[s
     manifest = json.loads((image / "development-manifest.json").read_bytes())
     if manifest.get("release_authorized") is not False:
         raise BrokerRefusal("not-development-fixture")
-    snapshots = []
-    for name, key in (("Image", "kernel_sha256"), ("guest.cpio.gz", "initramfs_sha256")):
-        data = (image / name).read_bytes()
-        if hashlib.sha256(data).hexdigest() != manifest[key]:
-            for fd in snapshots:
-                os.close(fd)
-            raise BrokerRefusal("fixture-drift")
-        snapshots.append(_snapshot(data))
-    command = ["/usr/bin/qemu-system-aarch64", "-no-user-config", "-nodefaults",
+    with ExitStack() as boot_inputs:
+        snapshots = []
+        for name, key in (("Image", "kernel_sha256"), ("guest.cpio.gz", "initramfs_sha256")):
+            data = (image / name).read_bytes()
+            if hashlib.sha256(data).hexdigest() != manifest[key]:
+                raise BrokerRefusal("fixture-drift")
+            fd = _snapshot(data)
+            boot_inputs.callback(os.close, fd)
+            snapshots.append(fd)
+        command = ["/usr/bin/qemu-system-aarch64", "-no-user-config", "-nodefaults",
                "-machine", "virt-11.1,accel=kvm,gic-version=3,dump-guest-core=off",
                "-cpu", "host", "-smp", "1", "-m", "2048",
                "-display", "none", "-monitor", "none", "-nic", "none",
@@ -106,15 +108,11 @@ def call_guest(image: Path, selected: int, certificate: bytes, arguments: list[s
                "-serial", "chardev:private", "-no-reboot",
                "-kernel", f"/proc/self/fd/{snapshots[0]}", "-initrd", f"/proc/self/fd/{snapshots[1]}",
                "-append", "rdinit=/init console=null quiet loglevel=0 panic=-1"]
-    deadline = time.monotonic() + timeout
-    try:
+        deadline = time.monotonic() + timeout
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, bufsize=0, start_new_session=True,
+                               stderr=subprocess.DEVNULL, bufsize=0, start_new_session=True,
                                pass_fds=snapshots, preexec_fn=_no_core,
                                env={"PATH": "/usr/bin", "LC_ALL": "C"})
-    finally:
-        for fd in snapshots:
-            os.close(fd)
     try:
         if _read_exact(process.stdout, 8, deadline) != b"JCKRDY1\n":
             raise BrokerRefusal("guest-start-protocol")

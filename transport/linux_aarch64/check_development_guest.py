@@ -40,7 +40,8 @@ def check(guest: Path, runtime: Path) -> list[dict]:
         for selected, context, checker_name, certificate, arguments, expression_index in contexts:
             checker = runtime / checker_name
             before = hashlib.sha256(checker.read_bytes()).hexdigest()
-            assert before == manifest["inputs"]["checkers/" + context]["sha256"]
+            if before != manifest["inputs"]["checkers/" + context]["sha256"]:
+                raise RuntimeError("fixture checker identity mismatch: " + context)
             certificate_path.write_bytes(certificate)
             for valid in (True, False):
                 actual_arguments = list(arguments)
@@ -49,14 +50,19 @@ def check(guest: Path, runtime: Path) -> list[dict]:
                 direct = subprocess.run([str(checker), str(certificate_path), *actual_arguments],
                                         capture_output=True, timeout=3600)
                 if valid:
-                    assert direct.returncode == 0 and direct.stdout.startswith(b"ACCEPT")
-                else:
-                    assert direct.returncode != 0
+                    if direct.returncode != 0 or not direct.stdout.startswith(b"ACCEPT"):
+                        raise RuntimeError("positive direct control did not accept: " + context)
+                elif direct.returncode == 0:
+                    raise RuntimeError("negative direct control did not refuse: " + context)
                 started = time.monotonic()
                 private = call_guest(guest, selected, certificate, actual_arguments)
-                assert (private.returncode, private.stdout, private.stderr) == (
-                    direct.returncode, direct.stdout, direct.stderr), context
-                assert hashlib.sha256(checker.read_bytes()).hexdigest() == before
+                if (private.returncode, private.stdout, private.stderr) != (
+                        direct.returncode, direct.stdout, direct.stderr):
+                    raise RuntimeError(json.dumps({"context": context, "comparison": "mismatch",
+                        "direct": {"returncode": direct.returncode, "stdout": repr(direct.stdout), "stderr": repr(direct.stderr)},
+                        "private": {"returncode": private.returncode, "stdout": repr(private.stdout), "stderr": repr(private.stderr)}}))
+                if hashlib.sha256(checker.read_bytes()).hexdigest() != before:
+                    raise RuntimeError("source checker changed during comparison: " + context)
                 rows.append({"context": context, "valid_request": valid,
                              "checker_sha256": before, "returncode": private.returncode,
                              "stdout_sha256": hashlib.sha256(private.stdout).hexdigest(),

@@ -1578,11 +1578,6 @@ def tool_jackal_verify_bundle(args: dict[str, Any]) -> dict[str, Any]:
                 argv += ["--trusted-producer", pin]
         argv += ["--trusted-producer", gaussian_producer_expected]
         argv += ["--trusted-producer", int_producer_expected]
-        request_path = Path(td) / "request-argv.json"
-        request_path.write_text(json.dumps(argv[argv.index(str(verifier_path)) + 1:]), encoding="utf-8")
-        request_path.chmod(0o600)
-        argv = [sys.executable, "-I", "-S", "-B", str(verifier_path),
-                "--private-argv-json", str(request_path)]
         try:
             proc = subprocess.run(argv, capture_output=True, text=True,
                                   timeout=3600)

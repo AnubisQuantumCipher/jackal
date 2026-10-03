@@ -718,12 +718,6 @@ def verify_receipt(*, receipt: dict, checker: str, expected_evaluator: str,
                 req["command"], req["expression"], req["canonical_lo"],
                 req["canonical_hi"],
             ])
-        if not is_gaussian:
-            request_path = os.path.join(td, "request-argv.json")
-            with open(request_path, "w", encoding="utf-8") as handle:
-                json.dump(checker_argv[1:], handle)
-            os.chmod(request_path, 0o600)
-            checker_argv = [chk_real, "--private-argv-json", request_path]
         try:
             cproc = subprocess.run(
                 checker_argv, capture_output=True, text=False, timeout=3600
@@ -1267,14 +1261,16 @@ def _verify_int_cert_receipt(*, receipt: dict, checker: str,
             os.write(fd, cert_bytes)
         finally:
             os.close(fd)
-        request_path = os.path.join(td, "request-argv.json")
-        with open(request_path, "w", encoding="utf-8") as handle:
-            json.dump([cert_path, req["expression"], req["canonical_lo"],
-                       req["canonical_hi"], req["canonical_tolerance"]], handle)
-        os.chmod(request_path, 0o600)
         try:
             cproc = subprocess.run(
-                [chk_real, "--private-argv-json", request_path],
+                [
+                    chk_real,
+                    cert_path,
+                    req["expression"],
+                    req["canonical_lo"],
+                    req["canonical_hi"],
+                    req["canonical_tolerance"],
+                ],
                 capture_output=True,
                 text=False,
                 timeout=3600,
@@ -1481,21 +1477,7 @@ def _cli() -> int:
                     help="caller-pinned internal proof identity digest")
     ap.add_argument("--expected-plugin", default=None,
                     help="optional plugin binary SHA-256 to bind (Hermes plugin path)")
-    argv = sys.argv[1:]
-    if argv[:1] == ["--private-argv-json"]:
-        try:
-            if len(argv) != 2:
-                raise ValueError("private argv requires exactly one file")
-            with open(argv[1], "rb") as handle:
-                raw = handle.read(4 * 1024 * 1024 + 1)
-            if len(raw) > 4 * 1024 * 1024:
-                raise ValueError("private argv exceeds budget")
-            argv = _strict_json_bytes(raw)
-            if not isinstance(argv, list) or not all(isinstance(v, str) for v in argv):
-                raise ValueError("private argv must be a string array")
-        except (OSError, ValueError):
-            ap.error("invalid private argument file")
-    args = ap.parse_args(argv)
+    args = ap.parse_args()
     try:
         receipt = _strict_json_bytes(Path(args.receipt).read_bytes())
     except Exception as e:  # noqa: BLE001

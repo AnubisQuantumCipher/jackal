@@ -51,6 +51,32 @@ class PrivateTransportTests(unittest.TestCase):
                 if expression == "0": self.assertEqual(private.returncode, 0)
                 else: self.assertNotEqual(private.returncode, 0)
 
+    def test_range_request_binding_preserved(self):
+        produced = subprocess.run([sys.executable, "-I", "-S", "-B",
+            str(ROOT / "tools/sqrt_rat_producer.py"), "emit", "--expression", "sqrt(x)",
+            "--lower", "1", "--upper", "4"], capture_output=True, check=True, timeout=300)
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "range.cert"
+            artifact.write_bytes(produced.stdout)
+            executable = [str(BIN / "jackal_cert_check")]
+            for expression in ("sqrt(x)", "x"):
+                arguments = [str(artifact), "range-bound-cert", expression, "1", "4"]
+                direct = self.call(executable, arguments, False)
+                private = self.call(executable, arguments, True)
+                self.assertEqual((private.returncode, private.stdout, private.stderr),
+                                 (direct.returncode, direct.stdout, direct.stderr))
+                if expression == "sqrt(x)": self.assertEqual(private.returncode, 0)
+                else: self.assertNotEqual(private.returncode, 0)
+
+    def test_python_private_schema_refuses_non_string_arguments(self):
+        for script in ("receipt_verify.py", "claim_bundle_verify.py"):
+            executable = [sys.executable, "-I", "-S", "-B", str(ROOT / "tools" / script)]
+            for arguments in ({"expression": "x"}, [None], [True]):
+                result = self.call(executable, arguments, True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b"invalid private argument file", result.stderr)
+                self.assertNotIn(b"Traceback", result.stderr)
+
     def test_checker_private_schema_refuses_non_string_arguments(self):
         for name in ("jackal_cert_check", "jackal_int_cert_check"):
             for arguments in ({"expression": "x"}, [None], [True]):

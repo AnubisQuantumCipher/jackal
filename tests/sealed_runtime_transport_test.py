@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +18,17 @@ PUBLIC = b'{"jsonrpc":"2.0","id":"fixture","method":"jackal_verify_receipt","par
 
 
 class TransportTests(unittest.TestCase):
+    def test_unexpected_tail_is_rejected_after_one_byte(self):
+        read_fd, write_fd = os.pipe()
+        try:
+            os.write(write_fd, b'public-unexpected-tail')
+            with os.fdopen(read_fd, 'rb', buffering=0) as stream:
+                with self.assertRaisesRegex(runner.BrokerRefusal, 'guest-unexpected-tail'):
+                    runner._expect_eof(stream, time.monotonic() + 1)
+                self.assertEqual(os.read(stream.fileno(), 4096), b'ublic-unexpected-tail')
+        finally:
+            os.close(write_fd)
+
     def test_invalid_requests_refuse_before_reading_boot_files(self):
         for payload in (b'{}', PUBLIC.replace(b'"params":{}', b'"params":{},"params":{}'),
                         PUBLIC.replace(b'"fixture"', b'NaN'),

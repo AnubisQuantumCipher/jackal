@@ -109,9 +109,10 @@ The fixed disk profile uses modern virtio PCI with INTx (`vectors=0`); default
 MSI stalled in the development host boot control. The guest supplies a fixed
 local `HOME=/tmp` required by the original Python startup imports.
 
-The first whole-runtime controls matched original responses for a current range
-receipt and a request mismatch; a later fixture with the pinned archival layout
-matched a historical range receipt and wrong-epoch refusal. These are development
+Whole-runtime controls matched original responses for current and historical
+range receipts, request/epoch mismatches, and a current composed-integral receipt
+and request mismatch. The historical comparison includes the pinned archival
+layout on both sides. These are development
 observations, not a complete compatibility matrix. Rebuilt fixtures must rerun
 controls after broker/platform changes.
 

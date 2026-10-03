@@ -7,7 +7,9 @@ positive control, and Python optimization cannot remove evidence checks.
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -34,8 +36,8 @@ def result(process):
     return json.loads(process.stdout)['result']
 
 
-def compare(guest, runtime, name, params, expected):
-    payload = request('jackal_verify_receipt', params)
+def compare(guest, runtime, name, params, expected, method="jackal_verify_receipt"):
+    payload = request(method, params)
     original = direct(runtime, payload)
     observed = result(original)
     if observed.get('status') != expected:
@@ -90,6 +92,53 @@ def check(guest, runtime, selected):
         negative = copy.deepcopy(params)
         negative['expected_release_epoch'] = 'v1.7.2'
         compare(guest, runtime, 'archival-range-epoch-mismatch', negative, 'refused')
+    for case, tool, expression, tolerance, epoch, command in (
+        ('integral', 'jackal_integrate_bound_cert', '0', '2', 'v1.7.2', 'integrate-bound-cert'),
+        ('gaussian', 'jackal_gaussian_integral', 'exp(-10000000000*(x-0.5000123456789)^2)',
+         '1/1000000000000', 'v1.5.0', 'integrate')):
+        if selected not in ('all', case):
+            continue
+        produced = result(direct(runtime, request(tool, {'expression': expression,
+            'input_lo': '0', 'input_hi': '1', 'tolerance': tolerance})))
+        if produced.get('status') != 'formal-bounded' or not isinstance(produced.get('receipt'), dict):
+            raise RuntimeError('positive receipt generation failed: ' + repr(produced))
+        params = {'receipt': produced['receipt'], 'expected_release_epoch': epoch,
+            'expected_command': command, 'expected_expression': expression,
+            'expected_input_lo': '0', 'expected_input_hi': '1', 'expected_tolerance': tolerance}
+        compare(guest, runtime, case + '-accept', params, 'verified')
+        negative = copy.deepcopy(params)
+        negative['expected_expression'] = 'x'
+        compare(guest, runtime, case + '-request-mismatch', negative, 'refused')
+    if selected in ('all', 'bundle'):
+        root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(root / 'tools'))
+        spec = importlib.util.spec_from_file_location('public_bundle_helpers',
+            root / 'tests/claim_hostile_test.py')
+        helpers = importlib.util.module_from_spec(spec)
+        fixture_environment = {
+            'JACKAL_BIN': str(runtime / 'jackal-native'),
+            'JACKAL_V170_ARCHIVAL_RANGE_CHECKER': str(runtime / 'jackal_cert_check_v170'),
+            'JACKAL_V170_ARCHIVAL_RANGE_INVENTORY': str(runtime / 'evidence/formal_coverage_inventory_v170.json')}
+        previous = {key: os.environ.get(key) for key in fixture_environment}
+        try:
+            os.environ.update(fixture_environment)
+            spec.loader.exec_module(helpers)
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        node = helpers.input_node('x', '1', '2')
+        bundle = helpers.bundle_of([node], node['id'])
+        params = {'bundle': bundle, 'expected_release_epoch': bundle['release_epoch'],
+            'expected_policy_sha256': helpers.sha_hex(helpers.canon(bundle['policy'])),
+            'expected_root_proposition': node['proposition'],
+            'verification_time_unix': str(helpers.VTIME)}
+        compare(guest, runtime, 'bundle-input-accept', params, 'verified', 'jackal_verify_bundle')
+        negative = copy.deepcopy(params)
+        negative['expected_policy_sha256'] = '0' * 64
+        compare(guest, runtime, 'bundle-policy-mismatch', negative, 'refused', 'jackal_verify_bundle')
     if selected in ('all', 'current-range'):
         produced = result(direct(runtime, request('jackal_range_bound', {
             'expression': 'x^2+1', 'input_lo': '1', 'input_hi': '2'})))
@@ -108,6 +157,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--guest', type=Path, required=True)
     parser.add_argument('--runtime', type=Path, required=True)
-    parser.add_argument('--case', choices=('all', 'smoke', 'current-range', 'archival-range'), default='all')
+    parser.add_argument('--case', choices=('all', 'smoke', 'current-range', 'archival-range', 'integral', 'gaussian', 'bundle'), default='all')
     args = parser.parse_args()
     check(args.guest.resolve(), args.runtime.resolve(), args.case)

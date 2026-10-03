@@ -10,6 +10,7 @@ from contextlib import ExitStack
 import hashlib
 import json
 import os
+import selectors
 from pathlib import Path
 import struct
 import subprocess
@@ -27,6 +28,16 @@ def _pairs(pairs):
             raise BrokerRefusal("request-json-duplicate")
         result[key] = value
     return result
+
+
+def _expect_eof(stream, deadline):
+    with selectors.DefaultSelector() as selector:
+        selector.register(stream, selectors.EVENT_READ)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not selector.select(remaining):
+            raise BrokerRefusal("guest-shutdown-timeout")
+        if os.read(stream.fileno(), 1):
+            raise BrokerRefusal("guest-unexpected-tail")
 
 
 def replay(image: Path, request: bytes, timeout: float = 3600) -> subprocess.CompletedProcess:
@@ -93,16 +104,23 @@ def replay(image: Path, request: bytes, timeout: float = 3600) -> subprocess.Com
         _write_all(process.stdin, b"JKRACK1\n", deadline)
         if _read_exact(process.stdout, 8, deadline) != b"JKREND1\n":
             raise BrokerRefusal("guest-completion-protocol")
-        extra, _ = process.communicate(timeout=max(0, deadline - time.monotonic()))
-        if process.returncode != 0 or extra:
+        process.stdin.close()
+        _expect_eof(process.stdout, deadline)
+        process.wait(timeout=max(0, deadline - time.monotonic()))
+        if process.returncode != 0:
             raise BrokerRefusal("guest-shutdown")
         return subprocess.CompletedProcess(command, code, output, errors)
     except subprocess.TimeoutExpired:
         raise BrokerRefusal("guest-timeout") from None
     finally:
-        if process.poll() is None:
-            process.kill()
-        process.communicate()
         for stream in (process.stdin, process.stdout):
             if stream is not None:
                 stream.close()
+        if process.poll() is None:
+            process.kill()
+        # No cleanup path collects an untrusted output tail. Dedicated-process
+        # supervision and retained ownership on termination failure remain open.
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            raise BrokerRefusal("guest-termination-pending") from None
